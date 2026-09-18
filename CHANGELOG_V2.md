@@ -56,3 +56,39 @@
 - Local RETFound/PRISM and synthetic-mock providers remain the default and continue to work.
 - Lesion colors remain independent from UI semantic colors.
 - CVAT_TOKEN and REMOTE_MODEL_TOKEN remain environment-only; no secrets hardcoded or exposed.
+
+## 0.3.0 — 2026-09-18
+
+### Added
+- Single-repo, multi-runtime-profile architecture selected via `APP_PROFILE`:
+  - `review`     clinician workstation; UI, cases, review, CVAT, remote-proxy. Must not load weights.
+  - `model_api`  GPU deployment of the Remote Model API contract.
+  - `full`       both surfaces mounted together for public/synthetic demos.
+- `dr_support.app.create_app()` top-level dispatcher with strict profile/runtime invariants.
+- New `dr_support/services/model_api.py` implementing the Remote Model API contract:
+  - `GET /health`, `GET /v1/models`, `POST /v1/predict/dr`, `POST /v1/predict/lesions`.
+  - Bearer-token enforcement via `REMOTE_MODEL_TOKEN` (constant-time compare, never logged).
+  - Bridges existing `RETFound` and `PRISM` provider classes — no model code is duplicated.
+  - `/v1/predict/*` returns `503 ASSET_REQUIRED` until weights are configured on the GPU host.
+- New `Dockerfile` and `docker-entrypoint.sh` for Hugging Face Docker Space deployment
+  (Nvidia T4 small target; `APP_PROFILE=model_api`, `MODEL_RUNTIME=local`, `PORT=7860`).
+- 19 new tests in `tests/test_profiles.py` covering profile dispatch, invariants,
+  bearer enforcement, envelope validation, and an end-to-end review → model_api proxy smoke.
+
+### Changed
+- `dr_support/contracts.py` → `dr_support/contracts/` package (no public API change).
+- `dr_support/api.py` → `dr_support/api/` package (no public API change; `from dr_support.api import create_app` still works).
+- `pyproject.toml` bumped to `0.3.0` and now ships a `dr-support-run` console script.
+- `.env.example` reorganised into profile/runtime sections; new `APP_PROFILE`, `HOST`, `PORT`, `WORKERS` knobs.
+- `dr_support.run` now composes the right uvicorn command per profile and can be invoked as a module.
+
+### Preserved
+- V2 clinician UI unchanged.
+- `/v1/cases`, `/v1/infer/*`, `/v1/cases/{id}/review`, `/v1/cases/{id}/cvat/{send,sync}` contracts unchanged.
+- Persisted review state and CVAT round-trip semantics unchanged.
+- AI-vs-clinician overlay distinction and lesion overlay colors unchanged.
+- The remote provider adapter (M0 of the prior milestone) is unchanged and remains the
+  consumer of the new `model_api` surface.
+- Real GPU model code paths (`RETFound`, `PRISM`) are unchanged; they continue to load
+  weights only when configured and are reused by both the review and model_api surfaces.
+

@@ -1,34 +1,45 @@
-"""Provider-neutral API. Run with python -m uvicorn dr_support.api:app."""
+"""Review workstation FastAPI factory.
+
+Preserved from the V2 implementation. Routes the UI, cases, review state, CVAT
+integration, and the inference dispatcher (which transparently routes to local
+providers or the remote proxy based on ``MODEL_RUNTIME``).
+"""
 import os
 from pathlib import Path
 from threading import RLock
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from .store import Store
-from .workflow import install_workflow
-from .images import admitted_samples
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+
 from dr_support.contracts import InferenceRequest, GlobalResult, LesionResult
 from dr_support.providers.mock import infer_mock
-from .images import synthetic_image
-from dr_support.providers.retfound import RETFound
 from dr_support.providers.prism import PRISM
 from dr_support.providers.remote import (
-    RemoteModelProvider,
     RemoteGlobalProvider,
     RemoteLesionProvider,
     RemoteModelError,
+    RemoteModelProvider,
     RemoteTimeoutError,
 )
+from dr_support.providers.retfound import RETFound
+
+from ..images import admitted_samples, synthetic_image
+from ..store import Store
+from ..workflow import install_workflow
 
 
 def create_app(state_path=None, include_samples=True):
-    app = FastAPI(title='DR Support Screening POC', version='1.0')
+    app = FastAPI(title='DR Support Screening POC', version='0.3.0')
+    root = Path(__file__).resolve().parents[2]
+
     fixture = synthetic_image()
-    root = Path(__file__).resolve().parents[1]
     app.state.images = {fixture.image_id: fixture}
     if include_samples:
         app.state.images.update(admitted_samples(root))
-    store = Store(state_path or (os.environ.get('DR_SUPPORT_STATE') or str(root / 'local-state/bridge/reviews.sqlite')))
+    store = Store(state_path or (os.environ.get('DR_SUPPORT_STATE')
+                                 or str(root / 'local-state/bridge/reviews.sqlite')))
     install_workflow(app, store)
     inference_lock = RLock()
 
@@ -51,7 +62,7 @@ def create_app(state_path=None, include_samples=True):
         }
     else:
         app.state.remote_runtime = False
-        app.state.providers = {"retfound-aptos5": RETFound(), "prism-dr-5fold": PRISM()}
+        app.state.providers = {'retfound-aptos5': RETFound(), 'prism-dr-5fold': PRISM()}
 
     @app.get('/health')
     def health():
@@ -72,8 +83,8 @@ def create_app(state_path=None, include_samples=True):
         if request.modality != image.modality:
             raise HTTPException(422, 'Modality does not match admitted image')
         if request.model_id == 'mock-' + ('global' if task == 'global' else 'lesion'):
-            if image.source_type != "SYNTHETIC":
-                raise HTTPException(422, "Synthetic providers cannot infer on public images")
+            if image.source_type != 'SYNTHETIC':
+                raise HTTPException(422, 'Synthetic providers cannot infer on public images')
             result = infer_mock(request, image)
             save_result(request, task, result)
             return result
@@ -121,16 +132,10 @@ def create_app(state_path=None, include_samples=True):
     def lesion_inference(request: InferenceRequest):
         return infer(request, 'lesion-roi')
 
-    from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import RedirectResponse
-
-    @app.get("/")
+    @app.get('/')
     def home():
-        return RedirectResponse("/ui/index.html")
+        return RedirectResponse('/ui/index.html')
 
-    app.mount("/ui", StaticFiles(directory=str(root / "web")), name="ui")
+    app.mount('/ui', StaticFiles(directory=str(root / 'web')), name='ui')
     app.state.infer = infer
     return app
-
-
-app = create_app()

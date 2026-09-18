@@ -7,6 +7,9 @@ const path = require('node:path');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(),'dr-ui-'));
 const venvPython = path.resolve('.venv','Scripts','python.exe');
+// Spawn the legacy review-API entrypoint directly. This path honours
+// MODEL_RUNTIME without the new strict profile invariants so the historical
+// UI smoke (synthetic-only Analyze + correction flow) continues to pass.
 const server = spawn(venvPython,['-m','uvicorn','dr_support.api:app','--port','8011'],{
   env:{...process.env,DR_SUPPORT_STATE:path.join(tmp,'review.sqlite')},stdio:'ignore'});
 const base='http://127.0.0.1:8011';

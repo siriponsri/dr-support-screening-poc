@@ -70,9 +70,10 @@ The backend can proxy inference to a separately deployed Remote Model API
 without changing the UI, the persisted review state, or the CVAT round-trip.
 The local RETFound/PRISM providers remain the default; remote mode is opt-in.
 
-Required environment variables when `MODEL_RUNTIME=remote`:
+Required environment variables when `MODEL_PROFILE=review` + `MODEL_RUNTIME=remote`:
 
 ```text
+APP_PROFILE=review
 MODEL_RUNTIME=remote
 REMOTE_MODEL_URL=https://remote.example.invalid      # base URL of the deployed Remote Model API
 REMOTE_MODEL_TOKEN=                                  # optional Bearer token, environment only
@@ -80,7 +81,9 @@ REMOTE_MODEL_TOKEN=                                  # optional Bearer token, en
 
 Behavior:
 
-- The backend starts the same FastAPI app; only the provider classes change.
+- The same FastAPI factory powers all profiles; `dr_support.app.create_app`
+  dispatches on `APP_PROFILE` and cross-validates `MODEL_RUNTIME` (see
+  [PROFILES.md](PROFILES.md)).
 - `retfound-aptos5` and `prism-dr-5fold` are still the public `model_id` values
   requested by the UI — the proxy selects the appropriate remote endpoint.
 - The remote response MUST conform to Bridge v1 (`GlobalResult` /
@@ -93,9 +96,10 @@ Behavior:
 - Clear error mapping: remote timeout → `504`, remote 4xx/5xx → `502`,
   malformed response → `502`. Local-mode `503` path is preserved.
 
-For local development you can use the mocked transport in
-`tests/test_remote.py` as a working example; no real remote deployment ships
-in this repository.
+The shipped `Dockerfile` builds a single image that supports all three
+profiles; for the GPU deployment use `APP_PROFILE=model_api` and
+`MODEL_RUNTIME=local`. See [PROFILES.md](PROFILES.md) for the full matrix
+and HF Docker Space instructions.
 
 
 ## Review workflow

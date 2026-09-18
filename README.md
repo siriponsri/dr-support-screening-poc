@@ -33,6 +33,31 @@ RETFound/PRISM providers remain the default. See
 and [LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md) for the configuration knobs.
 No models are deployed from this repository.
 
+## Multi-runtime-profile architecture (v0.3.0)
+
+A single codebase ships three runtime profiles selected via `APP_PROFILE`:
+
+- `review`     clinician workstation; UI, cases, review, CVAT, remote-proxy. **Must not load weights.**
+- `model_api`  GPU deployment of the Remote Model API contract (`/health`, `/v1/models`, `/v1/predict/{dr,lesions}`).
+- `full`       both surfaces mounted together for public/synthetic demos.
+
+The active profile and `MODEL_RUNTIME` are cross-validated at startup — the
+review workstation refuses to load weights locally; the model API refuses to
+proxy to itself. See [docs/PROFILES.md](docs/PROFILES.md) for the full matrix
+and [docs/PROFILES.md#hf-docker-space-deployment](docs/PROFILES.md) for the
+single-image deployment story. The HF Docker Space target is Nvidia T4 small.
+
+The codebase layout mirrors the profile split:
+
+```
+dr_support/
+  api/        clinician review workstation (cases, review, CVAT, UI, remote proxy)
+  services/   standalone deployment-side services (currently model_api)
+  providers/  shared model adapters (RETFound, PRISM, mock, remote proxy)
+  contracts/  Bridge v1 request/response schemas
+  app.py      top-level profile dispatcher
+```
+
 ## V2 clinician-first redesign
 
 The interface is now organized around three views:
