@@ -23,6 +23,7 @@ from dr_support.providers.remote import (
     RemoteModelProvider,
     RemoteTimeoutError,
 )
+from dr_support.runtime import runtime_snapshot
 from dr_support.providers.retfound import RETFound
 
 from ..images import admitted_samples, synthetic_image
@@ -31,7 +32,7 @@ from ..workflow import install_workflow
 
 
 def create_app(state_path=None, include_samples=True):
-    app = FastAPI(title='DR Support Screening POC', version='0.3.0')
+    app = FastAPI(title='DR Support Screening POC', version='0.4.0')
     root = Path(__file__).resolve().parents[2]
 
     fixture = synthetic_image()
@@ -62,12 +63,27 @@ def create_app(state_path=None, include_samples=True):
         }
     else:
         app.state.remote_runtime = False
-        app.state.providers = {'retfound-aptos5': RETFound(), 'prism-dr-5fold': PRISM()}
+        # The legacy review-API factory is invoked from the backward-compat
+        # `dr_support.api:app` shim and from the `full` profile demo. In both
+        # cases CPU fallback is acceptable so the V2 UI smoke test keeps
+        # working on a CPU-only host; production GPU deployments use the
+        # `model_api` factory in `services/model_api.py` which is strict.
+        app.state.providers = {
+            'retfound-aptos5': RETFound(allow_cpu_fallback=True),
+            'prism-dr-5fold': PRISM(allow_cpu_fallback=True),
+        }
 
     @app.get('/health')
     def health():
-        return {'status': 'PASS_WITH_WARNINGS', 'lane': 'PUBLIC_SYNTHETIC_BRIDGE',
-                'warnings': ['Research-only; model readiness is reported separately']}
+        snap = runtime_snapshot()
+        return {
+            'status': 'PASS_WITH_WARNINGS',
+            'lane': 'PUBLIC_SYNTHETIC_BRIDGE',
+            'warnings': ['Research-only; model readiness is reported separately'],
+            'requested_device': snap.requested_device,
+            'effective_device': snap.effective_device,
+            'cuda_available': snap.cuda_available,
+        }
 
     @app.get('/v1/models')
     def models():

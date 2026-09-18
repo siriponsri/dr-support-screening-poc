@@ -23,6 +23,15 @@ the providers report ``ASSET_REQUIRED`` and the predict endpoints return ``503``
 This keeps the service importable and contract-testable on a CPU-only host so
 the contract can be validated before the GPU deployment.
 
+GPU readiness
+-------------
+
+The factory accepts ``device_strict: bool`` which, when ``True``, wires the
+local providers with ``allow_cpu_fallback=False`` and additionally calls
+:func:`dr_support.runtime.assert_cuda_ready` at startup. A misconfigured GPU
+host therefore fails loudly at container start instead of silently degrading
+to CPU at the first inference call.
+
 Notes
 -----
 
@@ -48,6 +57,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from dr_support.contracts import GlobalResult, LesionResult, Provenance
 from dr_support.providers.prism import PRISM, REVISION as PRISM_REVISION
 from dr_support.providers.retfound import RETFound, REVISION as RETFOUND_REVISION
+from dr_support.runtime import DeviceUnavailable, assert_cuda_ready, runtime_snapshot
 
 log = logging.getLogger('dr_support.model_api')
 
@@ -117,15 +127,20 @@ def _ct_eq(a: str, b: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _build_providers() -> dict[str, Any]:
+def _build_providers(*, allow_cpu_fallback: bool) -> dict[str, Any]:
     """Construct the local provider registry.
 
     Both providers are created lazily; no model weights are loaded until the
     first inference call. This keeps the import path light on CPU-only hosts.
+
+    ``allow_cpu_fallback`` is forwarded to the providers so that the
+    production ``model_api`` factory can refuse to silently degrade to CPU
+    while local contract tests can still construct the adapters on a
+    CPU-only host.
     """
     return {
-        RETFound.model_id: RETFound(),
-        PRISM.model_id: PRISM(),
+        RETFound.model_id: RETFound(allow_cpu_fallback=allow_cpu_fallback),
+        PRISM.model_id: PRISM(allow_cpu_fallback=allow_cpu_fallback),
     }
 
 
@@ -134,38 +149,70 @@ def _build_providers() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def create_app(state_path=None) -> FastAPI:
+def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI:
     """Create a standalone Remote Model API app.
 
     Profile invariant: this factory is only invoked when
     ``APP_PROFILE in {'model_api', 'full'}``. It does NOT register the review
     API surface (cases, review, CVAT, UI).
+
+    ``device_strict`` defaults to ``True`` for the production deployment. When
+    ``True`` the factory refuses to start if a CUDA device is requested but no
+    CUDA runtime is available; providers are also wired with
+    ``allow_cpu_fallback=False`` so the first inference call cannot quietly
+    drop to CPU. Tests pass ``False`` to exercise the contract on CPU hosts.
     """
-    app = FastAPI(title='DR Support Model API', version='0.3.0')
+    if device_strict is None:
+        # Production default; only opt out for tests.
+        device_strict = os.environ.get('DR_SUPPORT_RELAX_DEVICE') != '1'
+
+    if device_strict:
+        try:
+            assert_cuda_ready()
+        except DeviceUnavailable as exc:
+            # Surface the error verbatim so the container log shows the exact
+            # misconfiguration. The HTTP layer never reaches this point
+            # because the app never finishes constructing.
+            log.error('GPU readiness check failed: %s', exc)
+            raise
+
+    app = FastAPI(title='DR Support Model API', version='0.4.0')
     inference_lock = RLock()
-    app.state.providers = _build_providers()
+    app.state.providers = _build_providers(allow_cpu_fallback=not device_strict)
     app.state.inference_lock = inference_lock
     app.state.profile = os.environ.get('APP_PROFILE', 'model_api')
+    app.state.device_strict = device_strict
 
     # --------- /health ---------
     @app.get('/health')
     def health():
         statuses = {pid: p.metadata().get('status', 'UNKNOWN') for pid, p in app.state.providers.items()}
-        # If any provider is loaded we report PASS; if any are configured but
-        # not verified we report PASS_WITH_WARNINGS; if any are ASSET_REQUIRED
-        # we report PASS_WITH_WARNINGS as well so the HF liveness probe stays
-        # green while we surface readiness separately.
-        overall = 'PASS_WITH_WARNINGS'
-        if all(s == 'LOADED' for s in statuses.values()):
-            overall = 'PASS'
+        snap = runtime_snapshot()
+        device_warnings: list[str] = []
+        if snap.requested_device.startswith('cuda') and not snap.cuda_available:
+            device_warnings.append(
+                f"INFERENCE_DEVICE={snap.requested_device} requested but no CUDA runtime is available."
+            )
+            overall = 'FAIL'
+        else:
+            overall = 'PASS_WITH_WARNINGS'
+            if all(s == 'LOADED' for s in statuses.values()):
+                overall = 'PASS'
+        warnings = [
+            'Public/synthetic POC only. No diagnosis or autonomous referral.',
+            'Model readiness is reported in /v1/models; weights are loaded on first use.',
+        ]
+        warnings.extend(device_warnings)
         return {
             'status': overall,
             'lane': 'PUBLIC_SYNTHETIC_REMOTE_MODEL_API',
-            'warnings': [
-                'Public/synthetic POC only. No diagnosis or autonomous referral.',
-                'Model readiness is reported in /v1/models; weights are loaded on first use.',
-            ],
+            'warnings': warnings,
             'providers': statuses,
+            'requested_device': snap.requested_device,
+            'effective_device': snap.effective_device,
+            'cuda_available': snap.cuda_available,
+            'cuda_device_count': snap.cuda_device_count,
+            'cuda_device_name': snap.cuda_device_name,
         }
 
     # --------- /v1/models ---------

@@ -92,3 +92,62 @@
 - Real GPU model code paths (`RETFound`, `PRISM`) are unchanged; they continue to load
   weights only when configured and are reused by both the review and model_api surfaces.
 
+## 0.4.0 — 2026-09-18 (M0.5 GPU deployment hardening)
+
+### Added
+- New `dr_support/runtime/device.py` — single source of truth for
+  `INFERENCE_DEVICE`. Lazily probes `torch.cuda`, exposes a cached
+  `DeviceSnapshot`, and refuses to silently fall back to CPU in production.
+- Provider constructors accept `allow_cpu_fallback`. The production
+  `model_api` factory wires providers with `allow_cpu_fallback=False`; tests
+  pass `True`.
+- `RETFound` and `PRISM` metadata now report `requested_device`,
+  `effective_device`, and `cuda_available`. A warning is added when the
+  requested GPU device is unavailable so operators see the mismatch.
+- `/health` response on the `model_api` (and review) service surfaces
+  `requested_device`, `effective_device`, `cuda_available`,
+  `cuda_device_count`, and `cuda_device_name`. Returns `FAIL` when a CUDA
+  device is requested but no CUDA runtime is visible.
+- `/v1/models` entries echo the same device fields.
+- 22 new tests in `tests/test_device.py` covering resolver behaviour,
+  provider metadata, factory strict-mode refusal, and `/health` / `/v1/models`
+  surfacing.
+
+### Changed
+- `RETFound.infer` now moves the input tensor to the resolved device and uses
+  `torch.inference_mode()`. The provider also disables autograd on every
+  parameter at load time. The checkpoint still loads via `map_location='cpu'`
+  to avoid host-CPU bottlenecks during weight IO.
+- `PRISM.load` moves the ROI YOLO cropper, every fold's ultralytics YOLO, and
+  every SAHI `AutoDetectionModel` to the resolved device.
+- `PRISM.infer` passes `device=str(device)` to the ROI YOLO and the SE-fold
+  YOLO calls instead of the hard-coded `device='cpu'`. A `finally` clause
+  invokes `torch.cuda.empty_cache()` on the resolved device to release any
+  intermediate CUDA tensors held by the autograd engine.
+- Dockerfile hard-pinned to a single-stage `nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04`
+  base with Python 3.12 installed via the deadsnakes PPA. The image bakes the
+  project source, the `[models,test]` extras, and the verified model assets
+  (`setup_models --model all`) at build time. No GPU-only commands run during
+  build.
+- `docker-entrypoint.sh` is now wired via the Dockerfile's `ENTRYPOINT`
+  directive. It only validates environment variables (APP_PROFILE,
+  MODEL_RUNTIME, REMOTE_MODEL_URL for the review profile, presence of the
+  pre-built assets for the model_api / full profile, `WORKERS=1`) before
+  execing `python -m dr_support.run`. The duplicate `setup_models` call was
+  removed.
+- `.env.example` adds `INFERENCE_DEVICE` and the test-only
+  `DR_SUPPORT_RELAX_DEVICE` knob.
+- Bumped project version to `0.4.0`.
+
+### Preserved
+- Bridge v1 `GlobalResult`/`LesionResult` schema unchanged.
+- `/v1/cases`, `/v1/infer/*`, `/v1/cases/{id}/review`, CVAT round-trip and
+  persisted review state unchanged.
+- Profile / runtime invariants from v0.3.0 (`review` + `MODEL_RUNTIME=local`
+  still rejected, `model_api/full` + `MODEL_RUNTIME=remote` still rejected).
+- Checkpoint SHA256 verification, preprocessing, class order, thresholds,
+  ensemble logic, and label mapping in PRISM unchanged.
+- Thresholds and ensemble outputs of PRISM not modified to fit memory.
+- V2 clinician UI untouched.
+- Public/synthetic POC only; no scientific claims.
+

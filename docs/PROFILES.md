@@ -43,7 +43,12 @@ python -m dr_support.run        # listens on 127.0.0.1:8000
 
 The included `Dockerfile` builds a single image that supports all three
 profiles. The default `APP_PROFILE=model_api` and `PORT=7860` match the HF
-Docker Space conventions. Build once, run per profile:
+Docker Space conventions. The asset strategy is **download at image build
+time** — `python -m dr_support.setup_models --model all` runs once during
+`docker build`, the SHA256-verified sources and weights are baked into the
+image, and the container entrypoint **does not re-download them** at run
+time. Cold start is therefore dominated by uvicorn and model lazy-loading
+rather than network IO.
 
 ```bash
 docker build -t dr-support-poc:dev .
@@ -58,9 +63,46 @@ docker run --rm -p 8000:8000 \
     dr-support-poc:dev
 ```
 
-The container's entrypoint runs `python -m dr_support.setup_models --model all`
-when `model_api` or `full` is selected, so weights are fetched and verified
-on first start. The CPU-only review profile never reaches that step.
+The container entrypoint (`docker-entrypoint.sh`) only validates environment
+variables (APP_PROFILE, MODEL_RUNTIME, REMOTE_MODEL_URL for the review
+profile, presence of the pre-built assets for the model_api / full profile,
+and `WORKERS=1` to avoid duplicate model loads). The actual startup is
+delegated to `python -m dr_support.run`, which calls the profile dispatcher.
+
+### GPU readiness
+
+For `APP_PROFILE=model_api` (or `full`) the runtime resolver in
+`dr_support.runtime.assert_cuda_ready` is invoked at container start. When
+`INFERENCE_DEVICE=cuda:0` is requested but the host has no CUDA runtime
+visible (e.g. the Space was provisioned without `t4-small`), startup fails
+loudly with `DeviceUnavailable`. There is **no silent CPU fallback in
+production mode** — set `INFERENCE_DEVICE=cpu` explicitly for local
+development or contract tests, or set `DR_SUPPORT_RELAX_DEVICE=1` for
+explicit test-only CPU relaxation.
+
+The `/health` endpoint surfaces the resolved device in every response:
+
+```json
+{
+  "status": "PASS_WITH_WARNINGS",
+  "lane": "PUBLIC_SYNTHETIC_REMOTE_MODEL_API",
+  "warnings": [],
+  "providers": {"retfound-aptos5": "LOADED", "prism-dr-5fold": "LOADED"},
+  "requested_device": "cuda:0",
+  "effective_device": "cuda:0",
+  "cuda_available": true,
+  "cuda_device_count": 1,
+  "cuda_device_name": "Tesla T4"
+}
+```
+
+The same fields are echoed on each entry of `/v1/models`.
+
+### Single-worker invariant
+
+`WORKERS > 1` is rejected by the entrypoint. Two uvicorn workers would each
+load the model weights into VRAM and exhaust a T4 16 GB within seconds; the
+single-worker invariant keeps the deployment inside the hardware envelope.
 
 ## Contract invariants
 

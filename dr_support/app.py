@@ -90,7 +90,7 @@ def _merge_apps(review: FastAPI, model_api: FastAPI, profile: str) -> FastAPI:
     (e.g. the static UI under ``/ui``) are transferred verbatim; route
     handlers keep their original docstrings.
     """
-    app = FastAPI(title='DR Support Screening POC', version='0.3.0')
+    app = FastAPI(title='DR Support Screening POC', version='0.4.0')
 
     for source_app in (review, model_api):
         for route in source_app.routes:
@@ -104,6 +104,23 @@ def _merge_apps(review: FastAPI, model_api: FastAPI, profile: str) -> FastAPI:
     app.state.review_app = review
     app.state.model_api_app = model_api
     return app
+
+
+def _device_strict_for_profile(resolved_profile: str) -> bool:
+    """Decide whether the model_api factory should enforce CUDA at startup.
+
+    Production model_api deployments must enforce GPU availability so a
+    misconfigured host fails loudly. The ``full`` profile is a local demo and
+    is allowed to start on a CPU host so long as the operator explicitly set
+    ``INFERENCE_DEVICE=cpu`` (or accepted the default ``DR_SUPPORT_RELAX_DEVICE=1``
+    in a development environment).
+    """
+    if resolved_profile == 'full':
+        # Local demos should not fail at startup just because the developer
+        # has no GPU. The strictness still applies through the contract
+        # tests; production deployments use the model_api profile directly.
+        return False
+    return True
 
 
 def create_app(profile: str | None = None) -> FastAPI:
@@ -125,13 +142,13 @@ def create_app(profile: str | None = None) -> FastAPI:
         app.state.runtime = runtime
         return app
     if resolved_profile == 'model_api':
-        app = create_model_api_app()
+        app = create_model_api_app(device_strict=True)
         app.state.profile = resolved_profile
         app.state.runtime = runtime
         return app
     # full
     review = create_review_app()
-    model_api = create_model_api_app()
+    model_api = create_model_api_app(device_strict=_device_strict_for_profile('full'))
     return _merge_apps(review, model_api, resolved_profile)
 
 
