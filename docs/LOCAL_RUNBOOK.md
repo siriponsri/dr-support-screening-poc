@@ -66,16 +66,24 @@ The API does not load `.env` files. Runtime environment variables are authoritat
 
 ## Review workflow
 
-1. Review Queue → select a public image or SYNTH_001.
-2. Case Review → Run grading. Public images use RETFound; SYNTH_001 uses an explicit fixture.
-3. Inspect the image. Enter reviewer name; Accept, Mark Incorrect, Correct Grade, or Escalate.
-4. Annotation → Run pre-label. Public images use PRISM-DR, synthetic uses an explicit fixture.
-5. Prepare CVAT task → Open in CVAT → correct shapes and save in CVAT → Sync corrections.
-6. Inspect the imported coordinates and the saved CVAT image; Confirm imported annotations.
+1. **Worklist** → select a public image or SYNTH_001.
+2. **Case Review** → click **Analyze**. Public images use RETFound for grading and PRISM-DR
+   for lesion ROI; SYNTH_001 uses explicit fixtures.
+3. Inspect the retinal image with zoom/pan and the lesion overlay. Review the AI grade,
+   probabilities, lesion summary, warnings, and status in the right-side AI Review panel.
+4. Enter reviewer name and an optional note. Choose one of the sticky bottom actions:
+   - **Accept** — record the AI-suggested grade as reviewed.
+   - **Adjust Grade** — select a corrected grade, then confirm.
+   - **Needs Annotation** — mark the case as needing geometry-level correction.
+   - **Escalate** — flag the case for specialist review.
+5. **Advanced Edit** (only when geometry editing is necessary) — prepares a CVAT task, pushes
+   the bounded pre-label set, and opens CVAT Online. Save corrections in CVAT, then return to
+   Case Review; synced corrections appear as solid imported geometry over dashed AI provenance.
+   Confirm imported annotations when satisfied.
 
-The overlay shows original AI suggestions. Imported corrections are listed separately.
-A sync by itself never makes annotations reviewed. Editing the annotation snapshot invalidates
-its prior confirmation. Global-grade review and lesion review have separate states.
+The overlay shows original AI suggestions. Imported corrections are drawn with stronger
+emphasis. A sync by itself never makes annotations reviewed. Editing the annotation snapshot
+invalidates its prior confirmation. Global-grade review and lesion review have separate states.
 No lesion ground truth or adjudicated HRF ordinal grades are included.
 
 SQLite persists case history and task mapping. Keep one runtime worker and one instance per
