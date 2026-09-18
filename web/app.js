@@ -203,12 +203,12 @@ function lesionSummary(c) {
   const shownCount = c.lesion_review?.suggestion_count ?? lesions.length;
   return `<div class="lesion-summary">
     ${lesionLabels.map(l => `<div class="lesion-count"><strong>${counts[l]}</strong><span><span class="swatch" style="background:${colors[l]}"></span>${escapeHTML(l.replaceAll('_',' '))}</span></div>`).join('')}
-  </div><p class="help">${shownCount} shown / ${rawCount} raw model output. Display/CVAT suggestions are bounded by configurable thresholds and caps.</p>`;
+  </div><p class="help">${shownCount} of ${rawCount} model findings shown. Lower-confidence detections are hidden to keep the review focused.</p>`;
 }
 
 function gradePanel(c) {
   const g = c.global;
-  if (!g || g.grade == null) return `<div class="empty-compact">No grade suggestion yet. Run <strong>Analyze</strong> to generate AI suggestions.</div>`;
+  if (!g || g.grade == null) return `<div class="empty-compact">No AI suggestion yet. Select <strong>Analyze</strong> to generate a grade and lesion review.</div>`;
   return `<div class="grade-card"><div class="grade-number">${g.grade}</div><div class="grade-label"><strong>${grades[g.grade]}</strong><span>AI suggestion · ${Math.round((g.confidence||0)*100)}% model score</span></div></div>
     ${g.probabilities.map((p,i) => `<div class="prob"><span>G${i}</span><span class="bar"><i style="width:${p*100}%"></i></span><span>${Math.round(p*100)}%</span></div>`).join('')}
     <p class="help">Model scores are uncalibrated and are not the probability that a diagnosis is correct.</p>`;
@@ -222,16 +222,16 @@ function reviewSourceText(c) {
 
 function actionBar(c) {
   const state = c.state || 'PENDING';
-  const imported = Array.isArray(c.annotations) && c.annotations.length > 0;
-  const advancedUrl = c.cvat?.job_url || c.cvat?.task_url;
+  const canDecide = c.global && c.global.grade != null;
   return `<div class="action-bar">
     <div class="status">Review status: ${badge(state)} ${c.reviewed_grade != null ? '· Recorded grade '+c.reviewed_grade : ''}</div>
     <div class="actions">
-      <button class="primary" data-review="ACCEPT" ${!c.global || c.global.grade == null ? 'disabled' : ''}>Accept</button>
-      <button data-review="CORRECT_GRADE" ${!c.global || c.global.grade == null ? 'disabled' : ''}>Adjust Grade</button>
-      <button class="warn" data-review="MARK_INCORRECT" ${!c.global || c.global.grade == null ? 'disabled' : ''}>Needs Annotation</button>
+      <button class="primary" data-review="ACCEPT" ${!canDecide ? 'disabled' : ''}>Accept</button>
+      <button data-review="CORRECT_GRADE" ${!canDecide ? 'disabled' : ''}>Adjust Grade</button>
+      <button class="warn" data-review="MARK_INCORRECT" ${!canDecide ? 'disabled' : ''}>Needs Annotation</button>
       <button class="danger" data-review="ESCALATE">Escalate</button>
-      <button class="secondary" id="advanced-edit" ${advancedUrl ? '' : ''}>Advanced Edit</button>
+      <span class="action-separator" aria-hidden="true"></span>
+      <button class="secondary subtle" id="advanced-edit" title="Open geometry editor in CVAT Online">Advanced Edit ↗</button>
     </div>
   </div>`;
 }
@@ -257,13 +257,13 @@ function caseReview(c) {
     `<div class="review-layout"><div class="viewer-column">${imagePanel(c)}` +
     (hasLesions ? `<section class="panel"><div class="section-head"><h2>Lesion findings</h2>${c.lesion_review_state ? badge(c.lesion_review_state) : ''}</div>${lesionSummary(c)}${imported?`<p class="help">${c.annotations.length} CVAT-imported shapes are overlaid as solid geometry; original AI boxes remain as faded dashed provenance.</p>`:''}</section>` : '') +
     `<section class="panel"><div class="section-head"><h2>Review history</h2>${badge(c.state)}</div>${c.events.length?`<ol class="history">${c.events.slice(-8).map(e=>`<li>${escapeHTML(e.action.replaceAll('_',' '))}${e.reviewer?' · '+escapeHTML(e.reviewer):''}${e.comment?' — '+escapeHTML(e.comment):''}</li>`).join('')}</ol>`:'<p class="sub">No review decisions yet.</p>'}</section></div>` +
-    `<section class="panel ai-panel"><div class="section-head"><h2>AI Review</h2><span class="kicker" style="margin:0">GRADE</span></div>${gradePanel(c)}<hr class="rule"><div class="section-head"><h2>Lesion summary</h2></div>${hasLesions?lesionSummary(c):'<p class="sub">Run Analyze to generate lesion suggestions.</p>'}` +
+    `<section class="panel ai-panel"><div class="section-head"><h2>AI Review</h2><span class="kicker panel-kicker">GRADE</span></div>${gradePanel(c)}<hr class="rule"><div class="section-head"><h2>Lesion summary</h2></div>${hasLesions?lesionSummary(c):'<p class="sub">Select Analyze to generate lesion suggestions.</p>'}` +
     `<hr class="rule"><h3>Warnings</h3><ul class="warnings">${(c.global?.warnings||c.lesion?.warnings||['Research use only']).map(w=>`<li>${escapeHTML(w)}</li>`).join('')}</ul>` +
     `<hr class="rule"><h3>Your review</h3>${c.reviewed_grade!=null?`<div class="review-result"><strong>Recorded grade ${c.reviewed_grade}</strong><span>${grades[c.reviewed_grade]}${reviewSource?' · '+escapeHTML(reviewSource):''}</span></div>`:''}` +
     `<label class="field" for="reviewer">Reviewer name</label><input id="reviewer" autocomplete="name" value="${escapeHTML(reviewer)}" placeholder="Name for the review record">` +
     `<label class="field" for="comment">Review note <span>(optional)</span></label><textarea id="comment" maxlength="1000" placeholder="Add a note for the audit trail"></textarea>` +
     `<div id="grade-adjust" style="display:none"><label class="field" for="grade">Corrected grade</label><select id="grade">${grades.map((g,i)=>`<option value="${i}">${i} · ${g}</option>`).join('')}</select></div>` +
-    `<details><summary>Model & provenance</summary><dl class="meta"><dt>Grade model</dt><dd>${escapeHTML(c.global?.model_id || (c.source_type==='SYNTHETIC'?'Synthetic fixture':'Not run'))}</dd><dt>Lesion model</dt><dd>${escapeHTML(c.lesion?.model_id || (c.source_type==='SYNTHETIC'?'Synthetic fixture':'Not run'))}</dd><dt>Image source</dt><dd>${escapeHTML(c.source_type)}</dd></dl></details></section></div>` +
+    `<details><summary>Model details</summary><dl class="meta"><dt>Grade model</dt><dd>${escapeHTML(c.global?.model_id || (c.source_type==='SYNTHETIC'?'Synthetic fixture':'Not run'))}</dd><dt>Lesion model</dt><dd>${escapeHTML(c.lesion?.model_id || (c.source_type==='SYNTHETIC'?'Synthetic fixture':'Not run'))}</dd><dt>Image source</dt><dd>${escapeHTML(c.source_type)}</dd></dl></details></section></div>` +
     actionBar(c) +
     `<div style="text-align:center;margin-top:18px"><button class="secondary" id="run-analyze">${c.global || c.lesion ? 'Run Analyze again' : 'Analyze case'}</button></div>`;
 
@@ -280,7 +280,7 @@ function caseReview(c) {
 
 function modelsPage() {
   $('#content').innerHTML = heading('Models & Audit','Provider readiness, supported modality, provenance, and limitations.')+
-    `<div class="models">${models.map(m=>`<section class="panel model-card"><div class="section-head"><h2>${escapeHTML(m.model_id)}</h2>${badge(m.status)}</div><dl class="meta"><dt>Task</dt><dd>${escapeHTML(m.task)}</dd><dt>Modality</dt><dd>${escapeHTML(m.modalities.join(', '))}</dd>${m.revision?`<dt>Source revision</dt><dd class="mono">${escapeHTML(m.revision)}</dd>`:''}</dl>${m.preprocessing?`<details><summary>Preprocessing</summary><p>${escapeHTML(m.preprocessing)}</p></details>`:''}<ul class="warnings">${m.warnings.map(w=>`<li>${escapeHTML(w)}</li>`).join('')}</ul></section>`).join('')}</div><p class="help">Configured assets are verified when loaded. Each response carries checkpoint hashes and image provenance. UWF is unsupported. No scientific champion or performance claim is made here.</p>`;
+    `<div class="models">${models.map(m=>`<section class="panel model-card"><div class="section-head"><h2>${escapeHTML(m.model_id)}</h2>${badge(m.status)}</div><dl class="meta"><dt>Task</dt><dd>${escapeHTML(m.task)}</dd><dt>Modality</dt><dd>${escapeHTML(m.modalities.join(', '))}</dd>${m.revision?`<dt>Source revision</dt><dd class="mono">${escapeHTML(m.revision)}</dd>`:''}</dl>${m.preprocessing?`<details><summary>Image preparation</summary><p>${escapeHTML(m.preprocessing)}</p></details>`:''}<ul class="warnings">${m.warnings.map(w=>`<li>${escapeHTML(w)}</li>`).join('')}</ul></section>`).join('')}</div><p class="help">Configured assets are verified when loaded. Each response carries checkpoint hashes and image provenance. UWF is unsupported. No scientific champion or performance claim is made here.</p>`;
 }
 
 function analyzeCase(c) {

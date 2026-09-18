@@ -29,6 +29,15 @@
   `socketpair()` used by `TestClient`; `tests/conftest.py` now permits localhost-only socket
   plumbing.
 
+## 0.2.1 — 2026-09-18
+
+### Polished
+- Action-bar hierarchy: primary review actions (Accept, Adjust Grade, Needs Annotation, Escalate) are now visually grouped; Advanced Edit/CVAT is separated and de-emphasized with a subtle style and external-link hint.
+- Simplified clinical copy: "Model & provenance" → "Model details", "Preprocessing" → "Image preparation", and tightened lesion-help text.
+- Improved empty-state guidance in the AI Review panel.
+- Fixed a redundant disabled-condition in the Advanced Edit button template.
+- Improved skip-link accessibility styling and focus visibility.
+
 ### Preserved
 - Backend API contracts unchanged.
 - Persisted review state unchanged.
