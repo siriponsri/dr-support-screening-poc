@@ -205,3 +205,67 @@
 - Existing 78 backend + 3 frontend tests pass on a CPU-only host.
 - Public/synthetic POC only; no scientific claims.
 
+## 0.6.0 — 2026-09-18 (M0.7 Lightning AI Studio deployment adapter)
+
+### Added
+- `scripts/setup_lightning.sh` — one-time, idempotent Studio-side setup
+  (creates a `.venv`, installs the project with the `[models,test]`
+  extras, and runs `python -m dr_support.setup_models --model all` to
+  acquire + SHA256-verify the pinned RETFound + PRISM-DR sources and
+  weights under `local-state/bridge/`. Reuses `setup_models` directly;
+  does not duplicate download / hash logic.
+- `scripts/start_lightning.sh` — Linux launch script that pins the
+  production env (`APP_PROFILE=model_api`, `MODEL_RUNTIME=local`,
+  `INFERENCE_DEVICE=cuda:0`, `HOST=0.0.0.0`, `PORT=8000`, `WORKERS=1`),
+  refuses to silently fall back to CPU via a pre-flight
+  `torch.cuda.is_available()` probe, and execs `python -m dr_support.run`.
+  No Docker, no LitServe rewrite, no new FastAPI surface.
+- `docs/LIGHTNING_DEPLOYMENT.md` — operator runbook with the full A–N
+  first-time acceptance sequence (create Studio, select T4, clone repo,
+  install, download assets, set `REMOTE_MODEL_TOKEN`, launch, expose
+  port 8000 via the Studio Port plugin, smoke `/health`, `/v1/models`,
+  `/v1/predict/dr`, `/v1/predict/lesions`, connect the local review
+  workstation, stop the GPU), consolidated PASS criteria, and the
+  cost-aware operational policy (no benchmark / batch runs; stop the
+  Studio after acceptance).
+- 41 new tests in `tests/test_lightning_adapter.py` covering the launch
+  script env defaults, the setup script idempotency and asset reuse,
+  the runbook A–N coverage and PASS criteria, the existing model_api
+  contract unchanged (4 routes, bearer enforcement, `/health` device
+  snapshot), the no-CPU-fallback invariant (mirroring
+  `tests/test_device.py`), and no-secret-leakage scans across the
+  shipped scripts + runbook. The tests do not require the Lightning
+  cloud; the bash scripts are read as text rather than executed.
+- `.env.example` extended with a Lightning section pointing operators
+  at `scripts/setup_lightning.sh`, `scripts/start_lightning.sh`, and
+  the `docs/LIGHTNING_DEPLOYMENT.md` runbook.
+
+### Changed
+- `pyproject.toml` bumped to `0.6.0`.
+
+### Preserved
+- Bridge v1 `GlobalResult` / `LesionResult` schema unchanged.
+- All four model_api routes (`/health`, `/v1/models`, `/v1/predict/dr`,
+  `/v1/predict/lesions`) unchanged.
+- `APP_PROFILE=model_api` + `MODEL_RUNTIME=remote` still rejected.
+- `RETFound` and `PRISM` provider classes untouched; same
+  SHA256-verified checkpoints, same `torch.inference_mode()` forward
+  passes, same `torch.cuda.empty_cache()` cleanup. Thresholds, fold
+  ensemble, and class mapping unchanged.
+- V2 clinician UI untouched; the Lightning deployment never hosts the
+  UI.
+- `/v1/cases`, `/v1/infer/*`, `/v1/cases/{id}/review`, CVAT round-trip
+  and persisted review state unchanged.
+- Existing v0.4.0 HF Docker Space (`Dockerfile`,
+  `docker-entrypoint.sh`) and v0.5.0 Modal adapter (`modal_app.py`)
+  unchanged; Lightning is an additional deployment path, not a
+  replacement.
+- Profile invariants from v0.3.0 (`review` + `MODEL_RUNTIME=local`
+  still rejected, `model_api/full` + `MODEL_RUNTIME=remote` still
+  rejected).
+- `REMOTE_MODEL_TOKEN` delivered via the Studio's environment-variables
+  panel; never hardcoded, logged, or echoed.
+- Single asset layout under `local-state/bridge/`; no second cache.
+- Single-worker invariant (`WORKERS=1`); the launch script refuses
+  `WORKERS > 1` before uvicorn boots.
+- Public/synthetic POC only; no scientific claims.

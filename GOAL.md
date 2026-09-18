@@ -9,8 +9,8 @@ exactly where this one left off.
 
 ## 1. Summary
 
-Six commits landed across three sessions, taking the project from `v0.2.0` to
-`v0.5.0` without breaking any existing test, contract, or UI surface:
+Seven commits landed across four sessions, taking the project from `v0.2.0` to
+`v0.6.0` without breaking any existing test, contract, or UI surface:
 
 | Commit    | Title                                                                                          | Version |
 |-----------|------------------------------------------------------------------------------------------------|---------|
@@ -18,12 +18,14 @@ Six commits landed across three sessions, taking the project from `v0.2.0` to
 | `0ebe017` | `feat(remote): provider-neutral REMOTE inference adapter with mocked tests`                    | 0.2.1   |
 | `a9ccdfb` | `refactor: single-repo multi-runtime-profile architecture (review / model_api / full)`        | 0.3.0   |
 | `463270e` | `docs: GOAL.md session summary (audit + polish, REMOTE adapter, profile architecture)`         | 0.3.0   |
-| `<M0.5>`  | `harden(gpu): device resolver, GPU-ready providers, hardened Dockerfile, /health device fields` | 0.4.0 |
-| `<M0.6>`  | `feat(modal): Modal deployment adapter for the model_api profile (T4 GPU, scale-to-zero)`       | 0.5.0 |
+| `eef51fd` | `harden(gpu): device resolver, GPU-ready providers, hardened Dockerfile, /health device fields` | 0.4.0 |
+| `b6a2490` | `feat(modal): Modal deployment adapter for the model_api profile (T4 GPU, scale-to-zero)`       | 0.5.0 |
+| `<M0.7>`  | `feat(lightning): Lightning AI Studio deployment adapter (scripts + runbook, no Docker / no LitServe rewrite)` | 0.6.0 |
 
-Status: **PASS** — code is ready for both HF GPU acceptance AND Modal GPU
-acceptance. The Modal adapter is an additional deployment path; it does not
-modify the HF Docker Space story.
+Status: **PASS** — code is ready for HF GPU acceptance, Modal GPU
+acceptance, AND Lightning AI Studio GPU acceptance. The Lightning adapter
+is an additional deployment path; it does not modify the HF Docker Space
+story or the Modal adapter.
 
 ---
 
@@ -42,13 +44,14 @@ dr-support-screening-poc/
 │   ├── runtime/     # device resolver, future memory accounting
 │   ├── contracts/   # Bridge v1 request/response schemas
 │   └── app.py       # top-level profile dispatcher
+├── scripts/         # M0.7: Lightning AI Studio setup + launch scripts
 ├── web/             # V2 clinician UI
 ├── tests/           # backend pytest + frontend jsdom
-├── docs/            # PROFILES.md, REMOTE_MODEL_API.md, MODAL_DEPLOYMENT.md, ...
-├── modal_app.py     # Modal deployment adapter (M0.6) — alt to HF Docker Space
-├── Dockerfile       # HF Docker Space image, default profile = model_api
+├── docs/            # PROFILES.md, REMOTE_MODEL_API.md, MODAL_DEPLOYMENT.md, LIGHTNING_DEPLOYMENT.md, ...
+├── modal_app.py     # M0.6 Modal deployment adapter
+├── Dockerfile       # M0.5 HF Docker Space image, default profile = model_api
 ├── docker-entrypoint.sh  # env-validator wrapper, execs dr_support.run
-├── pyproject.toml   # 0.5.0
+├── pyproject.toml   # 0.6.0
 └── .env.example
 ```
 
@@ -67,16 +70,17 @@ Profile / runtime invariants are **strict and fail-fast**:
 - `APP_PROFILE=model_api` + `MODEL_RUNTIME=remote` → `RuntimeError`
 - `APP_PROFILE=full` + `MODEL_RUNTIME=remote` → `RuntimeError`
 - `APP_PROFILE=model_api` + `INFERENCE_DEVICE=cuda*` + no CUDA runtime → `DeviceUnavailable`
-- `WORKERS > 1` → rejected by `docker-entrypoint.sh`
+- `WORKERS > 1` → rejected by `docker-entrypoint.sh` and `scripts/start_lightning.sh`
 
-Deployment paths (M0.6):
+Deployment paths (M0.5 / M0.6 / M0.7):
 
 | Path | Artefact | Operator command |
 |------|----------|------------------|
 | Hugging Face Docker Space (v0.4.0) | `Dockerfile` + `docker-entrypoint.sh` | `docker build` / push to HF Space |
 | Modal (v0.5.0) | `modal_app.py` reuses `Dockerfile` | `modal deploy modal_app.py` |
+| Lightning AI Studio (v0.6.0) | `scripts/setup_lightning.sh` + `scripts/start_lightning.sh` | run inside the Studio; expose port 8000 via the Port plugin |
 
-Both paths serve the same FastAPI surface with the same `/health`,
+All three paths serve the same FastAPI surface with the same `/health`,
 `/v1/models`, `/v1/predict/dr`, and `/v1/predict/lesions` contract.
 
 ---
@@ -189,7 +193,7 @@ model_api surface, bearer enforcement, M4 proxy smoke.
 
 ---
 
-## 6. Milestone D — GPU deployment hardening (`<M0.5>`) — v0.4.0
+## 6. Milestone D — GPU deployment hardening (`eef51fd`) — v0.4.0
 
 Goal: make `APP_PROFILE=model_api` actually GPU-ready before the owner deploys
 to Hugging Face, without changing any contract or UI surface.
@@ -329,7 +333,7 @@ both", so we keep one consistent strategy.
 
 ---
 
-## 7. Milestone E — Modal deployment adapter (`<M0.6>`) — v0.5.0 — **this session**
+## 7. Milestone E — Modal deployment adapter (`b6a2490`) — v0.5.0
 
 Goal: add Modal as a second deployment target alongside the v0.4.0 HF Docker
 Space, **without** changing the clinician UI, Bridge contracts, CVAT flow, or
@@ -432,15 +436,186 @@ returns.
 
 ---
 
-## 8. Verification matrix
+## 8. Milestone F — Lightning AI Studio deployment adapter (`<M0.7>`) — v0.6.0 — **this session**
+
+Goal: add Lightning AI Studio as the third deployment target alongside the
+v0.4.0 HF Docker Space and the v0.5.0 Modal adapter, **without** changing
+the clinician UI, Bridge contracts, CVAT flow, or model semantics.
+Lightning serves the same `model_api` surface; the deployment artefacts are
+two thin Linux shell scripts and one operator runbook. **No Docker, no
+LitServe rewrite, no new FastAPI app, no second dependency tree.**
+
+### 8.1 Architecture
+
+```
+Local clinician workstation (Windows)
+        |   HTTPS  (Authorization: Bearer ${REMOTE_MODEL_TOKEN}, optional)
+        v
+Lightning AI Studio (GPU T4)
+        |   public URL exposed by Studio "Port" plugin on port 8000
+        v
+existing FastAPI model_api
+        |
+        +-- RETFound (dr_support/providers/retfound.py)
+        +-- PRISM-DR  (dr_support/providers/prism.py)
+        |
+        v
+GPU
+```
+
+The Lightning **Port** plugin (right-side panel of the Studio UI) exposes
+the local uvicorn listener on port `8000` to a public URL. The clinician
+workstation points `REMOTE_MODEL_URL` at that URL. Auth, schema, and
+device semantics are unchanged from the v0.4.0 / v0.5.0 contract.
+
+### 8.2 `scripts/setup_lightning.sh` (new)
+
+Idempotent one-time Studio-side setup. The script:
+
+1. Creates (or reuses) a Python virtualenv under `.venv/`.
+2. Upgrades `pip`, `wheel`, `setuptools`.
+3. Installs the project in editable mode with the `[models,test]` extras.
+4. Runs `python -m dr_support.setup_models --model all` to acquire the
+   pinned RETFound + PRISM-DR sources and SHA256-verify every weight file
+   under `local-state/bridge/`.
+
+Subsequent runs are cheap no-ops because `setup_models` is idempotent and
+the Studio's persistent disk keeps the downloaded checkpoints. The script
+**does not duplicate** `setup_models` logic — it delegates directly to
+`python -m dr_support.setup_models --model all`. It does **not** clone
+RETFound / PRISM-DR directly, does **not** call `gdown.download`
+directly, does **not** compute SHA256s directly, and does **not** commit
+checkpoints to git.
+
+### 8.3 `scripts/start_lightning.sh` (new)
+
+Linux launch script. The script:
+
+1. Pins `APP_PROFILE=model_api`, `MODEL_RUNTIME=local`,
+   `INFERENCE_DEVICE=cuda:0`, `HOST=0.0.0.0`, `PORT=8000`,
+   `WORKERS=1` via `export ...="${VAR:-default}"`.
+2. Pre-flight `torch.cuda.is_available()` probe — if CUDA is not visible,
+   the script exits with code 2 and a clear message instead of silently
+   starting the server on CPU.
+3. Refuses `WORKERS != 1` before uvicorn boots (duplicate workers would
+   each load the model into VRAM and exhaust the T4 within seconds).
+4. Execs `python -m dr_support.run`, which boots the FastAPI `model_api`
+   on `0.0.0.0:8000` via the existing dispatcher.
+
+`set -euo pipefail` is enabled throughout. The script never dereferences
+or echoes `REMOTE_MODEL_TOKEN`; bearer auth is handled by the existing
+`dr_support.services.model_api._require_bearer` helper inside FastAPI.
+
+### 8.4 `docs/LIGHTNING_DEPLOYMENT.md` (new)
+
+Operator runbook with the full first-time acceptance sequence:
+
+- **A.** create / open a Lightning Studio
+- **B.** select GPU / T4
+- **C.** clone the GitHub repo into the persistent home directory
+- **D.** install dependencies via `bash scripts/setup_lightning.sh`
+- **E.** confirm the asset cache under `local-state/bridge/`
+- **F.** set `REMOTE_MODEL_TOKEN` in the Studio's environment-variables
+  panel (a fresh, random value; never a real production token)
+- **G.** run `bash scripts/start_lightning.sh`
+- **H.** expose port 8000 via the Studio **Port** plugin
+- **I.** smoke `GET /health`
+- **J.** smoke `GET /v1/models`
+- **K.** smoke `POST /v1/predict/dr` (RETFound on one synthetic image)
+- **L.** smoke `POST /v1/predict/lesions` (PRISM on the same image)
+- **M.** connect the local review workstation via `REMOTE_MODEL_URL`
+- **N.** stop the GPU when finished
+
+Plus consolidated PASS criteria, a troubleshooting matrix, the
+cardless / cost-aware operational policy (no benchmark / batch runs;
+stop the Studio after acceptance; never claim a specific free-GPU-hours
+budget), the hardware ladder (T4 default; L4 / A10 only if T4 OOM is
+actually observed), the auth contract, the persistent-asset strategy, and
+the Windows-owner helper showing exactly what to copy from the Studio
+URL into the local `.env`.
+
+The runbook deliberately stays silent on a specific Lightning free-GPU-
+hours budget — Lightning credit availability varies by account, and the
+acceptance flow is designed to spend the minimum possible GPU time.
+
+### 8.5 Asset strategy — **persistent on the Studio home directory**
+
+`scripts/setup_lightning.sh` downloads the pinned RETFound + PRISM-DR
+sources and weights into `local-state/bridge/` once and verifies every
+checkpoint against the SHA256s in
+`dr_support/providers/{retfound,prism}.py` and
+`dr_support/providers/prism_assets.json`. Subsequent runs of the setup
+script are no-ops because `setup_models` is idempotent and the Studio's
+persistent disk survives restarts.
+
+Single predictable path — no second cache layout:
+
+| Env var           | Path                                     |
+|-------------------|------------------------------------------|
+| `RETFOUND_SOURCE` | `local-state/bridge/sources/RETFound`    |
+| `RETFOUND_WEIGHTS`| `local-state/bridge/retfound-aptos.pth`  |
+| `PRISM_SOURCE`    | `local-state/bridge/sources/PRISM-DR`    |
+| `PRISM_WEIGHTS`   | `local-state/bridge/prism`               |
+
+`scripts/start_lightning.sh` does not set these; the existing
+`dr_support.run.configure()` helper wires them from the project root
+when `python -m dr_support.run` boots.
+
+### 8.6 Tests (`tests/test_lightning_adapter.py`, 41 new tests)
+
+- **Launch script environment defaults** (10 tests): the bash script
+  pins `APP_PROFILE=model_api`, `MODEL_RUNTIME=local`,
+  `INFERENCE_DEVICE=cuda:0`, `HOST=0.0.0.0`, `PORT=8000`, `WORKERS=1`,
+  uses `set -euo pipefail`, execs `python -m dr_support.run`, refuses
+  to silently fall back to CPU, and refuses `WORKERS > 1`.
+- **CUDA pre-flight fail-fast** (1 test): mirrors the v0.4.0 strict-mode
+  refusal so the Lightning adapter cannot bypass the no-CPU-fallback
+  invariant.
+- **Setup script idempotency + asset reuse** (8 tests): the setup script
+  exists, delegates to `python -m dr_support.setup_models --model all`,
+  does NOT duplicate setup logic (no raw `git clone`, no raw
+  `gdown.download`, no raw SHA256), installs the project with
+  `pip install -e ".[models,test]"`, targets the single
+  `local-state/bridge/` cache path, never commits checkpoints, and does
+  NOT require Docker.
+- **Runbook coverage** (7 tests): the runbook exists, documents all A–N
+  steps, documents the consolidated PASS criteria, warns about stopping
+  the GPU, does NOT claim a specific free-GPU-hours budget, keeps the
+  existing HF / Modal paths intact, and explains the public-port
+  mechanism via the Studio Port plugin.
+- **Contract unchanged** (5 tests): the four `model_api` routes are still
+  present (`/health`, `/v1/models`, `/v1/predict/dr`,
+  `/v1/predict/lesions`), the bearer contract still gates the predict
+  endpoints, the `/health` device snapshot is intact, and the
+  `503 RETFound/PRISM-DR assets not configured` paths still fire when no
+  weights are present.
+- **No CPU fallback in model_api** (2 tests): the dispatcher still
+  refuses to start when `INFERENCE_DEVICE=cuda:0` is requested without a
+  CUDA runtime (mirroring `tests/test_device.py`), and `/health` still
+  returns `status=FAIL` with `cuda_available=false` in the same
+  configuration.
+- **No secret leakage** (8 tests): the launch script, the setup script,
+  and the runbook contain no `sk-` / `ghp_` / `xoxb-` / `hf_` / `AKIA`
+  style secret prefixes; the launch script never even references
+  `REMOTE_MODEL_TOKEN` (bearer auth is handled inside FastAPI); the
+  setup script never dereferences or echoes the token; the runbook uses
+  only the `<synthetic-deploy-token>` placeholder.
+
+These tests do not require the Lightning cloud; the bash scripts are
+read as text rather than executed, so the test suite stays CPU-only and
+Windows-friendly.
+
+---
+
+## 9. Verification matrix
 
 Run on the local Windows CPU host, before each commit:
 
-| Tool                         | Command                                                | Result                       |
-|------------------------------|--------------------------------------------------------|------------------------------|
-| Backend unit + integration   | `python -m pytest -q`                                  | **102 passed**, 1 skipped    |
-| Frontend JS contract + UI    | `npm test`                                             | 3/3 PASS                     |
-| Lint                         | `python -m ruff check dr_support tests modal_app.py`   | All checks passed            |
+| Tool                         | Command                                                       | Result                       |
+|------------------------------|---------------------------------------------------------------|------------------------------|
+| Backend unit + integration   | `python -m pytest -q`                                         | **143 passed**, 1 skipped    |
+| Frontend JS contract + UI    | `npm test`                                                    | 3/3 PASS                     |
+| Lint                         | `python -m ruff check dr_support tests scripts modal_app.py`  | All checks passed            |
 
 Test inventory by file:
 
@@ -453,124 +628,140 @@ Test inventory by file:
 | `tests/test_profiles.py`        | 19    | Profile dispatch, invariants, model_api surface, M4 proxy smoke   |
 | `tests/test_device.py`          | 22    | GPU device resolver, provider propagation, no-CPU-fallback, /health |
 | `tests/test_modal_adapter.py`   | 24    | Modal adapter config, GPU ladder, ASGI surface, SDK integration   |
+| `tests/test_lightning_adapter.py` | 41  | Lightning launch script, setup script, runbook coverage, contract unchanged, no-CPU-fallback, no secret leakage |
 | `tests/test_browser_ui.py`      | 1     | Real-browser preview smoke (skipped on this host)                 |
 | `tests/overlay.test.cjs`        | —     | Imported CVAT geometry overrides AI provenance                    |
 | `tests/ui.test.cjs`             | —     | DOM + real API: navigation, Analyze, grade correction             |
 | `tests/preview.test.cjs`        | —     | Offline PREVIEW.html, no API calls, controls disabled             |
 
-Total new tests in M0.6: **24** (`tests/test_modal_adapter.py`).
+Total new tests in M0.7: **41** (`tests/test_lightning_adapter.py`).
 
 ---
 
-## 9. Files added or modified in the M0.6 Modal adapter pass
+## 10. Files added or modified in the M0.7 Lightning adapter pass
 
 ```
-modal_app.py                                  +220 / -0    NEW (Modal App + asgi_app + scale-to-zero)
-docs/MODAL_DEPLOYMENT.md                      +200 / -0    NEW (operator runbook, image strategy, GPU ladder, secrets)
-tests/test_modal_adapter.py                   +260 / -0    NEW (24 adapter tests, no Modal cloud execution)
-pyproject.toml                                +2 / -1      (version bump + [modal] extra)
-.env.example                                  +10 / -0     (MODAL_GPU knob)
-CHANGELOG_V2.md                               +60 / -0     (0.5.0 entry: Added / Changed / Preserved)
+scripts/setup_lightning.sh                       +60 / -0   NEW (idempotent Studio setup; delegates to setup_models)
+scripts/start_lightning.sh                       +70 / -0   NEW (Linux launch script; pre-flight CUDA probe; execs dr_support.run)
+docs/LIGHTNING_DEPLOYMENT.md                     +340 / -0  NEW (A–N operator runbook; PASS criteria; troubleshooting)
+tests/test_lightning_adapter.py                  +430 / -0  NEW (41 tests; launch defaults, contract stability, no-secret-leakage)
+.env.example                                     +20 / -0   (Lightning section; points at scripts + runbook)
+CHANGELOG_V2.md                                  +60 / -0   (0.6.0 entry: Added / Changed / Preserved)
+pyproject.toml                                   +1 / -1    (version bump 0.5.0 → 0.6.0)
+GOAL.md                                          overwritten (M0.7 summary + exact status)
 ```
 
-No existing file under `dr_support/`, `web/`, `Dockerfile`, or
-`docker-entrypoint.sh` was modified.
+No existing file under `dr_support/`, `web/`, `Dockerfile`,
+`docker-entrypoint.sh`, `modal_app.py`, or `docs/MODAL_DEPLOYMENT.md` was
+modified.
 
 ---
 
-## 10. Operator notes for the Modal deployment
+## 11. Operator notes for the Lightning deployment
 
 ```bash
-# 1. Install the Modal SDK alongside the project extras.
-pip install -e ".[modal]"
+# 1. In the Lightning Studio terminal:
+cd ~
+git clone https://github.com/siriponsri/dr-support-screening-poc.git
+cd dr-support-screening-poc
 
-# 2. Authenticate with Modal.
-modal setup
+# 2. One-time idempotent setup (venv + project + model assets).
+bash scripts/setup_lightning.sh
 
-# 3. (Optional) Create the bearer-token secret.
-modal secret create dr-support-remote-model-token \
-    REMOTE_MODEL_TOKEN='<synthetic-deploy-token>'
+# 3. Set the bearer-token secret in the Studio's environment-variables
+#    panel BEFORE launching:
+#      REMOTE_MODEL_TOKEN=<fresh synthetic-deploy-token>
+#    Generate with:  python -c "import secrets; print(secrets.token_urlsafe(32))"
 
-# 4. Deploy the app.
-modal deploy modal_app.py
-# Captures the deployed URL: APP_URL.
+# 4. Launch the model_api profile on 0.0.0.0:8000.
+bash scripts/start_lightning.sh
 
-# 5. Inspect container logs.
-modal app logs dr-support-screening-poc-model-api
+# 5. In the Studio UI: open the "Port" plugin (right-side panel) and
+#    expose port 8000. The plugin prints a public URL of the form
+#    https://<id>.lightning.ai.
 
-# 6. Smoke endpoints (see docs/MODAL_DEPLOYMENT.md §6 for the full curl invocations).
-curl -fsS "$APP_URL/health"      | python -m json.tool
-curl -fsS "$APP_URL/v1/models"   | python -m json.tool
-# POST /v1/predict/dr (RETFound) and /v1/predict/lesions (PRISM) on 01_dr fixture.
+# 6. Smoke the four contract endpoints (see docs/LIGHTNING_DEPLOYMENT.md
+#    §7 for the exact curl invocations).
+
+# 7. Stop the Studio when finished so Lightning credits are not consumed.
 ```
 
-GPU fallback (only when T4 OOM is observed):
+GPU fallback (only when T4 OOM is actually observed):
 
 ```bash
-MODAL_GPU=L4  modal deploy modal_app.py   # first documented fallback
-MODAL_GPU=A10 modal deploy modal_app.py   # second documented fallback
+# Re-create the Studio with an L4 or A10 machine type.
+# The script does NOT auto-escalate hardware — the operator reports
+# PASS_WITH_WARNINGS / OWNER_HARDWARE_ACTION_REQUIRED and escalates
+# manually.
 ```
 
-The adapter **rejects any other value** with `ValueError("MODAL_GPU='...' is
-not an accepted Modal GPU target")`. There is no silent hardware change.
+The launch script **never** silently changes hardware. There is no
+environment variable for GPU selection; the GPU is selected at Studio
+creation time, and changing it means a new Studio.
 
 ---
 
-## 11. What's NOT done — explicit owner actions
+## 12. What's NOT done — explicit owner actions
 
 These are deployment-time concerns that this codebase cannot complete from a
 CPU-only host:
 
-- **First-time `modal setup`.** Authenticate the operator against the Modal
-  workspace; this opens the Modal dashboard for the operator's account.
-- **First Modal image build.** Modal downloads the v0.4.0 base image, the
-  CUDA-enabled torch stack, the project source, and ~3 GB of model weights.
-  Subsequent deploys reuse the cached image layers.
-- **GPU billing.** Modal bills per-second for active GPU time. The
-  scale-to-zero default keeps idle cost at zero; the operator pays only for
-  inference traffic.
-- **First-time HF GPU acceptance run.** The M0.5 code is GPU-ready and the
-  contract tests prove it. The HF Space owner flips the switch on the
-  HF Space hardware and observes the Bridge v1 outputs flowing end-to-end
-  through a real `cuda:0` device.
-- **Live PRISM inference.** All 20 fold weights need to actually live on the
-  GPU host's SSD at the pinned paths. `setup_models` guarantees the download
-  + verification on first build; the owner does not have to do anything
-  beyond the initial build.
+- **First Lightning Studio creation.** The owner signs in to
+  [lightning.ai](https://lightning.ai), creates a Studio, and selects a
+  GPU (T4 default) machine type.
+- **First GPU acceptance run.** The owner executes steps A–N of
+  `docs/LIGHTNING_DEPLOYMENT.md` against the live Studio, including the
+  first `/health` + RETFound + PRISM smoke, then stops the Studio.
+- **Lightning credit management.** GPU usage consumes Lightning credits;
+  the owner monitors credit availability and stops the Studio when not
+  in use.
+- **`REMOTE_MODEL_TOKEN` rotation.** Rotating the token is a Studio
+  env-panel action; the local `.env` must be updated to match.
+- **First-time `modal setup`.** Still required if the owner also wants
+  to keep the v0.5.0 Modal target.
+- **First-time HF GPU acceptance run.** The v0.4.0 code is still GPU-ready
+  and the contract tests prove it. The HF Space owner flips the switch
+  on the HF Space hardware and observes the Bridge v1 outputs flowing
+  end-to-end through a real `cuda:0` device.
+- **Live PRISM inference (any deployment).** All 20 fold weights need to
+  actually live on the GPU host's SSD at the pinned paths. `setup_models`
+  guarantees the download + verification on first build; the owner does
+  not have to do anything beyond the initial build.
 - **CVAT round-trip on a live workspace.** CVAT Online still requires the
   `CVAT_TOKEN` to be present at the review workstation's runtime. The
   same `OWNER_ACTION_REQUIRED` message from v0.3.0 still applies.
 
 None of these are governance or implementation issues — they are
-operations the owner executes against the deployed HF Space or Modal app.
+operations the owner executes against the deployed HF Space, Modal app,
+or Lightning Studio.
 
 ---
 
-## 12. Status
+## 13. Status
 
-**PASS** — code is ready for both HF GPU acceptance AND Modal GPU
-acceptance.
+**PASS** — code is ready for HF GPU acceptance, Modal GPU acceptance, AND
+Lightning AI Studio GPU acceptance.
 
-- All in-scope deliverables shipped; 102 backend tests + 3 frontend tests
-  pass locally on a CPU-only host.
-- The Modal adapter is an additional deployment path; it does not modify
-  the HF Docker Space story or any contract / UI surface.
-- GPU device abstraction is strict by default; CPU fallback only allowed
-  when explicitly opted in via `DR_SUPPORT_RELAX_DEVICE=1`.
-- RETFound and PRISM run their parameters, activations, and SAHI / YOLO
-  pipelines on the resolved device with `torch.inference_mode()` and
-  `torch.cuda.empty_cache()` cleanup.
-- The Modal image is the v0.4.0 Dockerfile (strategy A: bake assets at
-  build time); the entrypoint is wired and never re-downloads; no
-  duplicate dependency definitions.
-- `/health` and `/v1/models` expose `requested_device`, `effective_device`,
-  `cuda_available`, `cuda_device_count`, `cuda_device_name` for both HF
-  and Modal monitoring.
-- Modal defaults to T4 GPU with a documented `L4 → A10` fallback ladder;
-  hardware is never silently changed.
-- Modal scale-to-zero by default; no warm-pool knobs.
-- `REMOTE_MODEL_TOKEN` delivered via Modal Secret; never hardcoded,
-  logged, or echoed.
-- V2 clinician UI untouched; the Modal deployment never hosts the UI.
-- Public/synthetic POC only; no scientific claims, no calibrated-probability
-  assertions, no clinical guidance.
+- All in-scope deliverables shipped; 143 backend tests + 3 frontend
+  tests pass locally on a CPU-only host.
+- The Lightning adapter is an additional deployment path; it does not
+  modify the HF Docker Space story, the Modal adapter, or any contract /
+  UI surface.
+- `scripts/start_lightning.sh` pins the same production env as
+  `Dockerfile` / `docker-entrypoint.sh` / `modal_app.py`; refuses
+  `WORKERS > 1`; refuses to silently fall back to CPU via a pre-flight
+  `torch.cuda.is_available()` probe; execs `python -m dr_support.run`.
+- `scripts/setup_lightning.sh` is idempotent and delegates to the
+  existing `python -m dr_support.setup_models --model all` — no
+  duplicated download / hash logic.
+- Asset cache lives under the single, predictable
+  `local-state/bridge/` path; the Lightning persistent disk keeps it
+  across Studio restarts.
+- `REMOTE_MODEL_TOKEN` delivered via the Studio's environment-variables
+  panel; never hardcoded, logged, or echoed by either script.
+- Hardware is selected at Studio creation time; the launch script
+  never silently changes GPU class.
+- V2 clinician UI untouched; the Lightning deployment never hosts the
+  UI.
+- Public/synthetic POC only; no scientific claims, no
+  calibrated-probability assertions, no clinical guidance.
