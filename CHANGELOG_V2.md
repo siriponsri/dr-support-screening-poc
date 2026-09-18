@@ -151,3 +151,57 @@
 - V2 clinician UI untouched.
 - Public/synthetic POC only; no scientific claims.
 
+## 0.5.0 — 2026-09-18 (M0.6 Modal deployment adapter)
+
+### Added
+- New `modal_app.py` — Modal deployment adapter for the existing
+  `APP_PROFILE=model_api` Remote Model API surface. Reuses the v0.4.0
+  `Dockerfile` via `modal.Image.from_dockerfile` so the Modal image is the
+  same artefact that ships to the HF Docker Space target. No duplicated
+  dependency definitions.
+- Modal `App` named `dr-support-screening-poc-model-api` exposing the
+  existing FastAPI `model_api` via `@modal.asgi_app()`. Default GPU is
+  `T4`; documented fallback ladder is `L4` → `A10` (any other value is
+  rejected so hardware is never changed silently).
+- Single-container concurrency (`@modal.concurrent(max_inputs=1,
+  target_inputs=1)`) preserves the v0.4.0 single-worker invariant — the
+  api-level `RLock` keeps GPU activation memory bounded by one forward
+  pass.
+- Scale-to-zero defaults: no `min_containers`, no `scaledown_window`,
+  no warm pool. Modal scales the container down between requests.
+- `REMOTE_MODEL_TOKEN` is delivered via a Modal `Secret` named
+  `dr-support-remote-model-token`. The secret is optional; when absent
+  the bearer-protected endpoints accept anonymous requests (the existing
+  `_require_bearer` helper treats a missing token as "no auth required").
+  The token is never hardcoded, logged, or echoed.
+- New `docs/MODAL_DEPLOYMENT.md` — operator runbook covering image
+  strategy (single source of truth: build-time asset baking), GPU
+  ladder rationale, secret creation, the `modal setup` / `modal deploy` /
+  `modal app logs` workflow, and acceptance smoke for `/health`,
+  `/v1/models`, `/v1/predict/dr` (RETFound), and `/v1/predict/lesions`
+  (PRISM).
+- 24 new tests in `tests/test_modal_adapter.py` covering the adapter
+  configuration, the GPU ladder (including rejection of `H100`/`A100`),
+  the strict-mode refusal, the ASGI route surface, the Modal `App` /
+  `Function` registration when the SDK is installed, the secret wiring,
+  the Dockerfile-backed image, and the scale-to-zero invariant.
+- New `modal` optional dependency in `pyproject.toml` (`[modal]` extra).
+- New `MODAL_GPU` knob in `.env.example`.
+
+### Changed
+- `pyproject.toml` bumped to `0.5.0`.
+
+### Preserved
+- Bridge v1 `GlobalResult` / `LesionResult` schema unchanged.
+- All four model_api routes (`/health`, `/v1/models`, `/v1/predict/dr`,
+  `/v1/predict/lesions`) unchanged.
+- `APP_PROFILE=model_api` + `MODEL_RUNTIME=remote` still rejected.
+- `RETFound` and `PRISM` provider classes untouched; same
+  SHA256-verified checkpoints, same `torch.inference_mode()` forward
+  passes, same `torch.cuda.empty_cache()` cleanup.
+- V2 clinician UI untouched; the Modal deployment never hosts the UI.
+- `/v1/cases`, `/v1/infer/*`, `/v1/cases/{id}/review`, CVAT round-trip
+  and persisted review state unchanged.
+- Existing 78 backend + 3 frontend tests pass on a CPU-only host.
+- Public/synthetic POC only; no scientific claims.
+

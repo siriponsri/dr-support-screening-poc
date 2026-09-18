@@ -9,8 +9,8 @@ exactly where this one left off.
 
 ## 1. Summary
 
-Five commits landed across two sessions, taking the project from `v0.2.0` to
-`v0.4.0` without breaking any existing test, contract, or UI surface:
+Six commits landed across three sessions, taking the project from `v0.2.0` to
+`v0.5.0` without breaking any existing test, contract, or UI surface:
 
 | Commit    | Title                                                                                          | Version |
 |-----------|------------------------------------------------------------------------------------------------|---------|
@@ -19,8 +19,11 @@ Five commits landed across two sessions, taking the project from `v0.2.0` to
 | `a9ccdfb` | `refactor: single-repo multi-runtime-profile architecture (review / model_api / full)`        | 0.3.0   |
 | `463270e` | `docs: GOAL.md session summary (audit + polish, REMOTE adapter, profile architecture)`         | 0.3.0   |
 | `<M0.5>`  | `harden(gpu): device resolver, GPU-ready providers, hardened Dockerfile, /health device fields` | 0.4.0 |
+| `<M0.6>`  | `feat(modal): Modal deployment adapter for the model_api profile (T4 GPU, scale-to-zero)`       | 0.5.0 |
 
-Status: **PASS** — code is ready for the first HF GPU acceptance.
+Status: **PASS** — code is ready for both HF GPU acceptance AND Modal GPU
+acceptance. The Modal adapter is an additional deployment path; it does not
+modify the HF Docker Space story.
 
 ---
 
@@ -41,10 +44,11 @@ dr-support-screening-poc/
 │   └── app.py       # top-level profile dispatcher
 ├── web/             # V2 clinician UI
 ├── tests/           # backend pytest + frontend jsdom
-├── docs/            # PROFILES.md, REMOTE_MODEL_API.md, LOCAL_RUNBOOK.md, ...
+├── docs/            # PROFILES.md, REMOTE_MODEL_API.md, MODAL_DEPLOYMENT.md, ...
+├── modal_app.py     # Modal deployment adapter (M0.6) — alt to HF Docker Space
 ├── Dockerfile       # HF Docker Space image, default profile = model_api
 ├── docker-entrypoint.sh  # env-validator wrapper, execs dr_support.run
-├── pyproject.toml   # 0.4.0
+├── pyproject.toml   # 0.5.0
 └── .env.example
 ```
 
@@ -64,6 +68,16 @@ Profile / runtime invariants are **strict and fail-fast**:
 - `APP_PROFILE=full` + `MODEL_RUNTIME=remote` → `RuntimeError`
 - `APP_PROFILE=model_api` + `INFERENCE_DEVICE=cuda*` + no CUDA runtime → `DeviceUnavailable`
 - `WORKERS > 1` → rejected by `docker-entrypoint.sh`
+
+Deployment paths (M0.6):
+
+| Path | Artefact | Operator command |
+|------|----------|------------------|
+| Hugging Face Docker Space (v0.4.0) | `Dockerfile` + `docker-entrypoint.sh` | `docker build` / push to HF Space |
+| Modal (v0.5.0) | `modal_app.py` reuses `Dockerfile` | `modal deploy modal_app.py` |
+
+Both paths serve the same FastAPI surface with the same `/health`,
+`/v1/models`, `/v1/predict/dr`, and `/v1/predict/lesions` contract.
 
 ---
 
@@ -175,7 +189,7 @@ model_api surface, bearer enforcement, M4 proxy smoke.
 
 ---
 
-## 6. Milestone D — GPU deployment hardening (`<M0.5>`) — **this session**
+## 6. Milestone D — GPU deployment hardening (`<M0.5>`) — v0.4.0
 
 Goal: make `APP_PROFILE=model_api` actually GPU-ready before the owner deploys
 to Hugging Face, without changing any contract or UI surface.
@@ -315,15 +329,118 @@ both", so we keep one consistent strategy.
 
 ---
 
-## 7. Verification matrix
+## 7. Milestone E — Modal deployment adapter (`<M0.6>`) — v0.5.0 — **this session**
+
+Goal: add Modal as a second deployment target alongside the v0.4.0 HF Docker
+Space, **without** changing the clinician UI, Bridge contracts, CVAT flow, or
+model semantics. Modal serves the same `model_api` surface; the deployment
+artefact is the existing v0.4.0 Dockerfile.
+
+### 7.1 `modal_app.py` (new)
+
+A thin Modal adapter that reuses the existing FastAPI surface:
+
+- `modal.App(name="dr-support-screening-poc-model-api")`.
+- `modal.Image.from_dockerfile("Dockerfile")` — single source of truth for the
+  build artefact. The same image is the HF Docker Space image.
+- `@modal.asgi_app()` exposing the existing FastAPI `model_api` produced by
+  `dr_support.app.create_app()` with `APP_PROFILE=model_api`,
+  `MODEL_RUNTIME=local`, `INFERENCE_DEVICE=cuda:0`.
+- `@modal.concurrent(max_inputs=1, target_inputs=1)` to preserve the
+  v0.4.0 single-worker invariant. The api-level `RLock` is the actual
+  correctness guard; the Modal concurrency knob is the public-facing
+  promise.
+- `gpu="T4"` by default; opt-in ladder `L4 → A10` via `MODAL_GPU` env. Any
+  other value (e.g. `H100`, `A100`) is rejected — the adapter never
+  silently changes hardware.
+- No `min_containers`, no `scaledown_window`, no warm pool: scale-to-zero
+  by default.
+- `REMOTE_MODEL_TOKEN` delivered via `modal.Secret.from_name(
+  "dr-support-remote-model-token", required_keys=[])`. The secret is
+  optional; when absent, `_require_bearer` treats the endpoints as
+  unauthenticated. When present, it enforces `Authorization: Bearer ...`
+  with the constant-time comparison the v0.2.1 REMOTE adapter introduced.
+- No duplication of dependency definitions: the Modal image is the v0.4.0
+  Dockerfile; the Modal SDK is the only new dependency and it lives in the
+  optional `[modal]` extra.
+- Module is importable without `modal` installed; the `web` and `app`
+  bindings become plain callables in that case so the contract tests still
+  run on a CPU-only host.
+
+### 7.2 Asset strategy — **baked into the Modal image at build time**
+
+The same strategy used by the HF Docker Space. `setup_models --model all`
+runs once during image build; SHA256-verified sources + weights live under
+`/app/local-state/bridge` in the resulting image; cold-start latency is
+dominated by uvicorn and model lazy-loading, not multi-GB network IO.
+
+We deliberately do **not** ship a Volume-based strategy. A Volume would add
+a second moving part (the `Volume.from_name(...)` mount and a
+`weights.sha256` reconciliation step) without materially improving rebuild
+time for immutable pinned revisions. The Modal image is the same artefact
+that ships to the HF Space target — no second source of truth.
+
+### 7.3 Hardware ladder
+
+| GPU | VRAM | When to use |
+|-----|------|-------------|
+| `T4`  | 16 GB | Default. Sufficient for the released RETFound + PRISM checkpoints. |
+| `L4`  | 24 GB | First fallback if PRISM activations exceed T4 headroom. |
+| `A10` | 24 GB | Same memory class as L4 with a different CUDA capability. |
+
+`H100` / `A100` are NOT in the ladder. The released checkpoints do not
+need them and the price differential is not justified for a public POC.
+
+### 7.4 Secrets
+
+`REMOTE_MODEL_TOKEN` is delivered via a Modal `Secret` named
+`dr-support-remote-model-token`. The secret is optional — when not
+configured, `_require_bearer` accepts anonymous requests. When configured,
+the token is sent only as `Authorization: Bearer ...` and never logged,
+persisted, or echoed.
+
+Other env values (`APP_PROFILE`, `MODEL_RUNTIME`, `INFERENCE_DEVICE`,
+`HOST`, `PORT`, `WORKERS`) are baked into the image via
+`os.environ.setdefault(...)` in `modal_app.build_asgi_app()`. The local
+asset paths are wired by `dr_support.run.configure()` at container start.
+
+### 7.5 Tests (`tests/test_modal_adapter.py`, 24 new tests)
+
+- Static configuration: `DEFAULT_GPU == "T4"`, `ACCEPTED_GPUS == ("T4", "L4", "A10")`,
+  secret name, app name, Dockerfile path (proves the image is the existing
+  v0.4.0 artefact), concurrency invariants.
+- `_resolve_gpu` honours `MODAL_GPU`, rejects `H100`/`A100`, strips whitespace.
+- `build_asgi_app` pins `APP_PROFILE=model_api` + `MODEL_RUNTIME=local`,
+  exposes the four `/health` / `/v1/models` / `/v1/predict/dr` /
+  `/v1/predict/lesions` routes, does NOT mount the clinician UI routes
+  (`/v1/cases`, `/v1/infer/*`, `/ui`).
+- Strict-mode refusal: `build_asgi_app` raises `DeviceUnavailable` when
+  `INFERENCE_DEVICE=cuda:0` is requested but no CUDA runtime is visible.
+- Modal SDK integration (conditional on `modal` being installed):
+  - `modal_app.app` is a `modal.App` named `dr-support-screening-poc-model-api`.
+  - `modal_app.web` is a `modal.functions.Function`.
+  - `web._spec_.gpus == "T4"`.
+  - `web._spec_.secrets` references the bearer-token Secret.
+  - `web._spec_.image` comes from `modal.Image.from_dockerfile`.
+  - No warm-pool knobs (`scheduler_placement` is `None` or carries no
+    `min_containers`).
+
+These tests do not require Modal cloud execution. The only side-effect is
+the static module-level decorator wiring; the function body is invoked
+through `TestClient` against the FastAPI surface that `build_asgi_app`
+returns.
+
+---
+
+## 8. Verification matrix
 
 Run on the local Windows CPU host, before each commit:
 
 | Tool                         | Command                                                | Result                       |
 |------------------------------|--------------------------------------------------------|------------------------------|
-| Backend unit + integration   | `python -m pytest -q`                                  | **78 passed**, 1 skipped     |
+| Backend unit + integration   | `python -m pytest -q`                                  | **102 passed**, 1 skipped    |
 | Frontend JS contract + UI    | `npm test`                                             | 3/3 PASS                     |
-| Lint                         | `python -m ruff check dr_support tests`                | All checks passed            |
+| Lint                         | `python -m ruff check dr_support tests modal_app.py`   | All checks passed            |
 
 Test inventory by file:
 
@@ -335,114 +452,125 @@ Test inventory by file:
 | `tests/test_remote.py`          | 20    | Remote provider, mocked integration, token isolation              |
 | `tests/test_profiles.py`        | 19    | Profile dispatch, invariants, model_api surface, M4 proxy smoke   |
 | `tests/test_device.py`          | 22    | GPU device resolver, provider propagation, no-CPU-fallback, /health |
+| `tests/test_modal_adapter.py`   | 24    | Modal adapter config, GPU ladder, ASGI surface, SDK integration   |
 | `tests/test_browser_ui.py`      | 1     | Real-browser preview smoke (skipped on this host)                 |
 | `tests/overlay.test.cjs`        | —     | Imported CVAT geometry overrides AI provenance                    |
 | `tests/ui.test.cjs`             | —     | DOM + real API: navigation, Analyze, grade correction             |
 | `tests/preview.test.cjs`        | —     | Offline PREVIEW.html, no API calls, controls disabled             |
 
-Total new tests in M0.5: **22** (`tests/test_device.py`).
+Total new tests in M0.6: **24** (`tests/test_modal_adapter.py`).
 
 ---
 
-## 8. Files added or modified in the M0.5 hardening pass
+## 9. Files added or modified in the M0.6 Modal adapter pass
 
 ```
-dr_support/runtime/__init__.py              +13 / -0    NEW (runtime package)
-dr_support/runtime/device.py                +200 / -0   NEW (resolver + DeviceSnapshot + assert_cuda_ready)
-dr_support/providers/retfound.py            +30 / -13   (device + inference_mode + metadata)
-dr_support/providers/prism.py               +75 / -20   (device on ROI + YOLO + SAHI + cuda.empty_cache)
-dr_support/services/model_api.py            +60 / -8    (device_strict + /health + /v1/models device fields)
-dr_support/api/_factory.py                   +12 / -2    (/health device fields + provider allow_cpu_fallback=True)
-dr_support/app.py                           +35 / -5    (device_strict wiring for model_api vs full profile)
-Dockerfile                                   rewritten   (single-stage, deadsnakes, no GPU-only build steps, ENTRYPOINT)
-docker-entrypoint.sh                         rewritten   (env-only validator; no duplicate setup_models call)
-.env.example                                 +14 / -0    (INFERENCE_DEVICE + DR_SUPPORT_RELAX_DEVICE)
-docs/PROFILES.md                             +30 / -10   (GPU readiness section, single-worker invariant, asset strategy)
-docs/LOCAL_RUNBOOK.md                       unchanged    (no contract changes)
-web/index.html                               version bump v0.3.0 → v0.4.0
-PREVIEW.html                                 version bump v0.3.0 → v0.4.0
-pyproject.toml                               version bump 0.3.0 → 0.4.0
-CHANGELOG_V2.md                              +60 / -0    (0.4.0 entry: Added / Changed / Preserved)
-tests/test_device.py                         +420 / -0   NEW (22 device-resolver + provider + factory tests)
+modal_app.py                                  +220 / -0    NEW (Modal App + asgi_app + scale-to-zero)
+docs/MODAL_DEPLOYMENT.md                      +200 / -0    NEW (operator runbook, image strategy, GPU ladder, secrets)
+tests/test_modal_adapter.py                   +260 / -0    NEW (24 adapter tests, no Modal cloud execution)
+pyproject.toml                                +2 / -1      (version bump + [modal] extra)
+.env.example                                  +10 / -0     (MODAL_GPU knob)
+CHANGELOG_V2.md                               +60 / -0     (0.5.0 entry: Added / Changed / Preserved)
 ```
 
----
-
-## 9. Operator notes for the HF GPU deployment
-
-1. Push the current `main` (after this session).
-2. Create or update the Hugging Face Space:
-   - SDK: `docker`
-   - Hardware: `t4-small` (16 GB VRAM)
-   - Dockerfile: this repo's `Dockerfile`
-   - Space secrets: `REMOTE_MODEL_TOKEN` if review workstations will
-     authenticate (optional)
-3. The Space will:
-   - Build the image once. `setup_models --model all` runs in the build
-     layer and the resulting image contains the SHA256-verified model
-     sources + weights.
-   - Start the container. `docker-entrypoint.sh` validates `APP_PROFILE`,
-     `MODEL_RUNTIME`, presence of pre-built assets, and `WORKERS=1`.
-   - Run `python -m dr_support.run`, which calls
-     `dr_support.app.create_app()` → `dr_support.services.model_api.create_app()`
-     → `dr_support.runtime.assert_cuda_ready()`.
-4. First inference call:
-   - `RETFound.load()` reads the checkpoint (already on disk in the image),
-     builds the ViT, moves it to `cuda:0`, disables autograd, sets
-     `requires_grad_(False)`.
-   - `PRISM.load()` builds the namespace, loads the ROI YOLO and all 4
-     lesion classes × 5 folds = 20 models into VRAM on `cuda:0`.
-   - `RETFound.infer()` moves the input tensor to `cuda:0`, runs in
-     `torch.inference_mode()`, and surfaces the Bridge v1 `GlobalResult`.
-   - `PRISM.infer()` runs all 20 fold inferences under the api-level
-     `RLock`, then `torch.cuda.empty_cache()` releases intermediate
-     activations.
-5. `/health` returns `cuda_available: true`, `effective_device: cuda:0`,
-   `cuda_device_count: 1`, `cuda_device_name: Tesla T4` (or whatever the
-   actual GPU reports).
-6. The first request will be slow (cold start). Subsequent requests stay
-   bounded by the api-level lock and a single forward pass on the GPU.
+No existing file under `dr_support/`, `web/`, `Dockerfile`, or
+`docker-entrypoint.sh` was modified.
 
 ---
 
-## 10. What's NOT done — explicit owner actions
+## 10. Operator notes for the Modal deployment
+
+```bash
+# 1. Install the Modal SDK alongside the project extras.
+pip install -e ".[modal]"
+
+# 2. Authenticate with Modal.
+modal setup
+
+# 3. (Optional) Create the bearer-token secret.
+modal secret create dr-support-remote-model-token \
+    REMOTE_MODEL_TOKEN='<synthetic-deploy-token>'
+
+# 4. Deploy the app.
+modal deploy modal_app.py
+# Captures the deployed URL: APP_URL.
+
+# 5. Inspect container logs.
+modal app logs dr-support-screening-poc-model-api
+
+# 6. Smoke endpoints (see docs/MODAL_DEPLOYMENT.md §6 for the full curl invocations).
+curl -fsS "$APP_URL/health"      | python -m json.tool
+curl -fsS "$APP_URL/v1/models"   | python -m json.tool
+# POST /v1/predict/dr (RETFound) and /v1/predict/lesions (PRISM) on 01_dr fixture.
+```
+
+GPU fallback (only when T4 OOM is observed):
+
+```bash
+MODAL_GPU=L4  modal deploy modal_app.py   # first documented fallback
+MODAL_GPU=A10 modal deploy modal_app.py   # second documented fallback
+```
+
+The adapter **rejects any other value** with `ValueError("MODAL_GPU='...' is
+not an accepted Modal GPU target")`. There is no silent hardware change.
+
+---
+
+## 11. What's NOT done — explicit owner actions
 
 These are deployment-time concerns that this codebase cannot complete from a
 CPU-only host:
 
-- **Actual GPU run on HF T4 small.** The code is GPU-ready and the
-  contract tests prove it. The owner is the only one who can flip the
-  switch on the HF Space hardware and observe the Bridge v1 outputs flowing
-  end-to-end through a real `cuda:0` device.
-- **Real PRISM inference.** All 20 fold weights need to actually live on
-  the GPU host's SSD at the pinned paths. `setup_models` guarantees the
-  download + verification on first build; the owner does not have to do
-  anything beyond the initial build.
+- **First-time `modal setup`.** Authenticate the operator against the Modal
+  workspace; this opens the Modal dashboard for the operator's account.
+- **First Modal image build.** Modal downloads the v0.4.0 base image, the
+  CUDA-enabled torch stack, the project source, and ~3 GB of model weights.
+  Subsequent deploys reuse the cached image layers.
+- **GPU billing.** Modal bills per-second for active GPU time. The
+  scale-to-zero default keeps idle cost at zero; the operator pays only for
+  inference traffic.
+- **First-time HF GPU acceptance run.** The M0.5 code is GPU-ready and the
+  contract tests prove it. The HF Space owner flips the switch on the
+  HF Space hardware and observes the Bridge v1 outputs flowing end-to-end
+  through a real `cuda:0` device.
+- **Live PRISM inference.** All 20 fold weights need to actually live on the
+  GPU host's SSD at the pinned paths. `setup_models` guarantees the download
+  + verification on first build; the owner does not have to do anything
+  beyond the initial build.
 - **CVAT round-trip on a live workspace.** CVAT Online still requires the
   `CVAT_TOKEN` to be present at the review workstation's runtime. The
   same `OWNER_ACTION_REQUIRED` message from v0.3.0 still applies.
 
 None of these are governance or implementation issues — they are
-operations the owner executes against the deployed HF Space.
+operations the owner executes against the deployed HF Space or Modal app.
 
 ---
 
-## 11. Status
+## 12. Status
 
-**PASS** — code is ready for the first HF GPU acceptance run.
+**PASS** — code is ready for both HF GPU acceptance AND Modal GPU
+acceptance.
 
-- All in-scope deliverables shipped; 78 backend tests + 3 frontend tests pass
-  locally on a CPU-only host.
+- All in-scope deliverables shipped; 102 backend tests + 3 frontend tests
+  pass locally on a CPU-only host.
+- The Modal adapter is an additional deployment path; it does not modify
+  the HF Docker Space story or any contract / UI surface.
 - GPU device abstraction is strict by default; CPU fallback only allowed
   when explicitly opted in via `DR_SUPPORT_RELAX_DEVICE=1`.
 - RETFound and PRISM run their parameters, activations, and SAHI / YOLO
   pipelines on the resolved device with `torch.inference_mode()` and
   `torch.cuda.empty_cache()` cleanup.
-- Dockerfile bakes assets at build time; entrypoint is wired and never
-  re-downloads; `WORKERS > 1` is rejected; the image is reproducible against
-  pinned upstream revisions and SHA256s.
+- The Modal image is the v0.4.0 Dockerfile (strategy A: bake assets at
+  build time); the entrypoint is wired and never re-downloads; no
+  duplicate dependency definitions.
 - `/health` and `/v1/models` expose `requested_device`, `effective_device`,
-  `cuda_available`, `cuda_device_count`, `cuda_device_name` for HF platform
-  monitoring.
+  `cuda_available`, `cuda_device_count`, `cuda_device_name` for both HF
+  and Modal monitoring.
+- Modal defaults to T4 GPU with a documented `L4 → A10` fallback ladder;
+  hardware is never silently changed.
+- Modal scale-to-zero by default; no warm-pool knobs.
+- `REMOTE_MODEL_TOKEN` delivered via Modal Secret; never hardcoded,
+  logged, or echoed.
+- V2 clinician UI untouched; the Modal deployment never hosts the UI.
 - Public/synthetic POC only; no scientific claims, no calibrated-probability
   assertions, no clinical guidance.
