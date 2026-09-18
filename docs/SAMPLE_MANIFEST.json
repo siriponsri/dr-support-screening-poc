@@ -1,0 +1,122 @@
+[
+  {
+    "image_id": "01_dr",
+    "filename": "01_dr.jpg",
+    "sha256": "c800c9bcf24b34785a9f435e84628206361eec85a566ab44ad3c026d4985ece7",
+    "width": 3504,
+    "height": 2336,
+    "source_type": "PUBLIC",
+    "modality": "CFP",
+    "source": "https://huggingface.co/datasets/MedOtter/HRF",
+    "license": "CC-BY-4.0 (mirror card)",
+    "warning": "Viewer JPEG derivative; vessel GT only; no lesion or ordinal grading GT"
+  },
+  {
+    "image_id": "02_dr",
+    "filename": "02_dr.jpg",
+    "sha256": "4a33ccdb524102ed49a8c04dd84a32750d93f48a54ed3809b0ac162050ac8554",
+    "width": 3504,
+    "height": 2336,
+    "source_type": "PUBLIC",
+    "modality": "CFP",
+    "source": "https://huggingface.co/datasets/MedOtter/HRF",
+    "license": "CC-BY-4.0 (mirror card)",
+    "warning": "Viewer JPEG derivative; vessel GT only; no lesion or ordinal grading GT"
+  },
+  {
+    "image_id": "03_dr",
+    "filename": "03_dr.jpg",
+    "sha256": "db6f44829f6f2778a09bfe6b868eae64392b34b42d4a6918dc925146e88aa18f",
+    "width": 3504,
+    "height": 2336,
+    "source_type": "PUBLIC",
+    "modality": "CFP",
+    "source": "https://huggingface.co/datasets/MedOtter/HRF",
+    "license": "CC-BY-4.0 (mirror card)",
+    "warning": "Viewer JPEG derivative; vessel GT only; no lesion or ordinal grading GT"
+  },
+  {
+    "image_id": "04_dr",
+    "filename": "04_dr.jpg",
+    "sha256": "697db261fa563de8f6c89fa921a5f1588035cd7b6197329dbd86c4470dfc0676",
+    "width": 3504,
+    "height": 2336,
+    "source_type": "PUBLIC",
+    "modality": "CFP",
+    "source": "https://huggingface.co/datasets/MedOtter/HRF",
+    "license": "CC-BY-4.0 (mirror card)",
+    "warning": "Viewer JPEG derivative; vessel GT only; no lesion or ordinal grading GT"
+  },
+  {
+    "image_id": "05_dr",
+    "filename": "05_dr.jpg",
+    "sha256": "e33b3631ece0767409daf4f311db9f39f0013388aed872aafabc7cfee713a31e",
+    "width": 3504,
+    "height": 2336,
+    "source_type": "PUBLIC",
+    "modality": "CFP",
+    "source": "https://huggingface.co/datasets/MedOtter/HRF",
+    "license": "CC-BY-4.0 (mirror card)",
+    "warning": "Viewer JPEG derivative; vessel GT only; no lesion or ordinal grading GT"
+  },
+  {
+    "image_id": "06_dr",
+    "filename": "06_dr.jpg",
+    "sha256": "554d4c5a0bc165ae59833d850f487219e0d14d2e2a53d9a9d8d2efb6749096e9",
+    "width": 3504,
+    "height": 2336,
+    "source_type": "PUBLIC",
+    "modality": "CFP",
+    "source": "https://huggingface.co/datasets/MedOtter/HRF",
+    "license": "CC-BY-4.0 (mirror card)",
+    "warning": "Viewer JPEG derivative; vessel GT only; no lesion or ordinal grading GT"
+  },
+  {
+    "image_id": "07_dr",
+    "filename": "07_dr.jpg",
+    "sha256": "29614f52edaac3493eb7fddf9b99f2749d67729a427a2f2c7267abf2d311c740",
+    "width": 3504,
+    "height": 2336,
+    "source_type": "PUBLIC",
+    "modality": "CFP",
+    "source": "https://huggingface.co/datasets/MedOtter/HRF",
+    "license": "CC-BY-4.0 (mirror card)",
+    "warning": "Viewer JPEG derivative; vessel GT only; no lesion or ordinal grading GT"
+  },
+  {
+    "image_id": "08_dr",
+    "filename": "08_dr.jpg",
+    "sha256": "d1d8287baeb66b5ea8251c374f5f93b40fc803fea83fe809def33e9d1bfbdd94",
+    "width": 3504,
+    "height": 2336,
+    "source_type": "PUBLIC",
+    "modality": "CFP",
+    "source": "https://huggingface.co/datasets/MedOtter/HRF",
+    "license": "CC-BY-4.0 (mirror card)",
+    "warning": "Viewer JPEG derivative; vessel GT only; no lesion or ordinal grading GT"
+  },
+  {
+    "image_id": "09_dr",
+    "filename": "09_dr.jpg",
+    "sha256": "9a41c83eee9178a798712077d00ac71f7db6e75a7e8d31c148021eee1d7ebbe1",
+    "width": 3504,
+    "height": 2336,
+    "source_type": "PUBLIC",
+    "modality": "CFP",
+    "source": "https://huggingface.co/datasets/MedOtter/HRF",
+    "license": "CC-BY-4.0 (mirror card)",
+    "warning": "Viewer JPEG derivative; vessel GT only; no lesion or ordinal grading GT"
+  },
+  {
+    "image_id": "10_dr",
+    "filename": "10_dr.jpg",
+    "sha256": "994ad108e4d822769c65a8e59b9f41ff79e7ed55f8ad131f759ff95bb6f0aa66",
+    "width": 3504,
+    "height": 2336,
+    "source_type": "PUBLIC",
+    "modality": "CFP",
+    "source": "https://huggingface.co/datasets/MedOtter/HRF",
+    "license": "CC-BY-4.0 (mirror card)",
+    "warning": "Viewer JPEG derivative; vessel GT only; no lesion or ordinal grading GT"
+  }
+]

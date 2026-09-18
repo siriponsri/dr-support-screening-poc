@@ -1,0 +1,20 @@
+{
+  "status": "PASS_WITH_WARNINGS",
+  "image_id": "01_dr",
+  "image_sha256": "c800c9bcf24b34785a9f435e84628206361eec85a566ab44ad3c026d4985ece7",
+  "elapsed_seconds": 13.32,
+  "grade_suggestion": 2,
+  "provenance": {
+    "image_sha256": "c800c9bcf24b34785a9f435e84628206361eec85a566ab44ad3c026d4985ece7",
+    "source_type": "PUBLIC",
+    "preprocessing": "RGB; resize short edge 256 bicubic; center crop 224; ImageNet mean/std; global pool",
+    "checkpoint_sha256": {
+      "aptos5": "a96b9dbcb78eff373912fb0a48d316dc35ffb0715bb2a1b9128b096d780edbbf"
+    },
+    "source_revision": "ae9a9ecf37857cf47b8aa9f87cd6f710d75db287"
+  },
+  "warnings": [
+    "CC-BY-NC-4.0; research/non-commercial only",
+    "Uncalibrated Bridge model; not R1 champion"
+  ]
+}

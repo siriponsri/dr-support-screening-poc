@@ -1,0 +1,11 @@
+{
+  "name": "dr-support-screening-poc-ui-tests",
+  "private": true,
+  "scripts": {
+    "test": "node tests/overlay.test.cjs && node tests/ui.test.cjs && node tests/preview.test.cjs",
+    "test:overlay": "node tests/overlay.test.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0"
+  }
+}
