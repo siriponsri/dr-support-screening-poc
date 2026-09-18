@@ -23,6 +23,16 @@ For live inference/review on a Python-capable developer host, see
 [LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md); Windows entrypoint: `START.cmd`.
 The restricted owner workstation can remain browser-only when a developer hosts the API later.
 
+## Provider-neutral REMOTE runtime (v0.2.1)
+
+Inference can be proxied to a separately deployed Remote Model API without
+changing the UI or the persisted review state. Set `MODEL_RUNTIME=remote` and
+`REMOTE_MODEL_URL` (optional `REMOTE_MODEL_TOKEN`) at runtime; the local
+RETFound/PRISM providers remain the default. See
+[REMOTE_MODEL_API.md](docs/REMOTE_MODEL_API.md) for the deployment contract
+and [LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md) for the configuration knobs.
+No models are deployed from this repository.
+
 ## V2 clinician-first redesign
 
 The interface is now organized around three views:

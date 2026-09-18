@@ -12,6 +12,13 @@ from dr_support.providers.mock import infer_mock
 from .images import synthetic_image
 from dr_support.providers.retfound import RETFound
 from dr_support.providers.prism import PRISM
+from dr_support.providers.remote import (
+    RemoteModelProvider,
+    RemoteGlobalProvider,
+    RemoteLesionProvider,
+    RemoteModelError,
+    RemoteTimeoutError,
+)
 
 
 def create_app(state_path=None, include_samples=True):
@@ -31,7 +38,20 @@ def create_app(state_path=None, include_samples=True):
         if request.method != 'GET' and origin and origin.rstrip('/') != str(request.base_url).rstrip('/'):
             return JSONResponse({'detail': 'Cross-origin mutation rejected'}, status_code=403)
         return await call_next(request)
-    app.state.providers = {"retfound-aptos5": RETFound(), "prism-dr-5fold": PRISM()}
+
+    runtime = (os.environ.get('MODEL_RUNTIME') or 'local').strip().lower()
+    if runtime == 'remote':
+        app.state.remote_runtime = True
+        # REMOTE_MODEL_URL is required; REMOTE_MODEL_TOKEN is optional and read at request time.
+        if not os.environ.get('REMOTE_MODEL_URL'):
+            raise RuntimeError('REMOTE_MODEL_URL must be set when MODEL_RUNTIME=remote')
+        app.state.providers = {
+            RemoteGlobalProvider.model_id: RemoteGlobalProvider(),
+            RemoteLesionProvider.model_id: RemoteLesionProvider(),
+        }
+    else:
+        app.state.remote_runtime = False
+        app.state.providers = {"retfound-aptos5": RETFound(), "prism-dr-5fold": PRISM()}
 
     @app.get('/health')
     def health():
@@ -65,6 +85,10 @@ def create_app(state_path=None, include_samples=True):
                 result = provider.infer(request, image)
             save_result(request, task, result)
             return result
+        except RemoteTimeoutError:
+            raise HTTPException(504, 'Remote model timeout; inspect REMOTE_MODEL_URL and runtime latency') from None
+        except RemoteModelError as exc:
+            raise HTTPException(502, f'Remote model error: {exc}') from None
         except (RuntimeError, ValueError, KeyError, OSError, ImportError):
             raise HTTPException(503, 'Model unavailable; inspect Models readiness and runtime configuration') from None
 
@@ -80,7 +104,13 @@ def create_app(state_path=None, include_samples=True):
                     case['state'] = 'PENDING'
                     case['reviewed_grade'] = None
                     case['grade_review_source'] = None
-                case['events'].append({'action': 'INFERENCE', 'model_id': request.model_id})
+                event = {'action': 'INFERENCE', 'model_id': request.model_id}
+                provider = app.state.providers.get(request.model_id)
+                if isinstance(provider, RemoteModelProvider):
+                    event['runtime'] = 'remote'
+                    if provider.last_inference_ms is not None:
+                        event['latency_ms'] = round(provider.last_inference_ms, 1)
+                case['events'].append(event)
                 store.put(case)
 
     @app.post('/v1/infer/global', response_model=GlobalResult)

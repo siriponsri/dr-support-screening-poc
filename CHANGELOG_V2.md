@@ -31,7 +31,19 @@
 
 ## 0.2.1 — 2026-09-18
 
-### Polished
+### Added
+- Provider-neutral **REMOTE** inference mode (opt-in via `MODEL_RUNTIME=remote`).
+  - `REMOTE_MODEL_URL` points the backend at an external Remote Model API.
+  - `REMOTE_MODEL_TOKEN` is read from the environment only and sent as `Authorization: Bearer ...`;
+    it is never returned by the API, persisted, or surfaced in the UI.
+  - Backend proxies `/v1/predict/dr` and `/v1/predict/lesions`; preserves the existing
+    `GlobalResult`/`LesionResult` Bridge v1 schema and the existing `/v1/models` metadata contract.
+  - Inference latency and remote runtime status are surfaced in the Models & Audit metadata.
+  - Clear timeout (504) and remote-error (502) responses; local-mode 503 path preserved.
+- New tests with a mocked remote transport (`tests/test_remote.py`) covering success, timeout,
+  non-2xx, malformed schema, token isolation, and metadata surfacing.
+
+### Changed
 - Action-bar hierarchy: primary review actions (Accept, Adjust Grade, Needs Annotation, Escalate) are now visually grouped; Advanced Edit/CVAT is separated and de-emphasized with a subtle style and external-link hint.
 - Simplified clinical copy: "Model & provenance" → "Model details", "Preprocessing" → "Image preparation", and tightened lesion-help text.
 - Improved empty-state guidance in the AI Review panel.
@@ -39,9 +51,8 @@
 - Improved skip-link accessibility styling and focus visibility.
 
 ### Preserved
-- Backend API contracts unchanged.
-- Persisted review state unchanged.
-- CVAT integration and imported annotation semantics unchanged.
-- AI-vs-clinician overlay distinction unchanged.
+- Backend API contracts for `/v1/cases`, `/v1/infer/*`, `/v1/cases/{id}/review`, CVAT round-trip,
+  persisted review state, and AI-vs-clinician overlay semantics unchanged.
+- Local RETFound/PRISM and synthetic-mock providers remain the default and continue to work.
 - Lesion colors remain independent from UI semantic colors.
-- CVAT_TOKEN remains environment-only; no secrets hardcoded.
+- CVAT_TOKEN and REMOTE_MODEL_TOKEN remain environment-only; no secrets hardcoded or exposed.

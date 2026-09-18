@@ -64,6 +64,40 @@ To use a separately prepared cache, set RETFOUND_SOURCE, RETFOUND_WEIGHTS, PRISM
 and PRISM_WEIGHTS to those verified locations. Source paths must be the pinned clean Git checkouts.
 The API does not load `.env` files. Runtime environment variables are authoritative.
 
+## Remote runtime (provider-neutral)
+
+The backend can proxy inference to a separately deployed Remote Model API
+without changing the UI, the persisted review state, or the CVAT round-trip.
+The local RETFound/PRISM providers remain the default; remote mode is opt-in.
+
+Required environment variables when `MODEL_RUNTIME=remote`:
+
+```text
+MODEL_RUNTIME=remote
+REMOTE_MODEL_URL=https://remote.example.invalid      # base URL of the deployed Remote Model API
+REMOTE_MODEL_TOKEN=                                  # optional Bearer token, environment only
+```
+
+Behavior:
+
+- The backend starts the same FastAPI app; only the provider classes change.
+- `retfound-aptos5` and `prism-dr-5fold` are still the public `model_id` values
+  requested by the UI — the proxy selects the appropriate remote endpoint.
+- The remote response MUST conform to Bridge v1 (`GlobalResult` /
+  `LesionResult`); see [REMOTE_MODEL_API.md](REMOTE_MODEL_API.md) for the
+  full contract.
+- Tokens are read from the environment at request time, sent only as
+  `Authorization: Bearer ...`, and never logged, persisted, or returned to the UI.
+- Each inference call records `runtime: "remote"` and `latency_ms` in the case
+  event log. Models & Audit surfaces the remote revision/hash/runtime/latency.
+- Clear error mapping: remote timeout → `504`, remote 4xx/5xx → `502`,
+  malformed response → `502`. Local-mode `503` path is preserved.
+
+For local development you can use the mocked transport in
+`tests/test_remote.py` as a working example; no real remote deployment ships
+in this repository.
+
+
 ## Review workflow
 
 1. **Worklist** → select a public image or SYNTH_001.
