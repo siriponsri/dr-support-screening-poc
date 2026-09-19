@@ -46,6 +46,8 @@ function errorText(err: unknown) {
 
 function pointFromEvent(event: ReactPointerEvent<SVGSVGElement>, item: CaseRecord): Point {
   const bounds = event.currentTarget.getBoundingClientRect();
+  // The image and SVG share the transformed stage, so the transformed bounds
+  // map pointer coordinates back to the original-image viewBox.
   return [
     Math.max(0, Math.min(item.width, ((event.clientX - bounds.left) / bounds.width) * item.width)),
     Math.max(0, Math.min(item.height, ((event.clientY - bounds.top) / bounds.height) * item.height)),
@@ -142,6 +144,7 @@ export function AnnotationEditorPage() {
 
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (!item || tool === 'select') return;
+    event.preventDefault();
     const point = pointFromEvent(event, item);
     if (tool === 'point') {
       commit([...draft, annotation('point', label, { x: point[0], y: point[1] })]);
@@ -181,12 +184,17 @@ export function AnnotationEditorPage() {
     setPreview(null);
   };
 
+  const onPointerCancel = () => {
+    setDragStart(null);
+    setPreview(null);
+  };
+
   const onDoubleClick = (event: ReactMouseEvent<SVGSVGElement>) => {
+    if (tool !== 'polygon') return;
     event.preventDefault();
-    if (tool === 'polygon' && polygonPoints.length >= 3) {
-      commit([...draft, annotation('polygon', label, { points: polygonPoints })]);
-      setPolygonPoints([]);
-    }
+    if (polygonPoints.length < 3) return;
+    commit([...draft, annotation('polygon', label, { points: polygonPoints })]);
+    setPolygonPoints([]);
   };
 
   const undo = () => {
@@ -202,6 +210,40 @@ export function AnnotationEditorPage() {
     if (!selectedShapeId) return;
     commit(draft.filter((entry) => entry.shape_id !== selectedShapeId));
   };
+
+  const annotationControls = (
+    <Stack spacing={3}>
+      <HStack spacing={2} flexWrap="wrap">
+        <ToolButton active={tool === 'select'} onClick={() => activateTool('select')}><MousePointer2 size={14} /> Select</ToolButton>
+        <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')}><Square size={14} /> Box</ToolButton>
+        <ToolButton active={tool === 'polygon'} onClick={() => activateTool('polygon')}><Pentagon size={14} /> Polygon</ToolButton>
+        <ToolButton active={tool === 'point'} onClick={() => activateTool('point')}><Circle size={14} /> Point</ToolButton>
+        <ToolButton active={tool === 'circle'} onClick={() => activateTool('circle')}><Circle size={14} /> Circle</ToolButton>
+      </HStack>
+      <HStack spacing={2}>
+        <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={history.length === 0}>Undo</Button>
+        <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={!selectedShapeId}>Delete selected</Button>
+      </HStack>
+      <HStack spacing={4} align="end" flexWrap="wrap">
+        <FormControl maxW={{ base: '100%', laptop: '250px' }}>
+          <FormLabel fontSize="sm">Lesion class</FormLabel>
+          <Select value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)}>
+            {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </Select>
+        </FormControl>
+        <HStack spacing={3} flexWrap="wrap" fontSize="sm">
+          <HStack spacing={2}>
+            <Text>AI suggestions</Text>
+            <Button size="sm" variant={showAi ? 'secondary' : 'outline'} onClick={() => setShowAi((visible) => !visible)}>{showAi ? 'Shown' : 'Hidden'}</Button>
+          </HStack>
+          <HStack spacing={2}>
+            <Text>Human annotations</Text>
+            <Button size="sm" variant={showHuman ? 'secondary' : 'outline'} onClick={() => setShowHuman((visible) => !visible)}>{showHuman ? 'Shown' : 'Hidden'}</Button>
+          </HStack>
+        </HStack>
+      </HStack>
+    </Stack>
+  );
 
   const save = async () => {
     if (!item || saving) return;
@@ -259,7 +301,9 @@ export function AnnotationEditorPage() {
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
             onDoubleClick={onDoubleClick}
+            fullScreenControls={annotationControls}
           >
             {polygonPoints.length > 0 && <polyline points={polygonPoints.map((point) => point.join(',')).join(' ')} fill="#111827" fillOpacity={0.1} stroke="#111827" strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />}
             {previewShape(preview)}
@@ -271,31 +315,7 @@ export function AnnotationEditorPage() {
         </Section>
         <Stack spacing={5}>
           <Section title="Editor tools" description="Select a tool, choose a lesion class, then draw on the image.">
-            <Stack spacing={3}>
-              <HStack spacing={2} flexWrap="wrap">
-                <ToolButton active={tool === 'select'} onClick={() => activateTool('select')}><MousePointer2 size={14} /> Select</ToolButton>
-                <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')}><Square size={14} /> Box</ToolButton>
-                <ToolButton active={tool === 'polygon'} onClick={() => activateTool('polygon')}><Pentagon size={14} /> Polygon</ToolButton>
-                <ToolButton active={tool === 'point'} onClick={() => activateTool('point')}><Circle size={14} /> Point</ToolButton>
-                <ToolButton active={tool === 'circle'} onClick={() => activateTool('circle')}><Circle size={14} /> Circle</ToolButton>
-              </HStack>
-              <HStack spacing={2}>
-                <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={history.length === 0}>Undo</Button>
-                <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={!selectedShapeId}>Delete selected</Button>
-              </HStack>
-              <FormControl>
-                <FormLabel fontSize="sm">Lesion class</FormLabel>
-                <Select value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)}>
-                  {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </Select>
-              </FormControl>
-              <Stack spacing={2} fontSize="sm">
-                <Text>AI suggestions</Text>
-                <Button size="sm" variant={showAi ? 'secondary' : 'outline'} onClick={() => setShowAi((visible) => !visible)}>{showAi ? 'Shown' : 'Hidden'}</Button>
-                <Text>Human annotations</Text>
-                <Button size="sm" variant={showHuman ? 'secondary' : 'outline'} onClick={() => setShowHuman((visible) => !visible)}>{showHuman ? 'Shown' : 'Hidden'}</Button>
-              </Stack>
-            </Stack>
+            {annotationControls}
           </Section>
           <Section title="Save human annotations" description="Saving writes only explicit HUMAN annotations to the case record.">
             <Stack spacing={3}>
