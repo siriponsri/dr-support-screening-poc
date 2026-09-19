@@ -1,5 +1,6 @@
 """Durable review API with optimistic concurrency and explicit human actions."""
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Literal
 from fastapi import HTTPException
 from fastapi.responses import Response
@@ -38,6 +39,8 @@ def install_workflow(app, store):
         image = get_image(image_id)
         case = store.get(image_id)
         return {**case, 'source_type': image.source_type, 'source': image.source,
+                'filename': image.filename or None,
+                'display_name': Path(image.filename).stem if image.filename else image.image_id,
                 'image_sha256': image.sha256, 'width': image.size[0], 'height': image.size[1],
                 'image_url': f'/v1/images/{image_id}', 'modality': image.modality,
                 'lesion_review': lesion_review_view(case.get('lesion'))}
@@ -53,7 +56,7 @@ def install_workflow(app, store):
     @app.get('/v1/images/{image_id}')
     def image_bytes(image_id: str):
         image = get_image(image_id)
-        return Response(image.data, media_type='image/png' if image.source_type == 'SYNTHETIC' else 'image/jpeg',
+        return Response(image.data, media_type=image.media_type,
                         headers={'Cache-Control': 'private, max-age=3600'})
 
     @app.post('/v1/cases/{image_id}/review')

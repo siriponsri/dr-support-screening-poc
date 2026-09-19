@@ -37,6 +37,7 @@ export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
         <Route path="/worklist" element={<WorklistPage />} />
         <Route path="/datasets" element={<DatasetsPage />} />
         <Route path="/review" element={<ReviewPage />} />
+        <Route path="/review/:imageId" element={<ReviewPage />} />
         <Route path="/models" element={<ModelsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/_foundation" element={<FoundationDemo />} />

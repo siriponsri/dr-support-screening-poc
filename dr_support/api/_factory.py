@@ -11,7 +11,9 @@ from threading import RLock
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from dr_support.contracts import InferenceRequest, GlobalResult, LesionResult
 from dr_support.providers.mock import infer_mock
@@ -26,7 +28,7 @@ from dr_support.providers.remote import (
 from dr_support.runtime import runtime_snapshot
 from dr_support.providers.retfound import RETFound
 
-from ..images import admitted_samples, synthetic_image
+from ..images import admitted_demo_images, admitted_samples, synthetic_image
 from ..store import Store
 from ..workflow import install_workflow
 
@@ -35,10 +37,14 @@ def create_app(state_path=None, include_samples=True):
     app = FastAPI(title='DR Support Screening POC', version='0.4.0')
     root = Path(__file__).resolve().parents[2]
 
-    fixture = synthetic_image()
-    app.state.images = {fixture.image_id: fixture}
-    if include_samples:
-        app.state.images.update(admitted_samples(root))
+    demo_folder = (os.environ.get('DR_DEMO_FOLDER') or '').strip()
+    if demo_folder:
+        app.state.images = admitted_demo_images(demo_folder)
+    else:
+        fixture = synthetic_image()
+        app.state.images = {fixture.image_id: fixture}
+        if include_samples:
+            app.state.images.update(admitted_samples(root))
     store = Store(state_path or (os.environ.get('DR_SUPPORT_STATE')
                                  or str(root / 'local-state/bridge/reviews.sqlite')))
     install_workflow(app, store)
@@ -172,8 +178,29 @@ def create_app(state_path=None, include_samples=True):
 
     @app.get('/')
     def home():
-        return RedirectResponse('/ui/index.html')
+        return RedirectResponse('/app/' if (root / 'frontend/dist/index.html').exists()
+                                else '/ui/index.html')
 
     app.mount('/ui', StaticFiles(directory=str(root / 'web')), name='ui')
+    frontend_dist = root / 'frontend/dist'
+    if frontend_dist.is_dir() and (frontend_dist / 'index.html').is_file():
+        class SPAStaticFiles(StaticFiles):
+            async def get_response(self, path, scope):
+                try:
+                    return await super().get_response(path, scope)
+                except StarletteHTTPException as exc:
+                    if exc.status_code != 404:
+                        raise
+                    return FileResponse(frontend_dist / 'index.html')
+
+        app.mount('/app', SPAStaticFiles(directory=str(frontend_dist), html=True), name='app')
+    else:
+        @app.get('/app')
+        @app.get('/app/{path:path}')
+        def missing_react_app(path: str = ''):
+            return JSONResponse(
+                {'detail': 'React app is not built. Run `cd frontend && npm run build`.'},
+                status_code=503,
+            )
     app.state.infer = infer
     return app

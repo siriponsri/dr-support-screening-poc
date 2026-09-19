@@ -44,5 +44,6 @@ export const DEFAULT_META: RouteMeta = {
 };
 
 export function getRouteMeta(pathname: string): RouteMeta {
+  if (pathname.startsWith('/review/')) return ROUTE_META['/review'];
   return ROUTE_META[pathname] ?? DEFAULT_META;
 }
