@@ -21,8 +21,16 @@ export const ROUTE_META: Record<string, RouteMeta> = {
     subtitle: 'Manage retinal imaging workspaces',
   },
   '/review': {
-    title: 'Review',
-    subtitle: 'Clinician review of admission sessions',
+    title: 'AI Review',
+    subtitle: 'Inspect model suggestions before clinician sign-off',
+  },
+  '/edit': {
+    title: 'Annotation Editor',
+    subtitle: 'Create explicit human annotations in original image space',
+  },
+  '/clinician-review': {
+    title: 'Clinician Review',
+    subtitle: 'Human sign-off and review record',
   },
   '/models': {
     title: 'Models & Audit',
@@ -45,5 +53,7 @@ export const DEFAULT_META: RouteMeta = {
 
 export function getRouteMeta(pathname: string): RouteMeta {
   if (pathname.startsWith('/review/')) return ROUTE_META['/review'];
+  if (pathname.startsWith('/edit/')) return ROUTE_META['/edit'];
+  if (pathname.startsWith('/clinician-review/')) return ROUTE_META['/clinician-review'];
   return ROUTE_META[pathname] ?? DEFAULT_META;
 }

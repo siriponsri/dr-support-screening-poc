@@ -109,3 +109,45 @@ def test_manual_grade_is_explicit_and_mark_incorrect_requires_ai(tmp_path):
     after = client.get(base).json()
     assert result['grade'] == 2
     assert after['reviewed_grade'] is None and after['grade_review_source'] is None
+
+
+def test_human_annotations_and_clinician_review_roundtrip(tmp_path):
+    path = tmp_path / 'state.sqlite'
+    client = TestClient(create_app(path, include_samples=False))
+    base = '/v1/cases/SYNTH_001'
+    initial = client.get(base).json()
+    payload = {
+        'revision': initial['revision'],
+        'reviewer': 'Demo clinician',
+        'annotations': [
+            {'type': 'rectangle', 'label': 'MICROANEURYSM',
+             'geometry': {'x': 10, 'y': 20, 'width': 30, 'height': 25}},
+            {'type': 'polygon', 'label': 'HEMORRHAGE',
+             'geometry': {'points': [[50, 50], [80, 50], [70, 90]]}},
+            {'type': 'point', 'label': 'HARD_EXUDATE', 'geometry': {'x': 100, 'y': 120}},
+            {'type': 'circle', 'label': 'SOFT_EXUDATE',
+             'geometry': {'cx': 160, 'cy': 140, 'radius': 12}},
+        ],
+    }
+    saved = client.put(base + '/annotations', json=payload)
+    assert saved.status_code == 200
+    body = saved.json()
+    assert len(body['human_annotations']) == 4
+    assert {shape['source'] for shape in body['human_annotations']} == {'HUMAN'}
+    assert body['human_annotations'][0]['geometry']['x'] == 10.0
+    assert client.put(base + '/annotations', json=payload).status_code == 409
+
+    restored = TestClient(create_app(path, include_samples=False)).get(base).json()
+    assert len(restored['human_annotations']) == 4
+    review = client.post(base + '/review', json={
+        'revision': restored['revision'],
+        'action': 'CORRECT_GRADE',
+        'reviewer': 'Demo clinician',
+        'grade': 2,
+        'comment': 'Human review completed for demo.',
+    })
+    assert review.status_code == 200
+    reviewed = review.json()
+    assert reviewed['clinician_review']['final_grade'] == 2
+    assert reviewed['clinician_review']['remark'] == 'Human review completed for demo.'
+    assert reviewed['review_history'][-1]['review_action'] == 'CORRECT_GRADE'

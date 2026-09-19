@@ -159,6 +159,7 @@ def create_app(state_path=None, include_samples=True):
                     case['state'] = 'PENDING'
                     case['reviewed_grade'] = None
                     case['grade_review_source'] = None
+                    case['clinician_review'] = None
                 event = {'action': 'INFERENCE', 'model_id': request.model_id}
                 provider = app.state.providers.get(request.model_id)
                 if isinstance(provider, RemoteModelProvider):

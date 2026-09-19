@@ -19,7 +19,9 @@ class Store:
             return json.loads(row[0]) if row else {'image_id': image_id, 'revision': 0, 'state': 'PENDING',
                                                   'events': [], 'global': None, 'lesion': None, 'cvat': None,
                                                   'reviewed_grade': None, 'grade_review_source': None,
-                                                  'lesion_review_state': None, 'annotations': None}
+                                                  'lesion_review_state': None, 'annotations': None,
+                                                  'human_annotations': [], 'clinician_review': None,
+                                                  'review_history': []}
 
     def put(self, case):
         with self.lock:

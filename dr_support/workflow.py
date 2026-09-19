@@ -1,7 +1,9 @@
 """Durable review API with optimistic concurrency and explicit human actions."""
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 from fastapi import HTTPException
 from fastapi.responses import Response
 from pydantic import Field
@@ -17,6 +19,19 @@ class Review(Contract):
     reviewer: str = Field(min_length=1, max_length=80)
     grade: int | None = Field(default=None, ge=0, le=4, strict=True)
     comment: str = Field(default='', max_length=1000)
+
+
+class HumanAnnotationDraft(Contract):
+    shape_id: str | None = Field(default=None, max_length=80)
+    type: Literal['rectangle', 'polygon', 'point', 'circle']
+    label: Literal['MICROANEURYSM', 'HEMORRHAGE', 'HARD_EXUDATE', 'SOFT_EXUDATE']
+    geometry: dict[str, object]
+
+
+class HumanAnnotationSave(Contract):
+    revision: int = Field(ge=0)
+    reviewer: str = Field(min_length=1, max_length=80)
+    annotations: list[HumanAnnotationDraft] = Field(default_factory=list, max_length=500)
 
 
 class ManualImport(Contract):
@@ -43,7 +58,55 @@ def install_workflow(app, store):
                 'display_name': Path(image.filename).stem if image.filename else image.image_id,
                 'image_sha256': image.sha256, 'width': image.size[0], 'height': image.size[1],
                 'image_url': f'/v1/images/{image_id}', 'modality': image.modality,
-                'lesion_review': lesion_review_view(case.get('lesion'))}
+                'lesion_review': lesion_review_view(case.get('lesion')),
+                'human_annotations': case.get('human_annotations', []),
+                'clinician_review': case.get('clinician_review'),
+                'review_history': case.get('review_history', [])}
+
+    def finite_number(value, name):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f'{name} must be a finite number')
+        return float(value)
+
+    def clean_geometry(annotation, width, height):
+        geometry = annotation.geometry
+        if annotation.type == 'rectangle':
+            keys = ('x', 'y', 'width', 'height')
+            if set(geometry) != set(keys):
+                raise ValueError('Rectangle geometry must contain x, y, width, and height')
+            x, y = finite_number(geometry['x'], 'x'), finite_number(geometry['y'], 'y')
+            w, h = finite_number(geometry['width'], 'width'), finite_number(geometry['height'], 'height')
+            if not (0 <= x < x + w <= width and 0 <= y < y + h <= height and w > 0 and h > 0):
+                raise ValueError('Rectangle geometry must be inside the original image')
+            return {'x': x, 'y': y, 'width': w, 'height': h}
+        if annotation.type == 'polygon':
+            points = geometry.get('points')
+            if set(geometry) != {'points'} or not isinstance(points, list) or len(points) < 3:
+                raise ValueError('Polygon geometry needs at least three points')
+            clean_points = []
+            for point in points:
+                if not isinstance(point, list) or len(point) != 2:
+                    raise ValueError('Polygon points must be [x, y] pairs')
+                x, y = finite_number(point[0], 'x'), finite_number(point[1], 'y')
+                if not (0 <= x <= width and 0 <= y <= height):
+                    raise ValueError('Polygon points must be inside the original image')
+                clean_points.append([x, y])
+            return {'points': clean_points}
+        if annotation.type == 'point':
+            if set(geometry) != {'x', 'y'}:
+                raise ValueError('Point geometry must contain x and y')
+            x, y = finite_number(geometry['x'], 'x'), finite_number(geometry['y'], 'y')
+            if not (0 <= x <= width and 0 <= y <= height):
+                raise ValueError('Point geometry must be inside the original image')
+            return {'x': x, 'y': y}
+        if set(geometry) != {'cx', 'cy', 'radius'}:
+            raise ValueError('Circle geometry must contain cx, cy, and radius')
+        cx = finite_number(geometry['cx'], 'cx')
+        cy = finite_number(geometry['cy'], 'cy')
+        radius = finite_number(geometry['radius'], 'radius')
+        if not (radius > 0 and radius <= cx <= width - radius and radius <= cy <= height - radius):
+            raise ValueError('Circle geometry must be inside the original image')
+        return {'cx': cx, 'cy': cy, 'radius': radius}
 
     @app.get('/v1/cases')
     def cases():
@@ -94,8 +157,62 @@ def install_workflow(app, store):
                 case['reviewed_grade'] = None
                 case['grade_review_source'] = None
             case['revision'] += 1
-            case['events'].append({**request.model_dump(), 'timestamp': datetime.now(timezone.utc).isoformat(),
-                                   'new_revision': case['revision'], 'identity_assurance': 'LOCAL_POC_SELF_DECLARED'})
+            timestamp = datetime.now(timezone.utc).isoformat()
+            event = {**request.model_dump(), 'timestamp': timestamp,
+                     'new_revision': case['revision'], 'identity_assurance': 'LOCAL_POC_SELF_DECLARED'}
+            case.setdefault('events', []).append(event)
+            review_record = {
+                'reviewer': request.reviewer.strip(),
+                'final_grade': case.get('reviewed_grade'),
+                'review_action': request.action,
+                'remark': request.comment,
+                'timestamp': timestamp,
+                'revision': case['revision'],
+            }
+            case['clinician_review'] = review_record
+            case.setdefault('review_history', []).append(review_record)
+            store.put(case)
+            return detail(image_id)
+
+    @app.put('/v1/cases/{image_id}/annotations')
+    def save_human_annotations(image_id: str, request: HumanAnnotationSave):
+        image = get_image(image_id)
+        reviewer = request.reviewer.strip()
+        if not reviewer:
+            raise HTTPException(422, 'Reviewer name required')
+        try:
+            saved = []
+            timestamp = datetime.now(timezone.utc).isoformat()
+            seen_ids = set()
+            for annotation in request.annotations:
+                shape_id = annotation.shape_id or f'human-{uuid4().hex}'
+                if shape_id in seen_ids:
+                    raise ValueError('Annotation shape IDs must be unique')
+                seen_ids.add(shape_id)
+                saved.append({
+                    'shape_id': shape_id,
+                    'type': annotation.type,
+                    'label': annotation.label,
+                    'geometry': clean_geometry(annotation, image.size[0], image.size[1]),
+                    'source': 'HUMAN',
+                    'reviewer': reviewer,
+                    'created_at': timestamp,
+                })
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+        with store.lock:
+            case = store.get(image_id)
+            if request.revision != case['revision']:
+                raise HTTPException(409, 'Case changed; reload before saving annotations')
+            case['human_annotations'] = saved
+            case['revision'] += 1
+            case.setdefault('events', []).append({
+                'action': 'HUMAN_ANNOTATIONS_SAVED',
+                'reviewer': reviewer,
+                'count': len(saved),
+                'timestamp': timestamp,
+                'new_revision': case['revision'],
+            })
             store.put(case)
             return detail(image_id)
 

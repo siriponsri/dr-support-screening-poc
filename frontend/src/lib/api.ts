@@ -1,4 +1,5 @@
 export interface GlobalResult {
+  schema_version?: string;
   model_id: string;
   model_version: string;
   modality: string;
@@ -7,6 +8,15 @@ export interface GlobalResult {
   probabilities: number[];
   confidence: number | null;
   warnings: string[];
+  provenance?: Provenance;
+}
+
+export interface Provenance {
+  image_sha256: string;
+  source_type: string;
+  preprocessing: string;
+  checkpoint_sha256: Record<string, string>;
+  source_revision: string;
 }
 
 export interface Lesion {
@@ -18,6 +28,7 @@ export interface Lesion {
 }
 
 export interface LesionResult {
+  schema_version?: string;
   model_id: string;
   model_version: string;
   modality: string;
@@ -26,6 +37,47 @@ export interface LesionResult {
   height: number;
   lesions: Lesion[];
   warnings: string[];
+  provenance?: Provenance;
+}
+
+export interface LesionReview {
+  raw_count: number;
+  suggestion_count: number;
+  filtered_count: number;
+  lesions: Lesion[];
+  policy: {
+    thresholds: Record<string, number>;
+    max_per_class: number;
+    max_total: number;
+  };
+  note?: string;
+}
+
+export type LesionLabel = 'MICROANEURYSM' | 'HEMORRHAGE' | 'HARD_EXUDATE' | 'SOFT_EXUDATE';
+export type AnnotationType = 'rectangle' | 'polygon' | 'point' | 'circle';
+export type AnnotationGeometry =
+  | { x: number; y: number; width: number; height: number }
+  | { points: [number, number][] }
+  | { x: number; y: number }
+  | { cx: number; cy: number; radius: number };
+
+export interface HumanAnnotation {
+  shape_id: string;
+  type: AnnotationType;
+  label: LesionLabel;
+  geometry: AnnotationGeometry;
+  source: 'HUMAN';
+  reviewer: string;
+  created_at: string;
+}
+
+export interface ClinicianReview {
+  reviewer: string;
+  final_grade: number | null;
+  review_action: 'ACCEPT' | 'MARK_INCORRECT' | 'CORRECT_GRADE' | 'ESCALATE' | 'CONFIRM_ANNOTATIONS';
+  remark: string;
+  timestamp: string;
+  revision: number;
 }
 
 export interface CaseRecord {
@@ -42,6 +94,10 @@ export interface CaseRecord {
   revision: number;
   global: GlobalResult | null;
   lesion: LesionResult | null;
+  lesion_review: LesionReview | null;
+  human_annotations: HumanAnnotation[];
+  clinician_review: ClinicianReview | null;
+  events?: Array<Record<string, unknown>>;
   warnings?: string[];
 }
 
@@ -51,6 +107,9 @@ export interface ModelDescriptor {
   runtime?: string;
   status?: string;
   warnings?: string[];
+  modalities?: string[];
+  revision?: string;
+  preprocessing?: string;
 }
 
 export async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {

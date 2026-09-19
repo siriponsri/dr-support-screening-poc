@@ -51,7 +51,7 @@ describe('Sidebar navigation', () => {
   it('exposes a brand mark and a workspace card on the sidebar', () => {
     renderAppAt('/worklist');
     expect(screen.getAllByLabelText(/DR Support Screening home/i)[0]).toBeInTheDocument();
-    expect(screen.getByText(/April DR Screening/i)).toBeInTheDocument();
+    expect(screen.getByText(/DR Demo/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Current workspace/i)[0]).toBeInTheDocument();
   });
 
@@ -60,7 +60,7 @@ describe('Sidebar navigation', () => {
     expect(screen.getByRole('button', { name: /Open navigation/i })).toBeInTheDocument();
     // The workspace card lives inside the drawer; it should not be visible
     // until the user opens the drawer.
-    expect(screen.queryByText('April DR Screening')).not.toBeInTheDocument();
+    expect(screen.queryByText('DR Demo')).not.toBeInTheDocument();
   });
 });
 
@@ -110,7 +110,7 @@ describe('Route navigation', () => {
 
     // The Models placeholder heading appears within the main outlet.
     expect(
-      await screen.findByRole('heading', { level: 2, name: /Models & Audit \(reserved\)/i }, { timeout: 5000 })
+      await screen.findByRole('heading', { level: 1, name: /Model Audit & Explainability/i }, { timeout: 5000 })
     ).toBeInTheDocument();
   });
 });
@@ -158,7 +158,7 @@ describe('Mobile drawer', () => {
 
     // After opening, the workspace card label is reachable inside the drawer.
     expect(
-      await screen.findByText(/April DR Screening/i, {}, { timeout: 4000 })
+      await screen.findByText(/DR Demo/i, {}, { timeout: 4000 })
     ).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /Worklist/i }).length).toBeGreaterThan(0);
   });
@@ -167,7 +167,7 @@ describe('Mobile drawer', () => {
     const user = userEvent.setup();
     renderAppAt('/worklist', { forceTier: 'mobile' });
     await user.click(screen.getByRole('button', { name: /Open navigation/i }));
-    await screen.findByText(/April DR Screening/i);
+    await screen.findByText(/DR Demo/i);
 
     // The router takes the user to /datasets; the page subtitle updates.
     await user.click(screen.getAllByRole('link', { name: /Datasets/i })[0]);

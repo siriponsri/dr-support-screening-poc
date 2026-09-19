@@ -4,6 +4,8 @@ import type { ViewportTier } from '@/components/shell/SidebarStateProvider';
 import { WorklistPage } from '@/pages/WorklistPage';
 import { DatasetsPage } from '@/pages/DatasetsPage';
 import { ReviewPage } from '@/pages/ReviewPage';
+import { AnnotationEditorPage } from '@/pages/AnnotationEditorPage';
+import { ClinicianReviewPage } from '@/pages/ClinicianReviewPage';
 import { ModelsPage } from '@/pages/ModelsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { FoundationDemo } from '@/pages/FoundationDemo';
@@ -38,6 +40,8 @@ export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
         <Route path="/datasets" element={<DatasetsPage />} />
         <Route path="/review" element={<ReviewPage />} />
         <Route path="/review/:imageId" element={<ReviewPage />} />
+        <Route path="/edit/:imageId" element={<AnnotationEditorPage />} />
+        <Route path="/clinician-review/:imageId" element={<ClinicianReviewPage />} />
         <Route path="/models" element={<ModelsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/_foundation" element={<FoundationDemo />} />

@@ -1,27 +1,24 @@
 /**
  * Sidebar workspace context — the "CURRENT WORKSPACE" panel.
  *
- * For Round 2 the workspace is an in-memory placeholder. A future round
- * will wire this to the Dataset Workspace backend; the public surface
- * (label + counts + selector hook) is designed to be source-agnostic so
- * the eventual data layer can drop in without changes to consumers.
+ * The demo workspace reads its admitted-case count from the existing API and
+ * keeps a small offline fallback so the shell remains useful during startup.
  */
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
+import { apiJson, type CaseRecord } from '@/lib/api';
 
 export interface WorkspaceSummary {
   id: string;
   label: string;
   modality: string;
   caseCount: number;
-  reviewedCount: number;
 }
 
-const APRIL_WORKSPACE: WorkspaceSummary = {
-  id: 'april-dr',
-  label: 'April DR Screening',
+const DEMO_WORKSPACE: WorkspaceSummary = {
+  id: 'dr-demo',
+  label: 'DR Demo',
   modality: 'Color fundus photography',
-  caseCount: 12,
-  reviewedCount: 3,
+  caseCount: 3,
 };
 
 export interface WorkspaceState {
@@ -30,9 +27,14 @@ export interface WorkspaceState {
 }
 
 export function useWorkspace(): WorkspaceState {
-  // Placeholder behaviour: a stable "demo" workspace is pre-selected so
-  // the chrome reads as populated without pretending to be real data.
-  const workspace = useMemo(() => APRIL_WORKSPACE, []);
+  const [workspace, setWorkspace] = useState<WorkspaceSummary>(DEMO_WORKSPACE);
+  useEffect(() => {
+    void apiJson<CaseRecord[]>('/v1/cases')
+      .then((cases) => setWorkspace((current) => ({ ...current, caseCount: cases.length })))
+      .catch(() => {
+        // Keep the small demo fallback visible while the API is offline.
+      });
+  }, []);
   return {
     workspace,
     selectWorkspace: (_id: string) => {

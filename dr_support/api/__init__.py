@@ -10,6 +10,7 @@ This package exposes the clinician workstation surface:
 - ``POST /v1/infer/global``  grade inference (local mock or remote proxy)
 - ``POST /v1/infer/lesion-roi`` lesion ROI inference (local mock or remote proxy)
 - ``POST /v1/cases/{id}/review`` clinician review action
+- ``PUT /v1/cases/{id}/annotations`` save explicit human annotations
 - ``POST /v1/cases/{id}/cvat/{send,sync}`` CVAT Online round-trip
 - ``POST /v1/cases/{id}/manual-sync`` manual CVAT sync fallback
 - ``GET /ui/index.html``     V2 clinician UI (static)
@@ -53,5 +54,4 @@ def _build_default_app():
 
 
 app = _build_default_app()
-
 

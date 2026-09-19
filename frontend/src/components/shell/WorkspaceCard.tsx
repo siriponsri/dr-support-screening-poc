@@ -78,11 +78,7 @@ function FullWorkspaceCard({ workspace, ...rest }: { workspace: WorkspaceSummary
       </Text>
       <HStack spacing={3} fontSize="xxs" color="text.secondary">
         <Text as="span">
-          <Text as="span" fontWeight="bold" color="text.primary">{workspace.caseCount}</Text> cases
-        </Text>
-        <Text as="span" color="border.default">·</Text>
-        <Text as="span">
-          <Text as="span" fontWeight="bold" color="status.success">{workspace.reviewedCount}</Text> reviewed
+          <Text as="span" fontWeight="bold" color="text.primary">{workspace.caseCount}</Text> images
         </Text>
       </HStack>
     </Box>
