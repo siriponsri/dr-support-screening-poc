@@ -13,3 +13,10 @@ local-state/
 *.zip
 *.bundle
 node_modules/
+
+# Local agent/tooling bundles
+.agents/
+.opencode/
+
+# Local server output
+server_*.log
