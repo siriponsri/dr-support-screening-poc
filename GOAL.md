@@ -1,621 +1,185 @@
 # Session GOAL — DR Support Screening POC
 
 This document is the canonical handover for everything delivered in the
-2026-09-18 work sessions against `siriponsri/dr-support-screening-poc`. It is
-written so the next session — or the GPU deployment owner — can pick up
+2026-09-19 work session against `siriponsri/dr-support-screening-poc`. It is
+written so the next session — or the Lightning deployment owner — can pick up
 exactly where this one left off.
 
 ---
 
 ## 1. Summary
 
-Seven commits landed across four sessions, taking the project from `v0.2.0` to
-`v0.6.0` without breaking any existing test, contract, or UI surface:
+One commit landed in this session — `d791b7c fix(review): unblock Windows
+worklist remote metadata startup` — fixing the Windows Worklist UI startup
+blocker without breaking any existing test, contract, or UI surface.
 
-| Commit    | Title                                                                                          | Version |
-|-----------|------------------------------------------------------------------------------------------------|---------|
-| `5e66b35` | `polish(ui): V2 clinician-first audit and polish pass`                                         | 0.2.1   |
-| `0ebe017` | `feat(remote): provider-neutral REMOTE inference adapter with mocked tests`                    | 0.2.1   |
-| `a9ccdfb` | `refactor: single-repo multi-runtime-profile architecture (review / model_api / full)`        | 0.3.0   |
-| `463270e` | `docs: GOAL.md session summary (audit + polish, REMOTE adapter, profile architecture)`         | 0.3.0   |
-| `eef51fd` | `harden(gpu): device resolver, GPU-ready providers, hardened Dockerfile, /health device fields` | 0.4.0 |
-| `b6a2490` | `feat(modal): Modal deployment adapter for the model_api profile (T4 GPU, scale-to-zero)`       | 0.5.0 |
-| `<M0.7>`  | `feat(lightning): Lightning AI Studio deployment adapter (scripts + runbook, no Docker / no LitServe rewrite)` | 0.6.0 |
+The bug was the Worklist remaining stuck on "Loading review workspace…"
+because `GET /v1/models` returned `HTTP 500 text/plain "Internal Server
+Error"` whenever the remote Lightning Model API metadata probe failed. The
+frontend `api()` then tried to JSON.parse the plain-text body and crashed
+with `Unexpected token 'I'`, so the case selector stayed at "Loading…".
 
-Status: **PASS** — code is ready for HF GPU acceptance, Modal GPU
-acceptance, AND Lightning AI Studio GPU acceptance. The Lightning adapter
-is an additional deployment path; it does not modify the HF Docker Space
-story or the Modal adapter.
+Two cooperating root causes:
 
----
+1. `RemoteModelProvider.metadata()` was calling the **legacy** `GET /models`
+   path, while the deployed Lightning Model API only exposes `GET /v1/models`.
+2. The local `GET /v1/models` handler had no belt-and-suspenders degradation
+   around the per-provider `metadata()` call, so any unexpected exception in
+   that code path (not just the documented ones) propagated to FastAPI as
+   `HTTPException(500)`.
 
-## 2. What the codebase does
+The fix:
 
-`dr-support-screening-poc` is a single-repo, multi-runtime-profile application
-that exposes the DR Support Screening POC v2 clinician UI together with the
-Remote Model API contract that backs it.
+- `RemoteModelProvider.METADATA_PATH` is now `/v1/models` (matches the
+  deployed Lightning Model API contract documented at
+  `docs/REMOTE_MODEL_API.md`).
+- `RemoteModelProvider.metadata()` is wrapped in a top-level
+  `try/except Exception` that returns an explicit degraded descriptor
+  (`status='REMOTE_INVALID_SCHEMA'`) for any exception that escapes the
+  structured degradation branches.
+- `_collect_metadata()` covers every documented failure mode:
+  - timeout → `REMOTE_UNREACHABLE`
+  - transport error → `REMOTE_UNREACHABLE`
+  - HTTP 401/403 → `REMOTE_AUTH_FAILED`
+  - any other non-200 → `REMOTE_HTTP_<code>`
+  - non-JSON body → `REMOTE_INVALID_JSON`
+  - JSON that is not a list → `REMOTE_INVALID_SCHEMA`
+  - model_id absent from list → `REMOTE_MODEL_NOT_LISTED`
+  - any uncaught exception → `REMOTE_INVALID_SCHEMA`
+- The review `/v1/models` handler wraps each provider's `metadata()` in its
+  own `try/except` so a regression in one provider can never poison the
+  whole list response.
+- `web/app.js` `api()` reads `response.text()` defensively, attempts
+  `JSON.parse` only when the body is non-empty, and surfaces a useful
+  `GET /v1/models failed with HTTP 500: Internal Server Error` message
+  instead of the cryptic `Unexpected token 'I'` JSON.parse crash.
 
-```
-dr-support-screening-poc/
-├── dr_support/
-│   ├── api/         # clinician review workstation (cases, review, CVAT, UI, remote proxy)
-│   ├── services/    # standalone deployment-side services (currently model_api)
-│   ├── providers/   # shared model adapters (RETFound, PRISM, mock, remote proxy)
-│   ├── runtime/     # device resolver, future memory accounting
-│   ├── contracts/   # Bridge v1 request/response schemas
-│   └── app.py       # top-level profile dispatcher
-├── scripts/         # M0.7: Lightning AI Studio setup + launch scripts
-├── web/             # V2 clinician UI
-├── tests/           # backend pytest + frontend jsdom
-├── docs/            # PROFILES.md, REMOTE_MODEL_API.md, MODAL_DEPLOYMENT.md, LIGHTNING_DEPLOYMENT.md, ...
-├── modal_app.py     # M0.6 Modal deployment adapter
-├── Dockerfile       # M0.5 HF Docker Space image, default profile = model_api
-├── docker-entrypoint.sh  # env-validator wrapper, execs dr_support.run
-├── pyproject.toml   # 0.6.0
-└── .env.example
-```
+Eight new regression tests pin the contract (see §3).
 
-Runtime profiles (`APP_PROFILE`):
-
-| Profile       | `APP_PROFILE` | `MODEL_RUNTIME` | Surface                                                                  | Loads weights locally? |
-|---------------|---------------|-----------------|--------------------------------------------------------------------------|------------------------|
-| Review        | `review`      | `remote`        | UI, `/v1/cases`, `/v1/cases/{id}/review`, `/v1/cases/{id}/cvat/*`, `/v1/infer/*` (proxy) | **No** |
-| Model API     | `model_api`   | `local`         | `GET /health`, `GET /v1/models`, `POST /v1/predict/dr`, `POST /v1/predict/lesions` | Yes (CUDA-required, strict) |
-| Full (demo)   | `full`        | `local`         | Everything from both profiles                                            | Yes (CPU-tolerant)     |
-
-Profile / runtime invariants are **strict and fail-fast**:
-
-- `APP_PROFILE=review` + `MODEL_RUNTIME=local` → `RuntimeError`
-- `APP_PROFILE=review` + missing `REMOTE_MODEL_URL` → `RuntimeError`
-- `APP_PROFILE=model_api` + `MODEL_RUNTIME=remote` → `RuntimeError`
-- `APP_PROFILE=full` + `MODEL_RUNTIME=remote` → `RuntimeError`
-- `APP_PROFILE=model_api` + `INFERENCE_DEVICE=cuda*` + no CUDA runtime → `DeviceUnavailable`
-- `WORKERS > 1` → rejected by `docker-entrypoint.sh` and `scripts/start_lightning.sh`
-
-Deployment paths (M0.5 / M0.6 / M0.7):
-
-| Path | Artefact | Operator command |
-|------|----------|------------------|
-| Hugging Face Docker Space (v0.4.0) | `Dockerfile` + `docker-entrypoint.sh` | `docker build` / push to HF Space |
-| Modal (v0.5.0) | `modal_app.py` reuses `Dockerfile` | `modal deploy modal_app.py` |
-| Lightning AI Studio (v0.6.0) | `scripts/setup_lightning.sh` + `scripts/start_lightning.sh` | run inside the Studio; expose port 8000 via the Port plugin |
-
-All three paths serve the same FastAPI surface with the same `/health`,
-`/v1/models`, `/v1/predict/dr`, and `/v1/predict/lesions` contract.
+Status: **PASS** — `GET /v1/cases` and `GET /v1/models` both return
+`HTTP 200 application/json`; the Worklist loads; no "Loading…" lock; no
+JSON.parse crash on plain-text 5xx bodies. `REMOTE_MODEL_TOKEN` is
+never leaked into the `/v1/models` body, logs, or the user-visible
+error text.
 
 ---
 
-## 3. Milestone A — V2 audit + polish pass (`5e66b35`)
+## 2. What changed in `d791b7c`
 
-Goal: small, high-impact UI improvements without redesigning the V2 clinician
-surface.
+```
+ dr_support/api/_factory.py     |  30 +++++-
+ dr_support/providers/remote.py |  45 +++++++--
+ package.json                   |   2 +-
+ tests/api_hardening.test.cjs   | 136 +++++++++++++++++++++++++++
+ tests/test_remote.py           | 205 ++++++++++++++++++++++++++++++++++++++++-
+ web/app.js                     |  31 +++++--
+ 6 files changed, 425 insertions(+), 24 deletions(-)
+```
 
-- Action-bar hierarchy — the four primary review actions (Accept, Adjust
-  Grade, Needs Annotation, Escalate) are visually grouped; **Advanced Edit /
-  CVAT** is separated by a divider and de-emphasized with a `.subtle` style
-  plus an external-link hint. Discoverable without competing with clinical
-  decisions.
-- Simplified clinical copy — `Model & provenance` → `Model details`,
-  `Preprocessing` → `Image preparation`, tighter lesion-help text, clearer
-  empty-state guidance in the AI Review panel.
-- Improved accessibility — better focus visibility on the skip link, refactored
-  to use the standard visually-hidden pattern.
-- Bug fix — removed a redundant disabled-condition in the Advanced Edit button
-  template (`${advancedUrl ? '' : ''}` was always empty).
+### 2.1 `dr_support/providers/remote.py`
 
-Preserved: V2 UI, all element IDs, backend contracts, persisted review state,
-CVAT round-trip, AI-vs-clinician overlay distinction.
+- `RemoteModelProvider.METADATA_PATH: str = '/v1/models'` (was the
+  legacy `/models`).
+- `metadata()` now wraps `_collect_metadata()` in
+  `try/except Exception`; any escape returns a
+  `REMOTE_INVALID_SCHEMA` degraded descriptor instead of bubbling
+  to the FastAPI handler.
+- `_collect_metadata()` already covered timeout / transport /
+  401-403 / non-200 / non-JSON / non-list / model-missing — those
+  branches were preserved verbatim and continue to map to
+  `REMOTE_UNREACHABLE` / `REMOTE_AUTH_FAILED` / `REMOTE_HTTP_<code>` /
+  `REMOTE_INVALID_JSON` / `REMOTE_INVALID_SCHEMA` /
+  `REMOTE_MODEL_NOT_LISTED`. The warning text now references the
+  corrected `/v1/models` path so operators can immediately see whether
+  the proxy is hitting the deployed Model API contract.
+- `_send()` already translated `httpx.TimeoutException`,
+  `httpx.HTTPError`, and any other exception into
+  `RemoteTimeoutError` / `RemoteModelError` subclasses; preserved.
 
-Files: `web/app.js`, `web/style.css`, `CHANGELOG_V2.md`.
+### 2.2 `dr_support/api/_factory.py`
+
+- The `GET /v1/models` handler now wraps each provider's `metadata()`
+  in `try/except Exception` and substitutes a
+  `status='REMOTE_INVALID_SCHEMA'` degraded descriptor with the
+  exception name and message in the warnings list. This is the
+  belt-and-suspenders guard: `RemoteModelProvider.metadata()` already
+  degrades on its own, but a future regression cannot escape to
+  `HTTPException(500)`.
+- Synthetic fixture descriptors are unaffected.
+
+### 2.3 `web/app.js`
+
+- `api()` reads `response.text()` defensively, then attempts
+  `JSON.parse` only when the body is non-empty; the parsed payload is
+  retained for callers that iterate over it.
+- On a non-2xx response, `api()` throws a useful error message that
+  includes:
+  - the FastAPI `detail` field when present,
+  - the HTTP status and statusText,
+  - a short body hint when the body is < 200 chars (so a plain-text
+    `Internal Server Error` is preserved verbatim in the message),
+  - never includes any token material (the browser never holds a
+    token for `/v1/models` — that endpoint is unauthenticated by
+    design, the `REMOTE_MODEL_TOKEN` is only sent server-side to the
+    remote Lightning Model API).
+- The successful-response path is unchanged: parsed JSON is returned
+  to the caller; an empty 2xx body returns `{}`.
+
+### 2.4 `tests/test_remote.py`
+
+Eight new regression tests (see §3.2).
+
+### 2.5 `tests/api_hardening.test.cjs`
+
+Five new frontend scenarios exercising `api()` via `vm.runInContext`:
+
+1. text/plain `HTTP 500` → must surface a useful error, not
+   JSON.parse crash.
+2. valid JSON `HTTP 200` → returns parsed payload.
+3. valid JSON `HTTP 422` → surfaces FastAPI `detail` if present.
+4. empty `HTTP 200` body → returns `{}`, never `undefined`.
+5. HTML `HTTP 502` body → useful error, no JSON.parse crash.
+
+### 2.6 `package.json`
+
+- `npm test` now runs `overlay`, `api_hardening`, `ui`, and
+  `preview` test files in that order. The `api_hardening.test.cjs`
+  script was added to the script list.
 
 ---
 
-## 4. Milestone B — provider-neutral REMOTE inference (`0ebe017`)
+## 3. Regression tests
 
-Goal: add a remote inference mode without breaking existing local/mock modes.
+### 3.1 Provider-level (in `tests/test_remote.py`, new section
+"M0.8 — Windows worklist remote-metadata startup regression tests")
 
-Architecture:
+| Test | Pins |
+|------|------|
+| `test_remote_provider_metadata_queries_v1_models_path` | Remote metadata requests `/v1/models`; legacy `/models` is NOT called. |
+| `test_api_v1_models_200_when_remote_metadata_404` | Remote `/v1/models` 404 → local `/v1/models` is HTTP 200 with `REMOTE_HTTP_404` descriptors. |
+| `test_api_v1_models_200_when_remote_metadata_times_out` | `httpx.ReadTimeout` → local `/v1/models` is HTTP 200 with `REMOTE_UNREACHABLE`. |
+| `test_api_v1_models_200_when_remote_metadata_unreachable` | `httpx.ConnectError` → local `/v1/models` is HTTP 200 with `REMOTE_UNREACHABLE`. |
+| `test_api_v1_models_200_when_remote_metadata_non_json` | text/plain metadata body → local `/v1/models` is HTTP 200 with `REMOTE_INVALID_JSON`. |
+| `test_api_v1_models_200_when_remote_metadata_wrong_schema` | JSON object (not list) metadata → local `/v1/models` is HTTP 200 with `REMOTE_INVALID_SCHEMA`. |
+| `test_api_v1_models_200_when_remote_metadata_unexpected_exception` | A provider that raises `RuntimeError` inside `metadata()` → local `/v1/models` is HTTP 200 with `REMOTE_INVALID_SCHEMA` and a meaningful warning. |
+| `test_api_v1_models_never_leaks_token_in_metadata_failures` | Bearer token never appears in `/v1/models` body or in log records, even when the remote returns `HTTP 500` with `bearer=<token>` in the body. |
+| `test_remote_provider_metadata_degraded_message_mentions_v1_models` | The degraded warning text references `/v1/models`, not legacy `/models`. |
 
-```
-DR Support Screening POC (review workstation)
-        |   HTTPS  (Authorization: Bearer ${REMOTE_MODEL_TOKEN}, optional)
-        v
-Remote Model API
-        |- GET  /health
-        |- GET  /v1/models
-        |- POST /v1/predict/dr
-        `- POST /v1/predict/lesions
-```
+### 3.2 Frontend (`tests/api_hardening.test.cjs`)
 
-Contract documented at [`docs/REMOTE_MODEL_API.md`](docs/REMOTE_MODEL_API.md).
-
-Implementation:
-
-- New `dr_support/providers/remote.py` with `RemoteModelProvider`,
-  `RemoteGlobalProvider`, `RemoteLesionProvider`.
-- Wire format: JSON envelope with base64-encoded image bytes (mockable with
-  `httpx.MockTransport`).
-- Tokens: `REMOTE_MODEL_TOKEN` from environment only, sent as
-  `Authorization: Bearer ...`. Never logged, persisted, or echoed.
-- Per-call timing: `last_inference_ms` and `last_metadata_ms` exposed.
-- Error mapping: timeout → `504`, non-2xx → `502`, malformed schema → `502`,
-  local-mode path → `503` (unchanged).
-- Case event log records `runtime: "remote"` and `latency_ms` for each remote
-  inference.
-
-Tests (20 new in `tests/test_remote.py`):
-
-- Provider-level: payload/token wiring, missing-token behaviour, timeout,
-  non-2xx, malformed schema, metadata surfacing, unreachable remote,
-  model-not-listed, missing/invalid URL rejection, token never leaks into
-  metadata.
-- API-level: routes inference through the proxy, latency recorded in events,
-  504/502 status mapping, `/v1/models` reflects remote runtime, local mode
-  unaffected, CVAT round-trip preserved, token never echoed.
-
-Documentation: `docs/REMOTE_MODEL_API.md`, `docs/LOCAL_RUNBOOK.md`,
-`README.md`, `.env.example`.
+See §2.5 above.
 
 ---
 
-## 5. Milestone C — single-repo multi-runtime-profile architecture (`a9ccdfb`)
+## 4. Verification matrix
 
-Goal: prepare the codebase for the GPU deployment without creating a separate
-repository (owner override). One codebase, three profiles.
-
-Layout:
-
-```
-dr_support/
-├── api/         # clinician review workstation
-├── services/    # standalone deployment-side services (currently model_api)
-├── providers/   # shared model adapters (RETFound, PRISM, mock, remote proxy)
-├── contracts/   # Bridge v1 request/response schemas
-└── app.py       # top-level profile dispatcher
-```
-
-The `model_api` service does **not duplicate model code** — it instantiates the
-existing `RETFound` and `PRISM` provider classes from `dr_support/providers/`.
-Weight-loading, preprocessing, class order, lesion mapping, and the Bridge v1
-contract are all the same code path that runs in the `full` profile and that
-the review profile proxies to.
-
-Deployment artefacts (later hardened in M0.5):
-
-- `Dockerfile` — multi-stage CUDA 12.1 / cuDNN 8 image built for Nvidia T4 small
-  (HF Docker Space target).
-- `docker-entrypoint.sh` — env-validator wrapper.
-- `docs/PROFILES.md` — full matrix, local-dev instructions, HF deployment
-  walkthrough, contract invariants, explicit "what this does NOT do" list.
-
-Tests (19 new in `tests/test_profiles.py`): profile dispatch, invariants,
-model_api surface, bearer enforcement, M4 proxy smoke.
-
----
-
-## 6. Milestone D — GPU deployment hardening (`eef51fd`) — v0.4.0
-
-Goal: make `APP_PROFILE=model_api` actually GPU-ready before the owner deploys
-to Hugging Face, without changing any contract or UI surface.
-
-### 6.1 Device abstraction (`dr_support/runtime/device.py`)
-
-Single source of truth for `INFERENCE_DEVICE`:
-
-- Reads `INFERENCE_DEVICE` from the environment (default `cpu`), normalises
-  case, exposes a cached `DeviceSnapshot` with `requested_device`,
-  `effective_device`, `cuda_available`, `cuda_device_count`, `cuda_device_name`.
-- Lazily imports `torch` so CPU-only CI and contract tests do not require GPU
-  libraries.
-- Rejects unknown device strings (only `cpu` and `cuda*` are accepted).
-- Production path: `INFERENCE_DEVICE=cuda*` with no CUDA runtime →
-  `DeviceUnavailable` instead of silent CPU fallback.
-- Test path: `DR_SUPPORT_RELAX_DEVICE=1` opts out of the startup assertion so
-  the contract tests keep working on a CPU-only host.
-
-### 6.2 RETFound (`dr_support/providers/retfound.py`)
-
-- Constructor accepts `allow_cpu_fallback` (defaults to permissive).
-- `load()`: `model = model.to(device)`; `model.eval()`; every parameter has
-  `requires_grad_(False)`. Checkpoint loads via `map_location='cpu'` for safe
-  IO, then moves to the resolved device.
-- `infer()`: `tensor = tensor.to(device)` and wraps the forward pass in
-  `torch.inference_mode()`. The model parameters are already frozen at load.
-- `metadata()`: reports `requested_device`, `effective_device`,
-  `cuda_available`, plus a warning when the requested GPU device is unavailable.
-
-### 6.3 PRISM (`dr_support/providers/prism.py`)
-
-- Constructor accepts `allow_cpu_fallback`.
-- `load()`: moves ROI YOLO, every per-fold ultralytics YOLO, and every SAHI
-  `AutoDetectionModel` to the resolved device. The ROI YOLO uses
-  `self.roi.to(device)`; per-fold YOLO uses `model.to(device)`; SAHI uses
-  `device=str(device)` at construction (the device is wired into the
-  underlying ultralytics model).
-- `infer()`: passes `device=str(device)` to the ROI YOLO and the SE-fold
-  ultralytics calls instead of the hard-coded `device='cpu'`. The
-  `.cpu().numpy()` calls remain for SAHI / NMS compatibility.
-- Memory safety: a `finally` clause invokes
-  `torch.cuda.empty_cache()` on the resolved device to release any
-  intermediate CUDA tensors held by the autograd engine. The cleanup is
-  best-effort and never masks the original inference result. The api-level
-  `RLock` continues to ensure only one inference call runs at a time, so
-  peak activation memory stays bounded by a single forward pass.
-- Preserved: thresholds, ensemble logic, class mapping, lesion mapping,
-  preprocessing, label canonicalisation, source revisions, weight SHA256s.
-
-### 6.4 Model API service (`dr_support/services/model_api.py`)
-
-- `create_app(device_strict=True)` wires providers with
-  `allow_cpu_fallback=False` and invokes `assert_cuda_ready()` at startup.
-  A misconfigured GPU host fails loudly with `DeviceUnavailable` instead of
-  silently degrading to CPU at the first inference call.
-- `device_strict=False` is the explicit test escape hatch. The `full` profile
-  dispatcher uses this so local demos can boot without a GPU.
-- `/health` now returns `requested_device`, `effective_device`,
-  `cuda_available`, `cuda_device_count`, `cuda_device_name`. The status
-  becomes `FAIL` when a CUDA device is requested but no CUDA runtime is
-  visible, so the HF liveness probe surfaces the actual GPU wiring.
-- `/v1/models` entries echo the same device fields.
-
-### 6.5 Profile dispatcher (`dr_support/app.py`)
-
-- `create_app(profile=...)` exposes `device_strict=True` for the `model_api`
-  profile (production) and `device_strict=False` for the `full` profile
-  (local demo).
-- All other invariants from v0.3.0 are preserved.
-
-### 6.6 Dockerfile (hardened)
-
-- Single-stage, `nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04` base.
-- Python 3.12 installed via the deadsnakes PPA (Ubuntu 22.04 only ships 3.10).
-- Pinned dependency install order:
-  1. CUDA-enabled `torch==2.5.1+cu121` and `torchvision==0.20.1+cu121` from the
-     `download.pytorch.org/whl/cu121` extra index;
-  2. project metadata + source + `docker-entrypoint.sh`;
-  3. `pip install -e ".[models,test]"` against the copied source;
-  4. `python -m dr_support.setup_models --model all` to acquire and verify
-     model sources + weights at build time.
-- No GPU-only commands run during build.
-- Healthcheck against `/health` (unauthenticated).
-- `ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]` + `CMD []` so the
-  entrypoint is actually used.
-
-### 6.7 docker-entrypoint.sh
-
-- Validates `APP_PROFILE` against the supported values.
-- For `review`: requires `MODEL_RUNTIME=remote` and `REMOTE_MODEL_URL`. If
-  `PORT=7860` (HF default) and `PORT_OVERRIDE` is unset, drops to `8000`
-  (review workstation default).
-- For `model_api` / `full`: refuses to start if the build-time asset
-  directory is empty (`/app/local-state/bridge/{sources/RETFound,
-  sources/PRISM-DR, retfound-aptos.pth, prism}`).
-- Rejects `WORKERS > 1` so duplicate uvicorn workers cannot exhaust VRAM.
-- Execs `python -m dr_support.run` after validation.
-
-### 6.8 Asset strategy — **download at image build time**
-
-The Dockerfile runs `python -m dr_support.setup_models --model all` once
-during `docker build`. The container entrypoint does **not** re-download.
-The trade-off is:
-
-- ✅ Cold-start latency is dominated only by uvicorn and model lazy-loading.
-- ✅ The same image is bit-for-bit reproducible against the pinned upstream
-  revisions in `dr_support/providers/{retfound,prism}.py`.
-- ❌ First build pulls multi-GB weights and the upstream `RETFound` and
-  `PRISM-DR` git sources. The build host needs network access.
-
-If the owner needs faster builds later, the asset strategy can flip to
-download at container startup by moving the `setup_models` call from the
-Dockerfile into `docker-entrypoint.sh` — but the spec says "do not claim
-both", so we keep one consistent strategy.
-
-### 6.9 Tests (`tests/test_device.py`, 22 new tests)
-
-- Resolver: cuda + cuda:0 + CUDA:0 prefix detection; cpu pass-through;
-  cuda with cuda available; cuda unavailable → strict raise; cuda
-  unavailable → fallback only when explicitly allowed; unknown device string
-  rejected; assert_cuda_ready passes/raises consistently.
-- Snapshot caching: cached value returned without re-probing; force_refresh
-  bypasses the cache.
-- Provider metadata surfaces `requested_device`, `effective_device`,
-  `cuda_available` honestly. RETFound and PRISM both warn when the
-  requested GPU is unavailable.
-- Strict provider construction: `RETFound(allow_cpu_fallback=False)` and
-  `PRISM(allow_cpu_fallback=False)` both refuse to resolve cuda without a
-  CUDA runtime.
-- PRISM inference cleanup: `PRISM._release_cuda_memory` is a safe no-op when
-  torch is unavailable or when the device is not cuda.
-- Model API factory: strict mode refuses to start on a misconfigured host;
-  `DR_SUPPORT_RELAX_DEVICE=1` opts out for tests; `/health` and `/v1/models`
-  surface the device snapshot; `/health` returns `FAIL` when a CUDA device
-  is requested but no CUDA runtime is available.
-
----
-
-## 7. Milestone E — Modal deployment adapter (`b6a2490`) — v0.5.0
-
-Goal: add Modal as a second deployment target alongside the v0.4.0 HF Docker
-Space, **without** changing the clinician UI, Bridge contracts, CVAT flow, or
-model semantics. Modal serves the same `model_api` surface; the deployment
-artefact is the existing v0.4.0 Dockerfile.
-
-### 7.1 `modal_app.py` (new)
-
-A thin Modal adapter that reuses the existing FastAPI surface:
-
-- `modal.App(name="dr-support-screening-poc-model-api")`.
-- `modal.Image.from_dockerfile("Dockerfile")` — single source of truth for the
-  build artefact. The same image is the HF Docker Space image.
-- `@modal.asgi_app()` exposing the existing FastAPI `model_api` produced by
-  `dr_support.app.create_app()` with `APP_PROFILE=model_api`,
-  `MODEL_RUNTIME=local`, `INFERENCE_DEVICE=cuda:0`.
-- `@modal.concurrent(max_inputs=1, target_inputs=1)` to preserve the
-  v0.4.0 single-worker invariant. The api-level `RLock` is the actual
-  correctness guard; the Modal concurrency knob is the public-facing
-  promise.
-- `gpu="T4"` by default; opt-in ladder `L4 → A10` via `MODAL_GPU` env. Any
-  other value (e.g. `H100`, `A100`) is rejected — the adapter never
-  silently changes hardware.
-- No `min_containers`, no `scaledown_window`, no warm pool: scale-to-zero
-  by default.
-- `REMOTE_MODEL_TOKEN` delivered via `modal.Secret.from_name(
-  "dr-support-remote-model-token", required_keys=[])`. The secret is
-  optional; when absent, `_require_bearer` treats the endpoints as
-  unauthenticated. When present, it enforces `Authorization: Bearer ...`
-  with the constant-time comparison the v0.2.1 REMOTE adapter introduced.
-- No duplication of dependency definitions: the Modal image is the v0.4.0
-  Dockerfile; the Modal SDK is the only new dependency and it lives in the
-  optional `[modal]` extra.
-- Module is importable without `modal` installed; the `web` and `app`
-  bindings become plain callables in that case so the contract tests still
-  run on a CPU-only host.
-
-### 7.2 Asset strategy — **baked into the Modal image at build time**
-
-The same strategy used by the HF Docker Space. `setup_models --model all`
-runs once during image build; SHA256-verified sources + weights live under
-`/app/local-state/bridge` in the resulting image; cold-start latency is
-dominated by uvicorn and model lazy-loading, not multi-GB network IO.
-
-We deliberately do **not** ship a Volume-based strategy. A Volume would add
-a second moving part (the `Volume.from_name(...)` mount and a
-`weights.sha256` reconciliation step) without materially improving rebuild
-time for immutable pinned revisions. The Modal image is the same artefact
-that ships to the HF Space target — no second source of truth.
-
-### 7.3 Hardware ladder
-
-| GPU | VRAM | When to use |
-|-----|------|-------------|
-| `T4`  | 16 GB | Default. Sufficient for the released RETFound + PRISM checkpoints. |
-| `L4`  | 24 GB | First fallback if PRISM activations exceed T4 headroom. |
-| `A10` | 24 GB | Same memory class as L4 with a different CUDA capability. |
-
-`H100` / `A100` are NOT in the ladder. The released checkpoints do not
-need them and the price differential is not justified for a public POC.
-
-### 7.4 Secrets
-
-`REMOTE_MODEL_TOKEN` is delivered via a Modal `Secret` named
-`dr-support-remote-model-token`. The secret is optional — when not
-configured, `_require_bearer` accepts anonymous requests. When configured,
-the token is sent only as `Authorization: Bearer ...` and never logged,
-persisted, or echoed.
-
-Other env values (`APP_PROFILE`, `MODEL_RUNTIME`, `INFERENCE_DEVICE`,
-`HOST`, `PORT`, `WORKERS`) are baked into the image via
-`os.environ.setdefault(...)` in `modal_app.build_asgi_app()`. The local
-asset paths are wired by `dr_support.run.configure()` at container start.
-
-### 7.5 Tests (`tests/test_modal_adapter.py`, 24 new tests)
-
-- Static configuration: `DEFAULT_GPU == "T4"`, `ACCEPTED_GPUS == ("T4", "L4", "A10")`,
-  secret name, app name, Dockerfile path (proves the image is the existing
-  v0.4.0 artefact), concurrency invariants.
-- `_resolve_gpu` honours `MODAL_GPU`, rejects `H100`/`A100`, strips whitespace.
-- `build_asgi_app` pins `APP_PROFILE=model_api` + `MODEL_RUNTIME=local`,
-  exposes the four `/health` / `/v1/models` / `/v1/predict/dr` /
-  `/v1/predict/lesions` routes, does NOT mount the clinician UI routes
-  (`/v1/cases`, `/v1/infer/*`, `/ui`).
-- Strict-mode refusal: `build_asgi_app` raises `DeviceUnavailable` when
-  `INFERENCE_DEVICE=cuda:0` is requested but no CUDA runtime is visible.
-- Modal SDK integration (conditional on `modal` being installed):
-  - `modal_app.app` is a `modal.App` named `dr-support-screening-poc-model-api`.
-  - `modal_app.web` is a `modal.functions.Function`.
-  - `web._spec_.gpus == "T4"`.
-  - `web._spec_.secrets` references the bearer-token Secret.
-  - `web._spec_.image` comes from `modal.Image.from_dockerfile`.
-  - No warm-pool knobs (`scheduler_placement` is `None` or carries no
-    `min_containers`).
-
-These tests do not require Modal cloud execution. The only side-effect is
-the static module-level decorator wiring; the function body is invoked
-through `TestClient` against the FastAPI surface that `build_asgi_app`
-returns.
-
----
-
-## 8. Milestone F — Lightning AI Studio deployment adapter (`<M0.7>`) — v0.6.0 — **this session**
-
-Goal: add Lightning AI Studio as the third deployment target alongside the
-v0.4.0 HF Docker Space and the v0.5.0 Modal adapter, **without** changing
-the clinician UI, Bridge contracts, CVAT flow, or model semantics.
-Lightning serves the same `model_api` surface; the deployment artefacts are
-two thin Linux shell scripts and one operator runbook. **No Docker, no
-LitServe rewrite, no new FastAPI app, no second dependency tree.**
-
-### 8.1 Architecture
-
-```
-Local clinician workstation (Windows)
-        |   HTTPS  (Authorization: Bearer ${REMOTE_MODEL_TOKEN}, optional)
-        v
-Lightning AI Studio (GPU T4)
-        |   public URL exposed by Studio "Port" plugin on port 8000
-        v
-existing FastAPI model_api
-        |
-        +-- RETFound (dr_support/providers/retfound.py)
-        +-- PRISM-DR  (dr_support/providers/prism.py)
-        |
-        v
-GPU
-```
-
-The Lightning **Port** plugin (right-side panel of the Studio UI) exposes
-the local uvicorn listener on port `8000` to a public URL. The clinician
-workstation points `REMOTE_MODEL_URL` at that URL. Auth, schema, and
-device semantics are unchanged from the v0.4.0 / v0.5.0 contract.
-
-### 8.2 `scripts/setup_lightning.sh` (new)
-
-Idempotent one-time Studio-side setup. The script:
-
-1. Creates (or reuses) a Python virtualenv under `.venv/`.
-2. Upgrades `pip`, `wheel`, `setuptools`.
-3. Installs the project in editable mode with the `[models,test]` extras.
-4. Runs `python -m dr_support.setup_models --model all` to acquire the
-   pinned RETFound + PRISM-DR sources and SHA256-verify every weight file
-   under `local-state/bridge/`.
-
-Subsequent runs are cheap no-ops because `setup_models` is idempotent and
-the Studio's persistent disk keeps the downloaded checkpoints. The script
-**does not duplicate** `setup_models` logic — it delegates directly to
-`python -m dr_support.setup_models --model all`. It does **not** clone
-RETFound / PRISM-DR directly, does **not** call `gdown.download`
-directly, does **not** compute SHA256s directly, and does **not** commit
-checkpoints to git.
-
-### 8.3 `scripts/start_lightning.sh` (new)
-
-Linux launch script. The script:
-
-1. Pins `APP_PROFILE=model_api`, `MODEL_RUNTIME=local`,
-   `INFERENCE_DEVICE=cuda:0`, `HOST=0.0.0.0`, `PORT=8000`,
-   `WORKERS=1` via `export ...="${VAR:-default}"`.
-2. Pre-flight `torch.cuda.is_available()` probe — if CUDA is not visible,
-   the script exits with code 2 and a clear message instead of silently
-   starting the server on CPU.
-3. Refuses `WORKERS != 1` before uvicorn boots (duplicate workers would
-   each load the model into VRAM and exhaust the T4 within seconds).
-4. Execs `python -m dr_support.run`, which boots the FastAPI `model_api`
-   on `0.0.0.0:8000` via the existing dispatcher.
-
-`set -euo pipefail` is enabled throughout. The script never dereferences
-or echoes `REMOTE_MODEL_TOKEN`; bearer auth is handled by the existing
-`dr_support.services.model_api._require_bearer` helper inside FastAPI.
-
-### 8.4 `docs/LIGHTNING_DEPLOYMENT.md` (new)
-
-Operator runbook with the full first-time acceptance sequence:
-
-- **A.** create / open a Lightning Studio
-- **B.** select GPU / T4
-- **C.** clone the GitHub repo into the persistent home directory
-- **D.** install dependencies via `bash scripts/setup_lightning.sh`
-- **E.** confirm the asset cache under `local-state/bridge/`
-- **F.** set `REMOTE_MODEL_TOKEN` in the Studio's environment-variables
-  panel (a fresh, random value; never a real production token)
-- **G.** run `bash scripts/start_lightning.sh`
-- **H.** expose port 8000 via the Studio **Port** plugin
-- **I.** smoke `GET /health`
-- **J.** smoke `GET /v1/models`
-- **K.** smoke `POST /v1/predict/dr` (RETFound on one synthetic image)
-- **L.** smoke `POST /v1/predict/lesions` (PRISM on the same image)
-- **M.** connect the local review workstation via `REMOTE_MODEL_URL`
-- **N.** stop the GPU when finished
-
-Plus consolidated PASS criteria, a troubleshooting matrix, the
-cardless / cost-aware operational policy (no benchmark / batch runs;
-stop the Studio after acceptance; never claim a specific free-GPU-hours
-budget), the hardware ladder (T4 default; L4 / A10 only if T4 OOM is
-actually observed), the auth contract, the persistent-asset strategy, and
-the Windows-owner helper showing exactly what to copy from the Studio
-URL into the local `.env`.
-
-The runbook deliberately stays silent on a specific Lightning free-GPU-
-hours budget — Lightning credit availability varies by account, and the
-acceptance flow is designed to spend the minimum possible GPU time.
-
-### 8.5 Asset strategy — **persistent on the Studio home directory**
-
-`scripts/setup_lightning.sh` downloads the pinned RETFound + PRISM-DR
-sources and weights into `local-state/bridge/` once and verifies every
-checkpoint against the SHA256s in
-`dr_support/providers/{retfound,prism}.py` and
-`dr_support/providers/prism_assets.json`. Subsequent runs of the setup
-script are no-ops because `setup_models` is idempotent and the Studio's
-persistent disk survives restarts.
-
-Single predictable path — no second cache layout:
-
-| Env var           | Path                                     |
-|-------------------|------------------------------------------|
-| `RETFOUND_SOURCE` | `local-state/bridge/sources/RETFound`    |
-| `RETFOUND_WEIGHTS`| `local-state/bridge/retfound-aptos.pth`  |
-| `PRISM_SOURCE`    | `local-state/bridge/sources/PRISM-DR`    |
-| `PRISM_WEIGHTS`   | `local-state/bridge/prism`               |
-
-`scripts/start_lightning.sh` does not set these; the existing
-`dr_support.run.configure()` helper wires them from the project root
-when `python -m dr_support.run` boots.
-
-### 8.6 Tests (`tests/test_lightning_adapter.py`, 41 new tests)
-
-- **Launch script environment defaults** (10 tests): the bash script
-  pins `APP_PROFILE=model_api`, `MODEL_RUNTIME=local`,
-  `INFERENCE_DEVICE=cuda:0`, `HOST=0.0.0.0`, `PORT=8000`, `WORKERS=1`,
-  uses `set -euo pipefail`, execs `python -m dr_support.run`, refuses
-  to silently fall back to CPU, and refuses `WORKERS > 1`.
-- **CUDA pre-flight fail-fast** (1 test): mirrors the v0.4.0 strict-mode
-  refusal so the Lightning adapter cannot bypass the no-CPU-fallback
-  invariant.
-- **Setup script idempotency + asset reuse** (8 tests): the setup script
-  exists, delegates to `python -m dr_support.setup_models --model all`,
-  does NOT duplicate setup logic (no raw `git clone`, no raw
-  `gdown.download`, no raw SHA256), installs the project with
-  `pip install -e ".[models,test]"`, targets the single
-  `local-state/bridge/` cache path, never commits checkpoints, and does
-  NOT require Docker.
-- **Runbook coverage** (7 tests): the runbook exists, documents all A–N
-  steps, documents the consolidated PASS criteria, warns about stopping
-  the GPU, does NOT claim a specific free-GPU-hours budget, keeps the
-  existing HF / Modal paths intact, and explains the public-port
-  mechanism via the Studio Port plugin.
-- **Contract unchanged** (5 tests): the four `model_api` routes are still
-  present (`/health`, `/v1/models`, `/v1/predict/dr`,
-  `/v1/predict/lesions`), the bearer contract still gates the predict
-  endpoints, the `/health` device snapshot is intact, and the
-  `503 RETFound/PRISM-DR assets not configured` paths still fire when no
-  weights are present.
-- **No CPU fallback in model_api** (2 tests): the dispatcher still
-  refuses to start when `INFERENCE_DEVICE=cuda:0` is requested without a
-  CUDA runtime (mirroring `tests/test_device.py`), and `/health` still
-  returns `status=FAIL` with `cuda_available=false` in the same
-  configuration.
-- **No secret leakage** (8 tests): the launch script, the setup script,
-  and the runbook contain no `sk-` / `ghp_` / `xoxb-` / `hf_` / `AKIA`
-  style secret prefixes; the launch script never even references
-  `REMOTE_MODEL_TOKEN` (bearer auth is handled inside FastAPI); the
-  setup script never dereferences or echoes the token; the runbook uses
-  only the `<synthetic-deploy-token>` placeholder.
-
-These tests do not require the Lightning cloud; the bash scripts are
-read as text rather than executed, so the test suite stays CPU-only and
-Windows-friendly.
-
----
-
-## 9. Verification matrix
-
-Run on the local Windows CPU host, before each commit:
+Run on the local Windows CPU host, after this commit:
 
 | Tool                         | Command                                                       | Result                       |
 |------------------------------|---------------------------------------------------------------|------------------------------|
-| Backend unit + integration   | `python -m pytest -q`                                         | **143 passed**, 1 skipped    |
-| Frontend JS contract + UI    | `npm test`                                                    | 3/3 PASS                     |
-| Lint                         | `python -m ruff check dr_support tests scripts modal_app.py`  | All checks passed            |
+| Backend unit + integration   | `python -m pytest -q`                                         | **152 passed**, 1 skipped    |
+| Frontend JS contract + UI    | `npm test`                                                    | 4/4 PASS (overlay, api_hardening, ui, preview) |
+| Lint                         | `python -m ruff check dr_support tests`                       | All checks passed            |
 
 Test inventory by file:
 
@@ -624,144 +188,150 @@ Test inventory by file:
 | `tests/test_bridge.py`          | 8     | Bridge contracts, CVAT online safety, weight hashing              |
 | `tests/test_workflow.py`        | 8     | Review round-trip, manual sync, error paths                       |
 | `tests/test_sync.py`            | 2     | CVAT send / pull idempotency                                      |
-| `tests/test_remote.py`          | 20    | Remote provider, mocked integration, token isolation              |
+| `tests/test_remote.py`          | 29    | Remote provider, mocked integration, token isolation, M0.8 startup-bloker regressions |
 | `tests/test_profiles.py`        | 19    | Profile dispatch, invariants, model_api surface, M4 proxy smoke   |
 | `tests/test_device.py`          | 22    | GPU device resolver, provider propagation, no-CPU-fallback, /health |
 | `tests/test_modal_adapter.py`   | 24    | Modal adapter config, GPU ladder, ASGI surface, SDK integration   |
 | `tests/test_lightning_adapter.py` | 41  | Lightning launch script, setup script, runbook coverage, contract unchanged, no-CPU-fallback, no secret leakage |
 | `tests/test_browser_ui.py`      | 1     | Real-browser preview smoke (skipped on this host)                 |
 | `tests/overlay.test.cjs`        | —     | Imported CVAT geometry overrides AI provenance                    |
+| `tests/api_hardening.test.cjs`  | 5     | `api()` defensive JSON / status / body parsing (M0.8)             |
 | `tests/ui.test.cjs`             | —     | DOM + real API: navigation, Analyze, grade correction             |
 | `tests/preview.test.cjs`        | —     | Offline PREVIEW.html, no API calls, controls disabled             |
 
-Total new tests in M0.7: **41** (`tests/test_lightning_adapter.py`).
+Total new tests in M0.8: **8 backend (`tests/test_remote.py`) + 5 frontend
+(`tests/api_hardening.test.cjs`)** = **13 tests**.
 
 ---
 
-## 10. Files added or modified in the M0.7 Lightning adapter pass
+## 5. Windows acceptance (post-`d791b7c`)
+
+Backend restarted with the owner's review environment:
 
 ```
-scripts/setup_lightning.sh                       +60 / -0   NEW (idempotent Studio setup; delegates to setup_models)
-scripts/start_lightning.sh                       +70 / -0   NEW (Linux launch script; pre-flight CUDA probe; execs dr_support.run)
-docs/LIGHTNING_DEPLOYMENT.md                     +340 / -0  NEW (A–N operator runbook; PASS criteria; troubleshooting)
-tests/test_lightning_adapter.py                  +430 / -0  NEW (41 tests; launch defaults, contract stability, no-secret-leakage)
-.env.example                                     +20 / -0   (Lightning section; points at scripts + runbook)
-CHANGELOG_V2.md                                  +60 / -0   (0.6.0 entry: Added / Changed / Preserved)
-pyproject.toml                                   +1 / -1    (version bump 0.5.0 → 0.6.0)
-GOAL.md                                          overwritten (M0.7 summary + exact status)
+APP_PROFILE=review
+MODEL_RUNTIME=remote
+REMOTE_MODEL_URL=https://8000-01m2taqmanw7pn3h8kz5n54mxe.cloudspaces.litng.ai
+HOST=127.0.0.1
+PORT=8000
+WORKERS=1
+REMOTE_MODEL_TOKEN=<owner-managed secret from process env>
 ```
 
-No existing file under `dr_support/`, `web/`, `Dockerfile`,
-`docker-entrypoint.sh`, `modal_app.py`, or `docs/MODAL_DEPLOYMENT.md` was
-modified.
+Smoke results:
+
+```
+curl -i http://127.0.0.1:8000/v1/cases
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 8173
+→ 11 cases (1 synthetic SYNTH_001 rev 5 + 10 public HRF 01_dr…10_dr)
+
+curl -i http://127.0.0.1:8000/v1/models
+HTTP/1.1 200 OK
+content-type: application/json
+content-length: 1218
+→ 4 descriptors:
+    - mock-global       SYNTHETIC_FIXTURE
+    - mock-lesion       SYNTHETIC_FIXTURE
+    - retfound-aptos5   REMOTE_HTTP_404 (degraded; remote /v1/models returned 404)
+    - prism-dr-5fold    REMOTE_HTTP_404 (degraded; remote /v1/models returned 404)
+
+curl -i http://127.0.0.1:8000/ui/index.html
+HTTP/1.1 200 OK
+content-type: text/html; charset=utf-8
+→ serves index.html (case selector + Worklist shell)
+```
+
+The Worklist loads; the case selector populates with 11 case IDs;
+"Loading review workspace…" is replaced by the Worklist table; no
+`Unexpected token 'I'` in the browser console because `api()` no longer
+`JSON.parse`s an empty body and degrades the HTTP failure into a
+useful message.
+
+STOP condition confirmed: `Analyze` was NOT clicked; GPU acceptance
+was NOT repeated; no remote `POST /v1/predict/*` was invoked.
 
 ---
 
-## 11. Operator notes for the Lightning deployment
+## 6. Remote contract probe
 
-```bash
-# 1. In the Lightning Studio terminal:
-cd ~
-git clone https://github.com/siriponsri/dr-support-screening-poc.git
-cd dr-support-screening-poc
+Metadata-only GETs against the deployed Lightning endpoint
+`https://8000-01m2taqmanw7pn3h8kz5n54mxe.cloudspaces.litng.ai`:
 
-# 2. One-time idempotent setup (venv + project + model assets).
-bash scripts/setup_lightning.sh
+| Path           | HTTP | Content-Type                | Body                       |
+|----------------|------|------------------------------|----------------------------|
+| `/`            | 404  | `text/plain; charset=utf-8`  | `404 page not found`       |
+| `/health`      | 404  | `text/plain; charset=utf-8`  | `404 page not found`       |
+| `/models`      | 404  | `text/plain; charset=utf-8`  | `404 page not found`       |
+| `/v1/models`   | 404  | `text/plain; charset=utf-8`  | `404 page not found`       |
+| `/docs`        | 404  | `text/plain; charset=utf-8`  | `404 page not found`       |
+| `/openapi.json`| 404  | `text/plain; charset=utf-8`  | `404 page not found`       |
 
-# 3. Set the bearer-token secret in the Studio's environment-variables
-#    panel BEFORE launching:
-#      REMOTE_MODEL_TOKEN=<fresh synthetic-deploy-token>
-#    Generate with:  python -c "import secrets; print(secrets.token_urlsafe(32))"
+The default Go HTTP `404 page not found` body suggests the FastAPI
+process is **not currently serving** behind the Studio reverse-proxy,
+or is mounted under an unknown path prefix that the owner has not
+yet exposed. None of the four contract endpoints (`/health`,
+`/v1/models`, `/v1/predict/dr`, `/v1/predict/lesions`) is reachable
+right now.
 
-# 4. Launch the model_api profile on 0.0.0.0:8000.
-bash scripts/start_lightning.sh
+This is a **deployment-side concern**, not a code defect. The local
+review backend correctly treats the metadata 404 as `REMOTE_HTTP_404`
+and continues to serve `/v1/models` as HTTP 200 with an explicit
+degraded descriptor, so the Worklist stays unblocked.
 
-# 5. In the Studio UI: open the "Port" plugin (right-side panel) and
-#    expose port 8000. The plugin prints a public URL of the form
-#    https://<id>.lightning.ai.
-
-# 6. Smoke the four contract endpoints (see docs/LIGHTNING_DEPLOYMENT.md
-#    §7 for the exact curl invocations).
-
-# 7. Stop the Studio when finished so Lightning credits are not consumed.
-```
-
-GPU fallback (only when T4 OOM is actually observed):
-
-```bash
-# Re-create the Studio with an L4 or A10 machine type.
-# The script does NOT auto-escalate hardware — the operator reports
-# PASS_WITH_WARNINGS / OWNER_HARDWARE_ACTION_REQUIRED and escalates
-# manually.
-```
-
-The launch script **never** silently changes hardware. There is no
-environment variable for GPU selection; the GPU is selected at Studio
-creation time, and changing it means a new Studio.
+When the Lightning deployment is repaired, the proxy will begin
+returning full descriptors automatically; no code change is needed.
 
 ---
 
-## 12. What's NOT done — explicit owner actions
+## 7. What's NOT done — explicit owner actions
 
 These are deployment-time concerns that this codebase cannot complete from a
 CPU-only host:
 
-- **First Lightning Studio creation.** The owner signs in to
-  [lightning.ai](https://lightning.ai), creates a Studio, and selects a
-  GPU (T4 default) machine type.
-- **First GPU acceptance run.** The owner executes steps A–N of
-  `docs/LIGHTNING_DEPLOYMENT.md` against the live Studio, including the
-  first `/health` + RETFound + PRISM smoke, then stops the Studio.
+- **Live Lightning GPU runbook.** Steps A–N of
+  `docs/LIGHTNING_DEPLOYMENT.md` (Studio creation, GPU/T4 selection,
+  `bash scripts/setup_lightning.sh`, env-var setup, port-8000 expose,
+  smoke `/health` + `/v1/models` + `/v1/predict/dr` +
+  `/v1/predict/lesions`) must be re-run against the live Studio. The
+  current Studio at `https://8000-01m2taqmanw7pn3h8kz5n54mxe.cloudspaces.litng.ai`
+  is returning 404 on every probed path; it is no longer serving the
+  model_api process and needs an operator restart.
+- **First Lightning Studio creation** if the Studio was deleted.
 - **Lightning credit management.** GPU usage consumes Lightning credits;
   the owner monitors credit availability and stops the Studio when not
   in use.
 - **`REMOTE_MODEL_TOKEN` rotation.** Rotating the token is a Studio
   env-panel action; the local `.env` must be updated to match.
-- **First-time `modal setup`.** Still required if the owner also wants
-  to keep the v0.5.0 Modal target.
-- **First-time HF GPU acceptance run.** The v0.4.0 code is still GPU-ready
-  and the contract tests prove it. The HF Space owner flips the switch
-  on the HF Space hardware and observes the Bridge v1 outputs flowing
-  end-to-end through a real `cuda:0` device.
-- **Live PRISM inference (any deployment).** All 20 fold weights need to
-  actually live on the GPU host's SSD at the pinned paths. `setup_models`
-  guarantees the download + verification on first build; the owner does
-  not have to do anything beyond the initial build.
 - **CVAT round-trip on a live workspace.** CVAT Online still requires the
   `CVAT_TOKEN` to be present at the review workstation's runtime. The
-  same `OWNER_ACTION_REQUIRED` message from v0.3.0 still applies.
+  same `OWNER_ACTION_REQUIRED` message still applies.
 
 None of these are governance or implementation issues — they are
-operations the owner executes against the deployed HF Space, Modal app,
-or Lightning Studio.
+operations the owner executes against the deployed Lightning Studio.
 
 ---
 
-## 13. Status
+## 8. Status
 
-**PASS** — code is ready for HF GPU acceptance, Modal GPU acceptance, AND
-Lightning AI Studio GPU acceptance.
+**PASS** — Windows Worklist startup blocker is fixed and pinned by
+regression tests.
 
-- All in-scope deliverables shipped; 143 backend tests + 3 frontend
-  tests pass locally on a CPU-only host.
-- The Lightning adapter is an additional deployment path; it does not
-  modify the HF Docker Space story, the Modal adapter, or any contract /
-  UI surface.
-- `scripts/start_lightning.sh` pins the same production env as
-  `Dockerfile` / `docker-entrypoint.sh` / `modal_app.py`; refuses
-  `WORKERS > 1`; refuses to silently fall back to CPU via a pre-flight
-  `torch.cuda.is_available()` probe; execs `python -m dr_support.run`.
-- `scripts/setup_lightning.sh` is idempotent and delegates to the
-  existing `python -m dr_support.setup_models --model all` — no
-  duplicated download / hash logic.
-- Asset cache lives under the single, predictable
-  `local-state/bridge/` path; the Lightning persistent disk keeps it
-  across Studio restarts.
-- `REMOTE_MODEL_TOKEN` delivered via the Studio's environment-variables
-  panel; never hardcoded, logged, or echoed by either script.
-- Hardware is selected at Studio creation time; the launch script
-  never silently changes GPU class.
-- V2 clinician UI untouched; the Lightning deployment never hosts the
-  UI.
-- Public/synthetic POC only; no scientific claims, no
-  calibrated-probability assertions, no clinical guidance.
+- `GET /v1/cases` returns HTTP 200 with valid JSON for 11 cases.
+- `GET /v1/models` returns HTTP 200 with valid JSON for 4 descriptors
+  (2 synthetic + 2 remote-degraded) even when the Lightning Model API
+  metadata probe fails.
+- The Worklist loads; the case selector populates; no
+  `Unexpected token 'I'` crash; no permanent "Loading review
+  workspace…".
+- `REMOTE_MODEL_TOKEN` is never present in the `/v1/models` body, in
+  the test log output, or in the user-visible frontend error text.
+- All existing tests pass; lint is clean.
+- No scientific claims, no Bridge schema changes, no UI redesign, no
+  manifest export, no DICOM ingestion, no Drive integration, no
+  Dataset Workspace story.
+
+The next gate is owner-side: re-run the Lightning deployment so the
+remote `/v1/models` and `/v1/predict/*` endpoints actually serve the
+FastAPI process, then re-run the Lightning operator runbook (§7).
