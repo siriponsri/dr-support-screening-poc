@@ -87,10 +87,32 @@ def create_app(state_path=None, include_samples=True):
 
     @app.get('/v1/models')
     def models():
-        return [{'model_id': name, 'task': task, 'status': 'SYNTHETIC_FIXTURE',
-                 'modalities': ['CFP'], 'warnings': ['Not real model inference']}
-                for name, task in [('mock-global', 'global'), ('mock-lesion', 'lesion-roi')]] + [
-                    p.metadata() for p in app.state.providers.values()]
+        # The review Worklist page depends on this endpoint returning valid
+        # JSON. Each provider is wrapped in its own try/except so a single
+        # failure degrades that descriptor instead of crashing the whole
+        # response (which would surface as HTTP 500 + text/plain and break the
+        # UI's `response.json()` call).
+        synthetic = [
+            {'model_id': name, 'task': task, 'status': 'SYNTHETIC_FIXTURE',
+             'modalities': ['CFP'], 'warnings': ['Not real model inference']}
+            for name, task in [('mock-global', 'global'), ('mock-lesion', 'lesion-roi')]
+        ]
+        remote = []
+        for provider in app.state.providers.values():
+            try:
+                remote.append(provider.metadata())
+            except Exception as exc:  # pragma: no cover - defensive guard
+                # Provider.metadata() must already degrade, but belt-and-
+                # suspenders so a regression never produces HTTP 500 here.
+                remote.append({
+                    'model_id': getattr(provider, 'model_id', 'unknown'),
+                    'task': getattr(provider, 'task', 'unknown'),
+                    'runtime': 'remote',
+                    'status': 'REMOTE_INVALID_SCHEMA',
+                    'modalities': ['CFP'],
+                    'warnings': [f'Provider metadata failed: {type(exc).__name__}: {exc}'],
+                })
+        return synthetic + remote
 
     def infer(request, task):
         image = app.state.images.get(request.image_id)

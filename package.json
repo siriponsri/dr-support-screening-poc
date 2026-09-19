@@ -2,7 +2,7 @@
   "name": "dr-support-screening-poc-ui-tests",
   "private": true,
   "scripts": {
-    "test": "node tests/overlay.test.cjs && node tests/ui.test.cjs && node tests/preview.test.cjs",
+    "test": "node tests/overlay.test.cjs && node tests/api_hardening.test.cjs && node tests/ui.test.cjs && node tests/preview.test.cjs",
     "test:overlay": "node tests/overlay.test.cjs"
   },
   "devDependencies": {

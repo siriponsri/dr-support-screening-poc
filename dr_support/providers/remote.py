@@ -64,6 +64,7 @@ class RemoteModelProvider:
     """
 
     predict_path: str = '/v1/predict/dr'
+    METADATA_PATH: str = '/v1/models'
     result_model: type[GlobalResult | LesionResult] = GlobalResult
 
     def __init__(self, model_id: str, task: str, base_url: str | None = None,
@@ -132,8 +133,14 @@ class RemoteModelProvider:
         except httpx.HTTPError as exc:
             self.last_error = f'transport error: {type(exc).__name__}'
             raise RemoteModelError(f'Remote model transport error: {exc}') from None
+        except Exception as exc:  # pragma: no cover - defensive guard
+            # Any non-httpx exception (DNS resolution failures, SSL errors that
+            # escape httpx, etc.) must be translated to ``RemoteModelError`` so
+            # the metadata() caller never crashes the local /v1/models handler.
+            self.last_error = f'unexpected: {type(exc).__name__}'
+            raise RemoteModelError(f'Remote model unexpected error: {exc}') from None
         elapsed_ms = (time.perf_counter() - start) * 1000
-        if path.endswith('/models') or path.endswith('/health'):
+        if path == self.METADATA_PATH or path.endswith('/health'):
             self.last_metadata_ms = elapsed_ms
         return response
 
@@ -182,9 +189,29 @@ class RemoteModelProvider:
         return warnings
 
     def metadata(self) -> dict[str, Any]:
-        """Return Models & Audit metadata, including remote revision/hash/latency."""
+        """Return Models & Audit metadata, including remote revision/hash/latency.
+
+        The local review ``/v1/models`` endpoint must never crash because of a
+        remote metadata failure. Every failure mode below produces an explicit
+        degraded descriptor with HTTP 200 so the UI can still render the
+        Worklist and Models & Audit page.
+        """
         try:
-            response = self._send('GET', '/models', timeout=METADATA_TIMEOUT_SECONDS)
+            return self._collect_metadata()
+        except Exception as exc:  # pragma: no cover - defensive guard
+            # Any exception that escapes the structured degradation paths
+            # (e.g. unexpected response shape, missing dict key, programming
+            # bug) must still surface as a degraded descriptor. Crashing here
+            # would propagate to the local /v1/models handler and turn into a
+            # HTTP 500 — exactly the symptom that blocked the Worklist UI.
+            self.last_error = f'unexpected: {type(exc).__name__}'
+            return self._degraded_metadata('REMOTE_INVALID_SCHEMA',
+                                           f'Unexpected remote metadata error: {exc}')
+
+    def _collect_metadata(self) -> dict[str, Any]:
+        """Inner metadata collection; every branch returns a degraded dict."""
+        try:
+            response = self._send('GET', self.METADATA_PATH, timeout=METADATA_TIMEOUT_SECONDS)
         except (RemoteTimeoutError, RemoteModelError) as exc:
             return self._degraded_metadata('REMOTE_UNREACHABLE', str(exc))
 
@@ -194,22 +221,24 @@ class RemoteModelProvider:
         if response.status_code != 200:
             self.last_error = f'HTTP {response.status_code}'
             return self._degraded_metadata(f'REMOTE_HTTP_{response.status_code}',
-                                          f'GET /models returned HTTP {response.status_code}')
+                                          f'GET {self.METADATA_PATH} returned HTTP {response.status_code}')
 
         try:
             body = response.json()
         except ValueError:
-            return self._degraded_metadata('REMOTE_INVALID_JSON', 'GET /models returned non-JSON body')
+            return self._degraded_metadata('REMOTE_INVALID_JSON',
+                                          f'GET {self.METADATA_PATH} returned non-JSON body')
         if not isinstance(body, list):
-            return self._degraded_metadata('REMOTE_INVALID_SCHEMA', 'GET /models must be a JSON array')
+            return self._degraded_metadata('REMOTE_INVALID_SCHEMA',
+                                          f'GET {self.METADATA_PATH} must be a JSON array')
 
         match = next((m for m in body if isinstance(m, dict) and m.get('model_id') == self.model_id), None)
         if match is None:
             return self._degraded_metadata('REMOTE_MODEL_NOT_LISTED',
-                                            f'{self.model_id} not present in remote /models response')
+                                            f'{self.model_id} not present in remote {self.METADATA_PATH} response')
 
         # Prefer the freshest provenance values from the most recent inference, but fall back
-        # to whatever the /models list advertises.
+        # to whatever the /v1/models list advertises.
         revision = self.last_remote_revision or match.get('revision') or match.get('model_version')
         checkpoint = (self.last_remote_checkpoint_sha256
                       if self.last_remote_checkpoint_sha256 is not None

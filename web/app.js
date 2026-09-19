@@ -19,12 +19,31 @@ async function api(path, data) {
     if (path === '/v1/models') return window.DR_PREVIEW.models;
     throw new Error('This action requires the API runtime.');
   }
-  const response = await fetch(path, data === undefined ? {} : {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)
-  });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(typeof payload.detail === 'string' ? payload.detail : 'Request rejected. Check the input and reload.');
-  return payload;
+  const method = data === undefined ? 'GET' : 'POST';
+  const init = data === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)};
+  const response = await fetch(path, init);
+  const raw = await response.text();
+  let payload;
+  if (raw) {
+    try { payload = JSON.parse(raw); }
+    catch { payload = null; }
+  }
+  if (!response.ok) {
+    const detail = payload && typeof payload.detail === 'string' ? payload.detail : null;
+    // Surface the HTTP status alongside whatever body we managed to read so a
+    // plain-text "Internal Server Error" never reaches the UI as the cryptic
+    // ``Unexpected token 'I'`` JSON.parse failure the Worklist used to show.
+    const http = `HTTP ${response.status}${response.statusText ? ' ' + response.statusText : ''}`;
+    const bodyHint = raw && raw.length < 200 ? `: ${raw.replace(/\s+/g, ' ').trim()}` : '';
+    const message = detail
+      || `${method} ${path} failed with ${http}${bodyHint}`
+      || `Request to ${path} failed.`;
+    throw new Error(message);
+  }
+  if (payload !== undefined) return payload;
+  // 2xx with an empty body — return an empty JSON document so callers that
+  // iterate over the result don't crash on `undefined`.
+  return {};
 }
 
 function status(message, type='') {

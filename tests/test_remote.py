@@ -98,7 +98,7 @@ def _success_handler(global_body=None, lesion_body=None):
 
     def handle(request: httpx.Request) -> httpx.Response:
         calls.append(request)
-        if request.url.path == '/models':
+        if request.url.path == '/v1/models':
             return httpx.Response(200, json=[
                 {
                     'model_id': 'retfound-aptos5',
@@ -226,7 +226,7 @@ def test_remote_provider_metadata_surfaces_remote_revision_hash_and_latency(monk
 
     monkeypatch.setenv('REMOTE_MODEL_URL', 'https://remote.test')
     provider = RemoteGlobalProvider(transport=httpx.MockTransport(handle), timeout=5.0)
-    # No inference yet — metadata should fall back to /models advertisement.
+    # No inference yet — metadata should fall back to the /v1/models advertisement.
     info = provider.metadata()
     assert info['runtime'] == 'remote'
     assert info['revision'] == 'remote-rev-aaaa'
@@ -234,7 +234,7 @@ def test_remote_provider_metadata_surfaces_remote_revision_hash_and_latency(monk
     assert info['status'] == 'LOADED'
     assert any('remote-rev-aaaa' in w or 'remote' in w.lower() for w in info['warnings'])
     assert provider.last_metadata_ms is not None
-    assert any(call.url.path == '/models' for call in calls)
+    assert any(call.url.path == '/v1/models' for call in calls)
 
 
 def test_remote_provider_metadata_reports_unreachable_when_remote_down(monkeypatch):
@@ -337,7 +337,7 @@ def test_api_returns_504_when_remote_times_out(monkeypatch):
 
 def test_api_returns_502_when_remote_returns_non_2xx(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
-        if request.url.path == '/models':
+        if request.url.path == '/v1/models':
             return httpx.Response(200, json=[{'model_id': 'retfound-aptos5', 'task': 'global'}])
         return httpx.Response(500, json={'error': 'upstream'})
 
@@ -353,7 +353,7 @@ def test_api_returns_502_when_remote_returns_non_2xx(monkeypatch):
 
 def test_api_returns_502_when_remote_returns_malformed_payload(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
-        if request.url.path == '/models':
+        if request.url.path == '/v1/models':
             return httpx.Response(200, json=[{'model_id': 'retfound-aptos5', 'task': 'global'}])
         return httpx.Response(200, json={'not': 'a bridge result'})
 
@@ -430,3 +430,198 @@ def test_api_preserves_cvat_review_state_in_remote_mode(monkeypatch):
                                'reviewer': 'Remote fixture'})
     assert review.status_code == 200
     assert review.json()['state'] == 'REVIEWED'
+
+
+# ---------------------------------------------------------------------------
+# M0.8 — Windows worklist remote-metadata startup regression tests.
+#
+# These tests pin the contract that the local /v1/models handler must always
+# return HTTP 200 + valid JSON even when the remote Model API is:
+#   - returning 404 on the wrong path
+#   - timing out / unreachable
+#   - returning a non-JSON body
+#   - returning a malformed schema
+#   - raising an unexpected exception
+# And that the bearer token never leaks through the degraded descriptor.
+# ---------------------------------------------------------------------------
+
+
+def test_remote_provider_metadata_queries_v1_models_path(monkeypatch):
+    """The deployed Model API exposes /v1/models; the proxy must call it."""
+    captured = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(200, json=[{'model_id': 'retfound-aptos5', 'task': 'global',
+                                          'revision': 'remote-rev-aaaa',
+                                          'modalities': ['CFP'], 'status': 'LOADED'}])
+
+    monkeypatch.setenv('REMOTE_MODEL_URL', 'https://remote.test')
+    provider = RemoteGlobalProvider(transport=httpx.MockTransport(handle), timeout=5.0)
+    info = provider.metadata()
+    assert info['status'] == 'LOADED'
+    paths = [req.url.path for req in captured]
+    assert '/v1/models' in paths
+    # Defensive: the legacy /models path must NOT be called. If a future
+    # refactor reintroduces it the UI Worklist would silently miss metadata
+    # on the real Lightning deployment.
+    assert '/models' not in paths or paths.count('/models') == 0
+
+
+def test_api_v1_models_200_when_remote_metadata_404(monkeypatch):
+    """A 404 on the remote metadata route must not crash local /v1/models."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/v1/models':
+            return httpx.Response(404, text='not found', headers={'content-type': 'text/plain'})
+        # Inference path: keep returning a valid payload so unrelated tests
+        # would not be affected if a future change wires this handler in.
+        return httpx.Response(200, json=SAMPLE_GLOBAL_BODY)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    client = TestClient(app)
+    response = client.get('/v1/models')
+    assert response.status_code == 200
+    assert response.headers.get('content-type', '').startswith('application/json')
+    body = response.json()
+    # 4 descriptors expected: 2 synthetic + 2 remote (one per provider).
+    assert len(body) == 4
+    descriptors = {m['model_id']: m for m in body}
+    for mid in ('retfound-aptos5', 'prism-dr-5fold'):
+        assert descriptors[mid]['runtime'] == 'remote'
+        assert descriptors[mid]['status'].startswith('REMOTE_HTTP_404')
+        assert any('/v1/models' in w for w in descriptors[mid]['warnings'])
+
+
+def test_api_v1_models_200_when_remote_metadata_times_out(monkeypatch):
+    """A metadata timeout must not crash local /v1/models."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout('simulated metadata timeout', request=request)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    client = TestClient(app)
+    response = client.get('/v1/models')
+    assert response.status_code == 200
+    assert response.headers.get('content-type', '').startswith('application/json')
+    descriptors = {m['model_id']: m for m in response.json()}
+    for mid in ('retfound-aptos5', 'prism-dr-5fold'):
+        assert descriptors[mid]['status'] == 'REMOTE_UNREACHABLE'
+
+
+def test_api_v1_models_200_when_remote_metadata_unreachable(monkeypatch):
+    """A connection error must not crash local /v1/models."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError('simulated offline', request=request)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    client = TestClient(app)
+    response = client.get('/v1/models')
+    assert response.status_code == 200
+    assert response.headers.get('content-type', '').startswith('application/json')
+    descriptors = {m['model_id']: m for m in response.json()}
+    assert descriptors['retfound-aptos5']['status'] == 'REMOTE_UNREACHABLE'
+    assert descriptors['prism-dr-5fold']['status'] == 'REMOTE_UNREACHABLE'
+
+
+def test_api_v1_models_200_when_remote_metadata_non_json(monkeypatch):
+    """A text/plain metadata body must not crash local /v1/models."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/v1/models':
+            return httpx.Response(200, text='Internal Server Error',
+                                  headers={'content-type': 'text/plain'})
+        return httpx.Response(200, json=SAMPLE_GLOBAL_BODY)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    client = TestClient(app)
+    response = client.get('/v1/models')
+    assert response.status_code == 200
+    assert response.headers.get('content-type', '').startswith('application/json')
+    descriptors = {m['model_id']: m for m in response.json()}
+    for mid in ('retfound-aptos5', 'prism-dr-5fold'):
+        assert descriptors[mid]['status'] == 'REMOTE_INVALID_JSON'
+
+
+def test_api_v1_models_200_when_remote_metadata_wrong_schema(monkeypatch):
+    """A metadata body that is not a JSON array must not crash local /v1/models."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/v1/models':
+            return httpx.Response(200, json={'oops': 'not an array'})
+        return httpx.Response(200, json=SAMPLE_GLOBAL_BODY)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    client = TestClient(app)
+    response = client.get('/v1/models')
+    assert response.status_code == 200
+    descriptors = {m['model_id']: m for m in response.json()}
+    for mid in ('retfound-aptos5', 'prism-dr-5fold'):
+        assert descriptors[mid]['status'] == 'REMOTE_INVALID_SCHEMA'
+
+
+def test_api_v1_models_200_when_remote_metadata_unexpected_exception(monkeypatch):
+    """An unexpected exception inside metadata() must not crash local /v1/models."""
+
+    class BoomProvider(RemoteGlobalProvider):
+        def metadata(self):  # type: ignore[override]
+            raise RuntimeError('simulated metadata bug')
+
+    app = _wire_remote_app(monkeypatch, _success_handler()[1])
+    # Replace one provider with a faulty one to exercise the api/_factory
+    # belt-and-suspenders guard.
+    for mid, provider in list(app.state.providers.items()):
+        if isinstance(provider, RemoteGlobalProvider):
+            app.state.providers[mid] = BoomProvider(base_url='https://remote.test',
+                                                    token='synthetic-remote-secret',
+                                                    transport=provider._transport)
+    client = TestClient(app)
+    response = client.get('/v1/models')
+    assert response.status_code == 200
+    descriptors = {m['model_id']: m for m in response.json()}
+    assert descriptors['retfound-aptos5']['status'] == 'REMOTE_INVALID_SCHEMA'
+    assert any('simulated metadata bug' in w or 'Provider metadata failed' in w
+               for w in descriptors['retfound-aptos5']['warnings'])
+
+
+def test_api_v1_models_never_leaks_token_in_metadata_failures(monkeypatch, caplog):
+    """The bearer token must not appear in /v1/models output or log output,
+    even when the remote returns garbage."""
+
+    secret = 'super-secret-deploy-token-do-not-leak'
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/v1/models':
+            return httpx.Response(500, text=f'upstream; bearer={secret}',
+                                  headers={'content-type': 'text/plain'})
+        return httpx.Response(200, json=SAMPLE_GLOBAL_BODY)
+
+    app = _wire_remote_app(monkeypatch, handle, token=secret)
+    client = TestClient(app)
+    import logging
+    caplog.set_level(logging.DEBUG)
+    with caplog.at_level(logging.DEBUG):
+        response = client.get('/v1/models')
+    assert response.status_code == 200
+    assert secret not in response.text
+    log_text = '\n'.join(record.getMessage() for record in caplog.records)
+    assert secret not in log_text
+
+
+def test_remote_provider_metadata_degraded_message_mentions_v1_models(monkeypatch):
+    """The degraded descriptor warning should advertise the corrected path
+    so operators can immediately see whether the proxy is hitting the
+    deployed Model API contract."""
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, text='not found',
+                              headers={'content-type': 'text/plain'})
+
+    monkeypatch.setenv('REMOTE_MODEL_URL', 'https://remote.test')
+    provider = RemoteGlobalProvider(transport=httpx.MockTransport(handle), timeout=5.0)
+    info = provider.metadata()
+    assert info['status'].startswith('REMOTE_HTTP_404')
+    # The warning text must reference the v1 path (not the legacy /models).
+    assert any('/v1/models' in w for w in info['warnings'])
+    assert not any('GET /models ' in w or 'GET /models returned' in w for w in info['warnings'])
