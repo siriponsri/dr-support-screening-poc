@@ -31,6 +31,7 @@ from dr_support.providers.retfound import RETFound
 from ..images import admitted_demo_images, admitted_samples, synthetic_image
 from ..services.admission import is_inference_eligible, legacy_admission, scan_input_folder
 from ..services.workspaces import WorkspaceManager
+from ..services.resolver import ResolverService
 from ..workflow import install_workflow
 from .workspaces import install_workspace_routes
 
@@ -52,6 +53,7 @@ def create_app(state_path=None, include_samples=True):
     }
     app.state.workspace_image_ids = set()
     app.state.workspace_admission_ids = set()
+    app.state.resolver = ResolverService()
     workspace_manager = WorkspaceManager(root, state_path=state_path)
     install_workflow(app, workspace_manager.store)
     workspace_manager.attach(app)

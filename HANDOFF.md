@@ -219,3 +219,81 @@ cd frontend && npm run build                # passed; existing chunk warning
 npm test                                    # passed
 python -m pytest -q tests/test_browser_ui.py # skipped; browser unavailable
 ```
+
+## S2A2 Patient / Eye Resolver implementation handoff (2026-09-20)
+
+Branch: `feat/s2a2-patient-eye-resolver`.
+
+Status: implementation complete; awaiting integration review and owner smoke
+acceptance. `main` was not modified by this implementation.
+
+### Audit findings and boundaries
+
+- Existing admitted-image records are JSON documents in the authoritative
+  SQLite `cases.data` store. `workflow.detail()` is the shared projection used
+  by the React Worklist and AI Review pages.
+- The resolver is additive and leaves S1 viewer behavior, S2 Workspace Manager,
+  S2A1 admission/inference guards, model providers, remote payloads, CVAT, and
+  legacy `/ui/` unchanged.
+- Existing S2A1 records without identity fields remain readable and default to
+  an unlinked patient, `UNKNOWN` eye, and empty resolution history.
+- The supplied `DR-DEMO/WS03_IDENTITY_PREVIEW` set contains synthetic filenames
+  (`img13_L1`, `img15_L2`, `img14_R1`, `img16_R2`, and `unknown_001`) and public
+  fundus pixels; no private patient data was added to the repository.
+
+### Frozen contract
+
+The additive case/API contract is recorded in
+`docs/S2A2_PATIENT_EYE_CONTRACT.md`. It defines pseudonymous `patient_key`,
+independent patient and laterality states/methods/reasons, `LEFT`/`RIGHT`/
+`UNKNOWN`, automatic evidence, and append-only `resolution_history`.
+
+`POST /v1/cases/{image_id}/resolver` uses the existing optimistic `revision`
+guard. Patient actions (`CONFIRM`, `SET`, `LEAVE_UNLINKED`) and eye actions
+(`SET` with `LEFT`, `RIGHT`, or explicit `UNKNOWN`) are independent. Manual
+events preserve prior values, new values, reviewer, timestamp, note, and the
+original automatic evidence.
+
+### Parsing and reconciliation
+
+- Full filename stems are parsed case-insensitively using explicit anchored
+  patient-plus-eye/capture patterns, including `PAT0001_L1`,
+  `PAT0001_LEFT_01`, `PAT0001-L`, `FI3010_L1_APR`, and matching right-eye
+  forms.
+- Patient-only patterns resolve the patient and leave eye `UNKNOWN`.
+- Non-matching or ambiguous suffixes never infer an isolated eye letter.
+- Filename evidence runs first. OCR is called only when filename evidence is
+  incomplete or ambiguous; the default adapter is disabled and makes no network
+  request.
+- Filename/OCR disagreement yields `CONFLICT`; OCR candidates without a safe
+  filename match require confirmation; no text, unavailable OCR, and OCR
+  failure leave the image usable and unlinked when no other evidence exists.
+
+### OCR adapter and privacy
+
+`dr_support.services.resolver.OCRAdapter` is the optional provider boundary.
+Adapters return structured candidate evidence/outcome status and never raw OCR
+text. Credentials and any future remote-OCR configuration remain server-side.
+RETFound and PRISM-DR payload construction was not changed; the privacy test
+asserts that patient, laterality, and OCR fields are absent.
+
+### Clinician surface
+
+The Worklist shows a plain-language patient/eye status. AI Review provides
+short confirmation, assignment, eye-side, and leave-unlinked actions. Primary
+UI copy does not expose resolver enums, reason codes, or OCR status/error text.
+S3 grouping/filter/navigation remains deferred.
+
+### Validation on the feature worktree
+
+```text
+python -m pytest -q tests/test_resolver.py       # 16 passed
+python -m ruff check dr_support tests             # passed
+cd frontend && npm test -- resolver.test.tsx      # 1 passed
+cd frontend && npm test                           # 43 passed
+cd frontend && npm run typecheck                  # passed
+cd frontend && npm run build                      # passed; existing chunk warning
+```
+
+Full backend and root smoke validation remain required before integration
+review. Optional real-browser smoke is environment-dependent.

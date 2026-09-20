@@ -49,6 +49,28 @@ function admissionStatus(item: CaseRecord): { label: string; tone: StatusTone; n
   };
 }
 
+function resolverStatus(item: CaseRecord) {
+  const ui = item.resolver_ui;
+  if (!ui) {
+    return {
+      patientLabel: item.patient_key ?? 'Patient not linked',
+      eyeLabel: item.laterality && item.laterality !== 'UNKNOWN' ? `${item.laterality === 'LEFT' ? 'Left' : 'Right'} eye` : 'Eye side not set',
+      label: 'Patient information needs review',
+      tone: 'warning' as StatusTone,
+      note: 'Confirm the patient and eye side before grouping images.',
+    };
+  }
+  return {
+    patientLabel: item.patient_key ?? ui.patient.candidate ?? 'Patient not linked',
+    eyeLabel: ui.laterality.value && ui.laterality.value !== 'UNKNOWN'
+      ? `${ui.laterality.value === 'LEFT' ? 'Left' : 'Right'} eye`
+      : ui.laterality.label,
+    label: ui.label,
+    tone: ui.tone,
+    note: ui.note,
+  };
+}
+
 export function WorklistPage() {
   const { pathname } = useLocation();
   const [cases, setCases] = useState<CaseRecord[]>([]);
@@ -129,6 +151,7 @@ export function WorklistPage() {
                 <Tr>
                   <Th>Preview</Th>
                   <Th>Image ID</Th>
+                  <Th>Patient / eye</Th>
                   <Th>AI grade</Th>
                   <Th>Review status</Th>
                   <Th>Image admission</Th>
@@ -141,6 +164,7 @@ export function WorklistPage() {
                   const analysis = analysisStatus(item);
                   const review = reviewStatus(item);
                   const admission = admissionStatus(item);
+                  const resolver = resolverStatus(item);
                   return (
                     <Tr key={item.image_id} data-testid={`case-row-${item.display_name}`}>
                       <Td>
@@ -167,6 +191,14 @@ export function WorklistPage() {
                           <Code fontSize="xxs" color="text.secondary" bg="transparent">
                             {item.image_id}
                           </Code>
+                        </Stack>
+                      </Td>
+                      <Td>
+                        <Stack spacing={1}>
+                          <Text fontWeight="semibold">{resolver.patientLabel}</Text>
+                          <Text fontSize="xs" color="text.secondary">{resolver.eyeLabel}</Text>
+                          <StatusBadge tone={resolver.tone}>{resolver.label}</StatusBadge>
+                          <Text fontSize="xs" color="text.secondary" maxW="220px">{resolver.note}</Text>
                         </Stack>
                       </Td>
                       <Td>

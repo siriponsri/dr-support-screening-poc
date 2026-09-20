@@ -7,11 +7,17 @@ from uuid import uuid4
 from fastapi import HTTPException
 from fastapi.responses import Response
 from pydantic import Field
-from .contracts import AdmissionMetadata, AdmissionReview, Contract
+from .contracts import AdmissionMetadata, AdmissionReview, Contract, ResolverReview
 from .sync import Sync, digest
 from .cvat import CVATOnline, OnlineError
 from .presentation import lesion_review_view
 from .services.admission import clinician_view, legacy_admission
+from .services.resolver import (
+    apply_automatic_resolution,
+    combined_resolution_state,
+    normalize_patient_key,
+    resolver_clinician_view,
+)
 
 
 class Review(Contract):
@@ -82,6 +88,24 @@ def install_workflow(app, store):
             current_store().put(case)
         return case, record
 
+    def ensure_resolution(image_id, case, record):
+        """Resolve once from local evidence, preserving later manual decisions."""
+        if case.get('resolver_evidence') is not None:
+            return case
+        if any(event.get('action') == 'MANUAL_RESOLUTION'
+               for event in case.get('resolution_history', [])):
+            return case
+        image = app.state.images.get(image_id)
+        filename = (image.filename if image is not None else None) or (record or {}).get('filename') or image_id
+        decision = app.state.resolver.resolve(image, filename)
+        apply_automatic_resolution(
+            case,
+            decision,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        current_store().put(case)
+        return case
+
     def get_image(image_id):
         if image_id not in app.state.images:
             raise HTTPException(404, 'Image not admitted')
@@ -93,6 +117,7 @@ def install_workflow(app, store):
         if image is None and record is None:
             raise HTTPException(404, 'Image not admitted')
         case, record = case_with_admission(image_id)
+        case = ensure_resolution(image_id, case, record)
         filename = image.filename if image is not None else record.get('filename')
         width = image.size[0] if image is not None else record.get('width')
         height = image.size[1] if image is not None else record.get('height')
@@ -107,6 +132,8 @@ def install_workflow(app, store):
                 'admission': record,
                 'admission_ui': clinician_view(record) if record is not None else None,
                 'admission_history': case.get('admission_history', []),
+                'resolver_ui': resolver_clinician_view(case),
+                'resolution_history': case.get('resolution_history', []),
                 'lesion_review': lesion_review_view(case.get('lesion')),
                 'human_annotations': case.get('human_annotations', []),
                 'clinician_review': case.get('clinician_review'),
@@ -290,6 +317,97 @@ def install_workflow(app, store):
             case['revision'] += 1
             store.put(case)
             app.state.admissions[image_id] = updated
+            return detail(image_id)
+
+    @app.post('/v1/cases/{image_id}/resolver')
+    def review_resolver(image_id: str, request: ResolverReview):
+        store = current_store()
+        with store.lock:
+            case, record = case_with_admission(image_id)
+            image = app.state.images.get(image_id)
+            if image is None and record is None:
+                raise HTTPException(404, 'Image not admitted')
+            case = ensure_resolution(image_id, case, record)
+            if request.revision != case['revision']:
+                raise HTTPException(409, 'Case changed; reload before confirming patient or eye')
+            reviewer = request.reviewer.strip()
+            if not reviewer:
+                raise HTTPException(422, 'Reviewer name required')
+            if request.patient_action == 'KEEP' and request.laterality_action == 'KEEP':
+                raise HTTPException(422, 'Choose a patient or eye action')
+
+            previous = {
+                'patient_key': case.get('patient_key'),
+                'patient_resolution_state': case.get('patient_resolution_state'),
+                'laterality': case.get('laterality'),
+                'laterality_resolution_state': case.get('laterality_resolution_state'),
+            }
+            timestamp = datetime.now(timezone.utc).isoformat()
+            if request.patient_action == 'CONFIRM':
+                key = request.patient_key or case.get('patient_candidate')
+                if not key:
+                    raise HTTPException(422, 'A proposed patient key is not available')
+                try:
+                    key = normalize_patient_key(key)
+                except ValueError as error:
+                    raise HTTPException(422, str(error)) from None
+                case['patient_key'] = key
+                case['patient_resolution_state'] = 'RESOLVED'
+                case['patient_resolution_method'] = 'MANUAL'
+                case['patient_reason_code'] = 'MANUAL_CONFIRMED'
+                case['patient_confidence_or_strength'] = 'HIGH'
+            elif request.patient_action == 'SET':
+                if not request.patient_key:
+                    raise HTTPException(422, 'Patient key is required')
+                try:
+                    case['patient_key'] = normalize_patient_key(request.patient_key)
+                except ValueError as error:
+                    raise HTTPException(422, str(error)) from None
+                case['patient_resolution_state'] = 'RESOLVED'
+                case['patient_resolution_method'] = 'MANUAL'
+                case['patient_reason_code'] = 'MANUAL_ASSIGNED'
+                case['patient_confidence_or_strength'] = 'HIGH'
+            elif request.patient_action == 'LEAVE_UNLINKED':
+                case['patient_key'] = None
+                case['patient_resolution_state'] = 'UNLINKED'
+                case['patient_resolution_method'] = 'MANUAL'
+                case['patient_reason_code'] = 'MANUAL_LEFT_UNLINKED'
+                case['patient_confidence_or_strength'] = None
+
+            if request.laterality_action == 'SET':
+                if request.laterality is None:
+                    raise HTTPException(422, 'Choose Left, Right, or Unknown')
+                case['laterality'] = request.laterality
+                case['laterality_resolution_state'] = 'RESOLVED'
+                case['laterality_resolution_method'] = 'MANUAL'
+                case['laterality_reason_code'] = (
+                    'MANUAL_UNKNOWN' if request.laterality == 'UNKNOWN' else 'MANUAL_SET'
+                )
+                case['laterality_candidate'] = request.laterality
+
+            case['resolver_state'] = combined_resolution_state(
+                case.get('patient_resolution_state', 'UNLINKED'),
+                case.get('laterality_resolution_state', 'UNLINKED'),
+            )
+            new = {
+                'patient_key': case.get('patient_key'),
+                'patient_resolution_state': case.get('patient_resolution_state'),
+                'laterality': case.get('laterality'),
+                'laterality_resolution_state': case.get('laterality_resolution_state'),
+            }
+            event = {
+                'action': 'MANUAL_RESOLUTION',
+                'reviewer': reviewer,
+                'note': request.note.strip(),
+                'timestamp': timestamp,
+                'previous': previous,
+                'new': new,
+                'automatic_evidence': case.get('resolver_evidence'),
+            }
+            case.setdefault('resolution_history', []).append(event)
+            case.setdefault('events', []).append(event)
+            case['revision'] += 1
+            store.put(case)
             return detail(image_id)
 
     @app.put('/v1/cases/{image_id}/annotations')

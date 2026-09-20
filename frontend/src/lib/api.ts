@@ -104,6 +104,51 @@ export interface CaseRecord {
   admission: AdmissionMetadata | null;
   admission_ui: AdmissionUi | null;
   admission_history?: Array<Record<string, unknown>>;
+  patient_key?: string | null;
+  patient_resolution_state?: ResolverState;
+  patient_resolution_method?: string;
+  patient_reason_code?: string;
+  patient_candidate?: string | null;
+  laterality?: Laterality;
+  laterality_resolution_state?: ResolverState;
+  laterality_resolution_method?: string;
+  laterality_reason_code?: string;
+  laterality_candidate?: Laterality | null;
+  resolver_state?: ResolverState;
+  resolver_ui?: ResolverUi;
+  resolution_history?: Array<Record<string, unknown>>;
+}
+
+export type Laterality = 'LEFT' | 'RIGHT' | 'UNKNOWN';
+export type ResolverState = 'RESOLVED' | 'NEEDS_CONFIRMATION' | 'UNLINKED' | 'CONFLICT';
+
+export interface ResolverUiItem {
+  label: string;
+  note: string;
+  tone: 'neutral' | 'success' | 'warning' | 'danger';
+  action_required: boolean;
+  patient_key?: string | null;
+  candidate?: string | null;
+  value?: Laterality;
+}
+
+export interface ResolverUi {
+  label: string;
+  note: string;
+  tone: 'neutral' | 'success' | 'warning' | 'danger';
+  action_required: boolean;
+  patient: ResolverUiItem;
+  laterality: ResolverUiItem;
+}
+
+export interface ResolverReviewRequest {
+  revision: number;
+  reviewer: string;
+  patient_action?: 'KEEP' | 'CONFIRM' | 'SET' | 'LEAVE_UNLINKED';
+  patient_key?: string | null;
+  laterality_action?: 'KEEP' | 'SET';
+  laterality?: Laterality;
+  note?: string;
 }
 
 export type ModalityAdmission = 'FUNDUS_ACCEPTED' | 'NEEDS_REVIEW' | 'REJECTED_NON_FUNDUS' | 'REJECTED_INVALID';
@@ -272,6 +317,13 @@ export const admissionApi = {
   scan: () => apiJson<AdmissionScanResponse>('/v1/admissions/scan', jsonRequest({ method: 'POST' })),
   review: (imageId: string, request: AdmissionReviewRequest) => apiJson<CaseRecord>(
     `/v1/cases/${encodeURIComponent(imageId)}/admission`,
+    jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
+  ),
+};
+
+export const resolverApi = {
+  review: (imageId: string, request: ResolverReviewRequest) => apiJson<CaseRecord>(
+    `/v1/cases/${encodeURIComponent(imageId)}/resolver`,
     jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
   ),
 };

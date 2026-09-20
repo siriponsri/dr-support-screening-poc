@@ -13,6 +13,7 @@ from ._schema import (
     Provenance,
 )
 from .admission import AdmissionMetadata, AdmissionReview
+from .resolver import ResolverReview
 from .workspaces import (
     DatabasePickerRequest,
     FolderPickerRequest,
@@ -32,6 +33,7 @@ __all__ = [
     'Provenance',
     'AdmissionMetadata',
     'AdmissionReview',
+    'ResolverReview',
     'DatabasePickerRequest',
     'FolderPickerRequest',
     'PickerResult',

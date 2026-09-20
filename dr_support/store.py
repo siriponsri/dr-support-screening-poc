@@ -23,16 +23,41 @@ class Store:
                 # readable without a destructive table rewrite.
                 case.setdefault('admission', None)
                 case.setdefault('admission_history', [])
+                _set_resolver_defaults(case)
                 return case
-            return {'image_id': image_id, 'revision': 0, 'state': 'PENDING',
+            case = {'image_id': image_id, 'revision': 0, 'state': 'PENDING',
                     'events': [], 'global': None, 'lesion': None, 'cvat': None,
                     'reviewed_grade': None, 'grade_review_source': None,
                     'lesion_review_state': None, 'annotations': None,
                     'human_annotations': [], 'clinician_review': None,
                     'review_history': [], 'admission': None, 'admission_history': []}
+            _set_resolver_defaults(case)
+            return case
 
     def put(self, case):
         with self.lock:
             self.db.execute('INSERT OR REPLACE INTO cases VALUES (?, ?)',
                             (case['image_id'], json.dumps(case, allow_nan=False)))
             self.db.commit()
+
+
+def _set_resolver_defaults(case):
+    """Keep identity fields additive so legacy JSON case records remain readable."""
+    defaults = {
+        'patient_key': None,
+        'patient_resolution_state': 'UNLINKED',
+        'patient_resolution_method': 'NONE',
+        'patient_reason_code': 'NO_PATIENT_EVIDENCE',
+        'patient_candidate': None,
+        'patient_confidence_or_strength': None,
+        'laterality': 'UNKNOWN',
+        'laterality_resolution_state': 'UNLINKED',
+        'laterality_resolution_method': 'NONE',
+        'laterality_reason_code': 'NO_LATERALITY_EVIDENCE',
+        'laterality_candidate': None,
+        'resolver_state': 'UNLINKED',
+        'resolver_evidence': None,
+        'resolution_history': [],
+    }
+    for key, value in defaults.items():
+        case.setdefault(key, value.copy() if isinstance(value, list) else value)
