@@ -111,6 +111,21 @@ Do not auto-merge merely because a branch reports success. Merge only when all a
 
 If a merge conflict touches shared contracts, database schema/migrations, model behavior, annotation semantics, clinical workflow, or authoritative design documentation, STOP and request integration review. Do not make a semantic auto-resolution.
 
+### Frontend integration artifact rule
+
+`frontend/dist/` is generated and gitignored. A successful build in a feature worktree does not update the main worktree's served React bundle.
+
+After merging any frontend-affecting branch into `main`:
+
+1. switch to the authoritative `main` worktree;
+2. verify `main` is clean and at the expected merge commit;
+3. run frontend tests and typecheck;
+4. run `npm run build` from the `main` worktree;
+5. restart the local application if it serves `frontend/dist/`;
+6. perform owner/browser smoke testing only after the main-worktree build.
+
+Do not treat a feature-worktree build artifact as the bundle served by `main`.
+
 ### Protected baselines and scientific boundaries
 
 Do not rewrite or move protected release/demo tags. Preserve accepted model checkpoints, hashes, provider behavior, scientific thresholds, and clinician-review semantics unless the current task explicitly authorizes a change.
@@ -130,4 +145,3 @@ When resuming interrupted work, inspect the current branch, HEAD, `git status`, 
 Never run `git reset --hard`, `git clean -fd`, destructive restore commands, history rewrites, or broad regeneration steps merely to obtain a clean state unless the owner explicitly authorizes that exact destructive action.
 
 If the authoritative workspace/repository is unavailable, stop implementation and report the access blocker. Do not reconstruct the repository from memory or create substitute files that could later overwrite authoritative work.
-
