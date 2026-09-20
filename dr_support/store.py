@@ -23,6 +23,8 @@ class Store:
                 # readable without a destructive table rewrite.
                 case.setdefault('admission', None)
                 case.setdefault('admission_history', [])
+                case.setdefault('queue_state', 'INCLUDED')
+                case.setdefault('queue_history', [])
                 _set_resolver_defaults(case)
                 return case
             case = {'image_id': image_id, 'revision': 0, 'state': 'PENDING',
@@ -30,7 +32,8 @@ class Store:
                     'reviewed_grade': None, 'grade_review_source': None,
                     'lesion_review_state': None, 'annotations': None,
                     'human_annotations': [], 'clinician_review': None,
-                    'review_history': [], 'admission': None, 'admission_history': []}
+                    'review_history': [], 'admission': None, 'admission_history': [],
+                    'queue_state': 'INCLUDED', 'queue_history': []}
             _set_resolver_defaults(case)
             return case
 

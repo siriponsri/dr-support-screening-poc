@@ -32,7 +32,7 @@ from ._factory import create_app as _create_review_app
 __all__ = ['create_app', 'app']
 
 
-def create_app(state_path=None, include_samples=True):
+def create_app(state_path=None, include_samples=True, include_demo_fixtures=True):
     """Legacy review-API factory used by tests and the JS UI smoke.
 
     Delegates to ``dr_support.api._factory.create_app`` and preserves the
@@ -42,7 +42,11 @@ def create_app(state_path=None, include_samples=True):
     are intentionally NOT applied here so that the existing pytest suite
     and the V2 UI smoke can continue to import this symbol.
     """
-    return _create_review_app(state_path=state_path, include_samples=include_samples)
+    return _create_review_app(
+        state_path=state_path,
+        include_samples=include_samples,
+        include_demo_fixtures=include_demo_fixtures,
+    )
 
 
 def _build_default_app():

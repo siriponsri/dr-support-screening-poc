@@ -117,6 +117,8 @@ export interface CaseRecord {
   resolver_state?: ResolverState;
   resolver_ui?: ResolverUi;
   resolution_history?: Array<Record<string, unknown>>;
+  queue_state?: 'INCLUDED' | 'EXCLUDED';
+  queue_history?: Array<Record<string, unknown>>;
 }
 
 export type Laterality = 'LEFT' | 'RIGHT' | 'UNKNOWN';
@@ -270,6 +272,33 @@ export interface PickerResponse {
   message: string | null;
 }
 
+export interface QueueActionRequest {
+  revision: number;
+  action: 'EXCLUDE' | 'RESTORE';
+  note?: string;
+}
+
+export interface ModelConnectionModel {
+  model_id: string;
+  ready: boolean;
+  status?: string | null;
+}
+
+export interface ModelConnectionResponse {
+  name: string | null;
+  url: string | null;
+  token_configured: boolean;
+  status: 'CONNECTED' | 'NOT_CONFIGURED' | 'UNAVAILABLE' | 'UNVERIFIED';
+  message: string;
+  models: ModelConnectionModel[];
+}
+
+export interface ModelConnectionInput {
+  name: string;
+  url: string;
+  token?: string;
+}
+
 function jsonRequest(init: RequestInit = {}): RequestInit {
   return {
     credentials: 'same-origin',
@@ -326,6 +355,19 @@ export const resolverApi = {
     `/v1/cases/${encodeURIComponent(imageId)}/resolver`,
     jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
   ),
+};
+
+export const queueApi = {
+  update: (imageId: string, request: QueueActionRequest) => apiJson<CaseRecord>(
+    `/v1/cases/${encodeURIComponent(imageId)}/queue`,
+    jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
+  ),
+};
+
+export const modelConnectionApi = {
+  get: () => apiJson<ModelConnectionResponse>('/v1/model-connection'),
+  test: (request: ModelConnectionInput) => apiJson<ModelConnectionResponse>('/v1/model-connection/test', jsonRequest({ method: 'POST', body: JSON.stringify(request) })),
+  save: (request: ModelConnectionInput) => apiJson<ModelConnectionResponse>('/v1/model-connection', jsonRequest({ method: 'PUT', body: JSON.stringify(request) })),
 };
 
 export async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {

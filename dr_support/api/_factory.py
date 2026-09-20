@@ -15,7 +15,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from dr_support.contracts import InferenceRequest, GlobalResult, LesionResult
+from dr_support.contracts import (
+    InferenceRequest,
+    GlobalResult,
+    LesionResult,
+    ModelConnectionInput,
+    ModelConnectionResponse,
+)
 from dr_support.providers.mock import infer_mock
 from dr_support.providers.prism import PRISM
 from dr_support.providers.remote import (
@@ -33,22 +39,30 @@ from ..images import admitted_demo_images, admitted_samples, synthetic_image
 from ..services.admission import is_inference_eligible, legacy_admission, scan_input_folder
 from ..services.workspaces import WorkspaceManager
 from ..services.resolver import ResolverService
+from ..services.model_gateway import (
+    ModelConnection,
+    ModelGatewayProbe,
+    probe_model_connection,
+    response_payload,
+)
 from ..workflow import install_workflow
 from .workspaces import install_workspace_routes
 
 
-def create_app(state_path=None, include_samples=True):
+def create_app(state_path=None, include_samples=True, include_demo_fixtures=True):
     app = FastAPI(title='DR Support Screening POC', version='0.4.0')
     root = Path(__file__).resolve().parents[2]
 
     demo_folder = (os.environ.get('DR_DEMO_FOLDER') or '').strip()
-    if demo_folder:
+    if demo_folder and include_demo_fixtures:
         app.state.images = admitted_demo_images(demo_folder)
-    else:
+    elif include_demo_fixtures:
         fixture = synthetic_image()
         app.state.images = {fixture.image_id: fixture}
         if include_samples:
             app.state.images.update(admitted_samples(root))
+    else:
+        app.state.images = {}
     app.state.admissions = {
         image_id: legacy_admission(image) for image_id, image in app.state.images.items()
     }
@@ -133,11 +147,21 @@ def create_app(state_path=None, include_samples=True):
     runtime = (os.environ.get('MODEL_RUNTIME') or 'local').strip().lower()
     if runtime == 'remote':
         app.state.remote_runtime = True
-        # An endpoint is optional at workstation startup. Providers advertise an
-        # explicit unavailable state until REMOTE_MODEL_URL is configured.
+        configured_url = (os.environ.get('REMOTE_MODEL_URL') or '').strip().rstrip('/')
+        configured_token = os.environ.get('REMOTE_MODEL_TOKEN') or None
+        configured_name = (os.environ.get('REMOTE_MODEL_NAME') or 'Model API').strip()
+        app.state.model_connection = (
+            ModelConnection(configured_name, configured_url, configured_token)
+            if configured_url else None
+        )
+        app.state.model_connection_probe = None
         app.state.providers = {
-            RemoteGlobalProvider.model_id: RemoteGlobalProvider(),
-            RemoteLesionProvider.model_id: RemoteLesionProvider(),
+            RemoteGlobalProvider.model_id: RemoteGlobalProvider(
+                base_url=configured_url, token=configured_token,
+            ),
+            RemoteLesionProvider.model_id: RemoteLesionProvider(
+                base_url=configured_url, token=configured_token,
+            ),
         }
     else:
         app.state.remote_runtime = False
@@ -150,6 +174,49 @@ def create_app(state_path=None, include_samples=True):
             'retfound-aptos5': RETFound(allow_cpu_fallback=True),
             'prism-dr-5fold': PRISM(allow_cpu_fallback=True),
         }
+
+    def connection_probe(connection: ModelConnection) -> ModelGatewayProbe:
+        return probe_model_connection(
+            connection.url,
+            connection.token,
+            transport=getattr(app.state, 'model_gateway_transport', None),
+        )
+
+    @app.get('/v1/model-connection', response_model=ModelConnectionResponse)
+    def model_connection():
+        connection = getattr(app.state, 'model_connection', None)
+        probe = getattr(app.state, 'model_connection_probe', None)
+        return response_payload(connection, probe=probe)
+
+    @app.post('/v1/model-connection/test', response_model=ModelConnectionResponse)
+    def test_model_connection(request: ModelConnectionInput):
+        connection = ModelConnection(request.name, request.url, request.token)
+        probe = connection_probe(connection)
+        return response_payload(connection, probe=probe)
+
+    @app.put('/v1/model-connection', response_model=ModelConnectionResponse)
+    def save_model_connection(request: ModelConnectionInput):
+        previous = getattr(app.state, 'model_connection', None)
+        token = request.token
+        if token is None and previous is not None and previous.url == request.url:
+            token = previous.token
+        candidate = ModelConnection(request.name, request.url, token)
+        probe = connection_probe(candidate)
+        if not probe.verified:
+            # Do not mutate either the active providers or the saved candidate.
+            raise HTTPException(502, probe.message)
+        providers = {
+            RemoteGlobalProvider.model_id: RemoteGlobalProvider(
+                base_url=candidate.url, token=candidate.token,
+            ),
+            RemoteLesionProvider.model_id: RemoteLesionProvider(
+                base_url=candidate.url, token=candidate.token,
+            ),
+        }
+        app.state.providers = providers
+        app.state.model_connection = candidate
+        app.state.model_connection_probe = probe
+        return response_payload(candidate, probe=probe)
 
     @app.get('/health')
     def health():

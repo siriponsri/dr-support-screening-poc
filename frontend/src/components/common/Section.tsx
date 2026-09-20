@@ -18,7 +18,13 @@ export function Section({ title, description, action, children }: SectionProps) 
       boxShadow="xs"
       p={{ base: 4, laptop: 5 }}
     >
-      <HStack justify="space-between" align="flex-start" mb={4} spacing={4}>
+      <HStack
+        justify="space-between"
+        align="flex-start"
+        mb={4}
+        spacing={4}
+        flexDirection={{ base: 'column', tablet: 'row' }}
+      >
         <Box>
           <Heading size="sm" mb={description ? 1 : 0}>
             {title}
@@ -29,7 +35,7 @@ export function Section({ title, description, action, children }: SectionProps) 
             </Text>
           )}
         </Box>
-        {action && <Box flexShrink={0}>{action}</Box>}
+        {action && <Box width={{ base: '100%', tablet: 'auto' }} flexShrink={0}>{action}</Box>}
       </HStack>
       {children}
     </Box>
