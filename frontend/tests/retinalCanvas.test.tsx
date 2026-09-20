@@ -1,5 +1,5 @@
 import { ChakraProvider } from '@chakra-ui/react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen } from '@testing-library/react';
 import { RetinalCanvas } from '@/components/review/RetinalCanvas';
 import type { CaseRecord } from '@/lib/api';
 import { theme } from '@/theme';
@@ -51,6 +51,14 @@ function setViewportSize() {
   return { stage, viewport };
 }
 
+function dispatchPointer(target: Element, eventName: 'pointerDown' | 'pointerMove' | 'pointerUp', values: Record<string, number>) {
+  const event = createEvent[eventName](target);
+  Object.entries(values).forEach(([key, value]) => {
+    Object.defineProperty(event, key, { configurable: true, value });
+  });
+  fireEvent(target, event);
+}
+
 describe('RetinalCanvas navigation', () => {
   it('keeps the image and SVG overlays inside one transformed stage', () => {
     renderCanvas();
@@ -83,6 +91,54 @@ describe('RetinalCanvas navigation', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Fit' }));
     expect(screen.getByText('Viewer 80%')).toBeInTheDocument();
+  });
+
+  it('supports right-drag and Space plus left-drag without entering an annotation tool', () => {
+    renderCanvas();
+    const { stage, viewport } = setViewportSize();
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    const svg = stage.querySelector('svg')!;
+
+    const beforeRightDrag = getComputedStyle(stage).transform;
+    dispatchPointer(svg, 'pointerDown', { button: 2, buttons: 2, pointerId: 2, clientX: 100, clientY: 100 });
+    dispatchPointer(svg, 'pointerMove', { buttons: 2, pointerId: 2, clientX: 150, clientY: 140 });
+    dispatchPointer(svg, 'pointerUp', { button: 2, buttons: 0, pointerId: 2, clientX: 150, clientY: 140 });
+    expect(getComputedStyle(stage).transform).not.toBe(beforeRightDrag);
+
+    const beforeSpaceDrag = getComputedStyle(stage).transform;
+    fireEvent.keyDown(window, { code: 'Space', key: ' ' });
+    dispatchPointer(svg, 'pointerDown', { button: 0, buttons: 1, pointerId: 3, clientX: 200, clientY: 200 });
+    dispatchPointer(svg, 'pointerMove', { buttons: 1, pointerId: 3, clientX: 240, clientY: 230 });
+    dispatchPointer(svg, 'pointerUp', { button: 0, buttons: 0, pointerId: 3, clientX: 240, clientY: 230 });
+    fireEvent.keyUp(window, { code: 'Space', key: ' ' });
+    expect(getComputedStyle(stage).transform).not.toBe(beforeSpaceDrag);
+
+    const contextMenu = createEvent.contextMenu(viewport);
+    fireEvent(viewport, contextMenu);
+    expect(contextMenu.defaultPrevented).toBe(true);
+  });
+
+  it('reports original-image coordinates in the fixed status area', () => {
+    renderCanvas();
+    const { stage } = setViewportSize();
+    const svg = stage.querySelector('svg')!;
+    svg.getBoundingClientRect = () => ({
+      bottom: 480,
+      height: 480,
+      left: 0,
+      right: 640,
+      top: 0,
+      width: 640,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enable coordinate inspector' }));
+    dispatchPointer(svg, 'pointerMove', { buttons: 0, clientX: 320, clientY: 240 });
+
+    expect(screen.getByText('Original pixels: X 400.0 - Y 300.0 px')).toBeInTheDocument();
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 
   it('resets navigation when the active case changes', () => {

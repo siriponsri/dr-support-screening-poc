@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -28,7 +28,7 @@ import {
   type HumanAnnotation,
   type LesionLabel,
 } from '@/lib/api';
-import { ArrowLeft, Check, Circle, MousePointer2, Pentagon, Save, Square, Trash2, Undo2 } from '@/lib/icons';
+import { ArrowLeft, Circle, Lock, MousePointer2, Pentagon, Save, Square, Trash2, Undo2, Unlock } from '@/lib/icons';
 
 type Tool = 'select' | 'rectangle' | 'polygon' | 'point' | 'circle';
 type Point = [number, number];
@@ -48,10 +48,54 @@ function pointFromEvent(event: ReactPointerEvent<SVGSVGElement>, item: CaseRecor
   const bounds = event.currentTarget.getBoundingClientRect();
   // The image and SVG share the transformed stage, so the transformed bounds
   // map pointer coordinates back to the original-image viewBox.
+  const clientX = Number.isFinite(event.clientX) ? event.clientX : bounds.left;
+  const clientY = Number.isFinite(event.clientY) ? event.clientY : bounds.top;
   return [
-    Math.max(0, Math.min(item.width, ((event.clientX - bounds.left) / bounds.width) * item.width)),
-    Math.max(0, Math.min(item.height, ((event.clientY - bounds.top) / bounds.height) * item.height)),
+    Math.max(0, Math.min(item.width, ((clientX - bounds.left) / Math.max(bounds.width, 1)) * item.width)),
+    Math.max(0, Math.min(item.height, ((clientY - bounds.top) / Math.max(bounds.height, 1)) * item.height)),
   ];
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function boundedDelta(delta: Point, minX: number, maxX: number, minY: number, maxY: number): Point {
+  return [clamp(delta[0], minX, maxX), clamp(delta[1], minY, maxY)];
+}
+
+export function translateAnnotationGeometry(
+  annotation: HumanAnnotation,
+  delta: Point,
+  item: Pick<CaseRecord, 'width' | 'height'>,
+): AnnotationGeometry {
+  const geometry = annotation.geometry;
+  if (annotation.type === 'rectangle' && 'width' in geometry) {
+    const [dx, dy] = boundedDelta(delta, -geometry.x, item.width - geometry.x - geometry.width, -geometry.y, item.height - geometry.y - geometry.height);
+    return { ...geometry, x: geometry.x + dx, y: geometry.y + dy };
+  }
+  if (annotation.type === 'polygon' && 'points' in geometry) {
+    const minX = Math.min(...geometry.points.map(([x]) => x));
+    const maxX = Math.max(...geometry.points.map(([x]) => x));
+    const minY = Math.min(...geometry.points.map(([, y]) => y));
+    const maxY = Math.max(...geometry.points.map(([, y]) => y));
+    const [dx, dy] = boundedDelta(delta, -minX, item.width - maxX, -minY, item.height - maxY);
+    return { points: geometry.points.map(([x, y]) => [x + dx, y + dy]) };
+  }
+  if (annotation.type === 'point' && 'x' in geometry && !('width' in geometry)) {
+    const [dx, dy] = boundedDelta(delta, -geometry.x, item.width - geometry.x, -geometry.y, item.height - geometry.y);
+    return { x: geometry.x + dx, y: geometry.y + dy };
+  }
+  if (annotation.type === 'circle' && 'radius' in geometry) {
+    const [dx, dy] = boundedDelta(delta, -geometry.cx + geometry.radius, item.width - geometry.cx - geometry.radius, -geometry.cy + geometry.radius, item.height - geometry.cy - geometry.radius);
+    return { ...geometry, cx: geometry.cx + dx, cy: geometry.cy + dy };
+  }
+  return geometry;
+}
+
+function annotationLocked(annotation: HumanAnnotation) {
+  // Records written before lock persistence have no field and are protected by default.
+  return annotation.locked !== false;
 }
 
 function makeId() {
@@ -59,7 +103,7 @@ function makeId() {
 }
 
 function annotation(type: AnnotationType, label: LesionLabel, geometry: AnnotationGeometry): HumanAnnotation {
-  return { shape_id: makeId(), type, label, geometry, source: 'HUMAN', reviewer: '', created_at: '' };
+  return { shape_id: makeId(), type, label, geometry, locked: false, source: 'HUMAN', reviewer: '', created_at: '' };
 }
 
 function previewShape(preview: { type: Tool; geometry: AnnotationGeometry } | null) {
@@ -81,8 +125,8 @@ function previewShape(preview: { type: Tool; geometry: AnnotationGeometry } | nu
   return null;
 }
 
-function ToolButton({ tool, active, onClick, children }: { tool?: Tool; active?: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <Button size="sm" variant={active ? 'secondary' : 'outline'} onClick={onClick} aria-pressed={active}>{children}</Button>;
+function ToolButton({ tool, active, onClick, children, ariaLabel }: { tool?: Tool; active?: boolean; onClick: () => void; children: React.ReactNode; ariaLabel?: string }) {
+  return <Button size="sm" variant={active ? 'secondary' : 'outline'} onClick={onClick} aria-label={ariaLabel} aria-pressed={active}>{children}</Button>;
 }
 
 export function AnnotationEditorPage() {
@@ -106,6 +150,14 @@ export function AnnotationEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const draftRef = useRef<HumanAnnotation[]>(draft);
+  const shapeDragRef = useRef<{
+    shapeId: string;
+    start: Point;
+    beforeDraft: HumanAnnotation[];
+    moved: boolean;
+  } | null>(null);
+  draftRef.current = draft;
 
   const loadCase = useCallback(async () => {
     if (!imageId) return;
@@ -125,10 +177,11 @@ export function AnnotationEditorPage() {
 
   useEffect(() => { void loadCase(); }, [loadCase]);
 
-  const commit = (next: HumanAnnotation[]) => {
-    setHistory((previous) => [...previous, draft]);
+  const commit = (next: HumanAnnotation[], nextSelection: string | null = null) => {
+    setHistory((previous) => [...previous, draftRef.current]);
+    draftRef.current = next;
     setDraft(next);
-    setSelectedShapeId(null);
+    setSelectedShapeId(nextSelection);
     setSaved(false);
   };
 
@@ -158,8 +211,38 @@ export function AnnotationEditorPage() {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
+  const onHumanPointerDown = (shapeId: string, event: ReactPointerEvent<SVGSVGElement>) => {
+    if (!item) return;
+    const selected = draftRef.current.find((entry) => entry.shape_id === shapeId);
+    event.preventDefault();
+    if (!selected || annotationLocked(selected)) return;
+    shapeDragRef.current = {
+      shapeId,
+      start: pointFromEvent(event, item),
+      beforeDraft: draftRef.current,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (!item || !dragStart || (tool !== 'rectangle' && tool !== 'circle')) return;
+    if (!item) return;
+    const shapeDrag = shapeDragRef.current;
+    if (shapeDrag) {
+      const point = pointFromEvent(event, item);
+      const delta: Point = [point[0] - shapeDrag.start[0], point[1] - shapeDrag.start[1]];
+      const current = draftRef.current;
+      const next = current.map((entry) => entry.shape_id === shapeDrag.shapeId
+        ? { ...entry, geometry: translateAnnotationGeometry(shapeDrag.beforeDraft.find((candidate) => candidate.shape_id === shapeDrag.shapeId) ?? entry, delta, item) }
+        : entry);
+      shapeDrag.moved = JSON.stringify(next) !== JSON.stringify(current);
+      draftRef.current = next;
+      setDraft(next);
+      setSaved(false);
+      event.preventDefault();
+      return;
+    }
+    if (!dragStart || (tool !== 'rectangle' && tool !== 'circle')) return;
     const point = pointFromEvent(event, item);
     if (tool === 'rectangle') {
       setPreview({ type: tool, geometry: { x: Math.min(dragStart[0], point[0]), y: Math.min(dragStart[1], point[1]), width: Math.abs(point[0] - dragStart[0]), height: Math.abs(point[1] - dragStart[1]) } });
@@ -169,6 +252,17 @@ export function AnnotationEditorPage() {
   };
 
   const onPointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const shapeDrag = shapeDragRef.current;
+    if (shapeDrag) {
+      if (shapeDrag.moved) {
+        setHistory((previous) => [...previous, shapeDrag.beforeDraft]);
+        setSelectedShapeId(shapeDrag.shapeId);
+      }
+      shapeDragRef.current = null;
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      event.preventDefault();
+      return;
+    }
     if (!item || !dragStart || (tool !== 'rectangle' && tool !== 'circle')) return;
     const point = pointFromEvent(event, item);
     let geometry: AnnotationGeometry;
@@ -185,6 +279,12 @@ export function AnnotationEditorPage() {
   };
 
   const onPointerCancel = () => {
+    const shapeDrag = shapeDragRef.current;
+    if (shapeDrag) {
+      draftRef.current = shapeDrag.beforeDraft;
+      setDraft(shapeDrag.beforeDraft);
+      shapeDragRef.current = null;
+    }
     setDragStart(null);
     setPreview(null);
   };
@@ -200,6 +300,7 @@ export function AnnotationEditorPage() {
   const undo = () => {
     const previous = history.at(-1);
     if (!previous) return;
+    draftRef.current = previous;
     setDraft(previous);
     setHistory((entries) => entries.slice(0, -1));
     setSelectedShapeId(null);
@@ -208,8 +309,48 @@ export function AnnotationEditorPage() {
 
   const deleteSelected = () => {
     if (!selectedShapeId) return;
-    commit(draft.filter((entry) => entry.shape_id !== selectedShapeId));
+    commit(draftRef.current.filter((entry) => entry.shape_id !== selectedShapeId));
   };
+
+  const toggleSelectedLock = () => {
+    if (!selectedShapeId) return;
+    const selected = draftRef.current.find((entry) => entry.shape_id === selectedShapeId);
+    if (!selected) return;
+    commit(draftRef.current.map((entry) => entry.shape_id === selectedShapeId
+      ? { ...entry, locked: !annotationLocked(entry) }
+      : entry), selectedShapeId);
+  };
+
+  const moveSelectedByKeyboard = (shortcut: string) => {
+    if (!item || !selectedShapeId) return;
+    const selected = draftRef.current.find((entry) => entry.shape_id === selectedShapeId);
+    if (!selected || annotationLocked(selected)) return;
+    const step = 1;
+    const delta: Point = [shortcut === 'arrowleft' ? -step : shortcut === 'arrowright' ? step : 0,
+      shortcut === 'arrowup' ? -step : shortcut === 'arrowdown' ? step : 0];
+    const next = draftRef.current.map((entry) => entry.shape_id === selectedShapeId
+      ? { ...entry, geometry: translateAnnotationGeometry(entry, delta, item) }
+      : entry);
+    commit(next, selectedShapeId);
+  };
+
+  const onShortcut = (shortcut: string) => {
+    if (shortcut === 'v') activateTool('select');
+    else if (shortcut === 'b') activateTool('rectangle');
+    else if (shortcut === 'escape') {
+      setPolygonPoints([]);
+      setDragStart(null);
+      setPreview(null);
+      setSelectedShapeId(null);
+      setTool('select');
+    } else if (shortcut === 'l') toggleSelectedLock();
+    else if (shortcut.startsWith('arrow')) moveSelectedByKeyboard(shortcut);
+  };
+
+  const selectedAnnotation = selectedShapeId
+    ? draftRef.current.find((entry) => entry.shape_id === selectedShapeId) ?? null
+    : null;
+  const selectedIsLocked = selectedAnnotation ? annotationLocked(selectedAnnotation) : false;
 
   const annotationControls = (
     <Stack spacing={3}>
@@ -223,6 +364,15 @@ export function AnnotationEditorPage() {
       <HStack spacing={2}>
         <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={history.length === 0}>Undo</Button>
         <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={!selectedShapeId}>Delete selected</Button>
+        <Button
+          size="sm"
+          leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />}
+          onClick={toggleSelectedLock}
+          isDisabled={!selectedAnnotation}
+          aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}
+        >
+          {selectedIsLocked ? 'Unlock selected' : 'Lock selected'}
+        </Button>
       </HStack>
       <HStack spacing={4} align="end" flexWrap="wrap">
         <FormControl maxW={{ base: '100%', laptop: '250px' }}>
@@ -245,6 +395,36 @@ export function AnnotationEditorPage() {
     </Stack>
   );
 
+  const fullScreenAnnotationControls = (
+    <HStack spacing={1} flexWrap="wrap" align="center">
+      <ToolButton ariaLabel="Select tool" active={tool === 'select'} onClick={() => activateTool('select')}>
+        <MousePointer2 size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Select</Box>
+      </ToolButton>
+      <ToolButton ariaLabel="Box tool" active={tool === 'rectangle'} onClick={() => activateTool('rectangle')}>
+        <Square size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Box</Box>
+      </ToolButton>
+      <ToolButton ariaLabel="Polygon tool" active={tool === 'polygon'} onClick={() => activateTool('polygon')}>
+        <Pentagon size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Polygon</Box>
+      </ToolButton>
+      <ToolButton ariaLabel="Point tool" active={tool === 'point'} onClick={() => activateTool('point')}>
+        <Circle size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Point</Box>
+      </ToolButton>
+      <ToolButton ariaLabel="Circle tool" active={tool === 'circle'} onClick={() => activateTool('circle')}>
+        <Circle size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Circle</Box>
+      </ToolButton>
+      <Button size="sm" leftIcon={<Undo2 size={14} />} aria-label="Undo annotation change" onClick={undo} isDisabled={history.length === 0}>Undo</Button>
+      <Button size="sm" leftIcon={<Trash2 size={14} />} aria-label="Delete selected annotation" onClick={deleteSelected} isDisabled={!selectedShapeId}>Delete</Button>
+      <Button size="sm" leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />} onClick={toggleSelectedLock} isDisabled={!selectedAnnotation} aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}>
+        {selectedIsLocked ? 'Unlock' : 'Lock'}
+      </Button>
+      <Select aria-label="Lesion class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)} maxW={{ base: '150px', tablet: '190px' }}>
+        {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </Select>
+      <Button size="sm" variant={showAi ? 'secondary' : 'outline'} onClick={() => setShowAi((visible) => !visible)} aria-pressed={showAi}>AI {showAi ? 'on' : 'off'}</Button>
+      <Button size="sm" variant={showHuman ? 'secondary' : 'outline'} onClick={() => setShowHuman((visible) => !visible)} aria-pressed={showHuman}>Human {showHuman ? 'on' : 'off'}</Button>
+    </HStack>
+  );
+
   const save = async () => {
     if (!item || saving) return;
     if (!reviewer.trim()) {
@@ -261,11 +441,18 @@ export function AnnotationEditorPage() {
         body: JSON.stringify({
           revision: item.revision,
           reviewer: reviewer.trim(),
-          annotations: draft.map(({ shape_id, type, label: entryLabel, geometry }) => ({ shape_id, type, label: entryLabel, geometry })),
+          annotations: draft.map(({ shape_id, type, label: entryLabel, geometry, locked }) => ({
+            shape_id,
+            type,
+            label: entryLabel,
+            geometry,
+            locked: locked !== false,
+          })),
         }),
       });
       setItem(savedCase);
-      setDraft(savedCase.human_annotations ?? []);
+      draftRef.current = savedCase.human_annotations ?? [];
+      setDraft(draftRef.current);
       setHistory([]);
       setSaved(true);
     } catch (err) {
@@ -298,12 +485,14 @@ export function AnnotationEditorPage() {
             humanAnnotations={draft}
             selectedShapeId={selectedShapeId}
             onSelectHuman={setSelectedShapeId}
+            onHumanPointerDown={onHumanPointerDown}
+            onShortcut={onShortcut}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerCancel}
             onDoubleClick={onDoubleClick}
-            fullScreenControls={annotationControls}
+            fullScreenControls={fullScreenAnnotationControls}
           >
             {polygonPoints.length > 0 && <polyline points={polygonPoints.map((point) => point.join(',')).join(' ')} fill="#111827" fillOpacity={0.1} stroke="#111827" strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />}
             {previewShape(preview)}

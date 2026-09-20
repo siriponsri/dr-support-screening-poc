@@ -66,6 +66,8 @@ export interface HumanAnnotation {
   type: AnnotationType;
   label: LesionLabel;
   geometry: AnnotationGeometry;
+  /** Legacy records omit this field; the editor treats those records as locked. */
+  locked?: boolean;
   source: 'HUMAN';
   reviewer: string;
   created_at: string;

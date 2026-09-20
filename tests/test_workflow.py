@@ -121,7 +121,7 @@ def test_human_annotations_and_clinician_review_roundtrip(tmp_path):
         'reviewer': 'Demo clinician',
         'annotations': [
             {'type': 'rectangle', 'label': 'MICROANEURYSM',
-             'geometry': {'x': 10, 'y': 20, 'width': 30, 'height': 25}},
+             'geometry': {'x': 10, 'y': 20, 'width': 30, 'height': 25}, 'locked': False},
             {'type': 'polygon', 'label': 'HEMORRHAGE',
              'geometry': {'points': [[50, 50], [80, 50], [70, 90]]}},
             {'type': 'point', 'label': 'HARD_EXUDATE', 'geometry': {'x': 100, 'y': 120}},
@@ -135,6 +135,8 @@ def test_human_annotations_and_clinician_review_roundtrip(tmp_path):
     assert len(body['human_annotations']) == 4
     assert {shape['source'] for shape in body['human_annotations']} == {'HUMAN'}
     assert body['human_annotations'][0]['geometry']['x'] == 10.0
+    assert body['human_annotations'][0]['locked'] is False
+    assert all(shape['locked'] is True for shape in body['human_annotations'][1:])
     assert client.put(base + '/annotations', json=payload).status_code == 409
 
     restored = TestClient(create_app(path, include_samples=False)).get(base).json()

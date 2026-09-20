@@ -96,6 +96,7 @@ export {
   TrendingUp,
   ThumbsDown,
   Undo2,
+  Unlock,
   Upload,
   User,
   UserRound,

@@ -26,6 +26,8 @@ class HumanAnnotationDraft(Contract):
     type: Literal['rectangle', 'polygon', 'point', 'circle']
     label: Literal['MICROANEURYSM', 'HEMORRHAGE', 'HARD_EXUDATE', 'SOFT_EXUDATE']
     geometry: dict[str, object]
+    # Omitted by older clients; saved legacy-style annotations stay protected by default.
+    locked: bool = True
 
 
 class HumanAnnotationSave(Contract):
@@ -194,6 +196,7 @@ def install_workflow(app, store):
                     'type': annotation.type,
                     'label': annotation.label,
                     'geometry': clean_geometry(annotation, image.size[0], image.size[1]),
+                    'locked': annotation.locked,
                     'source': 'HUMAN',
                     'reviewer': reviewer,
                     'created_at': timestamp,

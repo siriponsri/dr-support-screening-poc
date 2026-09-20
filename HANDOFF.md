@@ -52,3 +52,56 @@ The focused viewer suite, full frontend suite, frontend typecheck/build, backend
 2. Keep any future viewer changes inside the shared original-pixel stage; add tests for geometry alignment before changing persistence or API contracts.
 3. Stop local Vite/API processes after manual verification if they are still running.
 4. Do not add generated browser artifacts or runtime state to the commit.
+
+## S1 interaction polish (2026-09-20)
+
+The fullscreen retinal viewer now supports the clinician interaction pass requested after the accepted S1 viewer:
+
+- compact fullscreen annotation controls that keep the image viewport dominant and avoid normal-page scrolling;
+- right-mouse drag and Space + left-drag panning, with context-menu suppression scoped to the retinal canvas;
+- selection and original-pixel movement for human rectangles, polygons, points, and circles;
+- one-step movement history and Undo integration, with AI geometry remaining immutable;
+- persistent additive HumanAnnotation.locked state; records without the field remain readable and are treated as locked by default;
+- Lock / Unlock controls, V/B/Escape/Space/F/X/L/Arrow shortcuts, and a fixed original-image coordinate inspector status;
+- crosshair cursor and status coordinates under the same transformed image/SVG stage.
+
+## Interaction invariants
+
+- The admitted source image remains the rendered asset; no preview, model-sized derivative, recompression, DICOM, PACS, or tiled backend was introduced.
+- Human movement is clamped to the admitted image bounds and persisted in original-image pixel coordinates.
+- RETFound, PRISM-DR, inference thresholds, Remote Model API contracts, clinician-review semantics, `/app/`, and legacy `/ui/` remain unchanged.
+- The additive `locked` field defaults to `True` in the backend request contract for older clients; new editor drafts are explicitly unlocked until the clinician locks them.
+
+## Files changed in the polish pass
+
+- `frontend/src/components/review/RetinalCanvas.tsx` - gestures, coordinate inspector, compact status, and fullscreen layout.
+- `frontend/src/pages/AnnotationEditorPage.tsx` - human selection/movement, locking, keyboard movement, and compact controls.
+- `frontend/src/lib/api.ts` and `dr_support/workflow.py` - additive lock-field compatibility.
+- `frontend/src/lib/icons.ts` - unlock icon export.
+- `frontend/tests/retinalCanvas.test.tsx` - fullscreen navigation, gesture, context-menu, and coordinate regression coverage.
+- `frontend/tests/annotationGeometry.test.ts` - bounded original-pixel translation coverage.
+- `frontend/tests/annotationEditor.test.tsx` - movement, undo, and lock interaction coverage.
+- `tests/test_workflow.py` - lock persistence/default compatibility coverage.
+
+## Polish validation
+
+```text
+cd frontend && npm test                 # 23 passed
+cd frontend && npm run typecheck        # passed
+cd frontend && npm run build            # passed; existing chunk-size warning
+python -m pytest -q                      # 157 passed, 1 skipped
+python -m ruff check dr_support tests   # passed
+npm test                                 # passed
+```
+
+Rendered smoke validation used the installed Chrome executable through Playwright because `agent-browser` and the Playwright browser bundle were unavailable. Review and annotation-editor fullscreen routes opened, source image URLs were verified, coordinate inspector toggled, compact controls rendered, and no application console/network errors were observed. The browser also reports the existing `/favicon.ico` 404.
+
+## Owner acceptance checklist
+
+1. Open a case and enter fullscreen review.
+2. Confirm the source image remains detailed and AI ROI remains aligned.
+3. Use wheel zoom, Zoom controls, Fit, double-click Fit, right-drag, and Space + left-drag.
+4. In Annotation Editor, select an unlocked Human shape, drag it, and verify alignment at zoom and pan offsets.
+5. Undo the movement, lock the shape, and confirm it no longer moves until unlocked.
+6. Toggle Coordinate Inspector and verify original-image X/Y values in the bottom status bar.
+7. Add or edit a Human annotation in fullscreen, then save through the existing review workflow.
