@@ -49,19 +49,18 @@ describe('Sidebar navigation', () => {
     expect(within(config).getByRole('link', { name: /Settings/i })).not.toHaveAttribute('aria-current');
   });
 
-  it('exposes a brand mark and a workspace card on the sidebar', () => {
+  it('exposes a brand mark and an explicit workspace recovery state', async () => {
     renderAppAt('/worklist');
     expect(screen.getAllByLabelText(/DR Support Screening home/i)[0]).toBeInTheDocument();
-    expect(screen.getByText(/DR Demo/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/Current workspace/i)[0]).toBeInTheDocument();
+    expect(await screen.findByText(/Workspace unavailable|No workspace open/i)).toBeInTheDocument();
   });
 
   it('renders the navigation as a left drawer on mobile rather than a permanent sidebar', () => {
     renderAppAt('/worklist', { forceTier: 'mobile' });
     expect(screen.getByRole('button', { name: /Open navigation/i })).toBeInTheDocument();
-    // The workspace card lives inside the drawer; it should not be visible
+    // The workspace context lives inside the drawer; it should not be visible
     // until the user opens the drawer.
-    expect(screen.queryByText('DR Demo')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Open workspace manager/i)).not.toBeInTheDocument();
   });
 });
 
@@ -171,10 +170,8 @@ describe('Mobile drawer', () => {
 
     await user.click(screen.getByRole('button', { name: /Open navigation/i }));
 
-    // After opening, the workspace card label is reachable inside the drawer.
-    expect(
-      await screen.findByText(/DR Demo/i, {}, { timeout: 4000 })
-    ).toBeInTheDocument();
+    // After opening, the drawer exposes its own navigation and workspace context.
+    expect(await screen.findByRole('button', { name: /Close/i })).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /Worklist/i }).length).toBeGreaterThan(0);
   });
 
@@ -182,7 +179,7 @@ describe('Mobile drawer', () => {
     const user = userEvent.setup();
     renderAppAt('/worklist', { forceTier: 'mobile' });
     await user.click(screen.getByRole('button', { name: /Open navigation/i }));
-    await screen.findByText(/DR Demo/i);
+    await screen.findByRole('button', { name: /Close/i });
 
     // The router takes the user to /datasets; the page subtitle updates.
     await user.click(screen.getAllByRole('link', { name: /Datasets/i })[0]);

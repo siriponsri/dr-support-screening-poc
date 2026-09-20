@@ -78,9 +78,7 @@ export function Sidebar({
               onNavigate={onItemNavigate}
             />
           </Box>
-          {!collapsed && (
-            <WorkspaceCard />
-          )}
+          <WorkspaceCard variant={collapsed ? 'compact' : 'full'} />
           {collapsed && (
             <Box pt={1}>
               <SidebarNavList

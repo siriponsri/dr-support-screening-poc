@@ -10,6 +10,7 @@ import { ModelsPage } from '@/pages/ModelsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { FoundationDemo } from '@/pages/FoundationDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { WorkspaceProvider } from '@/components/shell/workspace';
 
 interface AppRoutesProps {
   /** Test-only viewport override — see AppShell. */
@@ -33,20 +34,22 @@ interface AppRoutesProps {
  */
 export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
   return (
-    <Routes>
-      <Route element={<AppShell forceTier={forceTier} />}>
-        <Route index element={<Navigate to="/worklist" replace />} />
-        <Route path="/worklist" element={<WorklistPage />} />
-        <Route path="/datasets" element={<DatasetsPage />} />
-        <Route path="/review" element={<ReviewPage />} />
-        <Route path="/review/:imageId" element={<ReviewPage />} />
-        <Route path="/edit/:imageId" element={<AnnotationEditorPage />} />
-        <Route path="/clinician-review/:imageId" element={<ClinicianReviewPage />} />
-        <Route path="/models" element={<ModelsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/_foundation" element={<FoundationDemo />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+    <WorkspaceProvider>
+      <Routes>
+        <Route element={<AppShell forceTier={forceTier} />}>
+          <Route index element={<Navigate to="/worklist" replace />} />
+          <Route path="/worklist" element={<WorklistPage />} />
+          <Route path="/datasets" element={<DatasetsPage />} />
+          <Route path="/review" element={<ReviewPage />} />
+          <Route path="/review/:imageId" element={<ReviewPage />} />
+          <Route path="/edit/:imageId" element={<AnnotationEditorPage />} />
+          <Route path="/clinician-review/:imageId" element={<ClinicianReviewPage />} />
+          <Route path="/models" element={<ModelsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/_foundation" element={<FoundationDemo />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </WorkspaceProvider>
   );
 }

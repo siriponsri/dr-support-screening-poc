@@ -114,6 +114,95 @@ export interface ModelDescriptor {
   preprocessing?: string;
 }
 
+export interface WorkspaceProfile {
+  id: string;
+  name: string;
+  input_folder: string;
+  output_folder: string;
+  database_path: string;
+  created_at: string;
+  updated_at: string;
+  last_opened: string | null;
+}
+
+export type WorkspaceDraft = Pick<
+  WorkspaceProfile,
+  'name' | 'input_folder' | 'output_folder' | 'database_path'
+>;
+
+export interface WorkspaceListResponse {
+  workspaces: WorkspaceProfile[];
+  active_workspace_id: string | null;
+  active_workspace: WorkspaceProfile | null;
+  warnings: string[];
+}
+
+export type WorkspaceDatabaseStatus = 'ready' | 'fallback' | 'unavailable';
+
+export interface ActiveWorkspaceResponse {
+  workspace: WorkspaceProfile | null;
+  database: {
+    path: string;
+    status: WorkspaceDatabaseStatus;
+  };
+  warnings: string[];
+}
+
+export interface WorkspaceMutationResponse {
+  workspace: WorkspaceProfile;
+  active: boolean;
+  warnings: string[];
+}
+
+export type FolderPickerPurpose = 'input' | 'output';
+export type DatabasePickerMode = 'open' | 'create';
+
+export interface PickerResponse {
+  status: 'selected' | 'cancelled' | 'unavailable';
+  path: string | null;
+  code: string | null;
+  message: string | null;
+}
+
+function jsonRequest(init: RequestInit = {}): RequestInit {
+  return {
+    credentials: 'same-origin',
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init.headers ?? {}),
+    },
+  };
+}
+
+export const workspaceApi = {
+  list: () => apiJson<WorkspaceListResponse>('/v1/workspaces'),
+  active: () => apiJson<ActiveWorkspaceResponse>('/v1/workspaces/active'),
+  create: (draft: WorkspaceDraft) => apiJson<WorkspaceMutationResponse>('/v1/workspaces', jsonRequest({
+    method: 'POST',
+    body: JSON.stringify(draft),
+  })),
+  update: (id: string, draft: WorkspaceDraft) => apiJson<WorkspaceMutationResponse>(
+    `/v1/workspaces/${encodeURIComponent(id)}`,
+    jsonRequest({ method: 'PUT', body: JSON.stringify(draft) }),
+  ),
+  open: (id: string) => apiJson<WorkspaceMutationResponse>(
+    `/v1/workspaces/${encodeURIComponent(id)}/open`,
+    jsonRequest({ method: 'POST' }),
+  ),
+  pickFolder: (purpose: FolderPickerPurpose, initialPath: string) => apiJson<PickerResponse>(
+    '/v1/workspaces/pickers/folder',
+    jsonRequest({ method: 'POST', body: JSON.stringify({ purpose, initial_path: initialPath }) }),
+  ),
+  pickDatabase: (mode: DatabasePickerMode, initialPath: string, suggestedName: string) => apiJson<PickerResponse>(
+    '/v1/workspaces/pickers/database',
+    jsonRequest({
+      method: 'POST',
+      body: JSON.stringify({ mode, initial_path: initialPath, suggested_name: suggestedName }),
+    }),
+  ),
+};
+
 export async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
   const body = await response.json().catch(() => null) as { detail?: string } | null;
