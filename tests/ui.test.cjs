@@ -11,7 +11,9 @@ const venvPython = path.resolve('.venv','Scripts','python.exe');
 // MODEL_RUNTIME without the new strict profile invariants so the historical
 // UI smoke (synthetic-only Analyze + correction flow) continues to pass.
 const server = spawn(venvPython,['-m','uvicorn','dr_support.api:app','--port','8011'],{
-  env:{...process.env,DR_SUPPORT_STATE:path.join(tmp,'review.sqlite')},stdio:'ignore'});
+  env:{...process.env,
+    DR_SUPPORT_STATE:path.join(tmp,'review.sqlite'),
+    DR_SUPPORT_WORKSPACE_CATALOG:path.join(tmp,'workspaces.sqlite')},stdio:'ignore'});
 const base='http://127.0.0.1:8011';
 
 async function until(fn){for(let i=0;i<120;i++){try{if(await fn())return;}catch{}await new Promise(r=>setTimeout(r,50));}throw Error('Timed out waiting for UI state');}
