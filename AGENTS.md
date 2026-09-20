@@ -138,6 +138,39 @@ Feature branches must not casually alter RETFound, PRISM-DR, remote inference co
 
 Visual implementation must preserve accepted viewer behavior and must not introduce product, API, model, database, or scientific changes unless those changes are explicitly part of the active milestone.
 
+### Milestone specification rule
+
+For substantial milestones, keep `/goal` concise.
+
+Detailed product requirements, state machines, safety rules, UI wording,
+API/schema expectations, compatibility constraints, and acceptance criteria
+should live in a version-controlled normative specification under `docs/`.
+
+The `/goal` should reference the normative milestone specification rather than
+duplicating it.
+
+Agents must read the referenced milestone specification completely before
+planning, branching, or implementation.
+
+The milestone specification defines WHAT the milestone must achieve.
+Implementation plans, branch decomposition, file ownership, and concrete code
+structure are derived from the current repository and may change as the codebase
+evolves.
+
+Do not create a competing implementation-plan document and treat it as a second
+source of truth unless the owner explicitly requests one.
+
+If repository reality conflicts with the normative milestone specification:
+
+1. STOP before implementing the conflicting behavior.
+2. Report the exact conflict.
+3. Identify the affected frozen contract, API, schema, or behavior.
+4. Propose the smallest compatible amendment.
+5. Wait for owner approval before changing the normative specification.
+
+Do not silently weaken safety requirements, change clinician-facing semantics,
+or rewrite a specification merely to fit an implementation shortcut.
+
 ## Agent Handoff Discipline
 
 When resuming interrupted work, inspect the current branch, HEAD, `git status`, and existing diff before changing files. Existing uncommitted changes may be intentional work in progress.
