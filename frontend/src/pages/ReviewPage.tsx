@@ -14,6 +14,7 @@ import {
   Heading,
   HStack,
   Input,
+  Select,
   SimpleGrid,
   Spinner,
   Stack,
@@ -28,8 +29,10 @@ import { RetinalCanvas, LESION_COLORS } from '@/components/review/RetinalCanvas'
 import {
   admissionApi,
   apiJson,
+  resolverApi,
   type AdmissionReviewAction,
   type CaseRecord,
+  type Laterality,
   type ModelDescriptor,
 } from '@/lib/api';
 import { ArrowLeft, CheckCircle2, Pencil, Play, UserRound } from '@/lib/icons';
@@ -143,6 +146,107 @@ function admissionAllowsAnalysis(item: CaseRecord) {
     item.admission
       && item.admission.modality_admission === 'FUNDUS_ACCEPTED'
       && (item.admission.quality_state === 'GRADABLE' || item.admission.quality_state === 'NOT_EVALUATED'),
+  );
+}
+
+function ResolverReview({ item, onSaved }: { item: CaseRecord; onSaved: (saved: CaseRecord) => void }) {
+  const ui = item.resolver_ui;
+  const [reviewer, setReviewer] = useState('');
+  const [patientKey, setPatientKey] = useState(item.patient_key ?? item.patient_candidate ?? '');
+  const [laterality, setLaterality] = useState<Laterality>(item.laterality ?? 'UNKNOWN');
+  const [saving, setSaving] = useState<'patient' | 'eye' | 'unlinked' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPatientKey(item.patient_key ?? item.patient_candidate ?? '');
+    setLaterality(item.laterality ?? 'UNKNOWN');
+  }, [item.image_id, item.revision, item.patient_key, item.patient_candidate, item.laterality]);
+
+  if (!ui) return null;
+
+  const submit = async (kind: 'patient' | 'eye' | 'unlinked') => {
+    if (saving) return;
+    if (!reviewer.trim()) {
+      setError('Reviewer name is required.');
+      return;
+    }
+    setSaving(kind);
+    setError(null);
+    try {
+      const confirmsCandidate = Boolean(
+        kind === 'patient' &&
+        item.patient_candidate &&
+        !item.patient_key &&
+        patientKey.trim() === item.patient_candidate,
+      );
+      const saved = await resolverApi.review(item.image_id, {
+        revision: item.revision,
+        reviewer: reviewer.trim(),
+        patient_action: kind === 'unlinked' ? 'LEAVE_UNLINKED' : kind === 'patient' ? (confirmsCandidate ? 'CONFIRM' : 'SET') : 'KEEP',
+        patient_key: kind === 'patient' ? patientKey.trim() : undefined,
+        laterality_action: kind === 'eye' ? 'SET' : 'KEEP',
+        laterality: kind === 'eye' ? laterality : undefined,
+      });
+      onSaved(saved);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const hasCandidate = Boolean(item.patient_candidate && !item.patient_key);
+  return (
+    <Section title="Patient and eye" description="Use a pseudonymous patient key. Patient assignment and eye side are saved independently.">
+      <Stack spacing={3}>
+        <HStack align="flex-start" spacing={3}>
+          <Stack spacing={1} flex={1}>
+            <StatusBadge tone={ui.patient.tone}>{ui.patient.label}</StatusBadge>
+            <Text fontSize="sm" color="text.secondary">{ui.patient.note}</Text>
+            {item.patient_key && <Text fontSize="sm">Current patient key: <strong>{item.patient_key}</strong></Text>}
+            {!item.patient_key && ui.patient.candidate && <Text fontSize="sm">Suggested key: <strong>{ui.patient.candidate}</strong></Text>}
+          </Stack>
+        </HStack>
+        <FormControl isRequired>
+          <FormLabel>Pseudonymous patient key</FormLabel>
+          <Input id="resolver-patient-key" value={patientKey} onChange={(event) => setPatientKey(event.target.value.toUpperCase())} placeholder="PAT0001" />
+        </FormControl>
+        <FormControl isRequired>
+          <FormLabel>Reviewer name</FormLabel>
+          <Input id="resolver-reviewer" value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Enter reviewer name" />
+        </FormControl>
+        <HStack spacing={2} flexWrap="wrap">
+          <Button onClick={() => void submit('patient')} isLoading={saving === 'patient'} isDisabled={Boolean(saving)}>
+            {hasCandidate ? 'Confirm patient' : 'Save patient assignment'}
+          </Button>
+          <Button variant="ghost" onClick={() => void submit('unlinked')} isLoading={saving === 'unlinked'} isDisabled={Boolean(saving)}>
+            Leave patient unlinked
+          </Button>
+        </HStack>
+        <Box borderTopWidth="1px" borderColor="border.subtle" pt={3}>
+          <Stack spacing={2}>
+            <HStack justify="space-between" align="flex-start">
+              <Stack spacing={1}>
+                <StatusBadge tone={ui.laterality.tone}>{ui.laterality.label}</StatusBadge>
+                <Text fontSize="sm" color="text.secondary">{ui.laterality.note}</Text>
+              </Stack>
+            </HStack>
+            <FormControl>
+              <FormLabel>Eye side</FormLabel>
+              <Select value={laterality} onChange={(event) => setLaterality(event.target.value as Laterality)}>
+                <option value="UNKNOWN">Unknown</option>
+                <option value="LEFT">Left</option>
+                <option value="RIGHT">Right</option>
+              </Select>
+            </FormControl>
+            <Button alignSelf="flex-start" variant="secondary" onClick={() => void submit('eye')} isLoading={saving === 'eye'} isDisabled={Boolean(saving)}>
+              Save eye side
+            </Button>
+          </Stack>
+        </Box>
+        {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
+      </Stack>
+    </Section>
   );
 }
 
@@ -371,6 +475,7 @@ export function ReviewPage() {
               {!admissionAllowsAnalysis(item) ? 'Resolve the image admission review before analysis.' : item.global || item.lesion ? 'Actual returned results are shown below.' : 'Not analyzed'}
             </Text>}
           </Section>
+          <ResolverReview item={item} onSaved={setItem} />
           <AdmissionReview item={item} onSaved={setItem} />
           <Section title="DR assessment"><Assessment item={item} /></Section>
           <Section title="Lesion suggestions"><LesionSuggestions item={item} /></Section>
