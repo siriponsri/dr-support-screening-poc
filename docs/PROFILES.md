@@ -3,7 +3,7 @@
 The codebase ships a single `dr_support.app.create_app()` factory that mounts
 one of three runtime profiles. The active profile is selected with the
 `APP_PROFILE` environment variable; `MODEL_RUNTIME` is enforced to a specific
-value per profile so that misconfiguration fails fast at startup.
+value per profile so that a review workstation can never load local weights.
 
 ## Matrix
 
@@ -14,7 +14,9 @@ value per profile so that misconfiguration fails fast at startup.
 | Full (demo)   | `full`        | `local`         | Everything from both profiles                                           | Yes — required for local demos.       |
 
 Any other combination (e.g. `APP_PROFILE=review` with `MODEL_RUNTIME=local`)
-is rejected at startup with a `RuntimeError`.
+is rejected at startup with a `RuntimeError`. `REMOTE_MODEL_URL` is optional
+for the review profile: without it, remote models report
+`REMOTE_NOT_CONFIGURED` and inference remains unavailable.
 
 ## Local development
 
@@ -24,7 +26,7 @@ it at a deployed model API:
 ```bash
 export APP_PROFILE=review
 export MODEL_RUNTIME=remote
-export REMOTE_MODEL_URL=https://remote.example.invalid
+export REMOTE_MODEL_URL=https://remote.example.invalid  # optional
 export REMOTE_MODEL_TOKEN=...   # optional
 python -m dr_support.run        # listens on 127.0.0.1:8000
 ```
@@ -64,9 +66,8 @@ docker run --rm -p 8000:8000 \
 ```
 
 The container entrypoint (`docker-entrypoint.sh`) only validates environment
-variables (APP_PROFILE, MODEL_RUNTIME, REMOTE_MODEL_URL for the review
-profile, presence of the pre-built assets for the model_api / full profile,
-and `WORKERS=1` to avoid duplicate model loads). The actual startup is
+variables (APP_PROFILE, MODEL_RUNTIME, presence of the pre-built assets for the
+model_api / full profile, and `WORKERS=1` to avoid duplicate model loads). The actual startup is
 delegated to `python -m dr_support.run`, which calls the profile dispatcher.
 
 ### GPU readiness

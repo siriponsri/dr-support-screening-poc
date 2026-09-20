@@ -141,9 +141,9 @@ function LesionLegend() {
   );
 }
 
-function admissionAllowsAnalysis(item: CaseRecord) {
+function admissionAllowsAnalysis(item: CaseRecord | null) {
   return Boolean(
-    item.admission
+    item?.admission
       && item.admission.modality_admission === 'FUNDUS_ACCEPTED'
       && (item.admission.quality_state === 'GRADABLE' || item.admission.quality_state === 'NOT_EVALUATED'),
   );
@@ -408,6 +408,11 @@ export function ReviewPage() {
   };
 
   const allWarnings = useMemo(() => item ? [...(item.global?.warnings ?? []), ...(item.lesion?.warnings ?? [])] : [], [item]);
+  const remoteNotConfigured = models.some((model) => (
+    ['retfound-aptos5', 'prism-dr-5fold'].includes(model.model_id)
+      && model.status === 'REMOTE_NOT_CONFIGURED'
+  ));
+  const analysisAllowed = admissionAllowsAnalysis(item) && !remoteNotConfigured;
 
   if (!imageId) {
     return (
@@ -467,12 +472,12 @@ export function ReviewPage() {
           <Section
             title="Analysis"
             description="Run both existing remote inference contracts on this admitted image."
-            action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !admissionAllowsAnalysis(item)}>{item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
+            action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
           >
             {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
             {analysisError && <Alert status="error"><AlertIcon /><Stack spacing={2}><Text>{analysisError}</Text><Button size="sm" variant="outline" onClick={() => void analyze()}>Retry</Button></Stack></Alert>}
             {!analysisError && !analyzing && <Text fontSize="sm" color="text.secondary">
-              {!admissionAllowsAnalysis(item) ? 'Resolve the image admission review before analysis.' : item.global || item.lesion ? 'Actual returned results are shown below.' : 'Not analyzed'}
+              {!admissionAllowsAnalysis(item) ? 'Resolve the image admission review before analysis.' : remoteNotConfigured ? 'AI analysis is not available.' : item.global || item.lesion ? 'Actual returned results are shown below.' : 'Not analyzed'}
             </Text>}
           </Section>
           <ResolverReview item={item} onSaved={setItem} />

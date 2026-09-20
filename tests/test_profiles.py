@@ -20,6 +20,7 @@ from PIL import Image
 
 from dr_support.app import create_app
 from dr_support.images import synthetic_image
+from dr_support.providers.remote import RemoteModelProvider
 
 
 # ---------------------------------------------------------------------------
@@ -95,12 +96,18 @@ def test_review_profile_rejects_local_runtime(monkeypatch):
         create_app()
 
 
-def test_review_profile_requires_remote_url(monkeypatch):
+def test_review_profile_starts_without_remote_url(monkeypatch, tmp_path):
     monkeypatch.setenv('APP_PROFILE', 'review')
     monkeypatch.setenv('MODEL_RUNTIME', 'remote')
     monkeypatch.delenv('REMOTE_MODEL_URL', raising=False)
-    with pytest.raises(RuntimeError, match='REMOTE_MODEL_URL'):
-        create_app()
+    monkeypatch.setenv('DR_SUPPORT_STATE', str(tmp_path / 'state.sqlite'))
+    app = create_app()
+    assert all(isinstance(provider, RemoteModelProvider) for provider in app.state.providers.values())
+    response = TestClient(app).get('/v1/models')
+    assert response.status_code == 200
+    descriptors = {item['model_id']: item for item in response.json()}
+    assert descriptors['retfound-aptos5']['status'] == 'REMOTE_NOT_CONFIGURED'
+    assert descriptors['prism-dr-5fold']['status'] == 'REMOTE_NOT_CONFIGURED'
 
 
 def test_model_api_profile_rejects_remote_runtime(monkeypatch):

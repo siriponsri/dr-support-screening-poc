@@ -22,6 +22,7 @@ from dr_support.providers.remote import (
     RemoteGlobalProvider,
     RemoteLesionProvider,
     RemoteModelError,
+    RemoteNotConfiguredError,
     RemoteModelProvider,
     RemoteTimeoutError,
 )
@@ -132,9 +133,8 @@ def create_app(state_path=None, include_samples=True):
     runtime = (os.environ.get('MODEL_RUNTIME') or 'local').strip().lower()
     if runtime == 'remote':
         app.state.remote_runtime = True
-        # REMOTE_MODEL_URL is required; REMOTE_MODEL_TOKEN is optional and read at request time.
-        if not os.environ.get('REMOTE_MODEL_URL'):
-            raise RuntimeError('REMOTE_MODEL_URL must be set when MODEL_RUNTIME=remote')
+        # An endpoint is optional at workstation startup. Providers advertise an
+        # explicit unavailable state until REMOTE_MODEL_URL is configured.
         app.state.providers = {
             RemoteGlobalProvider.model_id: RemoteGlobalProvider(),
             RemoteLesionProvider.model_id: RemoteLesionProvider(),
@@ -222,6 +222,8 @@ def create_app(state_path=None, include_samples=True):
             return result
         except RemoteTimeoutError:
             raise HTTPException(504, 'Remote model timeout; inspect REMOTE_MODEL_URL and runtime latency') from None
+        except RemoteNotConfiguredError:
+            raise HTTPException(503, 'AI analysis is not available.') from None
         except RemoteModelError as exc:
             raise HTTPException(502, f'Remote model error: {exc}') from None
         except (RuntimeError, ValueError, KeyError, OSError, ImportError):

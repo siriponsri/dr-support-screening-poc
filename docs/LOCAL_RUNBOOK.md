@@ -15,7 +15,7 @@ Do not change IT restrictions to run it. Give this ZIP to the developer host if 
 Use Python 3.11/3.12 (3.12 recommended) and Git. Extract the project to a new directory.
 On Windows with Python 3.12 available, double-click `START.cmd`.
 It creates a project-only virtual environment and installs the lightweight API dependencies.
-Open http://127.0.0.1:8000 after startup. Keep the console open.
+Open http://127.0.0.1:8000/app/ after startup. In Settings, create or open a Workspace.
 
 Equivalent commands on Linux/macOS:
 
@@ -68,14 +68,15 @@ The API does not load `.env` files. Runtime environment variables are authoritat
 
 The backend can proxy inference to a separately deployed Remote Model API
 without changing the UI, the persisted review state, or the CVAT round-trip.
-The local RETFound/PRISM providers remain the default; remote mode is opt-in.
+The review profile always uses the remote proxy; local RETFound/PRISM providers
+are reserved for the model_api and full profiles.
 
-Required environment variables when `MODEL_PROFILE=review` + `MODEL_RUNTIME=remote`:
+Review runtime variables when `APP_PROFILE=review` + `MODEL_RUNTIME=remote`:
 
 ```text
 APP_PROFILE=review
 MODEL_RUNTIME=remote
-REMOTE_MODEL_URL=https://remote.example.invalid      # base URL of the deployed Remote Model API
+REMOTE_MODEL_URL=                                  # optional base URL of the deployed Remote Model API
 REMOTE_MODEL_TOKEN=                                  # optional Bearer token, environment only
 ```
 
@@ -91,6 +92,10 @@ Behavior:
   full contract.
 - Tokens are read from the environment at request time, sent only as
   `Authorization: Bearer ...`, and never logged, persisted, or returned to the UI.
+- `REMOTE_MODEL_URL` may be absent when the workstation starts. The Worklist,
+  Workspace Manager, image admission, patient/eye resolver, viewer, annotations,
+  clinician review, and local persistence remain available; `/v1/models` reports
+  `REMOTE_NOT_CONFIGURED` and Analyze shows `AI analysis is not available.`.
 - Each inference call records `runtime: "remote"` and `latency_ms` in the case
   event log. Models & Audit surfaces the remote revision/hash/runtime/latency.
 - Clear error mapping: remote timeout → `504`, remote 4xx/5xx → `502`,
