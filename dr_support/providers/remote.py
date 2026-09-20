@@ -46,6 +46,10 @@ class RemoteSchemaError(RemoteModelError):
     """Remote model response could not be parsed as a Bridge v1 result."""
 
 
+class RemoteNotConfiguredError(RemoteModelError):
+    """The review workstation has no remote model endpoint configured."""
+
+
 INFERENCE_TIMEOUT_SECONDS = 30.0
 METADATA_TIMEOUT_SECONDS = 5.0
 
@@ -73,9 +77,7 @@ class RemoteModelProvider:
         self.model_id = model_id
         self.task = task
         base = (base_url if base_url is not None else os.environ.get('REMOTE_MODEL_URL', '')).strip()
-        if not base:
-            raise ValueError('REMOTE_MODEL_URL is required when MODEL_RUNTIME=remote')
-        if not base.startswith(('http://', 'https://')):
+        if base and not base.startswith(('http://', 'https://')):
             raise ValueError('REMOTE_MODEL_URL must use http(s) scheme')
         self.base_url = base.rstrip('/')
         # Resolve token lazily from env so a missing token only fails on first call.
@@ -145,6 +147,9 @@ class RemoteModelProvider:
         return response
 
     def infer(self, request, image):
+        if not self.base_url:
+            self.last_error = 'remote endpoint not configured'
+            raise RemoteNotConfiguredError('Remote model endpoint is not configured')
         start = time.perf_counter()
         try:
             response = self._send('POST', self.predict_path, json=self._payload(request, image),
@@ -179,7 +184,11 @@ class RemoteModelProvider:
         return result
 
     def _runtime_warnings(self) -> list[str]:
-        warnings = ['REMOTE_RUNTIME: model served by REMOTE_MODEL_URL']
+        warnings = ([
+            'REMOTE_RUNTIME: model served by REMOTE_MODEL_URL'
+        ] if self.base_url else [
+            'REMOTE_RUNTIME: remote model endpoint is not configured'
+        ])
         if self.last_inference_ms is not None:
             warnings.append(f'Last inference latency: {self.last_inference_ms:.0f}ms')
         if self.last_metadata_ms is not None:
@@ -196,6 +205,11 @@ class RemoteModelProvider:
         degraded descriptor with HTTP 200 so the UI can still render the
         Worklist and Models & Audit page.
         """
+        if not self.base_url:
+            return self._degraded_metadata(
+                'REMOTE_NOT_CONFIGURED',
+                'REMOTE_MODEL_URL is not configured; AI analysis is not available.',
+            )
         try:
             return self._collect_metadata()
         except Exception as exc:  # pragma: no cover - defensive guard
@@ -265,7 +279,8 @@ class RemoteModelProvider:
         if detail:
             warnings.append(detail)
         warnings.extend(self._runtime_warnings())
-        warnings.append('REMOTE_MODEL_TOKEN must be set in the backend environment when required by the remote')
+        if self.base_url:
+            warnings.append('REMOTE_MODEL_TOKEN must be set in the backend environment when required by the remote')
         return {
             'model_id': self.model_id,
             'task': self.task,

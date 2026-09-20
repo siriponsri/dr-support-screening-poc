@@ -12,7 +12,9 @@
 # Responsibilities
 # ----------------
 # 1. Validate APP_PROFILE and required environment variables.
-# 2. Refuse to start the review profile without REMOTE_MODEL_URL.
+# 2. Start the review profile without loading local model weights. A remote
+#    endpoint is optional; the application reports analysis as unavailable
+#    until one is configured.
 # 3. Refuse to start the model_api / full profile without the build-time
 #    weights directory present (defence-in-depth; the resolver will surface
 #    a clearer error inside Python if a single file is missing).
@@ -37,10 +39,6 @@ case "${APP_PROFILE}" in
     # Review workstation: enforce remote inference, no weights required.
     if [ "${MODEL_RUNTIME}" != "remote" ]; then
       echo "[entrypoint] APP_PROFILE=review requires MODEL_RUNTIME=remote" >&2
-      exit 1
-    fi
-    if [ -z "${REMOTE_MODEL_URL:-}" ]; then
-      echo "[entrypoint] APP_PROFILE=review requires REMOTE_MODEL_URL" >&2
       exit 1
     fi
     # The review workstation defaults to 8000 unless the operator overrides

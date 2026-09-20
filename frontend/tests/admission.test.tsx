@@ -100,4 +100,38 @@ describe('image admission UI', () => {
     expect(screen.getByRole('button', { name: /Accept as retinal fundus image/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark as non-fundus/i })).toBeInTheDocument();
   });
+
+  it('disables analysis when the remote endpoint is not configured', async () => {
+    const readyCase: CaseRecord = {
+      ...admissionCase,
+      admission: {
+        ...admissionCase.admission!,
+        modality_admission: 'FUNDUS_ACCEPTED',
+        quality_state: 'NOT_EVALUATED',
+      },
+      admission_ui: {
+        ...admissionCase.admission_ui!,
+        label: 'Ready for analysis',
+        note: 'This image can be analyzed.',
+        tone: 'success',
+        action_required: false,
+      },
+    };
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = requestPath(input);
+      if (path === '/v1/cases/ambiguous') return jsonResponse(readyCase);
+      if (path === '/v1/models') {
+        return jsonResponse([
+          { model_id: 'retfound-aptos5', task: 'global', runtime: 'remote', status: 'REMOTE_NOT_CONFIGURED' },
+          { model_id: 'prism-dr-5fold', task: 'lesion-roi', runtime: 'remote', status: 'REMOTE_NOT_CONFIGURED' },
+        ]);
+      }
+      return jsonResponse({ detail: `Unexpected test request: ${path}` }, 404);
+    });
+
+    renderAppAt('/review/ambiguous');
+
+    expect(await screen.findByRole('button', { name: 'Analyze' })).toBeDisabled();
+    expect(screen.getByText('AI analysis is not available.')).toBeInTheDocument();
+  });
 });

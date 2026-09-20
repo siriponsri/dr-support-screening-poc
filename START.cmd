@@ -23,7 +23,39 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
   )
 )
-echo Open http://127.0.0.1:8000 in your browser after the server starts.
-echo Public samples are included. Models require one-time preparation; see the runbook.
+if not exist "frontend\dist\index.html" (
+  where npm >nul 2>&1
+  if errorlevel 1 (
+    echo npm is required to build the clinician workstation UI.
+    pause
+    exit /b 1
+  )
+  if not exist "frontend\node_modules" (
+    echo Installing frontend dependencies...
+    pushd frontend
+    call npm ci
+    if errorlevel 1 (
+      popd
+      pause
+      exit /b 1
+    )
+    popd
+  )
+  echo Building the clinician workstation UI...
+  pushd frontend
+  call npm run build
+  if errorlevel 1 (
+    popd
+    pause
+    exit /b 1
+  )
+  popd
+)
+
+set "APP_PROFILE=review"
+set "MODEL_RUNTIME=remote"
+echo Starting clinician review workstation.
+echo Open http://127.0.0.1:8000/app/
+echo Create or open a Workspace from Settings after startup.
 .venv\Scripts\python.exe -m dr_support.run
 pause

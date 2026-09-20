@@ -56,10 +56,6 @@ def _enforce_invariants(profile: str, runtime: str) -> None:
             )
         if runtime != 'remote':
             raise RuntimeError(f"APP_PROFILE=review requires MODEL_RUNTIME=remote, got {runtime!r}")
-        if not os.environ.get('REMOTE_MODEL_URL'):
-            raise RuntimeError(
-                'APP_PROFILE=review requires REMOTE_MODEL_URL to be set in the runtime environment.'
-            )
     elif profile == 'model_api':
         if runtime == 'remote':
             raise RuntimeError(

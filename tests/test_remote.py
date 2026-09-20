@@ -19,6 +19,7 @@ from dr_support.providers.remote import (
     RemoteHTTPError,
     RemoteLesionProvider,
     RemoteModelProvider,
+    RemoteNotConfiguredError,
     RemoteSchemaError,
     RemoteTimeoutError,
 )
@@ -259,10 +260,15 @@ def test_remote_provider_metadata_reports_model_not_listed(monkeypatch):
     assert info['status'] == 'REMOTE_MODEL_NOT_LISTED'
 
 
-def test_remote_provider_rejects_missing_url(monkeypatch):
+def test_remote_provider_reports_missing_url_without_startup_failure(monkeypatch):
     monkeypatch.delenv('REMOTE_MODEL_URL', raising=False)
-    with pytest.raises(ValueError, match='REMOTE_MODEL_URL'):
-        RemoteGlobalProvider()
+    provider = RemoteGlobalProvider()
+    info = provider.metadata()
+    assert info['status'] == 'REMOTE_NOT_CONFIGURED'
+    assert info['remote_url'] == ''
+    assert any('AI analysis is not available' in warning for warning in info['warnings'])
+    with pytest.raises(RemoteNotConfiguredError):
+        provider.infer(InferenceRequest(image_id=FIXTURE_IMAGE.image_id, model_id=provider.model_id), FIXTURE_IMAGE)
 
 
 def test_remote_provider_rejects_non_http_scheme(monkeypatch):
@@ -379,12 +385,40 @@ def test_api_v1_models_surfaces_remote_runtime_metadata(monkeypatch):
     assert descriptors['prism-dr-5fold']['revision'] == 'remote-rev-bbbb'
 
 
-def test_api_rejects_missing_remote_url_when_runtime_remote(monkeypatch):
+def test_api_starts_without_remote_url_and_keeps_inference_unavailable(monkeypatch, tmp_path):
+    monkeypatch.setenv('APP_PROFILE', 'review')
     monkeypatch.setenv('MODEL_RUNTIME', 'remote')
     monkeypatch.delenv('REMOTE_MODEL_URL', raising=False)
     monkeypatch.delenv('REMOTE_MODEL_TOKEN', raising=False)
-    with pytest.raises(RuntimeError, match='REMOTE_MODEL_URL'):
-        create_app(include_samples=False)
+    monkeypatch.setenv('DR_SUPPORT_STATE', str(tmp_path / 'state.sqlite'))
+    app = create_app(include_samples=False)
+    client = TestClient(app)
+    models = client.get('/v1/models')
+    assert models.status_code == 200
+    descriptors = {item['model_id']: item for item in models.json()}
+    assert descriptors['retfound-aptos5']['status'] == 'REMOTE_NOT_CONFIGURED'
+    assert descriptors['prism-dr-5fold']['status'] == 'REMOTE_NOT_CONFIGURED'
+    inference = client.post('/v1/infer/global', json={
+        'image_id': FIXTURE_IMAGE.image_id,
+        'model_id': 'retfound-aptos5',
+        'modality': 'CFP',
+    })
+    assert inference.status_code == 503
+    assert inference.json()['detail'] == 'AI analysis is not available.'
+    assert 'RemoteNotConfiguredError' not in inference.text
+    assert client.get('/v1/workspaces').status_code == 200
+    assert client.get('/v1/workspaces/active').status_code == 200
+    assert client.post('/v1/admissions/scan').json()['scanned'] is False
+    case = client.get(f'/v1/cases/{FIXTURE_IMAGE.image_id}')
+    assert case.status_code == 200
+    resolved = client.post(f'/v1/cases/{FIXTURE_IMAGE.image_id}/resolver', json={
+        'revision': case.json()['revision'],
+        'reviewer': 'Offline clinician',
+        'patient_action': 'LEAVE_UNLINKED',
+        'laterality_action': 'SET',
+        'laterality': 'UNKNOWN',
+    })
+    assert resolved.status_code == 200
 
 
 def test_api_local_mode_is_unaffected_by_remote_env(monkeypatch):

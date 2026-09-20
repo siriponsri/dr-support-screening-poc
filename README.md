@@ -26,9 +26,10 @@ The restricted owner workstation can remain browser-only when a developer hosts 
 ## Provider-neutral REMOTE runtime (v0.2.1)
 
 Inference can be proxied to a separately deployed Remote Model API without
-changing the UI or the persisted review state. Set `MODEL_RUNTIME=remote` and
-`REMOTE_MODEL_URL` (optional `REMOTE_MODEL_TOKEN`) at runtime; the local
-RETFound/PRISM providers remain the default. See
+changing the UI or the persisted review state. The review profile always uses
+`MODEL_RUNTIME=remote`; `REMOTE_MODEL_URL` is optional at startup and
+`REMOTE_MODEL_TOKEN` remains optional. Without an endpoint, model inference is
+unavailable while the local review workflow remains usable. See
 [REMOTE_MODEL_API.md](docs/REMOTE_MODEL_API.md) for the deployment contract
 and [LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md) for the configuration knobs.
 No models are deployed from this repository.
