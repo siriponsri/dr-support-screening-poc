@@ -5,6 +5,8 @@ import pytest
 @pytest.fixture(autouse=True)
 def offline(monkeypatch, tmp_path):
     monkeypatch.setenv("DR_SUPPORT_STATE", str(tmp_path / "reviews.sqlite"))
+    # Keep ignored local workspace catalogs from restoring a real demo database into tests.
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_CATALOG", str(tmp_path / "workspaces.sqlite"))
 
     def blocked(*args, **kwargs):
         raise RuntimeError('Network forbidden in offline tests')
