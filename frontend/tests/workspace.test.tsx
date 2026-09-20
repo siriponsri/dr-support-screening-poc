@@ -157,6 +157,21 @@ describe('Workspace manager', () => {
     expect(screen.getByRole('group', { name: 'Current workspace: April DR Screening' })).toBeInTheDocument();
   });
 
+  it('shows compact saved-workspace path metadata with full-value copy affordances', async () => {
+    mockWorkspaceApi({ workspaces: [workspaceA, workspaceB], active: workspaceA });
+    renderAppAt('/settings');
+
+    const activeRow = await screen.findByRole('group', { name: 'April DR Screening workspace' });
+    expect(within(activeRow).getByLabelText(`Input: ${workspaceA.input_folder}`)).toHaveAttribute('title', workspaceA.input_folder);
+    expect(within(activeRow).getByLabelText(`Output: ${workspaceA.output_folder}`)).toHaveAttribute('title', workspaceA.output_folder);
+    expect(within(activeRow).getByLabelText(`Storage: SQLite · ${workspaceA.database_path}`)).toHaveAttribute('title', `SQLite · ${workspaceA.database_path}`);
+    expect(within(activeRow).getByRole('button', { name: `Copy storage path: SQLite · ${workspaceA.database_path}` })).toBeInTheDocument();
+
+    const inactiveRow = screen.getByRole('group', { name: 'May DR Screening workspace' });
+    expect(within(inactiveRow).getByLabelText(`Storage: SQLite · ${workspaceB.database_path}`)).toBeInTheDocument();
+    expect(within(inactiveRow).getByRole('button', { name: `Copy input path: ${workspaceB.input_folder}` })).toBeInTheDocument();
+  });
+
   it('creates, edits, and clears a workspace note', async () => {
     const calls = mockWorkspaceApi();
     const user = userEvent.setup();

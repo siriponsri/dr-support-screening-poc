@@ -303,6 +303,7 @@ export function WorkspaceManager() {
                   onSwitch={() => void switchWorkspace(workspace)}
                   onEdit={() => beginEdit(workspace)}
                   onDelete={() => setPendingDelete(workspace)}
+                  onCopy={copyPath}
                   isMutating={isMutating}
                 />
               ))}
@@ -395,13 +396,14 @@ function PathField({ label, value, onChange, onBrowse, onCopy, isLoading }: { la
   );
 }
 
-function WorkspaceRow({ workspace, active, onSwitch, onEdit, onDelete, isMutating }: { workspace: WorkspaceProfile; active: boolean; onSwitch: () => void; onEdit: () => void; onDelete: () => void; isMutating: boolean }) {
+function WorkspaceRow({ workspace, active, onSwitch, onEdit, onDelete, onCopy, isMutating }: { workspace: WorkspaceProfile; active: boolean; onSwitch: () => void; onEdit: () => void; onDelete: () => void; onCopy: (label: string, path: string) => void; isMutating: boolean }) {
   return (
     <Box role="group" aria-label={`${workspace.name} workspace`} py={4} px={1} borderLeftWidth="3px" borderLeftColor={active ? 'action.primary' : 'transparent'} pl={active ? 3 : 4}>
       <HStack align="flex-start" justify="space-between" spacing={4} flexWrap="wrap">
         <Stack spacing={1} minW={0} flex={1}>
           <Text flex={1} minW={0} fontWeight="semibold" noOfLines={1} title={workspace.name}>{workspace.name}</Text>
           {workspace.note && <Text fontSize="xs" color="text.secondary" noOfLines={2} title={workspace.note}>{workspace.note}</Text>}
+          <WorkspaceMetadata workspace={workspace} onCopy={onCopy} />
         </Stack>
         <HStack spacing={2} align="center" flexShrink={0} flexWrap="wrap" justify="flex-end">
           {active ? <StatusBadge tone="brand"><CheckCircle2 size={11} aria-hidden="true" /> Active</StatusBadge> : <Button size="sm" width="152px" justifyContent="center" variant="solid" onClick={onSwitch} isLoading={isMutating}>Switch</Button>}
@@ -410,5 +412,44 @@ function WorkspaceRow({ workspace, active, onSwitch, onEdit, onDelete, isMutatin
         </HStack>
       </HStack>
     </Box>
+  );
+}
+
+function WorkspaceMetadata({ workspace, onCopy }: { workspace: WorkspaceProfile; onCopy: (label: string, path: string) => void }) {
+  const metadata = [
+    { label: 'Input', value: workspace.input_folder },
+    { label: 'Output', value: workspace.output_folder },
+    { label: 'Storage', value: `SQLite · ${workspace.database_path}` },
+  ];
+
+  return (
+    <Stack spacing={1} mt={2} minW={0} maxW="100%" aria-label={`${workspace.name} workspace metadata`}>
+      {metadata.map(({ label, value }) => (
+        <HStack key={label} spacing={2} minW={0} maxW="100%">
+          <Text flex="0 0 52px" fontSize="xxs" fontWeight="semibold" color="text.muted">{label}</Text>
+          <Text
+            flex={1}
+            minW={0}
+            noOfLines={1}
+            fontSize="xs"
+            color="text.secondary"
+            fontFamily="mono"
+            title={value}
+            aria-label={`${label}: ${value}`}
+          >
+            {value}
+          </Text>
+          <IconButton
+            aria-label={`Copy ${label.toLowerCase()} path: ${value}`}
+            title={`Copy ${label.toLowerCase()} path`}
+            icon={<Copy size={14} />}
+            size="sm"
+            variant="ghost"
+            flexShrink={0}
+            onClick={() => onCopy(label === 'Storage' ? 'Database path' : `${label} folder`, label === 'Storage' ? workspace.database_path : value)}
+          />
+        </HStack>
+      ))}
+    </Stack>
   );
 }
