@@ -17,12 +17,19 @@ class Store:
     def get(self, image_id):
         with self.lock:
             row = self.db.execute('SELECT data FROM cases WHERE id=?', (image_id,)).fetchone()
-            return json.loads(row[0]) if row else {'image_id': image_id, 'revision': 0, 'state': 'PENDING',
-                                                  'events': [], 'global': None, 'lesion': None, 'cvat': None,
-                                                  'reviewed_grade': None, 'grade_review_source': None,
-                                                  'lesion_review_state': None, 'annotations': None,
-                                                  'human_annotations': [], 'clinician_review': None,
-                                                  'review_history': []}
+            if row:
+                case = json.loads(row[0])
+                # S2A1 is an additive JSON migration so old S2 databases remain
+                # readable without a destructive table rewrite.
+                case.setdefault('admission', None)
+                case.setdefault('admission_history', [])
+                return case
+            return {'image_id': image_id, 'revision': 0, 'state': 'PENDING',
+                    'events': [], 'global': None, 'lesion': None, 'cvat': None,
+                    'reviewed_grade': None, 'grade_review_source': None,
+                    'lesion_review_state': None, 'annotations': None,
+                    'human_annotations': [], 'clinician_review': None,
+                    'review_history': [], 'admission': None, 'admission_history': []}
 
     def put(self, case):
         with self.lock:

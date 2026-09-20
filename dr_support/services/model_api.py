@@ -58,6 +58,7 @@ from dr_support.contracts import GlobalResult, LesionResult, Provenance
 from dr_support.providers.prism import PRISM, REVISION as PRISM_REVISION
 from dr_support.providers.retfound import RETFound, REVISION as RETFOUND_REVISION
 from dr_support.runtime import DeviceUnavailable, assert_cuda_ready, runtime_snapshot
+from dr_support.services.admission import inspect_bytes, is_inference_eligible
 
 log = logging.getLogger('dr_support.model_api')
 
@@ -289,6 +290,19 @@ def _check_runtime() -> None:
                             'use APP_PROFILE=review with MODEL_RUNTIME=remote instead.')
 
 
+def _check_admission(payload: RemotePredictRequest) -> None:
+    """Guard direct model calls without changing the frozen request envelope."""
+    raw = base64.b64decode(payload.image_b64)
+    admission = inspect_bytes(
+        raw,
+        image_id=payload.image_id,
+        filename=f'{payload.image_id}.payload',
+        source_reference=f'MODEL_API/{payload.image_id}',
+    )
+    if not is_inference_eligible(admission):
+        raise HTTPException(409, 'Image needs review before analysis.')
+
+
 def _predict_global(app: FastAPI, payload: RemotePredictRequest, lock: RLock) -> GlobalResult:
     _check_runtime()
     if payload.model_id != RETFound.model_id:
@@ -309,6 +323,7 @@ def _predict_global(app: FastAPI, payload: RemotePredictRequest, lock: RLock) ->
                                   source_revision=RETFOUND_REVISION),
         )
         return result
+    _check_admission(payload)
     if provider.metadata().get('status') == 'ASSET_REQUIRED':
         raise HTTPException(503, 'RETFound assets not configured; set RETFOUND_SOURCE / RETFOUND_WEIGHTS')
     image = _ImageShim(payload, base64.b64decode(payload.image_b64), source='remote-model-api')
@@ -343,6 +358,7 @@ def _predict_lesions(app: FastAPI, payload: RemotePredictRequest, lock: RLock) -
                                   source_revision=PRISM_REVISION),
         )
         return result
+    _check_admission(payload)
     if provider.metadata().get('status') == 'ASSET_REQUIRED':
         raise HTTPException(503, 'PRISM-DR assets not configured; set PRISM_SOURCE / PRISM_WEIGHTS')
     image = _ImageShim(payload, base64.b64decode(payload.image_b64), source='remote-model-api')

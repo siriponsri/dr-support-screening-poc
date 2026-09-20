@@ -29,6 +29,7 @@ from dr_support.runtime import runtime_snapshot
 from dr_support.providers.retfound import RETFound
 
 from ..images import admitted_demo_images, admitted_samples, synthetic_image
+from ..services.admission import is_inference_eligible, legacy_admission, scan_input_folder
 from ..services.workspaces import WorkspaceManager
 from ..workflow import install_workflow
 from .workspaces import install_workspace_routes
@@ -46,10 +47,77 @@ def create_app(state_path=None, include_samples=True):
         app.state.images = {fixture.image_id: fixture}
         if include_samples:
             app.state.images.update(admitted_samples(root))
+    app.state.admissions = {
+        image_id: legacy_admission(image) for image_id, image in app.state.images.items()
+    }
+    app.state.workspace_image_ids = set()
+    app.state.workspace_admission_ids = set()
     workspace_manager = WorkspaceManager(root, state_path=state_path)
     install_workflow(app, workspace_manager.store)
     workspace_manager.attach(app)
     install_workspace_routes(app, workspace_manager)
+
+    def apply_scan(scan):
+        """Replace workspace-discovered records while preserving manual decisions."""
+        store = app.state.store
+        for image_id in app.state.workspace_image_ids:
+            app.state.images.pop(image_id, None)
+        for image_id in app.state.workspace_admission_ids:
+            app.state.admissions.pop(image_id, None)
+        app.state.workspace_image_ids = set()
+        app.state.workspace_admission_ids = set()
+        for image_id, record in scan.records.items():
+            case = store.get(image_id)
+            saved = case.get('admission')
+            if saved and saved.get('admission_method') == 'MANUAL':
+                app.state.admissions[image_id] = saved
+                app.state.workspace_admission_ids.add(image_id)
+                continue
+            app.state.admissions[image_id] = record
+            app.state.workspace_admission_ids.add(image_id)
+            case['admission'] = record
+            history = case.setdefault('admission_history', [])
+            if not history or history[-1].get('new') != {
+                'modality_admission': record['modality_admission'],
+                'quality_state': record['quality_state'],
+            }:
+                history.append({
+                    'action': 'AUTOMATIC_ADMISSION',
+                    'method': record['admission_method'],
+                    'reason_code': record['admission_reason_code'],
+                    'quality_reason_code': record.get('quality_reason_code'),
+                    'new': {
+                        'modality_admission': record['modality_admission'],
+                        'quality_state': record['quality_state'],
+                    },
+                    'timestamp': record['updated_at'],
+                })
+            store.put(case)
+        app.state.images = {
+            **app.state.images,
+            **scan.images,
+        }
+        app.state.workspace_image_ids = set(scan.images)
+        app.state.admission_warnings = list(scan.warnings)
+
+    def scan_active_workspace():
+        profile = workspace_manager.active_workspace
+        if profile is None:
+            app.state.admission_warnings = ['No active workspace input folder is configured.']
+            return {'records': [], 'warnings': list(app.state.admission_warnings), 'scanned': False}
+        scan = scan_input_folder(profile.input_folder)
+        apply_scan(scan)
+        return {
+            'records': [app.state.admissions[image_id] for image_id in app.state.admissions
+                        if image_id in scan.records],
+            'warnings': list(scan.warnings),
+            'scanned': True,
+        }
+
+    app.state.scan_active_workspace = scan_active_workspace
+    app.state.admission_warnings = []
+    if workspace_manager.active_workspace is not None:
+        scan_active_workspace()
     inference_lock = RLock()
 
     @app.middleware('http')
@@ -126,6 +194,14 @@ def create_app(state_path=None, include_samples=True):
         image = app.state.images.get(request.image_id)
         if image is None:
             raise HTTPException(404, 'Image not admitted to public/synthetic registry')
+        admission = app.state.admissions.get(request.image_id)
+        if admission is None:
+            # Every registry image must pass through an explicit compatibility
+            # decision before it can reach either provider path.
+            admission = legacy_admission(image)
+            app.state.admissions[request.image_id] = admission
+        if not is_inference_eligible(admission):
+            raise HTTPException(409, 'Image needs review before analysis.')
         if request.modality != image.modality:
             raise HTTPException(422, 'Modality does not match admitted image')
         if request.model_id == 'mock-' + ('global' if task == 'global' else 'lesion'):

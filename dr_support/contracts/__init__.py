@@ -12,6 +12,7 @@ from ._schema import (
     LesionResult,
     Provenance,
 )
+from .admission import AdmissionMetadata, AdmissionReview
 from .workspaces import (
     DatabasePickerRequest,
     FolderPickerRequest,
@@ -29,6 +30,8 @@ __all__ = [
     'Lesion',
     'LesionResult',
     'Provenance',
+    'AdmissionMetadata',
+    'AdmissionReview',
     'DatabasePickerRequest',
     'FolderPickerRequest',
     'PickerResult',

@@ -7,10 +7,11 @@ from uuid import uuid4
 from fastapi import HTTPException
 from fastapi.responses import Response
 from pydantic import Field
-from .contracts import Contract
+from .contracts import AdmissionMetadata, AdmissionReview, Contract
 from .sync import Sync, digest
 from .cvat import CVATOnline, OnlineError
 from .presentation import lesion_review_view
+from .services.admission import clinician_view, legacy_admission
 
 
 class Review(Contract):
@@ -46,9 +47,40 @@ class ManualImport(Contract):
 def install_workflow(app, store):
     app.state.store = store
     app.state.remote = CVATOnline()
+    app.state.admissions = getattr(app.state, 'admissions', {})
 
     def current_store():
         return app.state.store
+
+    def admission_record(image_id):
+        case = current_store().get(image_id)
+        if case.get('admission') is not None:
+            app.state.admissions[image_id] = case['admission']
+            return case['admission']
+        record = app.state.admissions.get(image_id)
+        if record is None and image_id in app.state.images:
+            record = legacy_admission(app.state.images[image_id])
+            app.state.admissions[image_id] = record
+        return record
+
+    def case_with_admission(image_id):
+        case = current_store().get(image_id)
+        record = admission_record(image_id)
+        if record is not None and case.get('admission') is None:
+            case['admission'] = record
+            case.setdefault('admission_history', []).append({
+                'action': 'AUTOMATIC_ADMISSION',
+                'method': record['admission_method'],
+                'reason_code': record['admission_reason_code'],
+                'quality_reason_code': record.get('quality_reason_code'),
+                'new': {
+                    'modality_admission': record['modality_admission'],
+                    'quality_state': record['quality_state'],
+                },
+                'timestamp': record['created_at'],
+            })
+            current_store().put(case)
+        return case, record
 
     def get_image(image_id):
         if image_id not in app.state.images:
@@ -56,13 +88,25 @@ def install_workflow(app, store):
         return app.state.images[image_id]
 
     def detail(image_id):
-        image = get_image(image_id)
-        case = current_store().get(image_id)
-        return {**case, 'source_type': image.source_type, 'source': image.source,
-                'filename': image.filename or None,
-                'display_name': Path(image.filename).stem if image.filename else image.image_id,
-                'image_sha256': image.sha256, 'width': image.size[0], 'height': image.size[1],
-                'image_url': f'/v1/images/{image_id}', 'modality': image.modality,
+        image = app.state.images.get(image_id)
+        record = admission_record(image_id)
+        if image is None and record is None:
+            raise HTTPException(404, 'Image not admitted')
+        case, record = case_with_admission(image_id)
+        filename = image.filename if image is not None else record.get('filename')
+        width = image.size[0] if image is not None else record.get('width')
+        height = image.size[1] if image is not None else record.get('height')
+        return {**case, 'source_type': image.source_type if image is not None else 'PUBLIC',
+                'source': image.source if image is not None else 'WORKSPACE_INPUT',
+                'filename': filename or None,
+                'display_name': Path(filename).stem if filename else image_id,
+                'image_sha256': image.sha256 if image is not None else None,
+                'width': width, 'height': height,
+                'image_url': f'/v1/images/{image_id}' if image is not None else None,
+                'modality': image.modality if image is not None else 'CFP',
+                'admission': record,
+                'admission_ui': clinician_view(record) if record is not None else None,
+                'admission_history': case.get('admission_history', []),
                 'lesion_review': lesion_review_view(case.get('lesion')),
                 'human_annotations': case.get('human_annotations', []),
                 'clinician_review': case.get('clinician_review'),
@@ -115,7 +159,9 @@ def install_workflow(app, store):
 
     @app.get('/v1/cases')
     def cases():
-        return [detail(image_id) for image_id in app.state.images]
+        image_ids = list(app.state.admissions)
+        image_ids.extend(image_id for image_id in app.state.images if image_id not in app.state.admissions)
+        return [detail(image_id) for image_id in image_ids]
 
     @app.get('/v1/cases/{image_id}')
     def case(image_id: str):
@@ -178,6 +224,72 @@ def install_workflow(app, store):
             case['clinician_review'] = review_record
             case.setdefault('review_history', []).append(review_record)
             store.put(case)
+            return detail(image_id)
+
+    @app.post('/v1/cases/{image_id}/admission')
+    def review_admission(image_id: str, request: AdmissionReview):
+        image = get_image(image_id)
+        reviewer = request.reviewer.strip()
+        if not reviewer:
+            raise HTTPException(422, 'Reviewer name required')
+        store = current_store()
+        with store.lock:
+            case, current = case_with_admission(image_id)
+            if current is None:
+                current = legacy_admission(image)
+            if request.revision != case['revision']:
+                raise HTTPException(409, 'Case changed; reload before reviewing admission')
+            previous = {
+                'modality_admission': current['modality_admission'],
+                'quality_state': current['quality_state'],
+                'admission_reason_code': current['admission_reason_code'],
+                'quality_reason_code': current.get('quality_reason_code'),
+            }
+            updated = dict(current)
+            timestamp = datetime.now(timezone.utc).isoformat()
+            if request.action == 'ACCEPT_RETINAL':
+                updated['modality_admission'] = 'FUNDUS_ACCEPTED'
+                updated['admission_reason_code'] = 'MANUAL_ACCEPT'
+                updated['admission_method'] = 'MANUAL'
+            elif request.action == 'MARK_NON_FUNDUS':
+                updated['modality_admission'] = 'REJECTED_NON_FUNDUS'
+                updated['admission_reason_code'] = 'MANUAL_NON_FUNDUS'
+                updated['admission_method'] = 'MANUAL'
+            elif request.action == 'QUALITY_ACCEPTABLE':
+                updated['quality_state'] = 'GRADABLE'
+                updated['quality_reason_code'] = 'MANUAL_QUALITY_ACCEPTED'
+                updated['admission_method'] = 'MANUAL'
+            elif request.action == 'QUALITY_INADEQUATE':
+                updated['quality_state'] = 'UNGRADABLE'
+                updated['quality_reason_code'] = 'MANUAL_QUALITY_INADEQUATE'
+                updated['admission_method'] = 'MANUAL'
+            updated['updated_at'] = timestamp
+            updated['reviewed_by'] = reviewer
+            updated['reviewed_at'] = timestamp
+            updated['review_note'] = request.note.strip() or None
+            updated = AdmissionMetadata.model_validate(updated).model_dump(mode='json')
+            current = updated
+            case['admission'] = updated
+            event = {
+                'action': 'ADMISSION_OVERRIDE',
+                'review_action': request.action,
+                'method': 'MANUAL' if request.action != 'LEAVE_UNRESOLVED' else updated['admission_method'],
+                'reviewer': reviewer,
+                'note': request.note.strip(),
+                'timestamp': timestamp,
+                'previous': previous,
+                'new': {
+                    'modality_admission': updated['modality_admission'],
+                    'quality_state': updated['quality_state'],
+                    'admission_reason_code': updated['admission_reason_code'],
+                    'quality_reason_code': updated.get('quality_reason_code'),
+                },
+            }
+            case.setdefault('admission_history', []).append(event)
+            case.setdefault('events', []).append(event)
+            case['revision'] += 1
+            store.put(case)
+            app.state.admissions[image_id] = updated
             return detail(image_id)
 
     @app.put('/v1/cases/{image_id}/annotations')

@@ -91,7 +91,7 @@ export interface CaseRecord {
   modality: string;
   width: number;
   height: number;
-  image_url: string;
+  image_url: string | null;
   state: string;
   revision: number;
   global: GlobalResult | null;
@@ -101,6 +101,60 @@ export interface CaseRecord {
   clinician_review: ClinicianReview | null;
   events?: Array<Record<string, unknown>>;
   warnings?: string[];
+  admission: AdmissionMetadata | null;
+  admission_ui: AdmissionUi | null;
+  admission_history?: Array<Record<string, unknown>>;
+}
+
+export type ModalityAdmission = 'FUNDUS_ACCEPTED' | 'NEEDS_REVIEW' | 'REJECTED_NON_FUNDUS' | 'REJECTED_INVALID';
+export type QualityState = 'GRADABLE' | 'UNGRADABLE' | 'NEEDS_REVIEW' | 'NOT_EVALUATED';
+
+export interface AdmissionMetadata {
+  image_id: string;
+  source_reference: string;
+  filename: string;
+  file_extension: string;
+  file_size_bytes: number;
+  width: number | null;
+  height: number | null;
+  channels_or_mode: string | null;
+  modality_admission: ModalityAdmission;
+  quality_state: QualityState;
+  admission_method: 'AUTOMATIC' | 'MANUAL' | 'LEGACY_COMPAT' | 'DATASET_IMPORT';
+  admission_reason_code: string;
+  quality_reason_code: string | null;
+  created_at: string;
+  updated_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+}
+
+export interface AdmissionUi {
+  label: string;
+  note: string;
+  tone: 'neutral' | 'success' | 'warning' | 'danger';
+  action_required: boolean;
+}
+
+export type AdmissionReviewAction =
+  | 'ACCEPT_RETINAL'
+  | 'MARK_NON_FUNDUS'
+  | 'QUALITY_ACCEPTABLE'
+  | 'QUALITY_INADEQUATE'
+  | 'LEAVE_UNRESOLVED';
+
+export interface AdmissionReviewRequest {
+  revision: number;
+  reviewer: string;
+  action: AdmissionReviewAction;
+  note?: string;
+}
+
+export interface AdmissionScanResponse {
+  records: AdmissionMetadata[];
+  warnings: string[];
+  scanned: boolean;
 }
 
 export interface ModelDescriptor {
@@ -211,6 +265,14 @@ export const workspaceApi = {
       method: 'POST',
       body: JSON.stringify({ mode, initial_path: initialPath, suggested_name: suggestedName }),
     }),
+  ),
+};
+
+export const admissionApi = {
+  scan: () => apiJson<AdmissionScanResponse>('/v1/admissions/scan', jsonRequest({ method: 'POST' })),
+  review: (imageId: string, request: AdmissionReviewRequest) => apiJson<CaseRecord>(
+    `/v1/cases/${encodeURIComponent(imageId)}/admission`,
+    jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
   ),
 };
 

@@ -10,10 +10,13 @@ These tests do not download model weights and do not require a GPU. They cover:
   using the existing ``RemoteModelProvider`` adapter.
 """
 import base64
+import hashlib
+import io
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from dr_support.app import create_app
 from dr_support.images import synthetic_image
@@ -189,6 +192,26 @@ def test_model_api_predict_dr_rejects_non_cfp_modality(model_api_app):
     assert any('UWF' in w for w in body['warnings'])
 
 
+@pytest.mark.parametrize('path,model_id', [
+    ('/v1/predict/dr', 'retfound-aptos5'),
+    ('/v1/predict/lesions', 'prism-dr-5fold'),
+])
+def test_model_api_predict_routes_enforce_admission(path, model_id, model_api_app):
+    client = TestClient(model_api_app)
+    image = Image.new('RGB', (400, 300), '#777777')
+    output = io.BytesIO()
+    image.save(output, format='PNG')
+    raw = output.getvalue()
+    payload = _build_payload(model_id, 'ambiguous', 'CFP', width=400, height=300)
+    payload['image_b64'] = base64.b64encode(raw).decode('ascii')
+    payload['image_sha256'] = hashlib.sha256(raw).hexdigest()
+
+    response = client.post(path, json=payload)
+
+    assert response.status_code == 409
+    assert response.json()['detail'] == 'Image needs review before analysis.'
+
+
 def test_model_api_envelope_validates_image_sha256(model_api_app):
     client = TestClient(model_api_app)
     payload = _build_payload('retfound-aptos5', '01_dr', 'CFP', mutate_hash=True)
@@ -343,6 +366,3 @@ def _build_payload(model_id: str, image_id: str, modality: str,
         'width': width,
         'height': height,
     }
-
-
-import hashlib  # noqa: E402  (kept near the helper that uses it for clarity)

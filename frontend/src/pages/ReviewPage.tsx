@@ -13,18 +13,26 @@ import {
   Grid,
   Heading,
   HStack,
+  Input,
   SimpleGrid,
   Spinner,
   Stack,
   Switch,
   Text,
+  Textarea,
 } from '@chakra-ui/react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { RetinalCanvas, LESION_COLORS } from '@/components/review/RetinalCanvas';
-import { apiJson, type CaseRecord, type ModelDescriptor } from '@/lib/api';
-import { ArrowLeft, Pencil, Play, UserRound } from '@/lib/icons';
+import {
+  admissionApi,
+  apiJson,
+  type AdmissionReviewAction,
+  type CaseRecord,
+  type ModelDescriptor,
+} from '@/lib/api';
+import { ArrowLeft, CheckCircle2, Pencil, Play, UserRound } from '@/lib/icons';
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : 'The request could not be completed.';
@@ -127,6 +135,101 @@ function LesionLegend() {
         </HStack>
       ))}
     </HStack>
+  );
+}
+
+function admissionAllowsAnalysis(item: CaseRecord) {
+  return Boolean(
+    item.admission
+      && item.admission.modality_admission === 'FUNDUS_ACCEPTED'
+      && (item.admission.quality_state === 'GRADABLE' || item.admission.quality_state === 'NOT_EVALUATED'),
+  );
+}
+
+function AdmissionReview({ item, onSaved }: { item: CaseRecord; onSaved: (saved: CaseRecord) => void }) {
+  const [reviewer, setReviewer] = useState('');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState<AdmissionReviewAction | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const admission = item.admission;
+  const ui = item.admission_ui;
+  const isReadable = Boolean(item.image_url && admission && admission.modality_admission !== 'REJECTED_INVALID');
+
+  const submit = async (action: AdmissionReviewAction) => {
+    if (!admission || saving) return;
+    if (!reviewer.trim()) {
+      setError('Reviewer name is required.');
+      return;
+    }
+    setSaving(action);
+    setError(null);
+    try {
+      const saved = await admissionApi.review(item.image_id, {
+        revision: item.revision,
+        reviewer: reviewer.trim(),
+        action,
+        note: note.trim(),
+      });
+      onSaved(saved);
+      setNote('');
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (!ui || !admission) return null;
+  return (
+    <Section title="Image admission" description="Confirm that this file is suitable for retinal DR analysis before running models.">
+      <Stack spacing={3}>
+        <HStack align="flex-start" spacing={3}>
+          <CheckCircle2 size={18} aria-hidden="true" />
+          <Stack spacing={1}>
+            <StatusBadge tone={ui.tone}>{ui.label}</StatusBadge>
+            <Text fontSize="sm" color="text.secondary">{ui.note}</Text>
+          </Stack>
+        </HStack>
+        {isReadable && (
+          <>
+            <FormControl isRequired>
+              <FormLabel>Reviewer name</FormLabel>
+              <Input value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Enter reviewer name" />
+            </FormControl>
+            <FormControl>
+              <FormLabel>Review note</FormLabel>
+              <Textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a short reason" rows={3} />
+            </FormControl>
+            {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
+            <Stack spacing={2}>
+              {admission.modality_admission !== 'FUNDUS_ACCEPTED' && (
+                <Button variant="solid" onClick={() => void submit('ACCEPT_RETINAL')} isLoading={saving === 'ACCEPT_RETINAL'} isDisabled={Boolean(saving)}>
+                  Accept as retinal fundus image
+                </Button>
+              )}
+              {admission.modality_admission !== 'REJECTED_NON_FUNDUS' && (
+                <Button variant="outline" onClick={() => void submit('MARK_NON_FUNDUS')} isLoading={saving === 'MARK_NON_FUNDUS'} isDisabled={Boolean(saving)}>
+                  Mark as non-fundus
+                </Button>
+              )}
+              <HStack spacing={2} flexWrap="wrap">
+                <Button size="sm" variant="secondary" onClick={() => void submit('QUALITY_ACCEPTABLE')} isLoading={saving === 'QUALITY_ACCEPTABLE'} isDisabled={Boolean(saving)}>
+                  Mark quality acceptable
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => void submit('QUALITY_INADEQUATE')} isLoading={saving === 'QUALITY_INADEQUATE'} isDisabled={Boolean(saving)}>
+                  Mark quality inadequate
+                </Button>
+              </HStack>
+              {ui.action_required && (
+                <Button size="sm" variant="ghost" onClick={() => void submit('LEAVE_UNRESOLVED')} isLoading={saving === 'LEAVE_UNRESOLVED'} isDisabled={Boolean(saving)}>
+                  Leave unresolved
+                </Button>
+              )}
+            </Stack>
+          </>
+        )}
+      </Stack>
+    </Section>
   );
 }
 
@@ -235,7 +338,9 @@ export function ReviewPage() {
       />
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start">
         <Section title="Retinal preview" description={`${item.width} x ${item.height}px - ${item.modality}`}>
-          <RetinalCanvas item={item} showAi={showAi} showHuman={false} />
+          {item.image_url ? <RetinalCanvas item={item} showAi={showAi} showHuman={false} /> : (
+            <Alert status="error"><AlertIcon /><Text>{item.admission_ui?.note ?? 'This file has no readable image preview.'}</Text></Alert>
+          )}
           <Stack spacing={3} mt={4}>
             <HStack justify="space-between" align="center" flexWrap="wrap" gap={2}>
               <FormControl display="flex" alignItems="center" w="auto">
@@ -258,12 +363,15 @@ export function ReviewPage() {
           <Section
             title="Analysis"
             description="Run both existing remote inference contracts on this admitted image."
-            action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing}>{item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
+            action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !admissionAllowsAnalysis(item)}>{item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
           >
             {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
             {analysisError && <Alert status="error"><AlertIcon /><Stack spacing={2}><Text>{analysisError}</Text><Button size="sm" variant="outline" onClick={() => void analyze()}>Retry</Button></Stack></Alert>}
-            {!analysisError && !analyzing && <Text fontSize="sm" color="text.secondary">{item.global || item.lesion ? 'Actual returned results are shown below.' : 'Not analyzed'}</Text>}
+            {!analysisError && !analyzing && <Text fontSize="sm" color="text.secondary">
+              {!admissionAllowsAnalysis(item) ? 'Resolve the image admission review before analysis.' : item.global || item.lesion ? 'Actual returned results are shown below.' : 'Not analyzed'}
+            </Text>}
           </Section>
+          <AdmissionReview item={item} onSaved={setItem} />
           <Section title="DR assessment"><Assessment item={item} /></Section>
           <Section title="Lesion suggestions"><LesionSuggestions item={item} /></Section>
           <HStack spacing={2} flexWrap="wrap">

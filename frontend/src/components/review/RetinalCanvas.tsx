@@ -625,7 +625,7 @@ export function RetinalCanvas({
         aria-label="Retinal image viewer stage"
       >
         <Image
-          src={item.image_url}
+          src={item.image_url ?? undefined}
           alt={`${item.display_name} retinal image`}
           position="absolute"
           inset={0}

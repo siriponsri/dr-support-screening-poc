@@ -24,8 +24,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { StatusBadge, type StatusTone } from '@/components/common/StatusBadge';
-import { apiJson, type CaseRecord } from '@/lib/api';
-import { RefreshCw } from '@/lib/icons';
+import { admissionApi, apiJson, type CaseRecord } from '@/lib/api';
+import { FileImage, RefreshCw, ScanLine } from '@/lib/icons';
 
 function analysisStatus(item: CaseRecord): { label: string; tone: StatusTone } {
   if (item.global && item.lesion) return { label: 'Complete', tone: 'success' };
@@ -40,11 +40,22 @@ function reviewStatus(item: CaseRecord): { label: string; tone: StatusTone } {
   return { label: 'Pending review', tone: 'neutral' };
 }
 
+function admissionStatus(item: CaseRecord): { label: string; tone: StatusTone; note: string } {
+  if (!item.admission_ui) return { label: 'Needs review', tone: 'warning', note: 'Please confirm this image before analysis.' };
+  return {
+    label: item.admission_ui.label,
+    tone: item.admission_ui.tone,
+    note: item.admission_ui.note,
+  };
+}
+
 export function WorklistPage() {
   const { pathname } = useLocation();
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scanNotice, setScanNotice] = useState<string | null>(null);
 
   const loadCases = async () => {
     setLoading(true);
@@ -55,6 +66,22 @@ export function WorklistPage() {
       setError(err instanceof Error ? err.message : 'Unable to load admitted cases.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const scanInput = async () => {
+    if (scanning) return;
+    setScanning(true);
+    setError(null);
+    setScanNotice(null);
+    try {
+      const result = await admissionApi.scan();
+      await loadCases();
+      setScanNotice(result.warnings.length ? result.warnings.join(' ') : `Scanned ${result.records.length} input files.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The input folder could not be scanned.');
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -69,9 +96,14 @@ export function WorklistPage() {
         title="Admitted cases"
         description="Select an image to inspect the retinal preview and run the configured remote models."
         action={
-          <Button leftIcon={<RefreshCw size={15} />} onClick={() => void loadCases()} isLoading={loading}>
-            Refresh
-          </Button>
+          <HStack spacing={2}>
+            <Button leftIcon={<ScanLine size={15} />} onClick={() => void scanInput()} isLoading={scanning}>
+              Scan input folder
+            </Button>
+            <Button variant="outline" leftIcon={<RefreshCw size={15} />} onClick={() => void loadCases()} isLoading={loading}>
+              Refresh
+            </Button>
+          </HStack>
         }
       >
         {error && (
@@ -80,6 +112,7 @@ export function WorklistPage() {
             <Text>{error}</Text>
           </Alert>
         )}
+        {scanNotice && <Alert status="info" mb={4}><AlertIcon /><Text>{scanNotice}</Text></Alert>}
         {loading && cases.length === 0 ? (
           <Center py={12}>
             <VStack spacing={3}>
@@ -98,6 +131,7 @@ export function WorklistPage() {
                   <Th>Image ID</Th>
                   <Th>AI grade</Th>
                   <Th>Review status</Th>
+                  <Th>Image admission</Th>
                   <Th>Analysis status</Th>
                   <Th isNumeric>Review action</Th>
                 </Tr>
@@ -106,18 +140,26 @@ export function WorklistPage() {
                 {cases.map((item) => {
                   const analysis = analysisStatus(item);
                   const review = reviewStatus(item);
+                  const admission = admissionStatus(item);
                   return (
                     <Tr key={item.image_id} data-testid={`case-row-${item.display_name}`}>
                       <Td>
-                        <Image
-                          src={item.image_url}
-                          alt={`${item.display_name} retinal preview`}
-                          w="88px"
-                          h="64px"
-                          objectFit="contain"
-                          bg="surface.viewer"
-                          borderRadius="sm"
-                        />
+                        {item.image_url ? (
+                          <Image
+                            src={item.image_url}
+                            alt={`${item.display_name} retinal preview`}
+                            w="88px"
+                            h="64px"
+                            objectFit="contain"
+                            bg="surface.viewer"
+                            borderRadius="sm"
+                          />
+                        ) : (
+                          <Box aria-label="No image preview" w="88px" h="64px" bg="surface.subtle" borderRadius="sm" display="flex" alignItems="center" justifyContent="center" flexDirection="column" gap={1}>
+                            <FileImage size={18} aria-hidden="true" />
+                            <Text fontSize="xxs">No preview</Text>
+                          </Box>
+                        )}
                       </Td>
                       <Td>
                         <Stack spacing={1}>
@@ -131,13 +173,19 @@ export function WorklistPage() {
                         {item.global && item.global.grade !== null ? (
                           <Stack spacing={1}>
                             <Text fontWeight="semibold">Grade {item.global.grade}</Text>
-                            <Text fontSize="xs" color="text.secondary">{item.global.state}</Text>
+                            <Text fontSize="xs" color="text.secondary">Suggestion available</Text>
                           </Stack>
                         ) : (
                           <Text color="text.secondary">Not analyzed</Text>
                         )}
                       </Td>
                       <Td><StatusBadge tone={review.tone}>{review.label}</StatusBadge></Td>
+                      <Td>
+                        <Stack spacing={1}>
+                          <StatusBadge tone={admission.tone}>{admission.label}</StatusBadge>
+                          <Text fontSize="xs" color="text.secondary" maxW="220px">{admission.note}</Text>
+                        </Stack>
+                      </Td>
                       <Td><StatusBadge tone={analysis.tone}>{analysis.label}</StatusBadge></Td>
                       <Td isNumeric>
                         <Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} variant="secondary" size="sm">

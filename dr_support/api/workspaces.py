@@ -57,13 +57,20 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
     def active_workspace():
         return manager.active_payload()
 
+    @app.post("/v1/admissions/scan")
+    def scan_admissions():
+        """Scan only the active workspace input folder and retain audit records."""
+        return app.state.scan_active_workspace()
+
     @app.post("/v1/workspaces")
     def create_workspace(request: WorkspaceInput):
         try:
             profile = manager.create_and_open(request)
         except (WorkspaceCatalogError, WorkspaceDatabaseError, WorkspaceNotFoundError) as error:
             raise _workspace_error(error) from None
-        return {"workspace": _json_profile(profile), "active": True, "warnings": list(manager.warnings)}
+        scan = app.state.scan_active_workspace()
+        return {"workspace": _json_profile(profile), "active": True,
+                "warnings": list(manager.warnings) + list(scan.get("warnings", []))}
     @app.post("/v1/workspaces/pickers/folder")
     def pick_folder(request: FolderPickerRequest):
         try:
@@ -101,7 +108,9 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
             profile = manager.update_and_open(workspace_id, request)
         except (WorkspaceCatalogError, WorkspaceDatabaseError, WorkspaceNotFoundError) as error:
             raise _workspace_error(error) from None
-        return {"workspace": _json_profile(profile), "active": True, "warnings": list(manager.warnings)}
+        scan = app.state.scan_active_workspace()
+        return {"workspace": _json_profile(profile), "active": True,
+                "warnings": list(manager.warnings) + list(scan.get("warnings", []))}
 
     @app.post("/v1/workspaces/{workspace_id}/open")
     def open_workspace(workspace_id: str):
@@ -109,7 +118,9 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
             profile = manager.open(workspace_id)
         except (WorkspaceCatalogError, WorkspaceDatabaseError, WorkspaceNotFoundError) as error:
             raise _workspace_error(error) from None
-        return {"workspace": _json_profile(profile), "active": True, "warnings": list(manager.warnings)}
+        scan = app.state.scan_active_workspace()
+        return {"workspace": _json_profile(profile), "active": True,
+                "warnings": list(manager.warnings) + list(scan.get("warnings", []))}
 
     @app.delete("/v1/workspaces/{workspace_id}")
     def delete_workspace(workspace_id: str):
