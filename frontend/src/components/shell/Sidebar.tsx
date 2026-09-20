@@ -152,8 +152,8 @@ function CollapsedBrandMark() {
       placeItems="center"
       w="36px"
       h="36px"
-      bg="brand.500"
-      color="white"
+      bg="action.primary"
+      color="text.inverse"
       borderRadius="md"
       mx="auto"
     >

@@ -45,3 +45,89 @@ Use the established Conventional Commit style, such as `feat(remote): ...`, `fix
 ## Security and Configuration
 
 This is a public/synthetic research POC, not an autonomous diagnostic system. Never commit tokens, model weights, or private patient data. Keep CVAT credentials server-side, use environment variables, and follow `docs/LOCAL_RUNBOOK.md` before exposing the API beyond localhost.
+
+## Branching and Orchestration Policy
+
+`main` is the authoritative integration branch and should remain clean between milestones. Treat work on `main` as orchestration/integration work, not as the default place for feature implementation.
+
+### Main as orchestrator
+
+For each milestone:
+
+1. Start from a clean, synchronized `main`.
+2. Audit the current repository state and define task boundaries, dependencies, shared contracts, and acceptance criteria.
+3. Create one bounded feature branch per independent implementation task.
+4. Use separate worktrees/directories when tasks run in parallel. Do not run multiple implementation agents against different branches in the same working directory.
+5. Assign one clear goal per branch. Parallelize only tasks that can proceed without guessing each other's unfinished contracts or schemas.
+6. Each implementation branch must run its focused tests while iterating and the required full validation before handoff.
+7. Each branch must commit and push its work, then report:
+   - branch name;
+   - commit SHA;
+   - changed files;
+   - contract/schema changes, if any;
+   - validation results;
+   - known limitations or blockers.
+8. Merge only after an integration review confirms the branch is within scope and compatible with current `main`.
+9. Re-run relevant regression tests on the merged `main`.
+10. After successful integration, delete the completed local and remote feature branch/worktree so `main` remains the single long-lived branch unless a task explicitly requires otherwise.
+
+### Branch naming
+
+Prefer scoped names such as:
+
+- `feat/s2-workspace-backend`
+- `feat/s2-workspace-frontend`
+- `feat/s2-patient-identity`
+- `fix/viewer-coordinate-transform`
+- `docs/design-system`
+
+Do not use vague long-lived branches such as `dev`, `new`, `test`, or `work`.
+
+### Parallel work
+
+Parallel backend/frontend work is encouraged only after shared contracts are frozen sufficiently for both sides to implement independently.
+
+Before parallelizing, define the shared API/schema/data contract in writing. If one branch depends on a schema or behavior that another branch has not yet frozen, keep the work sequential rather than duplicating assumptions.
+
+When agents work in parallel:
+
+- prefer one worktree per branch;
+- avoid overlapping file ownership where possible;
+- do not silently duplicate shared types, constants, schemas, or theme tokens;
+- do not let two agents edit the same migration or shared contract concurrently without explicit coordination;
+- never use a feature branch as an integration branch for unrelated work.
+
+### Merge gate
+
+Do not auto-merge merely because a branch reports success. Merge only when all applicable conditions are true:
+
+- working tree is clean;
+- branch is based on the expected `main`;
+- required tests pass;
+- no unexpected API/model/database/clinical-workflow drift is present;
+- no secrets, private patient data, model weights, local-state files, or generated credentials are included;
+- no unexpected deletion or replacement of authoritative docs/artifacts occurred;
+- the implementation satisfies the milestone acceptance criteria.
+
+If a merge conflict touches shared contracts, database schema/migrations, model behavior, annotation semantics, clinical workflow, or authoritative design documentation, STOP and request integration review. Do not make a semantic auto-resolution.
+
+### Protected baselines and scientific boundaries
+
+Do not rewrite or move protected release/demo tags. Preserve accepted model checkpoints, hashes, provider behavior, scientific thresholds, and clinician-review semantics unless the current task explicitly authorizes a change.
+
+Feature branches must not casually alter RETFound, PRISM-DR, remote inference contracts, annotation provenance, original-image coordinate behavior, or protected demo/research baselines.
+
+### Design authority
+
+`DESIGN.md` is the normative visual and interaction design source for the React frontend. Existing or legacy theme documents must not override it.
+
+Visual implementation must preserve accepted viewer behavior and must not introduce product, API, model, database, or scientific changes unless those changes are explicitly part of the active milestone.
+
+## Agent Handoff Discipline
+
+When resuming interrupted work, inspect the current branch, HEAD, `git status`, and existing diff before changing files. Existing uncommitted changes may be intentional work in progress.
+
+Never run `git reset --hard`, `git clean -fd`, destructive restore commands, history rewrites, or broad regeneration steps merely to obtain a clean state unless the owner explicitly authorizes that exact destructive action.
+
+If the authoritative workspace/repository is unavailable, stop implementation and report the access blocker. Do not reconstruct the repository from memory or create substitute files that could later overwrite authoritative work.
+

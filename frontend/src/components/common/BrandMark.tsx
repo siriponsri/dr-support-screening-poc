@@ -14,9 +14,9 @@ export function BrandMark({ compact = false }: BrandMarkProps) {
         placeItems="center"
         w="36px"
         h="36px"
-        bg="brand.500"
+        bg="action.primary"
         borderRadius="md"
-        color="white"
+        color="text.inverse"
         flexShrink={0}
       >
         <Stethoscope size={18} strokeWidth={2.25} aria-hidden="true" />

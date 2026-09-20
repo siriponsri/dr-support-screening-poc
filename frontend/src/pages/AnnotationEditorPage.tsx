@@ -143,7 +143,7 @@ function annotation(type: AnnotationType, label: LesionLabel, geometry: Annotati
 function previewShape(preview: { type: Tool; geometry: AnnotationGeometry } | null) {
   if (!preview) return null;
   const { type, geometry } = preview;
-  const color = '#111827';
+  const color = 'var(--chakra-colors-text-primary)';
   if (type === 'rectangle' && 'width' in geometry) {
     return <rect x={geometry.x} y={geometry.y} width={geometry.width} height={geometry.height} fill={color} fillOpacity={0.1} stroke={color} strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />;
   }
@@ -559,7 +559,7 @@ export function AnnotationEditorPage() {
   };
 
   if (!imageId) return <Center minH="360px"><Text>Select an image from the Worklist.</Text></Center>;
-  if (loading && !item) return <Center minH="360px"><Spinner color="brand.500" /></Center>;
+  if (loading && !item) return <Center minH="360px"><Spinner color="action.primary" /></Center>;
   if (error || !item) {
     return <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={6}><Alert status="error"><AlertIcon /><Text>{error ?? 'Case unavailable.'}</Text></Alert><Button mt={4} onClick={() => navigate('/worklist')}>Back to Worklist</Button></Box>;
   }
@@ -592,7 +592,7 @@ export function AnnotationEditorPage() {
             onDoubleClick={onDoubleClick}
             fullScreenControls={fullScreenAnnotationControls}
           >
-            {polygonPoints.length > 0 && <polyline points={polygonPoints.map((point) => point.join(',')).join(' ')} fill="#111827" fillOpacity={0.1} stroke="#111827" strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />}
+            {polygonPoints.length > 0 && <polyline points={polygonPoints.map((point) => point.join(',')).join(' ')} fill="var(--chakra-colors-text-primary)" fillOpacity={0.1} stroke="var(--chakra-colors-text-primary)" strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />}
             {previewShape(preview)}
           </RetinalCanvas>
           <HStack mt={4} spacing={3} flexWrap="wrap" fontSize="sm">
@@ -612,7 +612,7 @@ export function AnnotationEditorPage() {
               </FormControl>
               {saveError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
               {saved && <Alert status="success"><AlertIcon /><Text fontSize="sm">Human annotations saved.</Text></Alert>}
-              <Button colorScheme="red" leftIcon={<Save size={15} />} onClick={() => void save()} isLoading={saving} isDisabled={saving}>Save annotations</Button>
+              <Button variant="solid" leftIcon={<Save size={15} />} onClick={() => void save()} isLoading={saving} isDisabled={saving}>Save annotations</Button>
             </Stack>
           </Section>
           <SimpleGrid columns={2} spacing={3} fontSize="sm">

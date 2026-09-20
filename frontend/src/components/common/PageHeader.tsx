@@ -40,7 +40,7 @@ export function PageHeader({
           fontWeight="bold"
           letterSpacing="0.16em"
           textTransform="uppercase"
-          color="brand.500"
+          color="action.primary"
         >
           {resolvedKicker}
         </Text>

@@ -83,7 +83,7 @@ export function WorklistPage() {
         {loading && cases.length === 0 ? (
           <Center py={12}>
             <VStack spacing={3}>
-              <Spinner color="brand.500" />
+              <Spinner color="action.primary" />
               <Text color="text.secondary">Loading admitted cases...</Text>
             </VStack>
           </Center>
@@ -115,7 +115,7 @@ export function WorklistPage() {
                           w="88px"
                           h="64px"
                           objectFit="contain"
-                          bg="gray.900"
+                          bg="surface.viewer"
                           borderRadius="sm"
                         />
                       </Td>

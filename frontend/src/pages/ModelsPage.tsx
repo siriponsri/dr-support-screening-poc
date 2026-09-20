@@ -48,7 +48,7 @@ function ProbabilityBars({ result }: { result: GlobalResult }) {
       {result.probabilities.map((probability, grade) => (
         <HStack key={grade} spacing={3}>
           <Text w="52px" fontSize="sm">Grade {grade}</Text>
-          <Box flex={1} h="8px" bg="surface.muted" borderRadius="sm" overflow="hidden"><Box h="100%" w={`${probability * 100}%`} bg={grade === result.grade ? 'brand.500' : 'status.info'} /></Box>
+          <Box flex={1} h="8px" bg="surface.muted" borderRadius="sm" overflow="hidden"><Box h="100%" w={`${probability * 100}%`} bg={grade === result.grade ? 'action.primary' : 'status.info'} /></Box>
           <Text w="48px" textAlign="right" fontSize="sm">{(probability * 100).toFixed(1)}%</Text>
         </HStack>
       ))}
@@ -125,7 +125,7 @@ export function ModelsPage() {
           <ModelDescriptorGrid models={models} />
         </Section>
         <Section title="Case context" description="Choose a returned case to inspect its actual inference metadata and results.">
-          {cases.length ? <Select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{cases.map((entry) => <option key={entry.image_id} value={entry.image_id}>{entry.display_name} - {entry.image_id}</option>)}</Select> : <Center py={8}><Spinner color="brand.500" /></Center>}
+          {cases.length ? <Select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{cases.map((entry) => <option key={entry.image_id} value={entry.image_id}>{entry.display_name} - {entry.image_id}</option>)}</Select> : <Center py={8}><Spinner color="action.primary" /></Center>}
         </Section>
         {item && (
           <SimpleGrid columns={{ base: 1, laptop: 2 }} spacing={5}>

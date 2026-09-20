@@ -108,7 +108,7 @@ function originalPointFromEvent(event: ReactPointerEvent<SVGSVGElement>, item: C
 
 function AiShape({ lesion }: { lesion: Lesion }) {
   const [x1, y1, x2, y2] = lesion.rectangle;
-  const color = LESION_COLORS[lesion.canonical_label as LesionLabel] ?? '#06B6D4';
+  const color = LESION_COLORS[lesion.canonical_label as LesionLabel] ?? LESION_COLORS.MICROANEURYSM;
   const label = prettyLabel(lesion.canonical_label);
   const textPoint = labelPoint(lesion);
   return (
@@ -151,7 +151,7 @@ function HumanShape({
   const common = {
     fill: color,
     fillOpacity: 0.3,
-    stroke: selected ? '#111827' : color,
+    stroke: selected ? 'var(--chakra-colors-text-primary)' : color,
     strokeWidth: selected ? 2.5 : 1.5,
     vectorEffect: 'non-scaling-stroke' as const,
     onClick: (event: React.MouseEvent) => {
@@ -192,8 +192,8 @@ function HumanShape({
           y={y - handleSize / 2}
           width={handleSize}
           height={handleSize}
-          fill="white"
-          stroke="#111827"
+          fill="var(--chakra-colors-text-inverse)"
+          stroke="var(--chakra-colors-text-primary)"
           strokeWidth={1.5}
           vectorEffect="non-scaling-stroke"
           style={{ cursor }}
@@ -202,7 +202,7 @@ function HumanShape({
       <text
         x={annotationLabelPoint(annotation).x}
         y={annotationLabelPoint(annotation).y}
-        fill="#111827"
+        fill="var(--chakra-colors-text-primary)"
         fontSize="14"
         fontWeight="700"
         pointerEvents="none"
@@ -540,8 +540,8 @@ export function RetinalCanvas({
       <Text>{fullScreen ? 'Scroll to zoom - right-drag or Space + drag to pan - double-click to fit' : 'All overlay geometry remains in original image pixels.'}</Text>
       {isCoordinateInspector && <Text color="text.primary" fontWeight="semibold">Original pixels: {coordinateText}</Text>}
       {fullScreen && <Text>Geometry: original image pixels</Text>}
-      <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="transparent" borderWidth="2px" borderStyle="dashed" borderColor="#06B6D4" />AI suggestion</Text>
-      <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="#A73B244D" borderWidth="2px" borderColor="#A73B244D" />Human</Text>
+      <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="transparent" borderWidth="2px" borderStyle="dashed" borderColor={LESION_COLORS.MICROANEURYSM} />AI suggestion</Text>
+      <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="text.primary" borderWidth="2px" borderColor="text.primary" opacity={0.3} />Human annotation</Text>
     </HStack>
   );
 
@@ -605,7 +605,7 @@ export function RetinalCanvas({
       flex={fullScreen ? '1 1 auto' : undefined}
       minH={fullScreen ? 0 : undefined}
       aspectRatio={fullScreen ? undefined : `${item.width} / ${item.height}`}
-      bg="gray.950"
+      bg="viewer.background"
       borderRadius={fullScreen ? 'md' : 'md'}
       overflow="hidden"
       cursor={isCoordinateInspector ? 'crosshair' : isPanning ? 'grabbing' : 'grab'}
