@@ -115,3 +115,56 @@ Rendered smoke validation used the installed Chrome executable through Playwrigh
 - Inspector X/Y values remain in the bottom status bar only. Toggle-off and Escape return the editor to Select mode and cancel any in-progress drawing.
 
 Final patch validation: frontend tests (29 passed), typecheck, production build, backend tests (157 passed, 1 skipped), Ruff, root smoke tests, and `git diff --check` passed. Optional real-browser smoke was skipped because Playwright and `agent-browser` were unavailable in the environment.
+
+## S2 Workspace Manager closeout (2026-09-20)
+
+Status: OWNER ACCEPTED / FROZEN.
+
+The accepted S2 surface provides the complete local workspace lifecycle:
+
+- create, edit, switch, and last-opened workspace restoration;
+- optional workspace notes, including legacy catalog compatibility;
+- safe deletion of inactive saved profiles, with explicit confirmation;
+- active profiles cannot be deleted and must be switched away from first.
+
+Workspace configuration consists of an input folder, output folder, and SQLite
+review database. Native local folder/database pickers report selected,
+cancelled, and unavailable states explicitly; cancellation leaves the form
+unchanged and headless/unavailable environments do not invent browser paths.
+SQLite is the authoritative S2 review storage backend, alongside the local
+SQLite workspace catalog. Multi-database support, including PostgreSQL, MySQL,
+and MongoDB, is deferred and is not part of S2.
+
+The shell sidebar shows only the active workspace name and optional note, with
+the Manage workspace action. Settings shows compact Input, Output, and
+`SQLite · <database path>` metadata with copy affordances and full-value
+accessible/title text for truncated paths. The Current Workspace panel uses
+`[Active] [Edit]`; inactive saved profiles use `[Switch] [Edit] [Delete]`.
+Long paths remain constrained to the Settings layout.
+
+Safety and compatibility invariants remain frozen:
+
+- deleting a profile removes only catalog metadata;
+- input/output folders, retinal images, SQLite review data, and model result
+  files are never deleted by profile removal;
+- failed switching opens the candidate database before changing the active
+  pointer/store, preserving the previous active workspace and store;
+- existing SQLite catalogs/profiles without a note remain readable;
+- S1 viewer behavior, model/provider contracts, API/clinical semantics, and
+  legacy `/ui/` behavior remain unchanged.
+
+Final S2 validation from the authoritative `main` worktree:
+
+```text
+python -m pytest -q tests/test_workspaces.py
+python -m pytest -q
+python -m ruff check dr_support tests
+cd frontend && npm test -- workspace.test.tsx shell.test.tsx
+cd frontend && npm test
+cd frontend && npm run typecheck
+cd frontend && npm run build
+npm test
+```
+
+The frontend production bundle was rebuilt from `main`; `frontend/dist/` is
+generated and gitignored.
