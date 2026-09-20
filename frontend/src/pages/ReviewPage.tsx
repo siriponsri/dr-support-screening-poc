@@ -213,7 +213,7 @@ export function ReviewPage() {
     );
   }
 
-  if (loading && !item) return <Center minH="360px"><Spinner color="brand.500" /></Center>;
+  if (loading && !item) return <Center minH="360px"><Spinner color="action.primary" /></Center>;
 
   if (error || !item) {
     return (
@@ -239,7 +239,7 @@ export function ReviewPage() {
           <Stack spacing={3} mt={4}>
             <HStack justify="space-between" align="center" flexWrap="wrap" gap={2}>
               <FormControl display="flex" alignItems="center" w="auto">
-                <Switch id="show-ai-suggestions" isChecked={showAi} onChange={(event) => setShowAi(event.target.checked)} mr={2} colorScheme="cyan" />
+                <Switch id="show-ai-suggestions" isChecked={showAi} onChange={(event) => setShowAi(event.target.checked)} mr={2} />
                 <FormLabel htmlFor="show-ai-suggestions" mb={0} fontSize="sm">Show AI suggestions</FormLabel>
               </FormControl>
               <Text fontSize="xs" color="text.secondary">
@@ -258,7 +258,7 @@ export function ReviewPage() {
           <Section
             title="Analysis"
             description="Run both existing remote inference contracts on this admitted image."
-            action={<Button colorScheme="red" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing}>{item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
+            action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing}>{item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
           >
             {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
             {analysisError && <Alert status="error"><AlertIcon /><Stack spacing={2}><Text>{analysisError}</Text><Button size="sm" variant="outline" onClick={() => void analyze()}>Retry</Button></Stack></Alert>}

@@ -1,4 +1,9 @@
-# Clinical UI Theme
+# Clinical UI Theme (Historical)
+
+> This file is retained as historical context only. The normative design
+> contract is [`DESIGN.md`](../DESIGN.md). Do not use the Red Soil primary
+> mapping below for new frontend work; Medicine Green now owns primary product
+> interaction and navigation.
 
 Customer-facing UI profile for DR Support Screening POC v2.
 

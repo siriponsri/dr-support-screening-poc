@@ -51,8 +51,8 @@ function FullWorkspaceCard({ workspace, ...rest }: { workspace: WorkspaceSummary
           w="26px"
           h="26px"
           borderRadius="md"
-          bg="brand.50"
-          color="brand.700"
+          bg="action.primarySoft"
+          color="action.primaryHover"
           flexShrink={0}
         >
           <FolderOpen size={14} strokeWidth={2.25} aria-hidden="true" />
@@ -135,10 +135,10 @@ function CompactWorkspaceChip({ workspace }: { workspace: WorkspaceSummary }) {
       w="36px"
       h="36px"
       borderRadius="md"
-      bg="brand.50"
-      color="brand.700"
+      bg="action.primarySoft"
+      color="action.primaryHover"
       borderWidth="1px"
-      borderColor="brand.100"
+      borderColor="action.primaryBorder"
       title={workspace.label}
     >
       <Folder size={16} strokeWidth={2.25} aria-hidden="true" />

@@ -1,51 +1,45 @@
-/**
- * KKU Warm Clinical — design color tokens.
- *
- * The KKU Red-Soil anchor (#A73B24) is intentionally held for primary chrome
- * (CTA, active navigation, brand mark, focus emphasis). Every other role pulls
- * from the supporting neutrals and a single warm accent.
- *
- * Status colors (info / success / warning / danger) are reserved for status
- * states and information hierarchy — they should not be used decoratively.
- *
- * Lesion overlay colors (overlaid on retinal imagery) are deliberately NOT
- * part of the UI palette and remain an independent owner-defined CVAT palette.
- */
-
+/** Primitive values for the clinical product theme. */
 export const kkuColors = {
-  // Brand anchor
-  primary: '#A73B24',        // KKU Primary / Red Soil
-  primaryDark: '#7C291A',    // Primary Dark / Deep Brick
-  primarySoft: '#F4E5E0',    // Primary Soft / Clay Tint
+  // Brand primitives. Red Soil is institutional accent, never danger.
+  medicineGreen: '#016301',
+  medicineGreenHover: '#004D00',
+  medicineGreenPressed: '#003B00',
+  medicineGreenSoft: '#E8F3E8',
+  medicineGreenBorder: '#B9D6B9',
+  redSoil: '#A73B24',
+  redSoilDark: '#7C291A',
+  redSoilSoft: '#F5E9E5',
+  redSoilBorder: '#E0B9AE',
 
-  // Warm accent (used sparingly)
-  accent: '#C99A45',         // Warm Accent / Muted Gold
-  accentSoft: '#F7EEDB',
+  // Neutral primitives
+  neutralCanvas: '#F7F9F7',
+  neutralPanel: '#FFFFFF',
+  neutralSubtle: '#F1F4F1',
+  neutralMuted: '#E8ECE8',
+  neutralInk: '#172018',
+  neutralSecondaryText: '#52605A',
+  neutralMutedText: '#75817B',
+  neutralBorderSubtle: '#D8DFD9',
+  neutralBorderDefault: '#BFCABF',
+  neutralBorderStrong: '#98A79B',
+  neutralViewer: '#0D1110',
+  neutralInverse: '#FFFFFF',
 
-  // Neutral surfaces & text
-  ink: '#202428',            // Ink
-  secondaryText: '#667085',  // Secondary Text
-  surface: '#FCFBFA',        // Application background
-  panel: '#FFFFFF',          // Panels, cards, dialogs
-  border: '#E5E7EB',         // Default border / divider
-
-  // Status (semantic)
-  info: '#2563EB',
-  success: '#16865C',
-  warning: '#D97706',
-  danger: '#B42318',
-
-  // Soft variants for status backgrounds (90% whitewashed for status pills)
-  infoSoft: '#E8F0FE',
-  successSoft: '#E3F5EC',
-  warningSoft: '#FBEFDC',
-  dangerSoft: '#FBE7E4',
-
-  // Status borders (low-contrast companions for status pills)
-  infoBorder: '#BFD4FA',
-  successBorder: '#BFE3CF',
-  warningBorder: '#F4D9A8',
-  dangerBorder: '#F5C5BF',
+  // Clinical semantic primitives remain independent from brand colors.
+  statusInfo: '#245B9E',
+  statusInfoSoft: '#EAF2FB',
+  statusInfoBorder: '#B9CFEA',
+  statusSuccess: '#2F7D5E',
+  statusSuccessSoft: '#E7F3ED',
+  statusSuccessBorder: '#B8DCCB',
+  statusWarning: '#9A6700',
+  statusWarningSoft: '#FBF2D9',
+  statusWarningBorder: '#E6CD8B',
+  statusDanger: '#B42318',
+  statusDangerSoft: '#FBE9E7',
+  statusDangerBorder: '#E9B7B1',
+  statusNeutral: '#667085',
+  statusNeutralSoft: '#F1F3F2',
 } as const;
 
 export type KkuColorKey = keyof typeof kkuColors;

@@ -56,19 +56,19 @@ import {
 import { kkuColors } from '@/theme/colors';
 
 const TOKEN_SWATCHES: Array<{ name: string; hex: string; role: string }> = [
-  { name: 'Brand anchor', hex: kkuColors.primary,     role: 'K K U  Red Soil' },
-  { name: 'Brand dark',  hex: kkuColors.primaryDark, role: 'Deep Brick' },
-  { name: 'Brand soft',  hex: kkuColors.primarySoft, role: 'Clay Tint' },
-  { name: 'Warm accent', hex: kkuColors.accent,      role: 'Muted Gold' },
-  { name: 'Ink',         hex: kkuColors.ink,         role: 'Primary text' },
-  { name: 'Secondary',   hex: kkuColors.secondaryText, role: 'Helper text' },
-  { name: 'Surface',     hex: kkuColors.surface,     role: 'App background' },
-  { name: 'Panel',       hex: kkuColors.panel,       role: 'Card / panel' },
-  { name: 'Border',      hex: kkuColors.border,      role: 'Divider' },
-  { name: 'Info',        hex: kkuColors.info,        role: 'Status: info' },
-  { name: 'Success',     hex: kkuColors.success,     role: 'Status: success' },
-  { name: 'Warning',     hex: kkuColors.warning,     role: 'Status: warning' },
-  { name: 'Danger',      hex: kkuColors.danger,      role: 'Status: danger' },
+  { name: 'Medicine Green', hex: kkuColors.medicineGreen, role: 'Primary action / navigation' },
+  { name: 'Green hover',  hex: kkuColors.medicineGreenHover, role: 'Hover / selected emphasis' },
+  { name: 'Green soft',  hex: kkuColors.medicineGreenSoft, role: 'Quiet action surface' },
+  { name: 'Red Soil', hex: kkuColors.redSoil, role: 'Institutional accent' },
+  { name: 'Ink',         hex: kkuColors.neutralInk,         role: 'Primary text' },
+  { name: 'Secondary',   hex: kkuColors.neutralSecondaryText, role: 'Helper text' },
+  { name: 'Surface',     hex: kkuColors.neutralCanvas,     role: 'App background' },
+  { name: 'Panel',       hex: kkuColors.neutralPanel,       role: 'Card / panel' },
+  { name: 'Border',      hex: kkuColors.neutralBorderSubtle,      role: 'Divider' },
+  { name: 'Info',        hex: kkuColors.statusInfo,        role: 'Status: info' },
+  { name: 'Success',     hex: kkuColors.statusSuccess,     role: 'Status: success' },
+  { name: 'Warning',     hex: kkuColors.statusWarning,     role: 'Status: warning' },
+  { name: 'Danger',      hex: kkuColors.statusDanger,      role: 'Status: danger' },
 ];
 
 interface DemoRow {
@@ -106,7 +106,7 @@ export function FoundationDemo() {
           fontWeight="bold"
           letterSpacing="0.18em"
           textTransform="uppercase"
-          color="brand.500"
+          color="action.primary"
         >
           Design system · v0.1
         </Box>
@@ -114,10 +114,10 @@ export function FoundationDemo() {
           Warm Clinical · KKU Contemporary
         </Heading>
         <Text fontSize="md" color="text.secondary" maxW="720px">
-          Foundation scaffold preview. Brand anchor is the KKU red-soil
-          ({kkuColors.primary}). Supporting neutrals, a single warm gold
-          accent, and reserved status tones carry information hierarchy
-          without competing with retinal imagery.
+          Foundation scaffold preview. Medicine Green ({kkuColors.medicineGreen})
+          owns product interaction. Red Soil is a restrained institutional
+          accent. Supporting neutrals and reserved status tones carry
+          information hierarchy without competing with retinal imagery.
         </Text>
       </Stack>
 
@@ -232,10 +232,10 @@ export function FoundationDemo() {
             </FormControl>
             <FormControl display="flex" flexDirection="column">
               <FormLabel fontSize="xs">Options</FormLabel>
-              <Checkbox defaultChecked colorScheme="brand">
+              <Checkbox defaultChecked>
                 Show lesion overlay
               </Checkbox>
-              <Checkbox colorScheme="brand">Lock view zoom</Checkbox>
+              <Checkbox>Lock view zoom</Checkbox>
             </FormControl>
           </SimpleGrid>
         </Section>

@@ -107,7 +107,7 @@ export function ClinicianReviewPage() {
   };
 
   if (!imageId) return <Center minH="360px"><Text>Select an image from the Worklist.</Text></Center>;
-  if (loading && !item) return <Center minH="360px"><Spinner color="brand.500" /></Center>;
+  if (loading && !item) return <Center minH="360px"><Spinner color="action.primary" /></Center>;
   if (error && !item) return <Box as="main" maxW="1440px" mx="auto" px={6} py={6}><Alert status="error"><AlertIcon /><Text>{error}</Text></Alert><Button mt={4} onClick={() => navigate('/worklist')}>Back to Worklist</Button></Box>;
   if (!item) return null;
 
@@ -153,7 +153,7 @@ export function ClinicianReviewPage() {
               {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
               {success && <Alert status="success"><AlertIcon /><Text fontSize="sm">{success}</Text></Alert>}
               <Stack spacing={2}>
-                <Button leftIcon={<Check size={15} />} colorScheme="red" onClick={() => void saveReview('ACCEPT')} isLoading={savingAction === 'ACCEPT'} isDisabled={item.global?.grade == null || Boolean(savingAction)}>Accept AI grade</Button>
+                <Button variant="solid" leftIcon={<Check size={15} />} onClick={() => void saveReview('ACCEPT')} isLoading={savingAction === 'ACCEPT'} isDisabled={item.global?.grade == null || Boolean(savingAction)}>Accept AI grade</Button>
                 <Button leftIcon={<ShieldCheck size={15} />} variant="secondary" onClick={() => void saveReview('CORRECT_GRADE')} isLoading={savingAction === 'CORRECT_GRADE'} isDisabled={Boolean(savingAction)}>Correct / set grade</Button>
                 <Button leftIcon={<ThumbsDown size={15} />} variant="outline" onClick={() => void saveReview('MARK_INCORRECT')} isLoading={savingAction === 'MARK_INCORRECT'} isDisabled={Boolean(savingAction)}>Mark AI incorrect</Button>
                 <Button leftIcon={<Flag size={15} />} variant="outline" onClick={() => void saveReview('ESCALATE')} isLoading={savingAction === 'ESCALATE'} isDisabled={Boolean(savingAction)}>Escalate</Button>

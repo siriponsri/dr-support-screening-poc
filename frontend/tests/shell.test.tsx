@@ -21,6 +21,7 @@ import { describe, it, expect } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderAppAt } from './testUtils';
+import { theme } from '@/theme';
 
 describe('Sidebar navigation', () => {
   it('renders all five primary nav destinations on desktop', () => {
@@ -116,6 +117,19 @@ describe('Route navigation', () => {
 });
 
 describe('Sidebar collapse control', () => {
+  it('keeps keyboard focus visibly styled on the shell control', async () => {
+    const user = userEvent.setup();
+    renderAppAt('/worklist');
+    const control = screen.getByRole('button', { name: /Collapse sidebar/i });
+    for (let index = 0; index < 12 && document.activeElement !== control; index += 1) {
+      await user.tab();
+    }
+    expect(control).toHaveFocus();
+    // jsdom does not apply :focus-visible styles, so assert the focus token
+    // used by the Chakra Button contract alongside real keyboard focus.
+    expect(theme.shadows.focus).toContain('rgba(1, 99, 1, 0.24)');
+  });
+
   it('toggles the sidebar to icon-only and back on desktop', async () => {
     const user = userEvent.setup();
     renderAppAt('/worklist');

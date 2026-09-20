@@ -44,7 +44,7 @@ export function Placeholder({
             borderRadius="md"
             borderWidth="1px"
             borderColor="border.subtle"
-            color="brand.500"
+            color="action.primary"
             flexShrink={0}
           >
             <Icon size={20} strokeWidth={2} aria-hidden="true" />

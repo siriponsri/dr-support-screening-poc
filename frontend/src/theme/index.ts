@@ -71,7 +71,7 @@ const shadows = {
   sm: '0 1px 2px rgba(15, 23, 42, 0.06)',
   md: '0 2px 6px rgba(15, 23, 42, 0.08)',
   lg: '0 8px 24px rgba(15, 23, 42, 0.10)',
-  focus: '0 0 0 3px rgba(167, 59, 36, 0.18)',
+  focus: '0 0 0 3px rgba(1, 99, 1, 0.24)',
 };
 
 const fontSizes = {
@@ -107,7 +107,7 @@ const lineHeights = {
  */
 const headingTheme = {
   baseStyle: {
-    color: 'ink',
+    color: 'text.primary',
     fontWeight: 'semibold',
     letterSpacing: '-0.01em',
     lineHeight: 'snug',
@@ -141,49 +141,51 @@ const themeOverride: ThemeOverride = {
   shadows,
   semanticTokens: {
     colors: {
-      // Brand
-      'brand.50':  kkuColors.primarySoft,
-      'brand.100': kkuColors.primarySoft,
-      'brand.200': '#EBD0C7',
-      'brand.300': '#D89C8D',
-      'brand.400': '#C56C54',
-      'brand.500': kkuColors.primary,
-      'brand.600': kkuColors.primary,
-      'brand.700': kkuColors.primaryDark,
-      'brand.800': kkuColors.primaryDark,
-      'brand.900': '#5A1E13',
+      // Semantic action and institutional accent roles
+      'action.primary': kkuColors.medicineGreen,
+      'action.primaryHover': kkuColors.medicineGreenHover,
+      'action.primaryPressed': kkuColors.medicineGreenPressed,
+      'action.primarySoft': kkuColors.medicineGreenSoft,
+      'action.primaryBorder': kkuColors.medicineGreenBorder,
+      'accent.institutional': kkuColors.redSoil,
+      'accent.institutionalDark': kkuColors.redSoilDark,
+      'accent.institutionalSoft': kkuColors.redSoilSoft,
+      'accent.institutionalBorder': kkuColors.redSoilBorder,
 
       // Surfaces
-      'surface.canvas':   kkuColors.surface,
-      'surface.panel':    kkuColors.panel,
-      'surface.subtle':   '#F6F4F2',
-      'surface.muted':    '#F1EFEC',
+      'surface.canvas': kkuColors.neutralCanvas,
+      'surface.panel': kkuColors.neutralPanel,
+      'surface.subtle': kkuColors.neutralSubtle,
+      'surface.muted': kkuColors.neutralMuted,
+      'surface.viewer': kkuColors.neutralViewer,
 
       // Ink
-      'text.primary':     kkuColors.ink,
-      'text.secondary':   kkuColors.secondaryText,
-      'text.muted':       '#8A93A0',
-      'text.inverse':     '#FFFFFF',
+      'text.primary': kkuColors.neutralInk,
+      'text.secondary': kkuColors.neutralSecondaryText,
+      'text.muted': kkuColors.neutralMutedText,
+      'text.inverse': kkuColors.neutralInverse,
 
       // Borders
-      'border.subtle':    kkuColors.border,
-      'border.default':   '#D8DBE0',
-      'border.strong':    '#C2C6CD',
-      'border.focus':     kkuColors.primary,
+      'border.subtle': kkuColors.neutralBorderSubtle,
+      'border.default': kkuColors.neutralBorderDefault,
+      'border.strong': kkuColors.neutralBorderStrong,
+      'border.focus': kkuColors.medicineGreen,
 
       // Status
-      'status.info':          kkuColors.info,
-      'status.info.bg':       kkuColors.infoSoft,
-      'status.info.border':   kkuColors.infoBorder,
-      'status.success':       kkuColors.success,
-      'status.success.bg':    kkuColors.successSoft,
-      'status.success.border':kkuColors.successBorder,
-      'status.warning':       kkuColors.warning,
-      'status.warning.bg':    kkuColors.warningSoft,
-      'status.warning.border':kkuColors.warningBorder,
-      'status.danger':        kkuColors.danger,
-      'status.danger.bg':     kkuColors.dangerSoft,
-      'status.danger.border': kkuColors.dangerBorder,
+      'status.info': kkuColors.statusInfo,
+      'status.info.bg': kkuColors.statusInfoSoft,
+      'status.info.border': kkuColors.statusInfoBorder,
+      'status.success': kkuColors.statusSuccess,
+      'status.success.bg': kkuColors.statusSuccessSoft,
+      'status.success.border': kkuColors.statusSuccessBorder,
+      'status.warning': kkuColors.statusWarning,
+      'status.warning.bg': kkuColors.statusWarningSoft,
+      'status.warning.border': kkuColors.statusWarningBorder,
+      'status.danger': kkuColors.statusDanger,
+      'status.danger.bg': kkuColors.statusDangerSoft,
+      'status.danger.border': kkuColors.statusDangerBorder,
+      'status.neutral': kkuColors.statusNeutral,
+      'status.neutral.bg': kkuColors.statusNeutralSoft,
     },
   },
   components: {
@@ -192,6 +194,28 @@ const themeOverride: ThemeOverride = {
       baseStyle: {
         color: 'text.primary',
         lineHeight: 'normal',
+      },
+    },
+    Checkbox: {
+      baseStyle: {
+        control: {
+          borderColor: 'border.default',
+          _checked: {
+            bg: 'action.primary',
+            borderColor: 'action.primary',
+            _hover: { bg: 'action.primaryHover', borderColor: 'action.primaryHover' },
+          },
+          _focusVisible: { boxShadow: 'focus' },
+        },
+      },
+    },
+    Switch: {
+      baseStyle: {
+        track: {
+          bg: 'border.default',
+          _checked: { bg: 'action.primary' },
+        },
+        thumb: { bg: 'surface.panel' },
       },
     },
     Button: {
@@ -215,10 +239,10 @@ const themeOverride: ThemeOverride = {
       },
       variants: {
         solid: {
-          bg: 'brand.500',
+          bg: 'action.primary',
           color: 'white',
-          _hover: { bg: 'brand.700' },
-          _active: { bg: 'brand.700' },
+          _hover: { bg: 'action.primaryHover' },
+          _active: { bg: 'action.primaryPressed' },
         },
         outline: {
           bg: 'surface.panel',
@@ -227,10 +251,10 @@ const themeOverride: ThemeOverride = {
           _hover: { bg: 'surface.subtle', borderColor: 'border.strong' },
         },
         secondary: {
-          bg: 'brand.50',
-          color: 'brand.700',
-          borderColor: 'brand.100',
-          _hover: { bg: '#EFD6CE' },
+          bg: 'action.primarySoft',
+          color: 'action.primaryHover',
+          borderColor: 'action.primaryBorder',
+          _hover: { bg: 'action.primaryBorder' },
         },
         ghost: {
           bg: 'transparent',
@@ -241,7 +265,7 @@ const themeOverride: ThemeOverride = {
           bg: 'status.danger.bg',
           color: 'status.danger',
           borderColor: 'status.danger.border',
-          _hover: { bg: '#F5D6D2' },
+          _hover: { bg: 'status.danger.border' },
         },
       },
       defaultProps: {
@@ -267,10 +291,10 @@ const themeOverride: ThemeOverride = {
           borderColor: 'border.subtle',
         },
         brand: {
-          bg: 'brand.50',
-          color: 'brand.700',
+          bg: 'action.primarySoft',
+          color: 'action.primaryHover',
           borderWidth: '1px',
-          borderColor: 'brand.100',
+          borderColor: 'action.primaryBorder',
         },
         info: {
           bg: 'status.info.bg',
@@ -460,11 +484,11 @@ const themeOverride: ThemeOverride = {
       },
       '*:focus-visible': {
         outline: 'none',
-        boxShadow: '0 0 0 3px rgba(167, 59, 36, 0.18)',
+        boxShadow: '0 0 0 3px rgba(1, 99, 1, 0.24)',
       },
       '::selection': {
-        background: kkuColors.primarySoft,
-        color: kkuColors.primaryDark,
+        background: kkuColors.medicineGreenSoft,
+        color: kkuColors.medicineGreenHover,
       },
     },
   },

@@ -541,7 +541,7 @@ export function RetinalCanvas({
       {isCoordinateInspector && <Text color="text.primary" fontWeight="semibold">Original pixels: {coordinateText}</Text>}
       {fullScreen && <Text>Geometry: original image pixels</Text>}
       <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="transparent" borderWidth="2px" borderStyle="dashed" borderColor="#06B6D4" />AI suggestion</Text>
-      <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="#A73B244D" borderWidth="2px" borderColor="#A73B244D" />Human</Text>
+      <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="#1118274D" borderWidth="2px" borderColor="#111827" />Human annotation</Text>
     </HStack>
   );
 
@@ -605,7 +605,7 @@ export function RetinalCanvas({
       flex={fullScreen ? '1 1 auto' : undefined}
       minH={fullScreen ? 0 : undefined}
       aspectRatio={fullScreen ? undefined : `${item.width} / ${item.height}`}
-      bg="gray.950"
+      bg="surface.viewer"
       borderRadius={fullScreen ? 'md' : 'md'}
       overflow="hidden"
       cursor={isCoordinateInspector ? 'crosshair' : isPanning ? 'grabbing' : 'grab'}

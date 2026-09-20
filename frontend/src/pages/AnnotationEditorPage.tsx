@@ -559,7 +559,7 @@ export function AnnotationEditorPage() {
   };
 
   if (!imageId) return <Center minH="360px"><Text>Select an image from the Worklist.</Text></Center>;
-  if (loading && !item) return <Center minH="360px"><Spinner color="brand.500" /></Center>;
+  if (loading && !item) return <Center minH="360px"><Spinner color="action.primary" /></Center>;
   if (error || !item) {
     return <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={6}><Alert status="error"><AlertIcon /><Text>{error ?? 'Case unavailable.'}</Text></Alert><Button mt={4} onClick={() => navigate('/worklist')}>Back to Worklist</Button></Box>;
   }
@@ -612,7 +612,7 @@ export function AnnotationEditorPage() {
               </FormControl>
               {saveError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
               {saved && <Alert status="success"><AlertIcon /><Text fontSize="sm">Human annotations saved.</Text></Alert>}
-              <Button colorScheme="red" leftIcon={<Save size={15} />} onClick={() => void save()} isLoading={saving} isDisabled={saving}>Save annotations</Button>
+              <Button variant="solid" leftIcon={<Save size={15} />} onClick={() => void save()} isLoading={saving} isDisabled={saving}>Save annotations</Button>
             </Stack>
           </Section>
           <SimpleGrid columns={2} spacing={3} fontSize="sm">

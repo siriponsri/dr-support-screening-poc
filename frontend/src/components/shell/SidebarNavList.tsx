@@ -86,15 +86,15 @@ function SidebarNavRow({
       py={collapsed ? 0 : '8px'}
       borderRadius="md"
       borderLeftWidth={collapsed ? '0' : '3px'}
-      borderLeftColor={active ? 'brand.500' : 'transparent'}
-      bg={active ? 'brand.50' : 'transparent'}
-      color={active ? 'brand.700' : '#4B5563'}
+      borderLeftColor={active ? 'action.primary' : 'transparent'}
+      bg={active ? 'action.primarySoft' : 'transparent'}
+      color={active ? 'action.primaryHover' : 'text.secondary'}
       fontSize="md"
       fontWeight={active ? 'bold' : 'medium'}
       textDecoration="none"
       transition="background 120ms ease, color 120ms ease, transform 120ms ease"
       _hover={{
-        bg: active ? 'brand.50' : 'surface.subtle',
+        bg: active ? 'action.primarySoft' : 'surface.subtle',
         transform: collapsed ? undefined : 'translateX(1px)',
       }}
       _focusVisible={{ outline: 'none', boxShadow: 'focus' }}
