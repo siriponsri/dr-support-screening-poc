@@ -26,6 +26,9 @@ beforeAll(() => {
   // vi.spyOn(globalThis, 'fetch').mockImplementation(...) when they need
   // a successful round-trip.
   vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('offline'));
+
+  // Chakra Menu focuses its list with scrollTo; jsdom does not implement it.
+  (Element.prototype as Element & { scrollTo: () => void }).scrollTo = () => {};
 });
 
 afterEach(() => {

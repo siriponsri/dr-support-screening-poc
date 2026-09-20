@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom';
 import { Box } from '@chakra-ui/react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { WorkspaceManager } from '@/components/workspace/WorkspaceManager';
+import { ModelConnectionSettings } from '@/components/settings/ModelConnectionSettings';
 
 export function SettingsPage() {
   const { pathname } = useLocation();
@@ -19,6 +20,9 @@ export function SettingsPage() {
         subtitle="Manage the local workspace used by this review station"
       />
       <WorkspaceManager />
+      <Box mt={5}>
+        <ModelConnectionSettings />
+      </Box>
     </Box>
   );
 }

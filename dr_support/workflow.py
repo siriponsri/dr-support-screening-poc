@@ -50,6 +50,12 @@ class ManualImport(Contract):
     label_ids: dict[str, int]
 
 
+class QueueAction(Contract):
+    revision: int = Field(ge=0)
+    action: Literal['EXCLUDE', 'RESTORE']
+    note: str = Field(default='', max_length=500)
+
+
 def install_workflow(app, store):
     app.state.store = store
     app.state.remote = CVATOnline()
@@ -137,7 +143,9 @@ def install_workflow(app, store):
                 'lesion_review': lesion_review_view(case.get('lesion')),
                 'human_annotations': case.get('human_annotations', []),
                 'clinician_review': case.get('clinician_review'),
-                'review_history': case.get('review_history', [])}
+                'review_history': case.get('review_history', []),
+                'queue_state': case.get('queue_state', 'INCLUDED'),
+                'queue_history': case.get('queue_history', [])}
 
     def finite_number(value, name):
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
@@ -250,6 +258,33 @@ def install_workflow(app, store):
             }
             case['clinician_review'] = review_record
             case.setdefault('review_history', []).append(review_record)
+            store.put(case)
+            return detail(image_id)
+
+    @app.post('/v1/cases/{image_id}/queue')
+    def queue_action(image_id: str, request: QueueAction):
+        store = current_store()
+        with store.lock:
+            case, record = case_with_admission(image_id)
+            image = app.state.images.get(image_id)
+            if image is None and record is None:
+                raise HTTPException(404, 'Image not admitted')
+            if request.revision != case['revision']:
+                raise HTTPException(409, 'Case changed; reload before updating the queue')
+            next_state = 'EXCLUDED' if request.action == 'EXCLUDE' else 'INCLUDED'
+            timestamp = datetime.now(timezone.utc).isoformat()
+            previous_state = case.get('queue_state', 'INCLUDED')
+            case['queue_state'] = next_state
+            event = {
+                'action': f'QUEUE_{request.action}',
+                'note': request.note.strip(),
+                'timestamp': timestamp,
+                'previous_state': previous_state,
+                'new_state': next_state,
+            }
+            case.setdefault('queue_history', []).append(event)
+            case.setdefault('events', []).append(event)
+            case['revision'] += 1
             store.put(case)
             return detail(image_id)
 

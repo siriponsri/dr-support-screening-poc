@@ -230,7 +230,7 @@ export function WorkspaceManager() {
   const workspaceError = status === 'error' && error;
 
   return (
-    <Stack spacing={5}>
+    <Stack spacing={4}>
       {feedback && <Alert status={feedback.status} role={feedback.status === 'error' ? 'alert' : undefined}><AlertIcon /><Text fontSize="sm">{feedback.message}</Text></Alert>}
       {warnings.length > 0 && (
         <Alert status="warning" alignItems="flex-start">
@@ -253,7 +253,7 @@ export function WorkspaceManager() {
         </Alert>
       )}
       {activeWorkspace && activeDatabase && (
-        <Box borderWidth="1px" borderColor="border.subtle" borderRadius="lg" bg="surface.panel" p={{ base: 4, laptop: 5 }}>
+        <Box borderWidth="1px" borderColor="border.subtle" borderRadius="lg" bg="surface.panel" p={{ base: 3, laptop: 4 }}>
           <HStack justify="space-between" align="flex-start" spacing={4} flexWrap="wrap">
             <Stack spacing={1} minW={0}>
               <Text fontSize="xxs" fontWeight="bold" textTransform="uppercase" letterSpacing="0.12em" color="text.secondary">Current workspace</Text>
@@ -266,14 +266,14 @@ export function WorkspaceManager() {
               <Button size="sm" variant="outline" leftIcon={<Pencil size={14} />} onClick={() => beginEdit(activeWorkspace)}>Edit</Button>
             </HStack>
           </HStack>
-          <HStack mt={3} spacing={2} align="flex-start">
+          <HStack mt={2} spacing={2} align="flex-start" minW={0}>
             <Database size={15} color="var(--chakra-colors-text-secondary)" aria-hidden="true" />
-            <Text fontSize="sm" fontFamily="mono" wordBreak="break-all" title={activeDatabase.path}>{activeDatabase.path}</Text>
+            <Text flex={1} minW={0} noOfLines={1} fontSize="sm" fontFamily="mono" title={activeDatabase.path}>{activeDatabase.path}</Text>
             <IconButton aria-label="Copy active database path" icon={<Copy size={14} />} size="sm" variant="ghost" onClick={() => void copyPath('Database path', activeDatabase.path)} />
           </HStack>
         </Box>
       )}
-      <SimpleGrid columns={{ base: 1, laptop: editorMode ? 2 : 1 }} gap={5} alignItems="start">
+      <SimpleGrid columns={{ base: 1, laptop: editorMode ? 2 : 1 }} gap={4} alignItems="start">
         <Section
           title="Saved workspaces"
           description="Profiles keep local folders and the SQLite review database together."
@@ -398,7 +398,7 @@ function PathField({ label, value, onChange, onBrowse, onCopy, isLoading }: { la
 
 function WorkspaceRow({ workspace, active, onSwitch, onEdit, onDelete, onCopy, isMutating }: { workspace: WorkspaceProfile; active: boolean; onSwitch: () => void; onEdit: () => void; onDelete: () => void; onCopy: (label: string, path: string) => void; isMutating: boolean }) {
   return (
-    <Box role="group" aria-label={`${workspace.name} workspace`} py={4} px={1} borderLeftWidth="3px" borderLeftColor={active ? 'action.primary' : 'transparent'} pl={active ? 3 : 4}>
+    <Box role="group" aria-label={`${workspace.name} workspace`} py={3} px={1} borderLeftWidth="3px" borderLeftColor={active ? 'action.primary' : 'transparent'} pl={active ? 3 : 4}>
       <HStack align="flex-start" justify="space-between" spacing={4} flexWrap="wrap">
         <Stack spacing={1} minW={0} flex={1}>
           <Text flex={1} minW={0} fontWeight="semibold" noOfLines={1} title={workspace.name}>{workspace.name}</Text>
@@ -423,7 +423,7 @@ function WorkspaceMetadata({ workspace, onCopy }: { workspace: WorkspaceProfile;
   ];
 
   return (
-    <Stack spacing={1} mt={2} minW={0} maxW="100%" aria-label={`${workspace.name} workspace metadata`}>
+    <Stack spacing={0.5} mt={1} minW={0} maxW="100%" aria-label={`${workspace.name} workspace metadata`}>
       {metadata.map(({ label, value }) => (
         <HStack key={label} spacing={2} minW={0} maxW="100%">
           <Text flex="0 0 52px" fontSize="xxs" fontWeight="semibold" color="text.muted">{label}</Text>
@@ -439,15 +439,7 @@ function WorkspaceMetadata({ workspace, onCopy }: { workspace: WorkspaceProfile;
           >
             {value}
           </Text>
-          <IconButton
-            aria-label={`Copy ${label.toLowerCase()} path: ${value}`}
-            title={`Copy ${label.toLowerCase()} path`}
-            icon={<Copy size={14} />}
-            size="sm"
-            variant="ghost"
-            flexShrink={0}
-            onClick={() => onCopy(label === 'Storage' ? 'Database path' : `${label} folder`, label === 'Storage' ? workspace.database_path : value)}
-          />
+          {(label === 'Input' || label === 'Storage') && <IconButton aria-label={`Copy ${label.toLowerCase()} path: ${value}`} title={`Copy ${label.toLowerCase()} path`} icon={<Copy size={14} />} size="sm" variant="ghost" flexShrink={0} onClick={() => onCopy(label === 'Storage' ? 'Database path' : `${label} folder`, label === 'Storage' ? workspace.database_path : value)} />}
         </HStack>
       ))}
     </Stack>

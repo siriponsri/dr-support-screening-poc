@@ -17,15 +17,16 @@ export default defineConfig({
     proxy: {
       '/v1': {
         target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
+        // Keep the browser origin visible to the API's same-origin guard.
+        changeOrigin: false,
       },
       '/ui': {
         target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
+        changeOrigin: false,
       },
       '/health': {
         target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
+        changeOrigin: false,
       },
     },
   },

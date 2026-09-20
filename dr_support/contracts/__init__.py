@@ -22,6 +22,11 @@ from .workspaces import (
     WorkspaceProfile,
     is_absolute_local_path,
 )
+from .model_gateway import (
+    ModelConnectionInput,
+    ModelConnectionModel,
+    ModelConnectionResponse,
+)
 
 __all__ = [
     'LABELS',
@@ -40,4 +45,7 @@ __all__ = [
     'WorkspaceInput',
     'WorkspaceProfile',
     'is_absolute_local_path',
+    'ModelConnectionInput',
+    'ModelConnectionModel',
+    'ModelConnectionResponse',
 ]

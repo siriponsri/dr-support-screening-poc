@@ -133,7 +133,7 @@ def create_app(profile: str | None = None) -> FastAPI:
     _enforce_invariants(resolved_profile, runtime)
 
     if resolved_profile == 'review':
-        app = create_review_app()
+        app = create_review_app(include_samples=False, include_demo_fixtures=False)
         app.state.profile = resolved_profile
         app.state.runtime = runtime
         return app
@@ -143,7 +143,7 @@ def create_app(profile: str | None = None) -> FastAPI:
         app.state.runtime = runtime
         return app
     # full
-    review = create_review_app()
+    review = create_review_app(include_samples=True, include_demo_fixtures=True)
     model_api = create_model_api_app(device_strict=_device_strict_for_profile('full'))
     return _merge_apps(review, model_api, resolved_profile)
 
