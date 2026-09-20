@@ -88,17 +88,12 @@ function FullWorkspaceCard({ workspace, ...rest }: { workspace: WorkspaceSummary
 function EmptyWorkspaceHint(props: FlexProps) {
   return (
     <Box
-      role="button"
-      tabIndex={0}
-      aria-label="No workspace selected. Open Datasets to choose one."
       borderRadius="lg"
       borderWidth="1px"
       borderStyle="dashed"
       borderColor="border.default"
       p={3}
-      cursor="pointer"
-      _hover={{ bg: 'surface.subtle', borderColor: 'border.strong' }}
-      _focusVisible={{ boxShadow: 'focus', outline: 'none' }}
+      bg="surface.panel"
       {...props}
     >
       <HStack spacing={2} align="center" color="text.secondary">

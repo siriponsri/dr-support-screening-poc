@@ -127,7 +127,8 @@ describe('Sidebar collapse control', () => {
     expect(control).toHaveFocus();
     // jsdom does not apply :focus-visible styles, so assert the focus token
     // used by the Chakra Button contract alongside real keyboard focus.
-    expect(theme.shadows.focus).toContain('rgba(1, 99, 1, 0.24)');
+    expect(theme.shadows.focus).toContain('0 0 0 2px');
+    expect(theme.shadows.focus).toContain('0 0 0 4px');
   });
 
   it('toggles the sidebar to icon-only and back on desktop', async () => {

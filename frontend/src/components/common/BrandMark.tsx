@@ -16,7 +16,7 @@ export function BrandMark({ compact = false }: BrandMarkProps) {
         h="36px"
         bg="action.primary"
         borderRadius="md"
-        color="white"
+        color="text.inverse"
         flexShrink={0}
       >
         <Stethoscope size={18} strokeWidth={2.25} aria-hidden="true" />

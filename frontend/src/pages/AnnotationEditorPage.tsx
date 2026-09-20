@@ -143,7 +143,7 @@ function annotation(type: AnnotationType, label: LesionLabel, geometry: Annotati
 function previewShape(preview: { type: Tool; geometry: AnnotationGeometry } | null) {
   if (!preview) return null;
   const { type, geometry } = preview;
-  const color = '#111827';
+  const color = 'var(--chakra-colors-text-primary)';
   if (type === 'rectangle' && 'width' in geometry) {
     return <rect x={geometry.x} y={geometry.y} width={geometry.width} height={geometry.height} fill={color} fillOpacity={0.1} stroke={color} strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />;
   }
@@ -592,7 +592,7 @@ export function AnnotationEditorPage() {
             onDoubleClick={onDoubleClick}
             fullScreenControls={fullScreenAnnotationControls}
           >
-            {polygonPoints.length > 0 && <polyline points={polygonPoints.map((point) => point.join(',')).join(' ')} fill="#111827" fillOpacity={0.1} stroke="#111827" strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />}
+            {polygonPoints.length > 0 && <polyline points={polygonPoints.map((point) => point.join(',')).join(' ')} fill="var(--chakra-colors-text-primary)" fillOpacity={0.1} stroke="var(--chakra-colors-text-primary)" strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />}
             {previewShape(preview)}
           </RetinalCanvas>
           <HStack mt={4} spacing={3} flexWrap="wrap" fontSize="sm">

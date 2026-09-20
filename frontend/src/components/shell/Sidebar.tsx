@@ -153,7 +153,7 @@ function CollapsedBrandMark() {
       w="36px"
       h="36px"
       bg="action.primary"
-      color="white"
+      color="text.inverse"
       borderRadius="md"
       mx="auto"
     >

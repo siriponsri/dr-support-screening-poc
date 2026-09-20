@@ -71,7 +71,9 @@ const shadows = {
   sm: '0 1px 2px rgba(15, 23, 42, 0.06)',
   md: '0 2px 6px rgba(15, 23, 42, 0.08)',
   lg: '0 8px 24px rgba(15, 23, 42, 0.10)',
-  focus: '0 0 0 3px rgba(1, 99, 1, 0.24)',
+  // A light offset keeps the green focus ring visible on both panel and
+  // canvas surfaces without changing the component's layout bounds.
+  focus: `0 0 0 2px ${kkuColors.neutralPanel}, 0 0 0 4px ${kkuColors.medicineGreen}`,
 };
 
 const fontSizes = {
@@ -90,7 +92,7 @@ const fontSizes = {
 const fontWeights = {
   normal: 400,
   medium: 500,
-  semibold: 550,
+  semibold: 600,
   bold: 600,
   strong: 700,
 };
@@ -141,7 +143,7 @@ const themeOverride: ThemeOverride = {
   shadows,
   semanticTokens: {
     colors: {
-      // Semantic action and institutional accent roles
+      // Semantic role aliases. Components should not consume raw primitives.
       'action.primary': kkuColors.medicineGreen,
       'action.primaryHover': kkuColors.medicineGreenHover,
       'action.primaryPressed': kkuColors.medicineGreenPressed,
@@ -170,22 +172,47 @@ const themeOverride: ThemeOverride = {
       'border.default': kkuColors.neutralBorderDefault,
       'border.strong': kkuColors.neutralBorderStrong,
       'border.focus': kkuColors.medicineGreen,
+      'color.focus': kkuColors.medicineGreen,
 
       // Status
       'status.info': kkuColors.statusInfo,
-      'status.info.bg': kkuColors.statusInfoSoft,
-      'status.info.border': kkuColors.statusInfoBorder,
+      'status.infoSoft': kkuColors.statusInfoSoft,
+      'status.infoBorder': kkuColors.statusInfoBorder,
       'status.success': kkuColors.statusSuccess,
-      'status.success.bg': kkuColors.statusSuccessSoft,
-      'status.success.border': kkuColors.statusSuccessBorder,
+      'status.successSoft': kkuColors.statusSuccessSoft,
+      'status.successBorder': kkuColors.statusSuccessBorder,
       'status.warning': kkuColors.statusWarning,
-      'status.warning.bg': kkuColors.statusWarningSoft,
-      'status.warning.border': kkuColors.statusWarningBorder,
+      'status.warningSoft': kkuColors.statusWarningSoft,
+      'status.warningBorder': kkuColors.statusWarningBorder,
       'status.danger': kkuColors.statusDanger,
-      'status.danger.bg': kkuColors.statusDangerSoft,
-      'status.danger.border': kkuColors.statusDangerBorder,
+      'status.dangerSoft': kkuColors.statusDangerSoft,
+      'status.dangerBorder': kkuColors.statusDangerBorder,
       'status.neutral': kkuColors.statusNeutral,
-      'status.neutral.bg': kkuColors.statusNeutralSoft,
+      'status.neutralSoft': kkuColors.statusNeutralSoft,
+
+      // Component contracts. These are the final layer consumed by Chakra
+      // variants and keep local treatment changes out of page components.
+      'button.primary.background': kkuColors.medicineGreen,
+      'button.primary.backgroundHover': kkuColors.medicineGreenHover,
+      'button.primary.backgroundPressed': kkuColors.medicineGreenPressed,
+      'button.primary.foreground': kkuColors.neutralInverse,
+      'button.secondary.background': kkuColors.medicineGreenSoft,
+      'button.secondary.foreground': kkuColors.medicineGreenHover,
+      'button.secondary.border': kkuColors.medicineGreenBorder,
+      'button.outline.background': kkuColors.neutralPanel,
+      'button.outline.foreground': kkuColors.neutralInk,
+      'button.outline.border': kkuColors.neutralBorderDefault,
+      'button.ghost.foreground': kkuColors.neutralSecondaryText,
+      'button.danger.background': kkuColors.statusDangerSoft,
+      'button.danger.foreground': kkuColors.statusDanger,
+      'button.danger.border': kkuColors.statusDangerBorder,
+      'input.background': kkuColors.neutralPanel,
+      'input.border': kkuColors.neutralBorderDefault,
+      'input.borderHover': kkuColors.neutralBorderStrong,
+      'input.borderFocus': kkuColors.medicineGreen,
+      'panel.background': kkuColors.neutralPanel,
+      'panel.border': kkuColors.neutralBorderSubtle,
+      'viewer.background': kkuColors.neutralViewer,
     },
   },
   components: {
@@ -239,33 +266,33 @@ const themeOverride: ThemeOverride = {
       },
       variants: {
         solid: {
-          bg: 'action.primary',
-          color: 'white',
-          _hover: { bg: 'action.primaryHover' },
-          _active: { bg: 'action.primaryPressed' },
+          bg: 'button.primary.background',
+          color: 'button.primary.foreground',
+          _hover: { bg: 'button.primary.backgroundHover' },
+          _active: { bg: 'button.primary.backgroundPressed' },
         },
         outline: {
-          bg: 'surface.panel',
-          color: 'text.primary',
-          borderColor: 'border.default',
+          bg: 'button.outline.background',
+          color: 'button.outline.foreground',
+          borderColor: 'button.outline.border',
           _hover: { bg: 'surface.subtle', borderColor: 'border.strong' },
         },
         secondary: {
-          bg: 'action.primarySoft',
-          color: 'action.primaryHover',
-          borderColor: 'action.primaryBorder',
-          _hover: { bg: 'action.primaryBorder' },
+          bg: 'button.secondary.background',
+          color: 'button.secondary.foreground',
+          borderColor: 'button.secondary.border',
+          _hover: { bg: 'button.secondary.border' },
         },
         ghost: {
           bg: 'transparent',
-          color: 'text.secondary',
+          color: 'button.ghost.foreground',
           _hover: { bg: 'surface.subtle', color: 'text.primary' },
         },
         danger: {
-          bg: 'status.danger.bg',
-          color: 'status.danger',
-          borderColor: 'status.danger.border',
-          _hover: { bg: 'status.danger.border' },
+          bg: 'button.danger.background',
+          color: 'button.danger.foreground',
+          borderColor: 'button.danger.border',
+          _hover: { bg: 'button.danger.border' },
         },
       },
       defaultProps: {
@@ -297,28 +324,28 @@ const themeOverride: ThemeOverride = {
           borderColor: 'action.primaryBorder',
         },
         info: {
-          bg: 'status.info.bg',
+          bg: 'status.infoSoft',
           color: 'status.info',
           borderWidth: '1px',
-          borderColor: 'status.info.border',
+          borderColor: 'status.infoBorder',
         },
         success: {
-          bg: 'status.success.bg',
+          bg: 'status.successSoft',
           color: 'status.success',
           borderWidth: '1px',
-          borderColor: 'status.success.border',
+          borderColor: 'status.successBorder',
         },
         warning: {
-          bg: 'status.warning.bg',
+          bg: 'status.warningSoft',
           color: 'status.warning',
           borderWidth: '1px',
-          borderColor: 'status.warning.border',
+          borderColor: 'status.warningBorder',
         },
         danger: {
-          bg: 'status.danger.bg',
+          bg: 'status.dangerSoft',
           color: 'status.danger',
           borderWidth: '1px',
-          borderColor: 'status.danger.border',
+          borderColor: 'status.dangerBorder',
         },
       },
       defaultProps: { variant: 'subtle' },
@@ -335,16 +362,16 @@ const themeOverride: ThemeOverride = {
       variants: {
         outline: {
           field: {
-            bg: 'surface.panel',
-            borderColor: 'border.default',
+            bg: 'input.background',
+            borderColor: 'input.border',
             color: 'text.primary',
-            _hover: { borderColor: 'border.strong' },
+            _hover: { borderColor: 'input.borderHover' },
             _focus: {
-              borderColor: 'border.focus',
+              borderColor: 'input.borderFocus',
               boxShadow: 'focus',
             },
             _focusVisible: {
-              borderColor: 'border.focus',
+              borderColor: 'input.borderFocus',
               boxShadow: 'focus',
             },
           },
@@ -362,12 +389,12 @@ const themeOverride: ThemeOverride = {
       variants: {
         outline: {
           field: {
-            bg: 'surface.panel',
-            borderColor: 'border.default',
+            bg: 'input.background',
+            borderColor: 'input.border',
             color: 'text.primary',
-            _hover: { borderColor: 'border.strong' },
-            _focus: { borderColor: 'border.focus', boxShadow: 'focus' },
-            _focusVisible: { borderColor: 'border.focus', boxShadow: 'focus' },
+            _hover: { borderColor: 'input.borderHover' },
+            _focus: { borderColor: 'input.borderFocus', boxShadow: 'focus' },
+            _focusVisible: { borderColor: 'input.borderFocus', boxShadow: 'focus' },
           },
         },
       },
@@ -377,12 +404,12 @@ const themeOverride: ThemeOverride = {
       baseStyle: { borderRadius: 'md' },
       variants: {
         outline: {
-          bg: 'surface.panel',
-          borderColor: 'border.default',
+          bg: 'input.background',
+          borderColor: 'input.border',
           color: 'text.primary',
-          _hover: { borderColor: 'border.strong' },
-          _focus: { borderColor: 'border.focus', boxShadow: 'focus' },
-          _focusVisible: { borderColor: 'border.focus', boxShadow: 'focus' },
+          _hover: { borderColor: 'input.borderHover' },
+          _focus: { borderColor: 'input.borderFocus', boxShadow: 'focus' },
+          _focusVisible: { borderColor: 'input.borderFocus', boxShadow: 'focus' },
         },
       },
       defaultProps: { variant: 'outline' },
@@ -424,9 +451,9 @@ const themeOverride: ThemeOverride = {
       baseStyle: {
         dialog: {
           borderRadius: 'lg',
-          bg: 'surface.panel',
+          bg: 'panel.background',
           borderWidth: '1px',
-          borderColor: 'border.subtle',
+          borderColor: 'panel.border',
           boxShadow: 'lg',
         },
         header: {
@@ -484,7 +511,7 @@ const themeOverride: ThemeOverride = {
       },
       '*:focus-visible': {
         outline: 'none',
-        boxShadow: '0 0 0 3px rgba(1, 99, 1, 0.24)',
+        boxShadow: 'focus',
       },
       '::selection': {
         background: kkuColors.medicineGreenSoft,

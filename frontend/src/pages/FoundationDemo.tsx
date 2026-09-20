@@ -127,8 +127,8 @@ export function FoundationDemo() {
         borderRadius="md"
         mb={6}
         borderWidth="1px"
-        borderColor="status.warning.border"
-        bg="status.warning.bg"
+        borderColor="status.warningBorder"
+        bg="status.warningSoft"
       >
         <AlertIcon as={Info} boxSize="16px" />
         <Box>
@@ -292,19 +292,19 @@ export function FoundationDemo() {
           <Stack spacing={3}>
             <DemoDialogLauncher />
             <DemoToastLauncher />
-            <Alert status="success" borderRadius="md" bg="status.success.bg">
+            <Alert status="success" borderRadius="md" bg="status.successSoft">
               <AlertIcon as={CheckCircle2} boxSize="16px" />
               <AlertDescription fontSize="sm">
                 Recorded grade 3 · persisted to local review state.
               </AlertDescription>
             </Alert>
-            <Alert status="error" borderRadius="md" bg="status.danger.bg">
+            <Alert status="error" borderRadius="md" bg="status.dangerSoft">
               <AlertIcon as={AlertTriangle} boxSize="16px" />
               <AlertDescription fontSize="sm">
                 Inference failed. Inspect Models &amp; Audit for runtime status.
               </AlertDescription>
             </Alert>
-            <Alert status="info" borderRadius="md" bg="status.info.bg">
+            <Alert status="info" borderRadius="md" bg="status.infoSoft">
               <AlertIcon as={Info} boxSize="16px" />
               <AlertDescription fontSize="sm">
                 Awaiting CVAT round-trip — imported geometry will override
@@ -453,7 +453,7 @@ function DemoToastLauncher() {
     );
   }
   return (
-    <Alert status="info" borderRadius="md" bg="status.info.bg" alignItems="center">
+    <Alert status="info" borderRadius="md" bg="status.infoSoft" alignItems="center">
       <AlertIcon as={Info} boxSize="16px" />
       <AlertDescription fontSize="sm">Inline notice pattern · dismissible.</AlertDescription>
       <Button size="xs" variant="ghost" ml="auto" onClick={handleClose} aria-label="Dismiss">

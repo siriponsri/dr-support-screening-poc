@@ -3,9 +3,9 @@
  * and (importantly) works in both expanded and collapsed modes.
  *
  * In expanded mode the row shows an icon, label, and optional right-aligned
- * meta. The row gets a 3px red-soil left bar and a clay-tint background
- * when active. In collapsed mode only the icon is visible inside a uniform
- * tile; tooltips surface the label.
+ * meta. The row gets a 3px Medicine Green left bar and a soft green
+ * background when active. In collapsed mode only the icon is visible inside
+ * a uniform tile; tooltips surface the label.
  */
 import { Box, HStack, StackProps, Text, Tooltip, VStack } from '@chakra-ui/react';
 import { NavLink, useLocation } from 'react-router-dom';

@@ -1,5 +1,11 @@
-/** Primitive values for the clinical product theme. */
-export const kkuColors = {
+/**
+ * Primitive values for the clinical product theme.
+ *
+ * Components should consume the semantic and component aliases in the Chakra
+ * theme. Keeping the raw palette here makes the role mapping auditable and
+ * prevents brand values from being reused as clinical status colors.
+ */
+export const primitiveColors = {
   // Brand primitives. Red Soil is institutional accent, never danger.
   medicineGreen: '#016301',
   medicineGreenHover: '#004D00',
@@ -41,5 +47,8 @@ export const kkuColors = {
   statusNeutral: '#667085',
   statusNeutralSoft: '#F1F3F2',
 } as const;
+
+/** Compatibility name for the token preview page and existing imports. */
+export const kkuColors = primitiveColors;
 
 export type KkuColorKey = keyof typeof kkuColors;
