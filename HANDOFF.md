@@ -105,3 +105,13 @@ Rendered smoke validation used the installed Chrome executable through Playwrigh
 5. Undo the movement, lock the shape, and confirm it no longer moves until unlocked.
 6. Toggle Coordinate Inspector and verify original-image X/Y values in the bottom status bar.
 7. Add or edit a Human annotation in fullscreen, then save through the existing review workflow.
+
+## Final S1 viewer patch (2026-09-20)
+
+- Selected unlocked Human rectangles support eight screen-space resize handles; geometry is clamped to original-image bounds with a 4 px minimum ROI dimension and one-step Undo history.
+- Locked Human annotations expose no resize handles and remain immovable; AI/PRISM geometry remains immutable.
+- Human geometry uses a 1.5 px normal stroke and 2.5 px selected stroke with non-scaling SVG strokes; handles stay usable across zoom levels.
+- Coordinate Inspector is an exclusive mode: it blocks annotation creation, selection, movement, and resize; wheel zoom, right-drag pan, and Space + left-drag pan remain available.
+- Inspector X/Y values remain in the bottom status bar only. Toggle-off and Escape return the editor to Select mode and cancel any in-progress drawing.
+
+Final patch validation: frontend tests (29 passed), typecheck, production build, backend tests (157 passed, 1 skipped), Ruff, root smoke tests, and `git diff --check` passed. Optional real-browser smoke was skipped because Playwright and `agent-browser` were unavailable in the environment.

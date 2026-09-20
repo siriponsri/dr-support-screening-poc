@@ -19,7 +19,7 @@ import {
 } from '@chakra-ui/react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
-import { RetinalCanvas, LESION_COLORS, LESION_SHORT_LABELS } from '@/components/review/RetinalCanvas';
+import { RetinalCanvas, LESION_COLORS, LESION_SHORT_LABELS, type RectangleResizeHandle } from '@/components/review/RetinalCanvas';
 import {
   apiJson,
   type AnnotationGeometry,
@@ -33,6 +33,8 @@ import { ArrowLeft, Circle, Lock, MousePointer2, Pentagon, Save, Square, Trash2,
 type Tool = 'select' | 'rectangle' | 'polygon' | 'point' | 'circle';
 type Point = [number, number];
 
+const MIN_RESIZE_SIZE = 4;
+
 const LABEL_OPTIONS: Array<{ value: LesionLabel; label: string }> = [
   { value: 'MICROANEURYSM', label: 'Microaneurysm' },
   { value: 'HEMORRHAGE', label: 'Hemorrhage' },
@@ -44,7 +46,7 @@ function errorText(err: unknown) {
   return err instanceof Error ? err.message : 'The request could not be completed.';
 }
 
-function pointFromEvent(event: ReactPointerEvent<SVGSVGElement>, item: CaseRecord): Point {
+export function pointFromEvent(event: ReactPointerEvent<SVGSVGElement>, item: Pick<CaseRecord, 'width' | 'height'>): Point {
   const bounds = event.currentTarget.getBoundingClientRect();
   // The image and SVG share the transformed stage, so the transformed bounds
   // map pointer coordinates back to the original-image viewBox.
@@ -93,6 +95,38 @@ export function translateAnnotationGeometry(
   return geometry;
 }
 
+export function resizeRectangleGeometry(
+  annotation: HumanAnnotation,
+  handle: RectangleResizeHandle,
+  point: Point,
+  item: Pick<CaseRecord, 'width' | 'height'>,
+): AnnotationGeometry {
+  const geometry = annotation.geometry;
+  if (annotation.type !== 'rectangle' || !('width' in geometry)) return geometry;
+
+  const minWidth = Math.min(MIN_RESIZE_SIZE, item.width);
+  const minHeight = Math.min(MIN_RESIZE_SIZE, item.height);
+  let x = geometry.x;
+  let y = geometry.y;
+  let width = geometry.width;
+  let height = geometry.height;
+
+  if (handle.includes('w')) {
+    x = clamp(point[0], 0, geometry.x + geometry.width - minWidth);
+    width = geometry.x + geometry.width - x;
+  } else if (handle.includes('e')) {
+    width = clamp(point[0] - geometry.x, minWidth, item.width - geometry.x);
+  }
+  if (handle.includes('n')) {
+    y = clamp(point[1], 0, geometry.y + geometry.height - minHeight);
+    height = geometry.y + geometry.height - y;
+  } else if (handle.includes('s')) {
+    height = clamp(point[1] - geometry.y, minHeight, item.height - geometry.y);
+  }
+
+  return { x, y, width, height };
+}
+
 function annotationLocked(annotation: HumanAnnotation) {
   // Records written before lock persistence have no field and are protected by default.
   return annotation.locked !== false;
@@ -125,8 +159,8 @@ function previewShape(preview: { type: Tool; geometry: AnnotationGeometry } | nu
   return null;
 }
 
-function ToolButton({ tool, active, onClick, children, ariaLabel }: { tool?: Tool; active?: boolean; onClick: () => void; children: React.ReactNode; ariaLabel?: string }) {
-  return <Button size="sm" variant={active ? 'secondary' : 'outline'} onClick={onClick} aria-label={ariaLabel} aria-pressed={active}>{children}</Button>;
+function ToolButton({ tool, active, onClick, children, ariaLabel, isDisabled = false }: { tool?: Tool; active?: boolean; onClick: () => void; children: React.ReactNode; ariaLabel?: string; isDisabled?: boolean }) {
+  return <Button size="sm" variant={active ? 'secondary' : 'outline'} onClick={onClick} aria-label={ariaLabel} aria-pressed={active} isDisabled={isDisabled}>{children}</Button>;
 }
 
 export function AnnotationEditorPage() {
@@ -137,6 +171,7 @@ export function AnnotationEditorPage() {
   const [draft, setDraft] = useState<HumanAnnotation[]>([]);
   const [history, setHistory] = useState<HumanAnnotation[][]>([]);
   const [tool, setTool] = useState<Tool>('select');
+  const [isCoordinateInspector, setIsCoordinateInspector] = useState(false);
   const [label, setLabel] = useState<LesionLabel>('MICROANEURYSM');
   const [reviewer, setReviewer] = useState('');
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
@@ -154,6 +189,12 @@ export function AnnotationEditorPage() {
   const shapeDragRef = useRef<{
     shapeId: string;
     start: Point;
+    beforeDraft: HumanAnnotation[];
+    moved: boolean;
+  } | null>(null);
+  const resizeRef = useRef<{
+    shapeId: string;
+    handle: RectangleResizeHandle;
     beforeDraft: HumanAnnotation[];
     moved: boolean;
   } | null>(null);
@@ -225,8 +266,38 @@ export function AnnotationEditorPage() {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
+  const onHumanResizeStart = (shapeId: string, handle: RectangleResizeHandle, event: ReactPointerEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    if (!item) return;
+    const selected = draftRef.current.find((entry) => entry.shape_id === shapeId);
+    if (!selected || selected.type !== 'rectangle' || annotationLocked(selected)) return;
+    resizeRef.current = {
+      shapeId,
+      handle,
+      beforeDraft: draftRef.current,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (!item) return;
+    const resize = resizeRef.current;
+    if (resize) {
+      const point = pointFromEvent(event, item);
+      const base = resize.beforeDraft.find((entry) => entry.shape_id === resize.shapeId);
+      if (base) {
+        const next = draftRef.current.map((entry) => entry.shape_id === resize.shapeId
+          ? { ...entry, geometry: resizeRectangleGeometry(base, resize.handle, point, item) }
+          : entry);
+        resize.moved = JSON.stringify(next) !== JSON.stringify(draftRef.current);
+        draftRef.current = next;
+        setDraft(next);
+        setSaved(false);
+        event.preventDefault();
+      }
+      return;
+    }
     const shapeDrag = shapeDragRef.current;
     if (shapeDrag) {
       const point = pointFromEvent(event, item);
@@ -252,6 +323,17 @@ export function AnnotationEditorPage() {
   };
 
   const onPointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const resize = resizeRef.current;
+    if (resize) {
+      if (resize.moved) {
+        setHistory((previous) => [...previous, resize.beforeDraft]);
+        setSelectedShapeId(resize.shapeId);
+      }
+      resizeRef.current = null;
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+      event.preventDefault();
+      return;
+    }
     const shapeDrag = shapeDragRef.current;
     if (shapeDrag) {
       if (shapeDrag.moved) {
@@ -279,6 +361,12 @@ export function AnnotationEditorPage() {
   };
 
   const onPointerCancel = () => {
+    const resize = resizeRef.current;
+    if (resize) {
+      draftRef.current = resize.beforeDraft;
+      setDraft(resize.beforeDraft);
+      resizeRef.current = null;
+    }
     const shapeDrag = shapeDragRef.current;
     if (shapeDrag) {
       draftRef.current = shapeDrag.beforeDraft;
@@ -347,6 +435,14 @@ export function AnnotationEditorPage() {
     else if (shortcut.startsWith('arrow')) moveSelectedByKeyboard(shortcut);
   };
 
+  const onCoordinateInspectorChange = (active: boolean) => {
+    setIsCoordinateInspector(active);
+    setPolygonPoints([]);
+    setDragStart(null);
+    setPreview(null);
+    setTool('select');
+  };
+
   const selectedAnnotation = selectedShapeId
     ? draftRef.current.find((entry) => entry.shape_id === selectedShapeId) ?? null
     : null;
@@ -355,20 +451,20 @@ export function AnnotationEditorPage() {
   const annotationControls = (
     <Stack spacing={3}>
       <HStack spacing={2} flexWrap="wrap">
-        <ToolButton active={tool === 'select'} onClick={() => activateTool('select')}><MousePointer2 size={14} /> Select</ToolButton>
-        <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')}><Square size={14} /> Box</ToolButton>
-        <ToolButton active={tool === 'polygon'} onClick={() => activateTool('polygon')}><Pentagon size={14} /> Polygon</ToolButton>
-        <ToolButton active={tool === 'point'} onClick={() => activateTool('point')}><Circle size={14} /> Point</ToolButton>
-        <ToolButton active={tool === 'circle'} onClick={() => activateTool('circle')}><Circle size={14} /> Circle</ToolButton>
+        <ToolButton active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector}><MousePointer2 size={14} /> Select</ToolButton>
+        <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector}><Square size={14} /> Box</ToolButton>
+        <ToolButton active={tool === 'polygon'} onClick={() => activateTool('polygon')} isDisabled={isCoordinateInspector}><Pentagon size={14} /> Polygon</ToolButton>
+        <ToolButton active={tool === 'point'} onClick={() => activateTool('point')} isDisabled={isCoordinateInspector}><Circle size={14} /> Point</ToolButton>
+        <ToolButton active={tool === 'circle'} onClick={() => activateTool('circle')} isDisabled={isCoordinateInspector}><Circle size={14} /> Circle</ToolButton>
       </HStack>
       <HStack spacing={2}>
-        <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={history.length === 0}>Undo</Button>
-        <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={!selectedShapeId}>Delete selected</Button>
+        <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={isCoordinateInspector || history.length === 0}>Undo</Button>
+        <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={isCoordinateInspector || !selectedShapeId}>Delete selected</Button>
         <Button
           size="sm"
           leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />}
           onClick={toggleSelectedLock}
-          isDisabled={!selectedAnnotation}
+          isDisabled={isCoordinateInspector || !selectedAnnotation}
           aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}
         >
           {selectedIsLocked ? 'Unlock selected' : 'Lock selected'}
@@ -397,24 +493,24 @@ export function AnnotationEditorPage() {
 
   const fullScreenAnnotationControls = (
     <HStack spacing={1} flexWrap="wrap" align="center">
-      <ToolButton ariaLabel="Select tool" active={tool === 'select'} onClick={() => activateTool('select')}>
+      <ToolButton ariaLabel="Select tool" active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector}>
         <MousePointer2 size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Select</Box>
       </ToolButton>
-      <ToolButton ariaLabel="Box tool" active={tool === 'rectangle'} onClick={() => activateTool('rectangle')}>
+      <ToolButton ariaLabel="Box tool" active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector}>
         <Square size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Box</Box>
       </ToolButton>
-      <ToolButton ariaLabel="Polygon tool" active={tool === 'polygon'} onClick={() => activateTool('polygon')}>
+      <ToolButton ariaLabel="Polygon tool" active={tool === 'polygon'} onClick={() => activateTool('polygon')} isDisabled={isCoordinateInspector}>
         <Pentagon size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Polygon</Box>
       </ToolButton>
-      <ToolButton ariaLabel="Point tool" active={tool === 'point'} onClick={() => activateTool('point')}>
+      <ToolButton ariaLabel="Point tool" active={tool === 'point'} onClick={() => activateTool('point')} isDisabled={isCoordinateInspector}>
         <Circle size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Point</Box>
       </ToolButton>
-      <ToolButton ariaLabel="Circle tool" active={tool === 'circle'} onClick={() => activateTool('circle')}>
+      <ToolButton ariaLabel="Circle tool" active={tool === 'circle'} onClick={() => activateTool('circle')} isDisabled={isCoordinateInspector}>
         <Circle size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Circle</Box>
       </ToolButton>
-      <Button size="sm" leftIcon={<Undo2 size={14} />} aria-label="Undo annotation change" onClick={undo} isDisabled={history.length === 0}>Undo</Button>
-      <Button size="sm" leftIcon={<Trash2 size={14} />} aria-label="Delete selected annotation" onClick={deleteSelected} isDisabled={!selectedShapeId}>Delete</Button>
-      <Button size="sm" leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />} onClick={toggleSelectedLock} isDisabled={!selectedAnnotation} aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}>
+      <Button size="sm" leftIcon={<Undo2 size={14} />} aria-label="Undo annotation change" onClick={undo} isDisabled={isCoordinateInspector || history.length === 0}>Undo</Button>
+      <Button size="sm" leftIcon={<Trash2 size={14} />} aria-label="Delete selected annotation" onClick={deleteSelected} isDisabled={isCoordinateInspector || !selectedShapeId}>Delete</Button>
+      <Button size="sm" leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />} onClick={toggleSelectedLock} isDisabled={isCoordinateInspector || !selectedAnnotation} aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}>
         {selectedIsLocked ? 'Unlock' : 'Lock'}
       </Button>
       <Select aria-label="Lesion class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)} maxW={{ base: '150px', tablet: '190px' }}>
@@ -486,6 +582,8 @@ export function AnnotationEditorPage() {
             selectedShapeId={selectedShapeId}
             onSelectHuman={setSelectedShapeId}
             onHumanPointerDown={onHumanPointerDown}
+            onHumanResizeStart={onHumanResizeStart}
+            onCoordinateInspectorChange={onCoordinateInspectorChange}
             onShortcut={onShortcut}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

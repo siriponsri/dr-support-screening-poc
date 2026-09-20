@@ -17,6 +17,8 @@ export const LESION_SHORT_LABELS: Record<LesionLabel, string> = {
   SOFT_EXUDATE: 'SE',
 };
 
+export type RectangleResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+
 interface RetinalCanvasProps {
   item: CaseRecord;
   showAi?: boolean;
@@ -25,6 +27,8 @@ interface RetinalCanvasProps {
   selectedShapeId?: string | null;
   onSelectHuman?: (shapeId: string) => void;
   onHumanPointerDown?: (shapeId: string, event: ReactPointerEvent<SVGSVGElement>) => void;
+  onHumanResizeStart?: (shapeId: string, handle: RectangleResizeHandle, event: ReactPointerEvent<SVGSVGElement>) => void;
+  onCoordinateInspectorChange?: (active: boolean) => void;
   onShortcut?: (shortcut: string) => void;
   onPointerDown?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerMove?: (event: ReactPointerEvent<SVGSVGElement>) => void;
@@ -132,10 +136,14 @@ function AiShape({ lesion }: { lesion: Lesion }) {
 function HumanShape({
   annotation,
   selected,
+  scale,
+  inspectorActive,
   onSelect,
 }: {
   annotation: HumanAnnotation;
   selected: boolean;
+  scale: number;
+  inspectorActive: boolean;
   onSelect?: (shapeId: string) => void;
 }) {
   const color = LESION_COLORS[annotation.label];
@@ -144,14 +152,31 @@ function HumanShape({
     fill: color,
     fillOpacity: 0.3,
     stroke: selected ? '#111827' : color,
-    strokeWidth: selected ? 4 : 3,
+    strokeWidth: selected ? 2.5 : 1.5,
     vectorEffect: 'non-scaling-stroke' as const,
     onClick: (event: React.MouseEvent) => {
+      if (inspectorActive) return;
       event.stopPropagation();
       onSelect?.(annotation.shape_id);
     },
   };
   const geometry = annotation.geometry;
+  const handleSize = 10 / Math.max(scale, 0.01);
+  const handlePositions: Array<[RectangleResizeHandle, number, number, string]> = [];
+  if (annotation.type === 'rectangle' && 'width' in geometry) {
+    const x2 = geometry.x + geometry.width;
+    const y2 = geometry.y + geometry.height;
+    handlePositions.splice(0, handlePositions.length,
+      ['nw', geometry.x, geometry.y, 'nwse-resize'],
+      ['n', geometry.x + geometry.width / 2, geometry.y, 'ns-resize'],
+      ['ne', x2, geometry.y, 'nesw-resize'],
+      ['e', x2, geometry.y + geometry.height / 2, 'ew-resize'],
+      ['se', x2, y2, 'nwse-resize'],
+      ['s', geometry.x + geometry.width / 2, y2, 'ns-resize'],
+      ['sw', geometry.x, y2, 'nesw-resize'],
+      ['w', geometry.x, geometry.y + geometry.height / 2, 'ew-resize'],
+    );
+  }
   return (
     <g data-human-shape-id={annotation.shape_id}>
       <title>{`HUMAN annotation: ${prettyLabel(annotation.label)}${locked ? ' (locked)' : ''}`}</title>
@@ -159,6 +184,21 @@ function HumanShape({
       {annotation.type === 'polygon' && 'points' in geometry && <polygon {...common} points={geometry.points.map((point) => point.join(',')).join(' ')} />}
       {annotation.type === 'point' && 'x' in geometry && !('width' in geometry) && <circle {...common} cx={geometry.x} cy={geometry.y} r={Math.max(6, Math.min(18, Math.min(geometry.x, geometry.y) / 10))} />}
       {annotation.type === 'circle' && 'radius' in geometry && <circle {...common} cx={geometry.cx} cy={geometry.cy} r={geometry.radius} />}
+      {selected && !locked && !inspectorActive && annotation.type === 'rectangle' && handlePositions.map(([handle, x, y, cursor]) => (
+        <rect
+          key={handle}
+          data-human-resize-handle={handle}
+          x={x - handleSize / 2}
+          y={y - handleSize / 2}
+          width={handleSize}
+          height={handleSize}
+          fill="white"
+          stroke="#111827"
+          strokeWidth={1.5}
+          vectorEffect="non-scaling-stroke"
+          style={{ cursor }}
+        />
+      ))}
       <text
         x={annotationLabelPoint(annotation).x}
         y={annotationLabelPoint(annotation).y}
@@ -181,6 +221,8 @@ export function RetinalCanvas({
   selectedShapeId,
   onSelectHuman,
   onHumanPointerDown,
+  onHumanResizeStart,
+  onCoordinateInspectorChange,
   onShortcut,
   onPointerDown,
   onPointerMove,
@@ -204,6 +246,12 @@ export function RetinalCanvas({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isCoordinateInspector, setIsCoordinateInspector] = useState(false);
   const [pointerCoordinate, setPointerCoordinate] = useState<{ x: number; y: number } | null>(null);
+
+  const setCoordinateInspector = useCallback((active: boolean) => {
+    setIsCoordinateInspector(active);
+    onCoordinateInspectorChange?.(active);
+    if (!onCoordinateInspectorChange) shortcutRef.current?.('v');
+  }, [onCoordinateInspectorChange]);
 
   const fitScale = viewport.width > 0 && viewport.height > 0
     ? Math.min(viewport.width / item.width, viewport.height / item.height)
@@ -265,17 +313,25 @@ export function RetinalCanvas({
         event.preventDefault();
         return;
       }
-      if (!viewerHasFocus) return;
       const shortcut = event.key.toLowerCase();
+      if (!viewerHasFocus && !(isCoordinateInspector && shortcut === 'escape')) return;
       if (shortcut === 'f') {
         panRef.current = null;
         setIsPanning(false);
         setIsFit(true);
         event.preventDefault();
       } else if (shortcut === 'x') {
-        setIsCoordinateInspector((enabled) => !enabled);
+        setCoordinateInspector(!isCoordinateInspector);
+        if (isCoordinateInspector) setPointerCoordinate(null);
         event.preventDefault();
-      } else if (shortcut === 'escape' || shortcut === 'v' || shortcut === 'b' || shortcut === 'l' || shortcut.startsWith('arrow')) {
+      } else if (shortcut === 'escape') {
+        if (isCoordinateInspector) {
+          setCoordinateInspector(false);
+          setPointerCoordinate(null);
+        }
+        shortcutRef.current?.(shortcut);
+        event.preventDefault();
+      } else if (shortcut === 'v' || shortcut === 'b' || shortcut === 'l' || shortcut.startsWith('arrow')) {
         shortcutRef.current?.(shortcut);
         event.preventDefault();
       }
@@ -300,7 +356,7 @@ export function RetinalCanvas({
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [isFullScreen]);
+  }, [isCoordinateInspector, isFullScreen, setCoordinateInspector]);
 
   const setCenteredScale = useCallback((nextScale: number) => {
     const scale = clamp(nextScale, minScale, maxScale);
@@ -346,6 +402,24 @@ export function RetinalCanvas({
       : null;
 
     if (!isLeftButton && !isRightButton) return;
+    if (isCoordinateInspector && isLeftButton && !isTemporaryPan) {
+      setPointerCoordinate(originalPointFromEvent(event, item));
+      event.preventDefault();
+      return;
+    }
+    const resizeTarget = event.target instanceof Element
+      ? event.target.closest<SVGRectElement>('[data-human-resize-handle]')
+      : null;
+    if (resizeTarget && !isTemporaryPan && !isRightButton) {
+      const humanTarget = resizeTarget.closest<SVGGElement>('[data-human-shape-id]');
+      const shapeId = humanTarget?.dataset.humanShapeId;
+      const handle = resizeTarget.dataset.humanResizeHandle as RectangleResizeHandle | undefined;
+      if (shapeId && handle) {
+        onSelectHuman?.(shapeId);
+        onHumanResizeStart?.(shapeId, handle, event);
+        if (event.defaultPrevented) return;
+      }
+    }
     if (humanTarget && !isTemporaryPan && !isRightButton) {
       const shapeId = humanTarget.dataset.humanShapeId;
       if (shapeId) {
@@ -376,12 +450,13 @@ export function RetinalCanvas({
     setIsPanning(true);
     event.currentTarget.setPointerCapture?.(event.pointerId);
     event.preventDefault();
-  }, [displayView, onHumanPointerDown, onPointerDown, onSelectHuman]);
+  }, [displayView, isCoordinateInspector, item, onHumanPointerDown, onHumanResizeStart, onPointerDown, onSelectHuman]);
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
     if (isCoordinateInspector) setPointerCoordinate(originalPointFromEvent(event, item));
     const pan = panRef.current;
     if (!pan) {
+      if (isCoordinateInspector) return;
       onPointerMove?.(event);
       return;
     }
@@ -406,16 +481,24 @@ export function RetinalCanvas({
       event.preventDefault();
       return;
     }
+    if (isCoordinateInspector) {
+      event.preventDefault();
+      return;
+    }
     onPointerUp?.(event);
-  }, [onPointerUp]);
+  }, [isCoordinateInspector, onPointerUp]);
 
   const handleDoubleClick = useCallback((event: ReactMouseEvent<SVGSVGElement>) => {
+    if (isCoordinateInspector) {
+      event.preventDefault();
+      return;
+    }
     onDoubleClick?.(event);
     if (event.defaultPrevented) return;
     panRef.current = null;
     setIsPanning(false);
     setIsFit(true);
-  }, [onDoubleClick]);
+  }, [isCoordinateInspector, onDoubleClick]);
 
   const handlePointerCancel = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
     panRef.current = null;
@@ -489,9 +572,13 @@ export function RetinalCanvas({
         title={isCoordinateInspector ? 'Disable coordinate inspector' : 'Show original-image coordinates'}
         icon={<Target size={15} />}
         size="sm"
-        variant={isCoordinateInspector ? 'secondary' : 'outline'}
+        variant={isCoordinateInspector ? 'solid' : 'outline'}
         aria-pressed={isCoordinateInspector}
-        onClick={() => setIsCoordinateInspector((enabled) => !enabled)}
+        onClick={() => {
+          const nextEnabled = !isCoordinateInspector;
+          setCoordinateInspector(nextEnabled);
+          if (!nextEnabled) setPointerCoordinate(null);
+        }}
       />
       {fullScreen ? (
         <Button size="sm" variant="secondary" onClick={() => setIsFullScreen(false)}>Exit full-screen</Button>
@@ -572,6 +659,8 @@ export function RetinalCanvas({
               key={annotation.shape_id}
               annotation={annotation}
               selected={annotation.shape_id === selectedShapeId}
+              scale={displayView.scale}
+              inspectorActive={isCoordinateInspector}
               onSelect={onSelectHuman}
             />
           ))}

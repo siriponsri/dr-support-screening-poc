@@ -141,6 +141,22 @@ describe('RetinalCanvas navigation', () => {
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 
+  it('keeps zoom and pan navigation available while Coordinate Inspector is active', () => {
+    renderCanvas();
+    const { stage, viewport } = setViewportSize();
+    const svg = stage.querySelector('svg')!;
+    fireEvent.click(screen.getByRole('button', { name: 'Enable coordinate inspector' }));
+    expect(screen.getByRole('button', { name: 'Disable coordinate inspector' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.wheel(viewport, { deltaY: -100, clientX: 320, clientY: 240 });
+    expect(screen.getByText('Viewer 96%')).toBeInTheDocument();
+    const beforePan = getComputedStyle(stage).transform;
+    dispatchPointer(svg, 'pointerDown', { button: 2, buttons: 2, pointerId: 7, clientX: 100, clientY: 100 });
+    dispatchPointer(svg, 'pointerMove', { buttons: 2, pointerId: 7, clientX: 150, clientY: 140 });
+    dispatchPointer(svg, 'pointerUp', { button: 2, buttons: 0, pointerId: 7, clientX: 150, clientY: 140 });
+    expect(getComputedStyle(stage).transform).not.toBe(beforePan);
+  });
+
   it('resets navigation when the active case changes', () => {
     const { rerender } = renderCanvas();
     setViewportSize();
