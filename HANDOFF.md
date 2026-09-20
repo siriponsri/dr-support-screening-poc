@@ -222,10 +222,11 @@ python -m pytest -q tests/test_browser_ui.py # skipped; browser unavailable
 
 ## S2A2 Patient / Eye Resolver implementation handoff (2026-09-20)
 
-Branch: `feat/s2a2-patient-eye-resolver`.
+Implementation merged to `main` at `b14a68a`; test-isolation follow-up merged at
+`df96187`.
 
-Status: implementation complete; awaiting integration review and owner smoke
-acceptance. `main` was not modified by this implementation.
+Status: implementation complete and owner-smoke accepted. The temporary feature
+branch/worktree has been removed after integration.
 
 ### Audit findings and boundaries
 
@@ -284,7 +285,7 @@ short confirmation, assignment, eye-side, and leave-unlinked actions. Primary
 UI copy does not expose resolver enums, reason codes, or OCR status/error text.
 S3 grouping/filter/navigation remains deferred.
 
-### Validation on the feature worktree
+### Validation after integration
 
 ```text
 python -m pytest -q tests/test_resolver.py       # 16 passed
@@ -295,5 +296,14 @@ cd frontend && npm run typecheck                  # passed
 cd frontend && npm run build                      # passed; existing chunk warning
 ```
 
-Full backend and root smoke validation remain required before integration
-review. Optional real-browser smoke is environment-dependent.
+The authoritative `main` worktree also passed `python -m pytest -q` (`190
+passed, 1 skipped`), Ruff, frontend tests/typecheck/build, and root `npm test`.
+The offline pytest fixture now isolates `DR_SUPPORT_WORKSPACE_CATALOG` so ignored
+local demo workspace state cannot contaminate tests.
+
+Owner smoke used the supplied `DR-DEMO/WS03_IDENTITY_PREVIEW` folder. The React
+Worklist rendered all five cases with plain-language patient/eye statuses; the
+Review flow saved a pseudonymous patient key and eye side independently, and
+the resulting audit history was visible through the case API.
+
+Optional real-browser smoke is environment-dependent.
