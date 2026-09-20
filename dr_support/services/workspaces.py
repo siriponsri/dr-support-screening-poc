@@ -26,6 +26,10 @@ class WorkspaceNotFoundError(WorkspaceError):
     """A requested workspace id is not in the catalog."""
 
 
+class WorkspaceActiveError(WorkspaceError):
+    """The currently active workspace cannot be removed from the catalog."""
+
+
 class WorkspaceDatabaseError(WorkspaceError):
     """A workspace database is missing, inaccessible, or not SQLite."""
 
@@ -44,6 +48,7 @@ class WorkspaceCatalog:
             input_folder TEXT NOT NULL,
             output_folder TEXT NOT NULL,
             database_path TEXT NOT NULL,
+            note TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             last_opened TEXT
@@ -58,6 +63,9 @@ class WorkspaceCatalog:
             self.db = sqlite3.connect(str(self.path), check_same_thread=False)
             self.db.execute("PRAGMA busy_timeout=5000")
             self.db.execute(self._TABLE)
+            columns = {row[1] for row in self.db.execute("PRAGMA table_info(workspaces)")}
+            if "note" not in columns:
+                self.db.execute("ALTER TABLE workspaces ADD COLUMN note TEXT")
             self.db.commit()
         except (OSError, sqlite3.DatabaseError) as exc:
             try:
@@ -75,9 +83,10 @@ class WorkspaceCatalog:
                 "input_folder": row[2],
                 "output_folder": row[3],
                 "database_path": row[4],
-                "created_at": row[5],
-                "updated_at": row[6],
-                "last_opened": row[7],
+                "note": row[5],
+                "created_at": row[6],
+                "updated_at": row[7],
+                "last_opened": row[8],
             }
         )
 
@@ -85,7 +94,7 @@ class WorkspaceCatalog:
         with self.lock:
             try:
                 rows = self.db.execute(
-                    "SELECT id, name, input_folder, output_folder, database_path, "
+                    "SELECT id, name, input_folder, output_folder, database_path, note, "
                     "created_at, updated_at, last_opened "
                     "FROM workspaces ORDER BY name COLLATE NOCASE, id"
                 ).fetchall()
@@ -97,7 +106,7 @@ class WorkspaceCatalog:
         with self.lock:
             try:
                 row = self.db.execute(
-                    "SELECT id, name, input_folder, output_folder, database_path, "
+                    "SELECT id, name, input_folder, output_folder, database_path, note, "
                     "created_at, updated_at, last_opened FROM workspaces WHERE id=?",
                     (workspace_id,),
                 ).fetchone()
@@ -111,14 +120,15 @@ class WorkspaceCatalog:
                 with self.db:
                     self.db.execute(
                         "INSERT INTO workspaces "
-                        "(id, name, input_folder, output_folder, database_path, created_at, updated_at, last_opened) "
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        "(id, name, input_folder, output_folder, database_path, note, created_at, updated_at, last_opened) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             profile.id,
                             profile.name,
                             profile.input_folder,
                             profile.output_folder,
                             profile.database_path,
+                            profile.note,
                             profile.created_at,
                             profile.updated_at,
                             profile.last_opened,
@@ -133,13 +143,14 @@ class WorkspaceCatalog:
             try:
                 with self.db:
                     cursor = self.db.execute(
-                        "UPDATE workspaces SET name=?, input_folder=?, output_folder=?, database_path=?, "
+                        "UPDATE workspaces SET name=?, input_folder=?, output_folder=?, database_path=?, note=?, "
                         "updated_at=?, last_opened=? WHERE id=?",
                         (
                             profile.name,
                             profile.input_folder,
                             profile.output_folder,
                             profile.database_path,
+                            profile.note,
                             profile.updated_at,
                             profile.last_opened,
                             profile.id,
@@ -164,7 +175,7 @@ class WorkspaceCatalog:
                     if cursor.rowcount != 1:
                         raise WorkspaceNotFoundError(workspace_id)
                     row = self.db.execute(
-                        "SELECT id, name, input_folder, output_folder, database_path, "
+                        "SELECT id, name, input_folder, output_folder, database_path, note, "
                         "created_at, updated_at, last_opened FROM workspaces WHERE id=?",
                         (workspace_id,),
                     ).fetchone()
@@ -172,6 +183,18 @@ class WorkspaceCatalog:
             except WorkspaceNotFoundError:
                 raise
             except (sqlite3.DatabaseError, ValueError) as exc:
+                raise WorkspaceCatalogError(f"Workspace catalog could not be written: {exc}") from exc
+
+    def delete(self, workspace_id: str) -> None:
+        with self.lock:
+            try:
+                with self.db:
+                    cursor = self.db.execute("DELETE FROM workspaces WHERE id=?", (workspace_id,))
+                    if cursor.rowcount != 1:
+                        raise WorkspaceNotFoundError(workspace_id)
+            except WorkspaceNotFoundError:
+                raise
+            except sqlite3.DatabaseError as exc:
                 raise WorkspaceCatalogError(f"Workspace catalog could not be written: {exc}") from exc
 
 
@@ -317,6 +340,7 @@ class WorkspaceManager:
                 input_folder=request.input_folder,
                 output_folder=request.output_folder,
                 database_path=request.database_path,
+                note=request.note,
                 created_at=now,
                 updated_at=now,
                 last_opened=now,
@@ -336,6 +360,7 @@ class WorkspaceManager:
                 input_folder=request.input_folder,
                 output_folder=request.output_folder,
                 database_path=request.database_path,
+                note=request.note if "note" in request.model_fields_set else current.note,
                 created_at=current.created_at,
                 updated_at=now,
                 last_opened=now,
@@ -351,6 +376,13 @@ class WorkspaceManager:
             opened = self._require_catalog().activate(workspace_id, utc_now())
             self._swap_store(store, opened)
             return opened
+
+    def delete(self, workspace_id: str) -> None:
+        with self.lock:
+            profile = self.get_profile(workspace_id)
+            if self.active_workspace is not None and self.active_workspace.id == profile.id:
+                raise WorkspaceActiveError(profile.id)
+            self._require_catalog().delete(profile.id)
 
     def list_payload(self) -> dict:
         try:

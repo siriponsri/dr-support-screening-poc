@@ -120,6 +120,7 @@ export interface WorkspaceProfile {
   input_folder: string;
   output_folder: string;
   database_path: string;
+  note?: string | null;
   created_at: string;
   updated_at: string;
   last_opened: string | null;
@@ -128,7 +129,7 @@ export interface WorkspaceProfile {
 export type WorkspaceDraft = Pick<
   WorkspaceProfile,
   'name' | 'input_folder' | 'output_folder' | 'database_path'
->;
+> & { note: string | null };
 
 export interface WorkspaceListResponse {
   workspaces: WorkspaceProfile[];
@@ -151,6 +152,12 @@ export interface ActiveWorkspaceResponse {
 export interface WorkspaceMutationResponse {
   workspace: WorkspaceProfile;
   active: boolean;
+  warnings: string[];
+}
+
+export interface WorkspaceDeleteResponse {
+  deleted: boolean;
+  workspace_id: string;
   warnings: string[];
 }
 
@@ -189,6 +196,10 @@ export const workspaceApi = {
   open: (id: string) => apiJson<WorkspaceMutationResponse>(
     `/v1/workspaces/${encodeURIComponent(id)}/open`,
     jsonRequest({ method: 'POST' }),
+  ),
+  remove: (id: string) => apiJson<WorkspaceDeleteResponse>(
+    `/v1/workspaces/${encodeURIComponent(id)}`,
+    jsonRequest({ method: 'DELETE' }),
   ),
   pickFolder: (purpose: FolderPickerPurpose, initialPath: string) => apiJson<PickerResponse>(
     '/v1/workspaces/pickers/folder',

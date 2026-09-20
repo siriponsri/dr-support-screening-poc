@@ -51,6 +51,7 @@ class WorkspaceProfile(Contract):
     input_folder: str
     output_folder: str
     database_path: str
+    note: str | None = Field(default=None, max_length=500)
     created_at: str = Field(min_length=1)
     updated_at: str = Field(min_length=1)
     last_opened: str | None = None
@@ -61,6 +62,16 @@ class WorkspaceProfile(Contract):
         if not isinstance(value, str):
             raise ValueError("Workspace name must be a string")
         return value.strip()
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def clean_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("Workspace note must be a string")
+        cleaned = value.strip()
+        return cleaned or None
 
     @field_validator("input_folder", "output_folder", "database_path", mode="before")
     @classmethod
@@ -88,6 +99,7 @@ class WorkspaceInput(Contract):
     input_folder: str
     output_folder: str
     database_path: str
+    note: str | None = Field(default=None, max_length=500)
 
     @field_validator("name", mode="before")
     @classmethod
@@ -95,6 +107,16 @@ class WorkspaceInput(Contract):
         if not isinstance(value, str):
             raise ValueError("Workspace name must be a string")
         return value.strip()
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def clean_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("Workspace note must be a string")
+        cleaned = value.strip()
+        return cleaned or None
 
     @field_validator("input_folder", "output_folder", "database_path", mode="before")
     @classmethod

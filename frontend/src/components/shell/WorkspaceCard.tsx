@@ -142,9 +142,11 @@ function ActiveWorkspaceCard({ workspace, ...rest }: { workspace: ReturnType<typ
       <Text fontSize="md" fontWeight="semibold" color="text.primary" noOfLines={1} title={workspace.name}>
         {workspace.name}
       </Text>
-      <Text fontSize="xs" color="text.secondary" noOfLines={2} title={workspace.database_path} mt={1} fontFamily="mono">
-        {workspace.database_path}
-      </Text>
+      {workspace.note && (
+        <Text fontSize="xs" color="text.secondary" noOfLines={2} title={workspace.note} mt={1}>
+          {workspace.note}
+        </Text>
+      )}
       <ChakraLink as={Link} to="/settings" display="inline-block" mt={2} fontSize="xs" fontWeight="semibold" color="action.primaryHover">
         Manage workspace
       </ChakraLink>

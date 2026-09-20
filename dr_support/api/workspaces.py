@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from ..contracts import DatabasePickerRequest, FolderPickerRequest, PickerResult, WorkspaceInput
 from ..services.workspaces import (
     WorkspaceCatalogError,
+    WorkspaceActiveError,
     WorkspaceDatabaseError,
     WorkspaceManager,
     WorkspaceNotFoundError,
@@ -18,6 +19,8 @@ def _workspace_error(error: Exception) -> HTTPException:
         return HTTPException(status_code=404, detail="Unknown workspace")
     if isinstance(error, WorkspaceDatabaseError):
         return HTTPException(status_code=409, detail=str(error))
+    if isinstance(error, WorkspaceActiveError):
+        return HTTPException(status_code=409, detail="The active workspace cannot be deleted; switch to another workspace first.")
     if isinstance(error, WorkspaceCatalogError):
         return HTTPException(status_code=503, detail=str(error))
     return HTTPException(status_code=503, detail="Workspace operation unavailable")
@@ -107,3 +110,11 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
         except (WorkspaceCatalogError, WorkspaceDatabaseError, WorkspaceNotFoundError) as error:
             raise _workspace_error(error) from None
         return {"workspace": _json_profile(profile), "active": True, "warnings": list(manager.warnings)}
+
+    @app.delete("/v1/workspaces/{workspace_id}")
+    def delete_workspace(workspace_id: str):
+        try:
+            manager.delete(workspace_id)
+        except (WorkspaceActiveError, WorkspaceCatalogError, WorkspaceNotFoundError) as error:
+            raise _workspace_error(error) from None
+        return {"deleted": True, "workspace_id": workspace_id, "warnings": list(manager.warnings)}

@@ -11,6 +11,14 @@ import {
   HStack,
   IconButton,
   Input,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  Textarea,
   SimpleGrid,
   Spinner,
   Stack,
@@ -18,9 +26,9 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import { Link } from 'react-router-dom';
-import { CheckCircle2, Copy, Database, FolderOpen, Pencil, Plus, RefreshCw, Save, X } from '@/lib/icons';
+import { CheckCircle2, Copy, Database, FolderOpen, Pencil, Plus, RefreshCw, Save, Trash2, X } from '@/lib/icons';
 import { Section } from '@/components/common/Section';
-import { StatusBadge, type StatusTone } from '@/components/common/StatusBadge';
+import { StatusBadge } from '@/components/common/StatusBadge';
 import type { WorkspaceDraft, WorkspaceProfile } from '@/lib/api';
 import { useWorkspace } from '@/components/shell/workspace';
 
@@ -32,6 +40,7 @@ const EMPTY_DRAFT: WorkspaceDraft = {
   input_folder: '',
   output_folder: '',
   database_path: '',
+  note: '',
 };
 
 function draftFromWorkspace(workspace: WorkspaceProfile): WorkspaceDraft {
@@ -40,19 +49,12 @@ function draftFromWorkspace(workspace: WorkspaceProfile): WorkspaceDraft {
     input_folder: workspace.input_folder,
     output_folder: workspace.output_folder,
     database_path: workspace.database_path,
+    note: workspace.note ?? '',
   };
 }
 
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'The workspace request could not be completed.';
-}
-
-function databaseStatusLabel(status: 'ready' | 'fallback' | 'unavailable') {
-  return status === 'ready' ? 'Ready' : status === 'fallback' ? 'Fallback store' : 'Unavailable';
-}
-
-function databaseStatusTone(status: 'ready' | 'fallback' | 'unavailable'): StatusTone {
-  return status === 'ready' ? 'success' : status === 'fallback' ? 'warning' : 'danger';
 }
 
 function suggestedDatabaseName(path: string) {
@@ -73,6 +75,7 @@ export function WorkspaceManager() {
     createWorkspace,
     updateWorkspace,
     openWorkspace,
+    deleteWorkspace,
     pickFolder,
     pickDatabase,
   } = useWorkspace();
@@ -81,6 +84,7 @@ export function WorkspaceManager() {
   const [draft, setDraft] = useState<WorkspaceDraft>(EMPTY_DRAFT);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [pickerLoading, setPickerLoading] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<WorkspaceProfile | null>(null);
 
   const beginCreate = () => {
     setEditorMode('create');
@@ -161,6 +165,7 @@ export function WorkspaceManager() {
       input_folder: draft.input_folder.trim(),
       output_folder: draft.output_folder.trim(),
       database_path: draft.database_path.trim(),
+      note: draft.note?.trim() || null,
     };
     if (!normalized.name || !normalized.input_folder || !normalized.output_folder || !normalized.database_path) {
       setFeedback({ status: 'error', message: 'Name, input folder, output folder, and SQLite database are required.' });
@@ -195,6 +200,19 @@ export function WorkspaceManager() {
       setFeedback({ status: 'success', message: `${workspace.name} is now the active workspace.` });
     } catch (openError) {
       setFeedback({ status: 'error', message: errorText(openError) });
+    }
+  };
+
+  const removeWorkspace = async () => {
+    if (!pendingDelete) return;
+    const workspace = pendingDelete;
+    setFeedback(null);
+    try {
+      await deleteWorkspace(workspace.id);
+      setPendingDelete(null);
+      setFeedback({ status: 'success', message: `${workspace.name} was removed from saved workspaces.` });
+    } catch (deleteError) {
+      setFeedback({ status: 'error', message: errorText(deleteError) });
     }
   };
 
@@ -240,11 +258,12 @@ export function WorkspaceManager() {
             <Stack spacing={1} minW={0}>
               <Text fontSize="xxs" fontWeight="bold" textTransform="uppercase" letterSpacing="0.12em" color="text.secondary">Current workspace</Text>
               <Text fontSize="lg" fontWeight="semibold">{activeWorkspace.name}</Text>
+              {activeWorkspace.note && <Text fontSize="sm" color="text.secondary" noOfLines={2} title={activeWorkspace.note}>{activeWorkspace.note}</Text>}
               <Text fontSize="sm" color="text.secondary">Opening a workspace changes this process's active review database. It does not move or copy images.</Text>
             </Stack>
-            <HStack spacing={2}>
-              <StatusBadge tone={databaseStatusTone(activeDatabase.status)}>{databaseStatusLabel(activeDatabase.status)}</StatusBadge>
-              <Button size="sm" variant="outline" leftIcon={<Pencil size={14} />} onClick={() => beginEdit(activeWorkspace)}>Edit active</Button>
+            <HStack spacing={2} align="center">
+              <StatusBadge tone="brand"><CheckCircle2 size={11} aria-hidden="true" /> Active</StatusBadge>
+              <Button size="sm" variant="outline" leftIcon={<Pencil size={14} />} onClick={() => beginEdit(activeWorkspace)}>Edit</Button>
             </HStack>
           </HStack>
           <HStack mt={3} spacing={2} align="flex-start">
@@ -283,6 +302,7 @@ export function WorkspaceManager() {
                   active={workspace.id === activeWorkspace?.id}
                   onSwitch={() => void switchWorkspace(workspace)}
                   onEdit={() => beginEdit(workspace)}
+                  onDelete={() => setPendingDelete(workspace)}
                   isMutating={isMutating}
                 />
               ))}
@@ -302,6 +322,11 @@ export function WorkspaceManager() {
                   <FormLabel htmlFor="workspace-name">Workspace name</FormLabel>
                   <Input id="workspace-name" aria-label="Workspace name" value={draft.name} maxLength={120} onChange={(event) => updateDraft('name', event.target.value)} placeholder="e.g. April DR screening" autoFocus />
                   <FormHelperText>Required; up to 120 characters.</FormHelperText>
+                </FormControl>
+                <FormControl>
+                  <FormLabel htmlFor="workspace-note">Workspace note (optional)</FormLabel>
+                  <Textarea id="workspace-note" aria-label="Workspace note" value={draft.note ?? ''} maxLength={500} onChange={(event) => updateDraft('note', event.target.value)} placeholder="e.g. Mobile screening unit - Sept 2026" resize="vertical" rows={3} />
+                  <FormHelperText>Optional; up to 500 characters. Leave blank to clear it.</FormHelperText>
                 </FormControl>
                 <PathField label="Input folder" value={draft.input_folder} onChange={(value) => updateDraft('input_folder', value)} onBrowse={() => void browseFolder('input')} onCopy={() => void copyPath('Input folder', draft.input_folder)} isLoading={pickerLoading === 'input_folder'} />
                 <PathField label="Output folder" value={draft.output_folder} onChange={(value) => updateDraft('output_folder', value)} onBrowse={() => void browseFolder('output')} onCopy={() => void copyPath('Output folder', draft.output_folder)} isLoading={pickerLoading === 'output_folder'} />
@@ -333,6 +358,25 @@ export function WorkspaceManager() {
         )}
       </SimpleGrid>
       <Text fontSize="xs" color="text.secondary">Workspace selection changes local review context only. It does not imply that files were moved, copied, uploaded, or sent to a model service.</Text>
+      <Modal isOpen={Boolean(pendingDelete)} onClose={() => setPendingDelete(null)} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Delete workspace profile?</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Stack spacing={3}>
+              <Text>Remove <Text as="span" fontWeight="semibold">{pendingDelete?.name}</Text> from the saved workspace catalog?</Text>
+              <Text fontSize="sm" color="text.secondary">This removes only the workspace profile. Local input/output folders, retinal images, SQLite review data, and model data files will not be deleted.</Text>
+            </Stack>
+          </ModalBody>
+          <ModalFooter>
+            <HStack spacing={2}>
+              <Button variant="ghost" onClick={() => setPendingDelete(null)} isDisabled={isMutating}>Cancel</Button>
+              <Button variant="danger" leftIcon={<Trash2 size={14} />} onClick={() => void removeWorkspace()} isLoading={isMutating}>Delete profile</Button>
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Stack>
   );
 }
@@ -351,21 +395,18 @@ function PathField({ label, value, onChange, onBrowse, onCopy, isLoading }: { la
   );
 }
 
-function WorkspaceRow({ workspace, active, onSwitch, onEdit, isMutating }: { workspace: WorkspaceProfile; active: boolean; onSwitch: () => void; onEdit: () => void; isMutating: boolean }) {
+function WorkspaceRow({ workspace, active, onSwitch, onEdit, onDelete, isMutating }: { workspace: WorkspaceProfile; active: boolean; onSwitch: () => void; onEdit: () => void; onDelete: () => void; isMutating: boolean }) {
   return (
     <Box role="group" aria-label={`${workspace.name} workspace`} py={4} px={1} borderLeftWidth="3px" borderLeftColor={active ? 'action.primary' : 'transparent'} pl={active ? 3 : 4}>
       <HStack align="flex-start" justify="space-between" spacing={4} flexWrap="wrap">
         <Stack spacing={1} minW={0} flex={1}>
-          <HStack spacing={2} align="center" flexWrap="nowrap" minW={0}>
-            <Text flex={1} minW={0} fontWeight="semibold" noOfLines={1} title={workspace.name}>{workspace.name}</Text>
-            {active && <StatusBadge tone="brand"><CheckCircle2 size={11} aria-hidden="true" /> Active</StatusBadge>}
-          </HStack>
-          <Text fontSize="xs" color="text.secondary" fontFamily="mono" wordBreak="break-all" title={workspace.input_folder}>Input: {workspace.input_folder}</Text>
-          <Text fontSize="xs" color="text.secondary" fontFamily="mono" wordBreak="break-all" title={workspace.database_path}>DB: {workspace.database_path}</Text>
+          <Text flex={1} minW={0} fontWeight="semibold" noOfLines={1} title={workspace.name}>{workspace.name}</Text>
+          {workspace.note && <Text fontSize="xs" color="text.secondary" noOfLines={2} title={workspace.note}>{workspace.note}</Text>}
         </Stack>
-        <HStack spacing={2} flexShrink={0}>
-          {!active && <Button size="sm" width="152px" justifyContent="center" variant="solid" onClick={onSwitch} isLoading={isMutating}>Switch</Button>}
+        <HStack spacing={2} align="center" flexShrink={0} flexWrap="wrap" justify="flex-end">
+          {active ? <StatusBadge tone="brand"><CheckCircle2 size={11} aria-hidden="true" /> Active</StatusBadge> : <Button size="sm" width="152px" justifyContent="center" variant="solid" onClick={onSwitch} isLoading={isMutating}>Switch</Button>}
           <Button size="sm" width="152px" justifyContent="center" variant="outline" leftIcon={<Pencil size={14} />} onClick={onEdit} isDisabled={isMutating}>Edit</Button>
+          {!active && <Button size="sm" variant="danger" leftIcon={<Trash2 size={14} />} onClick={onDelete} isDisabled={isMutating}>Delete</Button>}
         </HStack>
       </HStack>
     </Box>

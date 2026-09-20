@@ -10,6 +10,7 @@ const workspaceA: WorkspaceProfile = {
   input_folder: 'C:\\Data\\April-DR\\input',
   output_folder: 'C:\\Data\\April-DR\\output',
   database_path: 'C:\\Data\\April-DR\\review.sqlite',
+  note: 'April mobile screening unit',
   created_at: '2026-09-20T05:00:00+00:00',
   updated_at: '2026-09-20T05:00:00+00:00',
   last_opened: '2026-09-20T05:00:00+00:00',
@@ -22,6 +23,7 @@ const workspaceB: WorkspaceProfile = {
   input_folder: 'C:\\Data\\May-DR\\input',
   output_folder: 'C:\\Data\\May-DR\\output',
   database_path: 'C:\\Data\\May-DR\\review.sqlite',
+  note: 'May follow-up clinic',
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -35,6 +37,7 @@ interface MockOptions {
   workspaces?: WorkspaceProfile[];
   active?: WorkspaceProfile | null;
   openFailure?: string;
+  deleteFailure?: string;
   folderPickers?: Array<{ status: 'selected' | 'cancelled' | 'unavailable'; path?: string; message?: string }>;
   databasePickers?: Array<{ status: 'selected' | 'cancelled' | 'unavailable'; path?: string; message?: string }>;
 }
@@ -74,6 +77,14 @@ function mockWorkspaceApi(options: MockOptions = {}) {
       active = { ...workspaceB, ...body, id: 'ws_created' } as WorkspaceProfile;
       return jsonResponse({ workspace: active, active: true, warnings: [] });
     }
+    if (url.includes('/v1/workspaces/') && method === 'PUT') {
+      active = { ...active, ...body } as WorkspaceProfile;
+      return jsonResponse({ workspace: active, active: true, warnings: [] });
+    }
+    if (url.includes('/v1/workspaces/') && method === 'DELETE') {
+      if (options.deleteFailure) return jsonResponse({ detail: options.deleteFailure }, 503);
+      return jsonResponse({ deleted: true, workspace_id: url.split('/').at(-1), warnings: [] });
+    }
     if (url.includes('/v1/workspaces/') && url.endsWith('/open')) {
       if (options.openFailure) return jsonResponse({ detail: options.openFailure }, 409);
       active = url.includes(workspaceB.id) ? workspaceB : workspaceA;
@@ -90,8 +101,10 @@ describe('Workspace manager', () => {
     renderAppAt('/settings');
 
     expect(await screen.findAllByText('April DR Screening')).not.toHaveLength(0);
-    expect(screen.getAllByText(workspaceA.database_path)).not.toHaveLength(0);
-    expect(screen.getByText('Ready')).toBeInTheDocument();
+    expect(screen.getAllByText(workspaceA.database_path)).toHaveLength(1);
+    expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(workspaceA.note!).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Edit').length).toBeGreaterThan(0);
     expect(screen.getByText(/does not move or copy images/i)).toBeInTheDocument();
     const activeRow = screen.getByRole('group', { name: 'April DR Screening workspace' });
     expect(within(activeRow).getByText('Active')).toBeInTheDocument();
@@ -133,6 +146,57 @@ describe('Workspace manager', () => {
     expect(within(screen.getByRole('group', { name: 'May DR Screening workspace' })).queryByText('Active')).not.toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Current workspace: April DR Screening' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Current workspace: May DR Screening' })).not.toBeInTheDocument();
+  });
+
+  it('shows an optional note in Current and Saved workspace views', async () => {
+    mockWorkspaceApi({ workspaces: [workspaceA, workspaceB], active: workspaceA });
+    renderAppAt('/settings');
+
+    expect(await screen.findAllByText(workspaceA.note!)).not.toHaveLength(0);
+    expect(screen.getByText(workspaceB.note!)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Current workspace: April DR Screening' })).toBeInTheDocument();
+  });
+
+  it('creates, edits, and clears a workspace note', async () => {
+    const calls = mockWorkspaceApi();
+    const user = userEvent.setup();
+    renderAppAt('/settings');
+    await user.click(await screen.findByRole('button', { name: 'New workspace' }));
+    await user.type(screen.getByLabelText('Workspace name'), 'Noted workspace');
+    await user.type(screen.getByLabelText('Workspace note'), 'Mobile screening unit');
+    await user.type(screen.getByLabelText('Input folder'), 'C:\\Data\\input');
+    await user.type(screen.getByLabelText('Output folder'), 'C:\\Data\\output');
+    await user.type(screen.getByLabelText('SQLite database'), 'C:\\Data\\review.sqlite');
+    await user.click(screen.getByRole('button', { name: 'Create workspace', exact: true }));
+    expect(calls.find((call) => call.method === 'POST' && call.url.endsWith('/v1/workspaces'))?.body).toMatchObject({ note: 'Mobile screening unit' });
+
+    await user.click(within(screen.getByRole('group', { name: 'Noted workspace workspace' })).getByRole('button', { name: 'Edit' }));
+    const note = screen.getByLabelText('Workspace note');
+    await user.clear(note);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(calls.find((call) => call.method === 'PUT')?.body).toMatchObject({ note: null });
+  });
+
+  it('requires confirmation before deleting an inactive profile and preserves paths', async () => {
+    const calls = mockWorkspaceApi({ workspaces: [workspaceA, workspaceB], active: workspaceA });
+    const user = userEvent.setup();
+    renderAppAt('/settings');
+    const inactiveRow = await screen.findByRole('group', { name: 'May DR Screening workspace' });
+    await user.click(within(inactiveRow).getByRole('button', { name: 'Delete' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('May DR Screening');
+    expect(screen.getByRole('dialog')).toHaveTextContent(/local input\/output folders.*SQLite review data.*will not be deleted/i);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete profile' }));
+
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'May DR Screening workspace' })).not.toBeInTheDocument());
+    expect(screen.getByRole('group', { name: 'April DR Screening workspace' })).toBeInTheDocument();
+    expect(calls).toContainEqual(expect.objectContaining({ method: 'DELETE', url: expect.stringContaining('/v1/workspaces/ws_may') }));
+  });
+
+  it('does not expose deletion for the active workspace', async () => {
+    mockWorkspaceApi({ workspaces: [workspaceA, workspaceB], active: workspaceA });
+    renderAppAt('/settings');
+    const activeRow = await screen.findByRole('group', { name: 'April DR Screening workspace' });
+    expect(within(activeRow).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
   });
 
   it('treats picker cancellation as normal and explains unavailable native dialogs', async () => {

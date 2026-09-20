@@ -18,6 +18,7 @@ The profile is the durable local identity for one review workspace:
   "input_folder": "C:\\Data\\April-DR\\input",
   "output_folder": "C:\\Data\\April-DR\\output",
   "database_path": "C:\\Data\\April-DR\\review.sqlite",
+  "note": "Mobile screening unit - Sept 2026",
   "created_at": "2026-09-20T05:00:00+00:00",
   "updated_at": "2026-09-20T05:00:00+00:00",
   "last_opened": "2026-09-20T05:00:00+00:00"
@@ -39,6 +40,9 @@ Rules:
   and may be `null` before the first activation.
 - Paths remain local values. They are never sent to a model service or cloud
   database.
+
+- `note` is optional, trimmed, and limited to 500 characters. An empty note is
+  represented as `null`; legacy profiles without the field remain readable.
 
 ## Persistence and startup
 
@@ -96,6 +100,11 @@ guard. Dates and paths use the JSON representations above.
 or `unavailable`. A fallback response includes a human-readable warning and
 does not claim that a workspace is active when it is not.
 
+The workspace manager UI shows the active workspace note below its name when
+present. The shell sidebar shows only the active workspace name, optional note,
+and a `Manage workspace` link; local folder and database paths remain in
+Settings.
+
 ### Save and open
 
 `POST /v1/workspaces` creates and activates a profile. Request:
@@ -105,9 +114,15 @@ does not claim that a workspace is active when it is not.
   "name": "April DR Screening",
   "input_folder": "C:\\Data\\April-DR\\input",
   "output_folder": "C:\\Data\\April-DR\\output",
-  "database_path": "C:\\Data\\April-DR\\review.sqlite"
+  "database_path": "C:\\Data\\April-DR\\review.sqlite",
+  "note": "Mobile screening unit - Sept 2026"
 }
 ```
+
+`note` is optional, is limited to 500 characters, and is returned on every
+`WorkspaceProfile` response. Whitespace-only notes are normalized to `null`.
+Existing catalog rows without a note remain valid and read as `null`. Create
+and update requests may set, replace, or clear the note.
 
 `PUT /v1/workspaces/{id}` accepts the same fields and updates the existing
 profile. It activates the profile after a successful database open.
@@ -122,8 +137,19 @@ Both endpoints return:
 same response shape. The database is opened before the active pointer changes;
 on failure, the previous active store remains in use.
 
-No delete endpoint is part of S2. Removing a profile must not be confused with
-deleting its SQLite file.
+`DELETE /v1/workspaces/{id}` removes an inactive profile from the workspace
+catalog and returns:
+
+```json
+{"deleted": true, "workspace_id": "ws_01J...", "warnings": []}
+```
+
+Deletion removes only the catalog profile. It never deletes or changes the
+profile's input folder, output folder, retinal images, SQLite review database,
+or model result/data files. The active profile cannot be deleted and returns
+HTTP 409; the client must switch to another workspace first. Unknown profiles
+return HTTP 404. A failed deletion leaves the active workspace and store
+unchanged.
 
 ### Native pickers
 

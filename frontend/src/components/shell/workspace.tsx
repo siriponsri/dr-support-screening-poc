@@ -15,6 +15,7 @@ import {
   type FolderPickerPurpose,
   type PickerResponse,
   type WorkspaceDatabaseStatus,
+  type WorkspaceDeleteResponse,
   type WorkspaceDraft,
   type WorkspaceMutationResponse,
   type WorkspaceProfile,
@@ -34,6 +35,7 @@ export interface WorkspaceState {
   createWorkspace: (draft: WorkspaceDraft) => Promise<WorkspaceProfile>;
   updateWorkspace: (id: string, draft: WorkspaceDraft) => Promise<WorkspaceProfile>;
   openWorkspace: (id: string) => Promise<WorkspaceProfile>;
+  deleteWorkspace: (id: string) => Promise<WorkspaceDeleteResponse>;
   pickFolder: (purpose: FolderPickerPurpose, initialPath: string) => Promise<PickerResponse>;
   pickDatabase: (mode: DatabasePickerMode, initialPath: string, suggestedName: string) => Promise<PickerResponse>;
 }
@@ -152,6 +154,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     (id: string) => runMutation(() => workspaceApi.open(id)),
     [runMutation],
   );
+  const deleteWorkspace = useCallback(async (id: string) => {
+    setIsMutating(true);
+    try {
+      const response = await workspaceApi.remove(id);
+      setWorkspaces((current) => current.filter((workspace) => workspace.id !== id));
+      setWarnings(response.warnings);
+      setError(null);
+      setStatus((current) => current === 'degraded' || response.warnings.length > 0 ? 'degraded' : current);
+      return response;
+    } catch (mutationError) {
+      setError(errorText(mutationError));
+      throw mutationError;
+    } finally {
+      setIsMutating(false);
+    }
+  }, []);
   const pickFolder = useCallback(
     (purpose: FolderPickerPurpose, initialPath: string) => workspaceApi.pickFolder(purpose, initialPath),
     [],
@@ -173,6 +191,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     createWorkspace,
     updateWorkspace,
     openWorkspace,
+    deleteWorkspace,
     pickFolder,
     pickDatabase,
   }), [
@@ -187,6 +206,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     createWorkspace,
     updateWorkspace,
     openWorkspace,
+    deleteWorkspace,
     pickFolder,
     pickDatabase,
   ]);
