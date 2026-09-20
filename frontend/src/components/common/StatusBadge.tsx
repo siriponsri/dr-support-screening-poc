@@ -18,5 +18,14 @@ const VARIANT_FOR_TONE: Record<StatusTone, string> = {
 };
 
 export function StatusBadge({ tone = 'neutral', children }: StatusBadgeProps) {
-  return <Badge variant={VARIANT_FOR_TONE[tone]}>{children}</Badge>;
+  return (
+    <Badge
+      variant={VARIANT_FOR_TONE[tone]}
+      display="inline-flex"
+      alignItems="center"
+      gap={1}
+    >
+      {children}
+    </Badge>
+  );
 }

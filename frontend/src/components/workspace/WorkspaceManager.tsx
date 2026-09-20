@@ -356,16 +356,16 @@ function WorkspaceRow({ workspace, active, onOpen, onEdit, isMutating }: { works
     <Box py={4} px={1} borderLeftWidth="3px" borderLeftColor={active ? 'action.primary' : 'transparent'} pl={active ? 3 : 4}>
       <HStack align="flex-start" justify="space-between" spacing={4} flexWrap="wrap">
         <Stack spacing={1} minW={0} flex={1}>
-          <HStack spacing={2}>
-            <Text fontWeight="semibold" noOfLines={1} title={workspace.name}>{workspace.name}</Text>
+          <HStack spacing={2} align="center" flexWrap="nowrap" minW={0}>
+            <Text flex={1} minW={0} fontWeight="semibold" noOfLines={1} title={workspace.name}>{workspace.name}</Text>
             {active && <StatusBadge tone="brand"><CheckCircle2 size={11} aria-hidden="true" /> Active</StatusBadge>}
           </HStack>
           <Text fontSize="xs" color="text.secondary" fontFamily="mono" wordBreak="break-all" title={workspace.input_folder}>Input: {workspace.input_folder}</Text>
           <Text fontSize="xs" color="text.secondary" fontFamily="mono" wordBreak="break-all" title={workspace.database_path}>DB: {workspace.database_path}</Text>
         </Stack>
         <HStack spacing={2} flexShrink={0}>
-          {active ? <StatusBadge tone="success">Open</StatusBadge> : <Button size="sm" variant="solid" onClick={onOpen} isLoading={isMutating}>Open workspace</Button>}
-          <Button size="sm" variant="outline" leftIcon={<Pencil size={14} />} onClick={onEdit} isDisabled={isMutating}>Edit</Button>
+          {active ? <StatusBadge tone="success">Open</StatusBadge> : <Button size="sm" width="152px" justifyContent="center" variant="solid" onClick={onOpen} isLoading={isMutating}>Open workspace</Button>}
+          <Button size="sm" width="152px" justifyContent="center" variant="outline" leftIcon={<Pencil size={14} />} onClick={onEdit} isDisabled={isMutating}>Edit</Button>
         </HStack>
       </HStack>
     </Box>
