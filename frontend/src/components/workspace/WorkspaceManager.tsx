@@ -188,7 +188,7 @@ export function WorkspaceManager() {
     }
   };
 
-  const open = async (workspace: WorkspaceProfile) => {
+  const switchWorkspace = async (workspace: WorkspaceProfile) => {
     setFeedback(null);
     try {
       await openWorkspace(workspace.id);
@@ -281,7 +281,7 @@ export function WorkspaceManager() {
                   key={workspace.id}
                   workspace={workspace}
                   active={workspace.id === activeWorkspace?.id}
-                  onOpen={() => void open(workspace)}
+                  onSwitch={() => void switchWorkspace(workspace)}
                   onEdit={() => beginEdit(workspace)}
                   isMutating={isMutating}
                 />
@@ -351,9 +351,9 @@ function PathField({ label, value, onChange, onBrowse, onCopy, isLoading }: { la
   );
 }
 
-function WorkspaceRow({ workspace, active, onOpen, onEdit, isMutating }: { workspace: WorkspaceProfile; active: boolean; onOpen: () => void; onEdit: () => void; isMutating: boolean }) {
+function WorkspaceRow({ workspace, active, onSwitch, onEdit, isMutating }: { workspace: WorkspaceProfile; active: boolean; onSwitch: () => void; onEdit: () => void; isMutating: boolean }) {
   return (
-    <Box py={4} px={1} borderLeftWidth="3px" borderLeftColor={active ? 'action.primary' : 'transparent'} pl={active ? 3 : 4}>
+    <Box role="group" aria-label={`${workspace.name} workspace`} py={4} px={1} borderLeftWidth="3px" borderLeftColor={active ? 'action.primary' : 'transparent'} pl={active ? 3 : 4}>
       <HStack align="flex-start" justify="space-between" spacing={4} flexWrap="wrap">
         <Stack spacing={1} minW={0} flex={1}>
           <HStack spacing={2} align="center" flexWrap="nowrap" minW={0}>
@@ -364,7 +364,7 @@ function WorkspaceRow({ workspace, active, onOpen, onEdit, isMutating }: { works
           <Text fontSize="xs" color="text.secondary" fontFamily="mono" wordBreak="break-all" title={workspace.database_path}>DB: {workspace.database_path}</Text>
         </Stack>
         <HStack spacing={2} flexShrink={0}>
-          {active ? <StatusBadge tone="success">Open</StatusBadge> : <Button size="sm" width="152px" justifyContent="center" variant="solid" onClick={onOpen} isLoading={isMutating}>Open workspace</Button>}
+          {!active && <Button size="sm" width="152px" justifyContent="center" variant="solid" onClick={onSwitch} isLoading={isMutating}>Switch</Button>}
           <Button size="sm" width="152px" justifyContent="center" variant="outline" leftIcon={<Pencil size={14} />} onClick={onEdit} isDisabled={isMutating}>Edit</Button>
         </HStack>
       </HStack>

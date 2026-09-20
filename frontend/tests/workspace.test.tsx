@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { WorkspaceProfile } from '@/lib/api';
 import { renderAppAt } from './testUtils';
@@ -34,6 +34,7 @@ function jsonResponse(body: unknown, status = 200) {
 interface MockOptions {
   workspaces?: WorkspaceProfile[];
   active?: WorkspaceProfile | null;
+  openFailure?: string;
   folderPickers?: Array<{ status: 'selected' | 'cancelled' | 'unavailable'; path?: string; message?: string }>;
   databasePickers?: Array<{ status: 'selected' | 'cancelled' | 'unavailable'; path?: string; message?: string }>;
 }
@@ -74,6 +75,7 @@ function mockWorkspaceApi(options: MockOptions = {}) {
       return jsonResponse({ workspace: active, active: true, warnings: [] });
     }
     if (url.includes('/v1/workspaces/') && url.endsWith('/open')) {
+      if (options.openFailure) return jsonResponse({ detail: options.openFailure }, 409);
       active = url.includes(workspaceB.id) ? workspaceB : workspaceA;
       return jsonResponse({ workspace: active, active: true, warnings: [] });
     }
@@ -91,18 +93,46 @@ describe('Workspace manager', () => {
     expect(screen.getAllByText(workspaceA.database_path)).not.toHaveLength(0);
     expect(screen.getByText('Ready')).toBeInTheDocument();
     expect(screen.getByText(/does not move or copy images/i)).toBeInTheDocument();
+    const activeRow = screen.getByRole('group', { name: 'April DR Screening workspace' });
+    expect(within(activeRow).getByText('Active')).toBeInTheDocument();
+    expect(within(activeRow).queryByRole('button', { name: 'Switch' })).not.toBeInTheDocument();
+    expect(within(activeRow).queryByRole('button', { name: /Open/i })).not.toBeInTheDocument();
+    expect(within(activeRow).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
   });
 
-  it('keeps workspace switching behind an explicit Open workspace action', async () => {
+  it('switches an inactive workspace and moves the active context', async () => {
     const calls = mockWorkspaceApi({ workspaces: [workspaceA, workspaceB], active: workspaceA });
     const user = userEvent.setup();
     renderAppAt('/settings');
     await screen.findByText('May DR Screening');
 
     expect(calls.some((call) => call.url.endsWith('/ws_may/open'))).toBe(false);
-    await user.click(screen.getByRole('button', { name: 'Open workspace' }));
+    const mayRow = screen.getByRole('group', { name: 'May DR Screening workspace' });
+    await user.click(within(mayRow).getByRole('button', { name: 'Switch' }));
     expect(await screen.findByText('May DR Screening is now the active workspace.')).toBeInTheDocument();
-    expect(calls.some((call) => call.url.endsWith('/ws_may/open'))).toBe(true);
+    expect(calls).toContainEqual(expect.objectContaining({
+      url: expect.stringContaining('/v1/workspaces/ws_may/open'),
+      method: 'POST',
+    }));
+    expect(within(screen.getByRole('group', { name: 'May DR Screening workspace' })).getByText('Active')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'April DR Screening workspace' })).queryByText('Active')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Current workspace: May DR Screening' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Current workspace: April DR Screening' })).not.toBeInTheDocument();
+  });
+
+  it('preserves the previous active workspace when switching fails', async () => {
+    mockWorkspaceApi({ workspaces: [workspaceA, workspaceB], active: workspaceA, openFailure: 'Database could not be opened.' });
+    const user = userEvent.setup();
+    renderAppAt('/settings');
+    await screen.findByText('May DR Screening');
+
+    await user.click(within(screen.getByRole('group', { name: 'May DR Screening workspace' })).getByRole('button', { name: 'Switch' }));
+
+    expect(await screen.findByText('Database could not be opened.')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'April DR Screening workspace' })).getByText('Active')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'May DR Screening workspace' })).queryByText('Active')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Current workspace: April DR Screening' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Current workspace: May DR Screening' })).not.toBeInTheDocument();
   });
 
   it('treats picker cancellation as normal and explains unavailable native dialogs', async () => {
