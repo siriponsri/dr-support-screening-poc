@@ -12,6 +12,14 @@ from ._schema import (
     LesionResult,
     Provenance,
 )
+from .workspaces import (
+    DatabasePickerRequest,
+    FolderPickerRequest,
+    PickerResult,
+    WorkspaceInput,
+    WorkspaceProfile,
+    is_absolute_local_path,
+)
 
 __all__ = [
     'LABELS',
@@ -21,4 +29,10 @@ __all__ = [
     'Lesion',
     'LesionResult',
     'Provenance',
+    'DatabasePickerRequest',
+    'FolderPickerRequest',
+    'PickerResult',
+    'WorkspaceInput',
+    'WorkspaceProfile',
+    'is_absolute_local_path',
 ]
