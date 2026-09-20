@@ -47,6 +47,9 @@ def install_workflow(app, store):
     app.state.store = store
     app.state.remote = CVATOnline()
 
+    def current_store():
+        return app.state.store
+
     def get_image(image_id):
         if image_id not in app.state.images:
             raise HTTPException(404, 'Image not admitted')
@@ -54,7 +57,7 @@ def install_workflow(app, store):
 
     def detail(image_id):
         image = get_image(image_id)
-        case = store.get(image_id)
+        case = current_store().get(image_id)
         return {**case, 'source_type': image.source_type, 'source': image.source,
                 'filename': image.filename or None,
                 'display_name': Path(image.filename).stem if image.filename else image.image_id,
@@ -127,6 +130,7 @@ def install_workflow(app, store):
     @app.post('/v1/cases/{image_id}/review')
     def review(image_id: str, request: Review):
         get_image(image_id)
+        store = current_store()
         with store.lock:
             case = store.get(image_id)
             if request.revision != case['revision']:
@@ -203,6 +207,7 @@ def install_workflow(app, store):
                 })
         except ValueError as error:
             raise HTTPException(422, str(error)) from None
+        store = current_store()
         with store.lock:
             case = store.get(image_id)
             if request.revision != case['revision']:
@@ -222,6 +227,7 @@ def install_workflow(app, store):
     @app.post('/v1/cases/{image_id}/cvat/{action}')
     def cvat(image_id: str, action: Literal['send', 'sync']):
         image = get_image(image_id)
+        store = current_store()
         sync = Sync(store, app.state.remote)
         try:
             return sync.send(image) if action == 'send' else sync.pull(image)
@@ -249,6 +255,7 @@ def install_workflow(app, store):
             shapes = reviewed_shapes(request.annotations, request.label_ids, *image.size)
         except ValueError as error:
             raise HTTPException(422, str(error)) from None
+        store = current_store()
         with store.lock:
             case = store.get(image_id)
             if case['revision'] != request.revision:

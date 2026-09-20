@@ -7,8 +7,9 @@ from threading import RLock
 
 class Store:
     def __init__(self, path):
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(str(path), check_same_thread=False)
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.db = sqlite3.connect(str(self.path), check_same_thread=False)
         self.db.execute('CREATE TABLE IF NOT EXISTS cases (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
         self.db.commit()
         self.lock = RLock()

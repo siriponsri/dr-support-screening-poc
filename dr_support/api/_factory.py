@@ -29,8 +29,9 @@ from dr_support.runtime import runtime_snapshot
 from dr_support.providers.retfound import RETFound
 
 from ..images import admitted_demo_images, admitted_samples, synthetic_image
-from ..store import Store
+from ..services.workspaces import WorkspaceManager
 from ..workflow import install_workflow
+from .workspaces import install_workspace_routes
 
 
 def create_app(state_path=None, include_samples=True):
@@ -45,9 +46,10 @@ def create_app(state_path=None, include_samples=True):
         app.state.images = {fixture.image_id: fixture}
         if include_samples:
             app.state.images.update(admitted_samples(root))
-    store = Store(state_path or (os.environ.get('DR_SUPPORT_STATE')
-                                 or str(root / 'local-state/bridge/reviews.sqlite')))
-    install_workflow(app, store)
+    workspace_manager = WorkspaceManager(root, state_path=state_path)
+    install_workflow(app, workspace_manager.store)
+    workspace_manager.attach(app)
+    install_workspace_routes(app, workspace_manager)
     inference_lock = RLock()
 
     @app.middleware('http')
@@ -149,6 +151,7 @@ def create_app(state_path=None, include_samples=True):
 
     def save_result(request, task, result):
         key = 'global' if task == 'global' else 'lesion'
+        store = app.state.store
         with store.lock:
             case = store.get(request.image_id)
             value = result.model_dump(mode='json')
