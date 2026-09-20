@@ -1,180 +1,339 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Project Structure
+## Repository basics
 
-- `dr_support/` contains the Python/FastAPI backend. Keep profile dispatch in `app.py`, API surfaces under `api/`, deployment services under `services/`, model adapters under `providers/`, and shared schemas under `contracts/`.
-- `web/` is the legacy static UI; `frontend/` is the React/Vite migration (`frontend/src/` for application code and `frontend/tests/` for Vitest tests).
-- `tests/` contains backend pytest, API, browser, and root UI smoke tests. `docs/` holds runbooks and architecture/deployment notes; `examples/` contains public sample manifests.
-- `local-state/` is runtime state and must not be treated as source data. Use `.env.example` as the configuration reference.
+- `dr_support/`: Python/FastAPI backend.
+- `frontend/`: React/Vite clinician UI.
+- `web/`: legacy static UI.
+- `tests/`: backend/API/browser/root smoke tests.
+- `docs/`: normative specs, runbooks, architecture notes.
+- `local-state/`: runtime state only; never treat as source data.
 
-## Build, Test, and Development
+## Commands
 
-From the repository root:
+From repo root:
 
 ```bash
 python -m pip install -e ".[test]"
 python -m pytest -q
 python -m ruff check dr_support tests
-python -m dr_support.run
 npm ci && npm test
 ```
 
-The Python command starts the local API; `START.cmd` is the Windows shortcut. Root `npm test` runs the legacy overlay, API-hardening, UI, and preview smoke tests. For the React app:
+React:
 
 ```bash
 cd frontend
 npm ci
-npm run dev       # Vite development server
-npm run build
-npm run typecheck
 npm test
+npm run typecheck
+npm run build
 ```
 
-## Coding Style and Naming
+Use focused tests while iterating, then run the required full validation before handoff.
 
-Use four spaces in Python and the existing 110-character Ruff limit. Follow PEP 8 naming (`snake_case` functions/modules, `PascalCase` classes). TypeScript is strict: use `PascalCase` React components, `camelCase` variables/functions, and `useX` names for hooks. Prefer existing contracts, profile boundaries, theme tokens, and Lucide icons over new parallel abstractions.
+## Coding rules
 
-## Testing Guidelines
+- Python: 4 spaces, existing Ruff config, PEP 8 naming.
+- TypeScript: strict mode, `PascalCase` components, `camelCase` functions/variables.
+- Prefer existing contracts, services, theme tokens, and Lucide icons.
+- Make the smallest compatible change; do not refactor unrelated code.
 
-Name Python tests `test_*.py`, root Node tests `*.test.cjs`, and frontend tests `*.test.tsx`. Backend tests are offline by design and use disposable SQLite state; do not add network-dependent tests. Run the focused suite while iterating, then run the full commands above. Browser smoke tests are optional: `python -m pytest -q tests/test_browser_ui.py`.
+## Security and privacy
 
-## Commits and Pull Requests
+This is a clinician-support/public-synthetic research POC.
 
-Use the established Conventional Commit style, such as `feat(remote): ...`, `fix(review): ...`, `docs: ...`, or `refactor: ...`. Keep commits focused. PRs should describe behavior and affected profile/UI, link the relevant issue or plan, list validation commands, and include screenshots for frontend changes. Call out new environment variables, model/runtime requirements, or security implications.
+Never commit or expose:
 
-## Security and Configuration
+- tokens/passwords/API keys;
+- CVAT credentials;
+- model weights;
+- private patient data / PHI;
+- local Workspace databases;
+- runtime secret files.
 
-This is a public/synthetic research POC, not an autonomous diagnostic system. Never commit tokens, model weights, or private patient data. Keep CVAT credentials server-side, use environment variables, and follow `docs/LOCAL_RUNBOOK.md` before exposing the API beyond localhost.
+Secrets stay server-side. Never store raw secrets in React, localStorage,
+sessionStorage, Workspace SQLite, logs, or API responses.
 
-## Branching and Orchestration Policy
+---
 
-`main` is the authoritative integration branch and should remain clean between milestones. Treat work on `main` as orchestration/integration work, not as the default place for feature implementation.
+# Branch and worktree policy
 
-### Main as orchestrator
+`main` is the authoritative integration/orchestration branch.
 
-For each milestone:
+Feature/fix/refactor/UI/backend implementation MUST NOT be written directly on
+`main` unless the owner explicitly authorizes a documentation-only or
+integration-only change.
 
-1. Start from a clean, synchronized `main`.
-2. Audit the current repository state and define task boundaries, dependencies, shared contracts, and acceptance criteria.
-3. Create one bounded feature branch per independent implementation task.
-4. Use separate worktrees/directories when tasks run in parallel. Do not run multiple implementation agents against different branches in the same working directory.
-5. Assign one clear goal per branch. Parallelize only tasks that can proceed without guessing each other's unfinished contracts or schemas.
-6. Each implementation branch must run its focused tests while iterating and the required full validation before handoff.
-7. Each branch must commit and push its work, then report:
-   - branch name;
-   - commit SHA;
-   - changed files;
-   - contract/schema changes, if any;
-   - validation results;
-   - known limitations or blockers.
-8. Merge only after an integration review confirms the branch is within scope and compatible with current `main`.
-9. Re-run relevant regression tests on the merged `main`.
-10. After successful integration, delete the completed local and remote feature branch/worktree so `main` remains the single long-lived branch unless a task explicitly requires otherwise.
+## Mandatory branch write gate
 
-### Branch naming
+Before the first implementation write, report and verify:
 
-Prefer scoped names such as:
+```text
+repository root
+current worktree path
+current branch
+current HEAD
+git status --short --branch
+```
 
-- `feat/s2-workspace-backend`
-- `feat/s2-workspace-frontend`
-- `feat/s2-patient-identity`
-- `fix/viewer-coordinate-transform`
-- `docs/design-system`
+If the active implementation shell is on `main`, STOP.
 
-Do not use vague long-lived branches such as `dev`, `new`, `test`, or `work`.
+Create/switch to the approved bounded feature/fix branch and its worktree first.
 
-### Parallel work
+A branch existing elsewhere does not authorize editing `main`.
 
-Parallel backend/frontend work is encouraged only after shared contracts are frozen sufficiently for both sides to implement independently.
+## Required lifecycle
 
-Before parallelizing, define the shared API/schema/data contract in writing. If one branch depends on a schema or behavior that another branch has not yet frozen, keep the work sequential rather than duplicating assumptions.
+```text
+clean synchronized main
+  -> create bounded branch/worktree
+  -> implement only in that worktree
+  -> focused tests
+  -> required full branch validation
+  -> commit + push feature branch
+  -> integration review
+  -> merge into main
+  -> validate main
+  -> rebuild frontend/dist on main if frontend changed
+  -> push main
+  -> delete feature worktree
+  -> delete local + remote feature branch
+```
 
-When agents work in parallel:
+If `origin/main` advances while the feature is in progress, integrate the latest
+main into the feature branch, resolve/test there, then continue.
 
-- prefer one worktree per branch;
-- avoid overlapping file ownership where possible;
-- do not silently duplicate shared types, constants, schemas, or theme tokens;
-- do not let two agents edit the same migration or shared contract concurrently without explicit coordination;
-- never use a feature branch as an integration branch for unrelated work.
+Do not choose a version merely because its commit is newer.
 
-### Merge gate
+If a bug is found after merge, create a bounded `fix/...` branch. Do not patch
+implementation files directly on `main`.
 
-Do not auto-merge merely because a branch reports success. Merge only when all applicable conditions are true:
+## Unexpected changes on main
 
-- working tree is clean;
-- branch is based on the expected `main`;
+If `main` contains an unexpected modification, STOP and inspect it.
+
+At minimum:
+
+```bash
+git status --short
+git diff -- <file>
+git diff --stat
+git log -5 --oneline -- <file>
+```
+
+Do not reset, restore, checkout, stash, clean, overwrite, or absorb the change
+without owner confirmation.
+
+## Branch naming
+
+Prefer:
+
+```text
+feat/<bounded-task>
+fix/<bounded-task>
+docs/<bounded-task>
+```
+
+Avoid vague long-lived branches such as `dev`, `new`, `test`, or `temp`.
+
+---
+
+# Parallel work
+
+Parallel work is allowed only after shared contracts are sufficiently frozen.
+
+Before parallelizing:
+
+- define API/schema/data contracts;
+- identify file ownership;
+- avoid overlapping migrations/shared contracts;
+- use one worktree per branch.
+
+Do not let separate agents invent competing shared types, schemas, constants,
+or theme tokens.
+
+---
+
+# Merge gate
+
+Do not auto-merge just because branch tests pass.
+
+Merge only when:
+
+- branch/worktree is clean;
 - required tests pass;
-- no unexpected API/model/database/clinical-workflow drift is present;
-- no secrets, private patient data, model weights, local-state files, or generated credentials are included;
-- no unexpected deletion or replacement of authoritative docs/artifacts occurred;
-- the implementation satisfies the milestone acceptance criteria.
+- implementation remains in scope;
+- no unexpected API/schema/model/clinical-workflow drift exists;
+- no secrets/PHI/model weights/local-state files are included;
+- milestone acceptance criteria are satisfied.
 
-If a merge conflict touches shared contracts, database schema/migrations, model behavior, annotation semantics, clinical workflow, or authoritative design documentation, STOP and request integration review. Do not make a semantic auto-resolution.
+If a conflict touches shared contracts, DB schema/migrations, model behavior,
+admission semantics, patient/eye semantics, annotation provenance, clinical
+workflow, security/privacy, or authoritative specs, STOP for integration review.
 
-### Frontend integration artifact rule
+---
 
-`frontend/dist/` is generated and gitignored. A successful build in a feature worktree does not update the main worktree's served React bundle.
+# Frontend build rule
 
-After merging any frontend-affecting branch into `main`:
+`frontend/dist/` is generated and gitignored.
 
-1. switch to the authoritative `main` worktree;
-2. verify `main` is clean and at the expected merge commit;
-3. run frontend tests and typecheck;
-4. run `npm run build` from the `main` worktree;
-5. restart the local application if it serves `frontend/dist/`;
-6. perform owner/browser smoke testing only after the main-worktree build.
+A build in a feature worktree does NOT update the bundle served by `main`.
 
-Do not treat a feature-worktree build artifact as the bundle served by `main`.
+After merging frontend changes:
 
-### Protected baselines and scientific boundaries
+1. switch to authoritative `main`;
+2. verify expected merge commit and clean state;
+3. run frontend tests + typecheck;
+4. run `npm run build` from `frontend/` on main;
+5. restart the app if needed;
+6. perform owner/browser smoke after the main build.
 
-Do not rewrite or move protected release/demo tags. Preserve accepted model checkpoints, hashes, provider behavior, scientific thresholds, and clinician-review semantics unless the current task explicitly authorizes a change.
+---
 
-Feature branches must not casually alter RETFound, PRISM-DR, remote inference contracts, annotation provenance, original-image coordinate behavior, or protected demo/research baselines.
+# Frozen behavior and source of truth
 
-### Design authority
+Read `HANDOFF.md` before substantial work.
 
-`DESIGN.md` is the normative visual and interaction design source for the React frontend. Existing or legacy theme documents must not override it.
+Frozen milestones must not be casually changed.
 
-Visual implementation must preserve accepted viewer behavior and must not introduce product, API, model, database, or scientific changes unless those changes are explicitly part of the active milestone.
+`DESIGN.md` is the visual/interaction source of truth.
 
-### Milestone specification rule
+Normative milestone requirements live under `docs/`.
+
+Protected areas include, when marked frozen:
+
+- clinician viewer behavior;
+- Workspace Manager;
+- image-admission semantics;
+- patient/eye resolver semantics;
+- model/provider contracts;
+- annotation provenance;
+- original-image coordinate behavior;
+- clinician-review semantics.
+
+If a task conflicts with frozen behavior, STOP and report it.
+
+---
+
+# Milestone specification rule
 
 For substantial milestones, keep `/goal` concise.
 
-Detailed product requirements, state machines, safety rules, UI wording,
-API/schema expectations, compatibility constraints, and acceptance criteria
-should live in a version-controlled normative specification under `docs/`.
+Put detailed requirements in a version-controlled normative spec under `docs/`,
+including:
 
-The `/goal` should reference the normative milestone specification rather than
-duplicating it.
+- product behavior;
+- state machines;
+- safety/privacy rules;
+- clinician-facing wording;
+- API/schema expectations;
+- compatibility constraints;
+- acceptance criteria;
+- deferred scope.
 
-Agents must read the referenced milestone specification completely before
-planning, branching, or implementation.
+Agents must read the referenced spec completely before planning or implementing.
 
-The milestone specification defines WHAT the milestone must achieve.
-Implementation plans, branch decomposition, file ownership, and concrete code
-structure are derived from the current repository and may change as the codebase
-evolves.
+The spec defines WHAT; the agent decides HOW after auditing the repository.
 
-Do not create a competing implementation-plan document and treat it as a second
-source of truth unless the owner explicitly requests one.
+If code reality conflicts with the normative spec:
 
-If repository reality conflicts with the normative milestone specification:
+1. STOP;
+2. report the exact conflict;
+3. identify the affected frozen contract/behavior;
+4. propose the smallest compatible amendment;
+5. wait for owner approval.
 
-1. STOP before implementing the conflicting behavior.
-2. Report the exact conflict.
-3. Identify the affected frozen contract, API, schema, or behavior.
-4. Propose the smallest compatible amendment.
-5. Wait for owner approval before changing the normative specification.
+Do not silently weaken safety, privacy, auditability, or clinician semantics.
 
-Do not silently weaken safety requirements, change clinician-facing semantics,
-or rewrite a specification merely to fit an implementation shortcut.
+---
 
-## Agent Handoff Discipline
+# Clinician-facing UI
 
-When resuming interrupted work, inspect the current branch, HEAD, `git status`, and existing diff before changing files. Existing uncommitted changes may be intentional work in progress.
+Do not expose raw internal enums, rule codes, runtime codes, or exception text
+in the primary clinician UI.
 
-Never run `git reset --hard`, `git clean -fd`, destructive restore commands, history rewrites, or broad regeneration steps merely to obtain a clean state unless the owner explicitly authorizes that exact destructive action.
+Use short, plain-language labels.
 
-If the authoritative workspace/repository is unavailable, stop implementation and report the access blocker. Do not reconstruct the repository from memory or create substitute files that could later overwrite authoritative work.
+Technical details belong in audit/details/log surfaces.
+
+Preserve the visual direction in `DESIGN.md`: minimal, professional, clinical,
+readable, and information-efficient.
+
+---
+
+# Scientific/model boundaries
+
+Unless explicitly authorized:
+
+- do not change RETFound/PRISM identities or checkpoint provenance;
+- do not change remote inference contracts;
+- do not weaken admission gating;
+- do not fabricate XAI;
+- do not present softmax confidence as calibrated clinical probability;
+- do not treat empty lesion detections as proof of no lesions.
+
+Human review remains authoritative.
+
+---
+
+# Local data safety
+
+Workspace/profile operations must not casually delete, move, rename, rewrite,
+or recompress source images.
+
+Profile deletion means catalog/profile deletion unless an explicitly separate
+destructive operation is owner-approved.
+
+Original admitted images remain immutable unless a future normative spec says otherwise.
+
+---
+
+# Interrupted work
+
+Before resuming interrupted work:
+
+```bash
+git branch --show-current
+git rev-parse HEAD
+git status --short --branch
+git diff
+```
+
+Never use destructive cleanup merely to obtain a clean state:
+
+```text
+git reset --hard
+git clean -fd
+git checkout -- .
+git restore .
+history rewrite / force reset
+```
+
+unless the owner explicitly authorizes that exact action.
+
+If the authoritative repo/workspace is unavailable, STOP. Do not reconstruct it
+from memory.
+
+---
+
+# Completion checklist
+
+Before declaring an implementation task complete:
+
+```text
+[ ] Correct feature/fix worktree used for all implementation writes
+[ ] Branch validation passed
+[ ] Feature branch committed and pushed
+[ ] Integration review passed
+[ ] Feature branch merged into main
+[ ] Main regression validation passed
+[ ] frontend/dist rebuilt on main if needed
+[ ] Main pushed and synchronized
+[ ] Feature worktree removed
+[ ] Local and remote feature branch deleted
+[ ] Known limitations reported
+```
+
+Do not report completion while implementation is stranded only on a feature
+branch, `main` is dirty, or the served frontend bundle is stale.
