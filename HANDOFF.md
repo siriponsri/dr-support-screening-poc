@@ -168,3 +168,54 @@ npm test
 
 The frontend production bundle was rebuilt from `main`; `frontend/dist/` is
 generated and gitignored.
+
+## S2A1 Image Admission closeout (2026-09-20)
+
+Status: OWNER ACCEPTED / FROZEN.
+
+The merged S2A1 implementation at `838d644` passed a post-merge acceptance
+audit against `docs/S2A_IMAGE_ADMISSION_SPEC.md`.
+
+Audit conclusions:
+
+- Workspace create, update, open, startup restoration, and explicit scan run a
+  synchronous, local-only, top-level input-folder scan in deterministic filename
+  order. Decode failures and per-file admission errors remain isolated from the
+  rest of the scan. Identical file bytes use one stable hash-based case record;
+  deleted files leave the active worklist and are not inferable.
+- Admission and quality remain separate. Ambiguous, small, extreme-ratio,
+  near-uniform, or extreme-brightness images stay reviewable; automatic logic
+  does not assign `REJECTED_NON_FUNDUS`. Manual modality and quality decisions
+  retain reviewer, timestamp, note, previous state, new state, and history.
+- The backend eligibility predicate is enforced before both review inference
+  routes and both standalone model API routes. Invalid, unresolved, non-fundus,
+  ungradable, and quality-review states cannot reach RETFound, PRISM-DR, mock,
+  or remote inference. Remote payloads contain image bytes and contract
+  identifiers, not local workspace paths.
+- Existing SQLite case data remains readable through additive JSON defaults;
+  automatic and manual admission history remains persisted. The primary React
+  worklist and review surfaces use plain-language admission status copy and do
+  not expose admission enums or reason codes.
+
+Known non-blocking limitations deferred to S2A2 or operational hardening:
+
+- Each scan is a synchronous full-folder pass and re-decodes unchanged files;
+  valid image bytes are retained in process memory for serving. Very large
+  folders may therefore make workspace open or scan slow and memory-heavy.
+- Discovery is intentionally top-level only. Recursive datasets, incremental
+  fingerprints, background scanning, and path-change reconciliation are not
+  part of S2A1.
+- Real-browser owner smoke testing remains environment-dependent; the optional
+  Playwright browser check was skipped because no browser runtime was available.
+
+S2A1 validation from the authoritative `main` worktree:
+
+```text
+python -m pytest -q                         # 175 passed, 1 skipped
+python -m ruff check dr_support tests       # passed
+cd frontend && npm test                     # 42 passed
+cd frontend && npm run typecheck            # passed
+cd frontend && npm run build                # passed; existing chunk warning
+npm test                                    # passed
+python -m pytest -q tests/test_browser_ui.py # skipped; browser unavailable
+```
