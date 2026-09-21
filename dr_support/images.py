@@ -22,6 +22,7 @@ class BridgeImage:
     modality: str = 'CFP'
     filename: str = ''
     media_type: str = 'image/jpeg'
+    dimensions: tuple[int, int] | None = None
 
     @property
     def sha256(self):
@@ -29,6 +30,8 @@ class BridgeImage:
 
     @property
     def size(self):
+        if self.dimensions is not None:
+            return self.dimensions
         with Image.open(io.BytesIO(self.data)) as image:
             return image.size
 

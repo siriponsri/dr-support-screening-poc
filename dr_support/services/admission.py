@@ -15,11 +15,13 @@ from PIL import Image
 from ..contracts import AdmissionMetadata
 from ..images import BridgeImage
 from ..imaging import (
+    DicomIngestStatus,
     IntegrityStatus,
     SourceAlias,
     SourceChange,
     SourceIntegrity,
     SourceMetadata,
+    default_dicom_image_handler_registry,
     default_image_handler_registry,
     sha256_bytes,
 )
@@ -31,6 +33,8 @@ SUPPORTED_INPUT_TYPES = {
     ".png": "image/png",
     ".tif": "image/tiff",
     ".tiff": "image/tiff",
+    ".dcm": "application/dicom",
+    ".dicom": "application/dicom",
 }
 
 MIN_REVIEW_DIMENSION = 128
@@ -38,11 +42,13 @@ MIN_ASPECT_RATIO = 0.45
 MAX_ASPECT_RATIO = 2.4
 
 _RASTER_REGISTRY = default_image_handler_registry()
+_DICOM_REGISTRY = default_dicom_image_handler_registry()
 _FORMAT_EXTENSIONS = {
     "JPEG": frozenset({".jpg", ".jpeg"}),
     "PNG": frozenset({".png"}),
     "TIFF": frozenset({".tif", ".tiff"}),
 }
+_DICOM_EXTENSIONS = frozenset({".dcm", ".dicom"})
 
 
 @dataclass(frozen=True)
@@ -278,6 +284,103 @@ def _classify_decoded(image: Image.Image) -> tuple[str, str, str | None]:
     return modality, quality, quality_reason
 
 
+def _inspect_dicom(
+    *,
+    data: bytes,
+    image_id: str,
+    source_reference: str,
+    filename: str,
+    extension: str,
+) -> tuple[dict, BridgeImage | None]:
+    """Admit DICOM through the S5B handler, never through Pillow."""
+    handler = _DICOM_REGISTRY.resolve(filename=filename)
+    result = handler.decode(data)
+    inspection = result.inspection
+    if inspection is None:
+        return (
+            _invalid_record(
+                image_id=image_id,
+                source_reference=source_reference,
+                filename=filename,
+                extension=extension,
+                file_size_bytes=len(data),
+                reason=result.status.value,
+                source_sha256=image_id,
+                integrity_status=result.status,
+                integrity=SourceIntegrity(
+                    status=result.status,
+                    aliases=[_alias(filename, source_reference)],
+                ),
+            ),
+            None,
+        )
+
+    source = inspection.source
+    metadata = inspection.metadata
+    if result.ingest_status is DicomIngestStatus.SUPPORTED:
+        return (
+            _metadata(
+                image_id=image_id,
+                source_reference=source_reference,
+                filename=filename,
+                extension=extension,
+                file_size_bytes=len(data),
+                width=source.dimensions.width,
+                height=source.dimensions.height,
+                mode=f"DICOM/{metadata.photometric_interpretation}",
+                # Ophthalmic DICOM is a medical image source, but clinician
+                # confirmation remains required before model analysis.
+                modality_admission="NEEDS_REVIEW",
+                quality_state="NOT_EVALUATED",
+                admission_reason_code="DICOM_REVIEW_REQUIRED",
+                quality_reason_code=None,
+                source_metadata=source,
+                integrity=SourceIntegrity(
+                    status=IntegrityStatus.OK,
+                    aliases=[_alias(filename, source_reference)],
+                ),
+            ),
+            BridgeImage(
+                image_id,
+                data,
+                "PUBLIC",
+                "WORKSPACE_INPUT",
+                filename=filename,
+                media_type=SUPPORTED_INPUT_TYPES[extension],
+                dimensions=(source.dimensions.width, source.dimensions.height),
+            ),
+        )
+
+    # Metadata-only outcomes remain visible for review, while corrupt or
+    # unsupported objects stay invalid and are never added to the image store.
+    reviewable = result.ingest_status in {
+        DicomIngestStatus.CODEC_REQUIRED,
+        DicomIngestStatus.MULTIFRAME_UNSUPPORTED,
+    }
+    modality = "NEEDS_REVIEW" if reviewable else "REJECTED_INVALID"
+    record = _metadata(
+        image_id=image_id,
+        source_reference=source_reference,
+        filename=filename,
+        extension=extension,
+        file_size_bytes=len(data),
+        width=source.dimensions.width,
+        height=source.dimensions.height,
+        mode=f"DICOM/{metadata.photometric_interpretation}",
+        modality_admission=modality,
+        quality_state="NOT_EVALUATED",
+        admission_reason_code=result.status.value,
+        quality_reason_code=None,
+        source_metadata=source,
+        integrity_status=result.status,
+        integrity=SourceIntegrity(
+            status=result.status,
+            aliases=[_alias(filename, source_reference)],
+        ),
+    )
+    return record, None
+
+
 def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[dict, BridgeImage | None]:
     """Inspect one top-level input file without modifying it."""
     filename = path.name
@@ -322,6 +425,34 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
             ),
             None,
         )
+
+    if extension in _DICOM_EXTENSIONS:
+        try:
+            return _inspect_dicom(
+                data=data,
+                image_id=image_id,
+                source_reference=reference,
+                filename=filename,
+                extension=extension,
+            )
+        except Exception:
+            return (
+                _invalid_record(
+                    image_id=image_id,
+                    source_reference=reference,
+                    filename=filename,
+                    extension=extension,
+                    file_size_bytes=len(data),
+                    reason="DICOM_ADMISSION_FAILED",
+                    source_sha256=image_id,
+                    integrity_status=IntegrityStatus.DECODE_FAILED,
+                    integrity=SourceIntegrity(
+                        status=IntegrityStatus.DECODE_FAILED,
+                        aliases=[_alias(filename, reference)],
+                    ),
+                ),
+                None,
+            )
 
     source_metadata = None
     try:

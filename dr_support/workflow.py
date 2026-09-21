@@ -214,13 +214,32 @@ def install_workflow(app, store):
 
     @app.get('/v1/images/{image_id}/display')
     def display_image_bytes(image_id: str):
-        image = get_image(image_id)
+        image = app.state.images.get(image_id)
+        if image is None:
+            record = admission_record(image_id)
+            status = (record or {}).get('integrity_status')
+            messages = {
+                'DICOM_CODEC_REQUIRED': 'This DICOM image needs a supported pixel codec before it can be displayed.',
+                'DICOM_MULTIFRAME_UNSUPPORTED': 'Multi-frame DICOM images require explicit frame selection before display.',
+                'DECODE_FAILED': 'This DICOM image could not be decoded for display.',
+                'UNSUPPORTED_FORMAT': 'This DICOM image is outside the supported display scope.',
+            }
+            if status in messages:
+                raise HTTPException(409, messages[status])
+            raise HTTPException(404, 'Image not admitted')
         try:
             derivative = app.state.derivatives.prepare_display(image)
-        except DerivativeError:
+        except DerivativeError as exc:
+            messages = {
+                'DICOM_CODEC_REQUIRED': 'This DICOM image needs a supported pixel codec before it can be displayed.',
+                'DICOM_MULTIFRAME_UNSUPPORTED': 'Multi-frame DICOM images require explicit frame selection before display.',
+                'DECODE_FAILED': 'This DICOM image could not be decoded for display.',
+                'UNSUPPORTED_FORMAT': 'This DICOM image is outside the supported display scope.',
+            }
             raise HTTPException(
                 409,
-                'This image cannot be displayed in the browser. Review the source format or use a supported copy.',
+                messages.get(getattr(exc, 'status', None),
+                             'This image cannot be displayed in the browser. Review the source format or use a supported copy.'),
             ) from None
         return Response(
             derivative.data,
