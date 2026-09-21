@@ -42,5 +42,8 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
     css: false,
+    // Chakra/jsdom integration tests can exceed Vitest's 5s default when the
+    // full suite is running in parallel on slower local or CI workers.
+    testTimeout: 15_000,
   },
 });
