@@ -262,6 +262,14 @@ def default_image_handler_registry() -> ImageHandlerRegistry:
     return ImageHandlerRegistry((RasterImageHandler(),))
 
 
+def default_dicom_image_handler_registry() -> ImageHandlerRegistry:
+    """Return the raster registry with the optional local DICOM handler."""
+
+    from .dicom import DicomImageHandler
+
+    return ImageHandlerRegistry((RasterImageHandler(), DicomImageHandler()))
+
+
 __all__ = [
     "DerivativeBuilder",
     "DerivativeBuilderRegistry",
@@ -270,5 +278,6 @@ __all__ = [
     "ImageHandlerRegistry",
     "RasterImageHandler",
     "UnsupportedImageHandlerError",
+    "default_dicom_image_handler_registry",
     "default_image_handler_registry",
 ]
