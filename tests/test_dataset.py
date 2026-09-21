@@ -4,6 +4,7 @@ import io
 import json
 
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from dr_support.api import create_app
 from dr_support.contracts import LABELS
@@ -85,6 +86,9 @@ def test_manifest_preserves_identity_provenance_geometry_and_export_files(tmp_pa
     assert json.loads(next(row for row in human_rows if row["shape_type"] == "circle")["geometry_json"]) == {
         "cx": 160.0, "cy": 140.0, "radius": 12.0,
     }
+    summary = client.get("/v1/dataset/manifest?include_annotations=false").json()
+    assert summary["annotation_count"] == 5
+    assert summary["annotations"] == []
 
     export = client.post("/v1/dataset/export")
     assert export.status_code == 200
@@ -114,6 +118,31 @@ def test_manifest_preserves_identity_provenance_geometry_and_export_files(tmp_pa
     second = client.post("/v1/dataset/export")
     assert second.status_code == 200
     assert second.json()["directory_name"] != export_info["directory_name"]
+
+
+def test_manifest_scope_uses_active_workspace_scan_records(tmp_path):
+    input_folder = tmp_path / "input"
+    output_folder = tmp_path / "output"
+    input_folder.mkdir()
+    output_folder.mkdir()
+    image_path = input_folder / "PAT0001_L1.png"
+    Image.new("RGB", (320, 240), (120, 45, 30)).save(image_path)
+
+    app = create_app(tmp_path / "fallback.sqlite", include_samples=False)
+    client = TestClient(app)
+    created = client.post("/v1/workspaces", json={
+        "name": "Scanned dataset",
+        "input_folder": str(input_folder),
+        "output_folder": str(output_folder),
+        "database_path": str(tmp_path / "workspace.sqlite"),
+    })
+    assert created.status_code == 200
+
+    body = client.get("/v1/dataset/manifest").json()
+    assert body["workspace_name"] == "Scanned dataset"
+    assert body["image_count"] == 1
+    assert body["images"][0]["image_id"] == hashlib.sha256(image_path.read_bytes()).hexdigest()
+    assert body["images"][0]["filename"] == "PAT0001_L1.png"
 
 
 def test_manifest_eligibility_rejects_ai_only_excluded_unresolved_and_ungradable(tmp_path):
@@ -146,6 +175,16 @@ def test_manifest_eligibility_rejects_ai_only_excluded_unresolved_and_ungradable
     app.state.store.put(case)
     row = client.get("/v1/dataset/manifest").json()["images"][0]
     assert row["eligibility_reason"] == "UNGRADABLE"
+
+
+def test_manifest_does_not_export_non_pseudonymous_patient_keys(tmp_path):
+    app, client, _ = _workspace_client(tmp_path)
+    case = app.state.store.get("SYNTH_001")
+    case["patient_key"] = "Jane Doe"
+    app.state.store.put(case)
+
+    row = client.get("/v1/dataset/manifest").json()["images"][0]
+    assert row["patient_key"] is None
 
 
 def test_confirmed_cvat_annotations_are_provenanced_but_unreviewed_import_is_not_ready(tmp_path):

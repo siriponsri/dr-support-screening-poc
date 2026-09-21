@@ -95,8 +95,8 @@ export function DatasetsPage() {
     setError(null);
     try {
       setManifest(await datasetApi.manifest());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'The dataset manifest could not be loaded.');
+    } catch {
+      setError('The dataset manifest could not be loaded. Try refreshing.');
     } finally {
       setLoading(false);
     }
@@ -117,8 +117,8 @@ export function DatasetsPage() {
     try {
       const result = await datasetApi.export();
       setNotice(`Export created: ${result.image_count} images and ${result.annotation_count} annotations.`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'The dataset export could not be created.');
+    } catch {
+      setError('The dataset export could not be created. Check the active Workspace and try again.');
     } finally {
       setExporting(false);
     }

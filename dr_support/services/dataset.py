@@ -14,6 +14,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .admission import legacy_admission
+from .resolver import normalize_patient_key
 
 
 EXPORT_SCHEMA_VERSION = "s4.dataset-manifest.v1"
@@ -89,6 +90,15 @@ def _sha256(data: bytes) -> str:
 
 def _is_sha256(value: object) -> bool:
     return isinstance(value, str) and bool(SHA256_PATTERN.fullmatch(value))
+
+
+def _pseudonymous_patient_key(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return normalize_patient_key(value)
+    except ValueError:
+        return None
 
 
 def _csv_bytes(rows: list[dict], fields: list[str]) -> bytes:
@@ -257,7 +267,7 @@ class DatasetManifestService:
                     "height": (admission or {}).get("height"),
                     "modality": image.modality if image is not None else None,
                     "source_type": image.source_type if image is not None else None,
-                    "patient_key": case.get("patient_key"),
+                    "patient_key": _pseudonymous_patient_key(case.get("patient_key")),
                     "laterality": case.get("laterality", "UNKNOWN"),
                     "patient_resolution_method": case.get("patient_resolution_method", "NONE"),
                     "laterality_resolution_method": case.get("laterality_resolution_method", "NONE"),
@@ -333,7 +343,7 @@ class DatasetManifestService:
                 "shape_type": annotation.get("type"),
                 "geometry_json": _geometry_json(annotation.get("geometry")),
                 "annotation_source": "HUMAN",
-                "reviewer": annotation.get("reviewer"),
+                "reviewer": annotation.get("reviewer") or None,
                 "created_at": annotation.get("created_at"),
                 "model_id": None,
                 "model_version": None,
@@ -359,8 +369,10 @@ class DatasetManifestService:
                 raise DatasetManifestError("Imported annotation uses a non-canonical lesion label")
             shape_type, geometry = _imported_geometry(annotation.get("geometry") or {})
             ready = bool(imported_ready and image_include)
+            remote_id = annotation.get("remote_id")
+            annotation_id = remote_id if remote_id is not None else index
             rows.append({
-                "annotation_id": f"cvat-{image_id}-{annotation.get('remote_id', index)}",
+                "annotation_id": f"cvat-{image_id}-{annotation_id}",
                 "image_id": image_id,
                 "label": label,
                 "shape_type": shape_type,
@@ -379,10 +391,13 @@ class DatasetManifestService:
             })
         return rows
 
-    def preview(self) -> dict:
+    def preview(self, *, include_annotations: bool = True) -> dict:
         images, annotations = self._rows()
         workspace_id, workspace_name = self._workspace_context()
-        return self._response(images, annotations, workspace_id, workspace_name)
+        response = self._response(images, annotations, workspace_id, workspace_name)
+        if not include_annotations:
+            response["annotations"] = []
+        return response
 
     @staticmethod
     def _response(images: list[dict], annotations: list[dict], workspace_id, workspace_name) -> dict:

@@ -83,4 +83,14 @@ describe('Datasets page', () => {
     expect(await screen.findByText('Open an active Workspace to export a dataset manifest.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Export manifest' })).toBeDisabled();
   });
+
+  it('keeps backend exception details out of the clinician surface', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      response({ detail: 'MISSING_PROVENANCE: C:\\private\\patient-records' }, 409),
+    );
+    withProviders(<DatasetsPage />, '/datasets');
+
+    expect(await screen.findByText('The dataset manifest could not be loaded. Try refreshing.')).toBeInTheDocument();
+    expect(screen.queryByText(/MISSING_PROVENANCE/)).not.toBeInTheDocument();
+  });
 });

@@ -1,6 +1,6 @@
 """Dataset manifest preview and export routes."""
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Query
 
 from ..services.dataset import DatasetManifestError, DatasetManifestService
 
@@ -9,9 +9,9 @@ def install_dataset_routes(app) -> None:
     service = DatasetManifestService(app)
 
     @app.get("/v1/dataset/manifest")
-    def dataset_manifest():
+    def dataset_manifest(include_annotations: bool = Query(default=True)):
         try:
-            return service.preview()
+            return service.preview(include_annotations=include_annotations)
         except DatasetManifestError as error:
             raise HTTPException(status_code=409, detail=str(error)) from None
 

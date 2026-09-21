@@ -444,7 +444,7 @@ export const queueApi = {
 };
 
 export const datasetApi = {
-  manifest: () => apiJson<DatasetManifestResponse>('/v1/dataset/manifest'),
+  manifest: () => apiJson<DatasetManifestResponse>('/v1/dataset/manifest?include_annotations=false'),
   export: () => apiJson<DatasetExportResponse>('/v1/dataset/export', jsonRequest({ method: 'POST' })),
 };
 
