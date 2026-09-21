@@ -67,7 +67,7 @@ async function setupStage() {
 }
 
 describe('AnnotationEditorPage human movement', () => {
-  it('displays CWS terminology while saving the canonical SOFT_EXUDATE value', async () => {
+  it('displays Soft exudate while saving the canonical SOFT_EXUDATE value', async () => {
     let annotationBody: Record<string, unknown> | undefined;
     const softExudateItem = {
       ...item,
@@ -78,7 +78,7 @@ describe('AnnotationEditorPage human movement', () => {
     });
     await setupStage();
 
-    expect(screen.getByRole('option', { name: 'Soft exudate / Cotton-wool spot (CWS)' })).toHaveValue('SOFT_EXUDATE');
+    expect(screen.getByRole('option', { name: 'Soft exudate' })).toHaveValue('SOFT_EXUDATE');
     fireEvent.change(screen.getByPlaceholderText('Enter reviewer name'), { target: { value: 'Clinician' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save annotations' }));
     await waitFor(() => expect(annotationBody).toBeDefined());

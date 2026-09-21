@@ -97,8 +97,7 @@ describe('patient and eye resolver UI', () => {
     };
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const path = requestPath(input);
-      if (path === '/v1/cases/unknown') return jsonResponse(baseCase);
-      if (path === '/v1/models') return jsonResponse([]);
+      if (path === '/v1/cases') return jsonResponse([baseCase]);
       if (path.endsWith('/resolver')) {
         const payload = JSON.parse(String(init?.body));
         expect(payload.patient_action).toBe('CONFIRM');
@@ -108,10 +107,12 @@ describe('patient and eye resolver UI', () => {
       return jsonResponse({ detail: `Unexpected test request: ${path}` }, 404);
     });
 
-    renderAppAt('/review/unknown');
-    expect(await screen.findByText('Please confirm patient')).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText('Enter reviewer name'), 'Demo clinician');
-    await user.click(screen.getByRole('button', { name: 'Confirm patient' }));
+    renderAppAt('/worklist');
+    await user.click(await screen.findByRole('button', { name: 'Link patient and confirm eye' }));
+    expect(screen.getByRole('dialog', { name: 'Resolve patient and eye' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Pseudonymous patient key')).toHaveValue('PAT0001');
+    await user.type(screen.getByPlaceholderText('Reviewer name'), 'Demo clinician');
+    await user.click(screen.getByRole('button', { name: 'Save patient / eye' }));
     expect(await screen.findByText('PAT0001')).toBeInTheDocument();
     expect(fetchSpy).toHaveBeenCalled();
   });

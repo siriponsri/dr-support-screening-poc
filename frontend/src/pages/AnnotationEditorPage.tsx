@@ -39,7 +39,7 @@ const LABEL_OPTIONS: Array<{ value: LesionLabel; label: string }> = [
   { value: 'MICROANEURYSM', label: 'Microaneurysm' },
   { value: 'HEMORRHAGE', label: 'Hemorrhage' },
   { value: 'HARD_EXUDATE', label: 'Hard exudate' },
-  { value: 'SOFT_EXUDATE', label: 'Soft exudate / Cotton-wool spot (CWS)' },
+  { value: 'SOFT_EXUDATE', label: 'Soft exudate' },
 ];
 
 function errorText(err: unknown) {
