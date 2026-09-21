@@ -29,3 +29,15 @@
 - [ ] Patient/eye workflow unchanged
 - [ ] Dataset AI-only/training-ready semantics unchanged
 - [ ] Export still uses authoritative source identity
+
+## Agent validation evidence (2026-09-21)
+
+- Backend integration tests cover PNG/TIFF, supported single-frame DICOM display,
+  corrupt/multi-frame DICOM safety, ancillary-file exclusion, and dataset
+  provenance/eligibility regressions.
+- Browser smoke used the synthetic fixture at `/app/#/review/SYNTH_001` and
+  verified the `MA 0.80` overlay, matching evidence item, source lineage,
+  confirmation action, and updated `Confirmed 1` / `0 AI suggestions unresolved`
+  state at desktop and 390x844 mobile viewports.
+- Automated validation passed: backend `231 passed, 9 skipped`, frontend `61
+  passed`, typecheck, production build, Ruff, root smoke, and `git diff --check`.

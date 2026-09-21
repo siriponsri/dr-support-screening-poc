@@ -153,3 +153,58 @@ def test_human_annotations_and_clinician_review_roundtrip(tmp_path):
     assert reviewed['clinician_review']['final_grade'] == 2
     assert reviewed['clinician_review']['remark'] == 'Human review completed for demo.'
     assert reviewed['review_history'][-1]['review_action'] == 'CORRECT_GRADE'
+
+
+def test_review_evidence_keeps_ai_scores_and_human_provenance_separate(tmp_path):
+    client = TestClient(create_app(tmp_path / 'state.sqlite', include_samples=False))
+    base = '/v1/cases/SYNTH_001'
+    assert client.post('/v1/infer/lesion-roi', json={
+        'image_id': 'SYNTH_001', 'model_id': 'mock-lesion',
+    }).status_code == 200
+
+    initial = client.get(base).json()
+    evidence = initial['review_evidence']
+    ai_item = next(item for item in evidence['items'] if item['source'] == 'AI')
+    original_score = initial['lesion']['lesions'][0]['score']
+    assert ai_item['status'] == 'AI_SUGGESTED'
+    assert ai_item['score'] == original_score
+    assert evidence['unresolved_count'] == 1
+
+    confirmed = client.post(base + '/lesion-review', json={
+        'revision': initial['revision'],
+        'reviewer': 'Evidence clinician',
+        'detection_id': ai_item['annotation_id'],
+        'action': 'CONFIRM',
+    })
+    assert confirmed.status_code == 200
+    confirmed_body = confirmed.json()
+    assert confirmed_body['review_evidence']['summary']['confirmed'] == 1
+    assert confirmed_body['lesion']['lesions'][0]['score'] == original_score
+
+    corrected = client.post(base + '/lesion-review', json={
+        'revision': confirmed_body['revision'],
+        'reviewer': 'Evidence clinician',
+        'detection_id': ai_item['annotation_id'],
+        'action': 'CORRECT',
+        'label': 'HEMORRHAGE',
+        'rectangle': [250, 160, 270, 180],
+    })
+    assert corrected.status_code == 200
+    corrected_body = corrected.json()
+    assert corrected_body['review_evidence']['summary']['corrected'] == 1
+    assert corrected_body['review_evidence']['items'][0]['original_score'] == original_score
+    assert corrected_body['lesion']['lesions'][0]['canonical_label'] == 'MICROANEURYSM'
+    assert corrected_body['lesion']['lesions'][0]['score'] == original_score
+
+    annotation = client.put(base + '/annotations', json={
+        'revision': corrected_body['revision'],
+        'reviewer': 'Evidence clinician',
+        'annotations': [{
+            'type': 'rectangle', 'label': 'SOFT_EXUDATE',
+            'geometry': {'x': 20, 'y': 20, 'width': 10, 'height': 10},
+        }],
+    })
+    assert annotation.status_code == 200
+    body = annotation.json()
+    assert body['review_evidence']['summary']['added'] == 1
+    assert body['human_annotations'][0]['source'] == 'HUMAN'

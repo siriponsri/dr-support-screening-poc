@@ -1,6 +1,6 @@
 # S6 — Review Evidence & QA
 
-Status: DRAFT — owner-approved single-lane milestone  
+Status: COMPLETE / FROZEN — owner-approved single-lane milestone
 Repository: `siriponsri/dr-support-screening-poc`
 
 ## 1. Goal
