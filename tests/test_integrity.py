@@ -105,7 +105,7 @@ def test_same_source_reference_changed_bytes_gets_new_case_without_review_transf
     assert app.state.store.get(first["image_id"])["admission"]["admission_method"] == "MANUAL"
 
 
-def test_corrupt_and_unsupported_sources_are_safe_and_keep_byte_hashes(tmp_path):
+def test_corrupt_and_unsupported_image_sources_are_safe_and_keep_byte_hashes(tmp_path):
     corrupt = tmp_path / "corrupt.jpg"
     corrupt.write_bytes(b"not a jpeg")
     unsupported = tmp_path / "notes.txt"
@@ -118,13 +118,11 @@ def test_corrupt_and_unsupported_sources_are_safe_and_keep_byte_hashes(tmp_path)
 
     assert records["corrupt.jpg"]["integrity_status"] == "DECODE_FAILED"
     assert records["corrupt.jpg"]["source_sha256"] == hashlib.sha256(corrupt.read_bytes()).hexdigest()
-    assert records["notes.txt"]["integrity_status"] == "UNSUPPORTED_FORMAT"
-    assert records["notes.txt"]["source_sha256"] == hashlib.sha256(unsupported.read_bytes()).hexdigest()
+    assert "notes.txt" not in records
     assert records["png-named-as-jpeg.jpg"]["integrity_status"] == "UNSUPPORTED_FORMAT"
     assert records["png-named-as-jpeg.jpg"]["admission_reason_code"] == "FORMAT_EXTENSION_MISMATCH"
     assert records["png-named-as-jpeg.jpg"]["source_metadata"]["integrity_status"] == "UNSUPPORTED_FORMAT"
     assert records["corrupt.jpg"]["modality_admission"] == "REJECTED_INVALID"
-    assert records["notes.txt"]["modality_admission"] == "REJECTED_INVALID"
 
 
 def test_missing_source_is_recorded_without_returning_a_deleted_case(tmp_path):

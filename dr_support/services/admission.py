@@ -37,6 +37,12 @@ SUPPORTED_INPUT_TYPES = {
     ".dicom": "application/dicom",
 }
 
+# Workspace folders may contain manifests and provenance notes. They are not
+# image candidates and must not become invalid clinical cases.
+ANCILLARY_WORKSPACE_EXTENSIONS = frozenset({
+    ".csv", ".json", ".md", ".txt", ".log", ".toml", ".xml", ".yaml", ".yml",
+})
+
 MIN_REVIEW_DIMENSION = 128
 MIN_ASPECT_RATIO = 0.45
 MAX_ASPECT_RATIO = 2.4
@@ -703,7 +709,12 @@ def scan_input_folder(
 
     try:
         paths = sorted(
-            (path for path in root.iterdir() if path.is_file() and not path.is_symlink()),
+            (
+                path for path in root.iterdir()
+                if path.is_file()
+                and not path.is_symlink()
+                and path.suffix.lower() not in ANCILLARY_WORKSPACE_EXTENSIONS
+            ),
             key=lambda path: (path.name.casefold(), path.name),
         )
     except OSError:

@@ -140,6 +140,8 @@ def test_uncompressed_dicom_admission_display_and_privacy(tmp_path):
 
     assert case.status_code == 200
     assert case.json()["source_sha256"] == source_sha256
+    assert case.json()["image_url"] == f"/v1/images/{source_sha256}/display"
+    assert case.json()["source_image_url"] == f"/v1/images/{source_sha256}"
     assert display.status_code == 200
     assert display.headers["content-type"].startswith("image/png")
     assert display.headers["x-source-sha256"] == source_sha256

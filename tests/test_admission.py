@@ -56,7 +56,7 @@ def test_scan_handles_valid_ambiguous_invalid_and_quality_cases(tmp_path, monkey
 
     response = client.post("/v1/admissions/scan")
     assert response.status_code == 200
-    assert len(response.json()["records"]) == 6
+    assert len(response.json()["records"]) == 5
     cases = {case["filename"]: case for case in client.get("/v1/cases").json()}
 
     assert cases["fundus.png"]["admission"]["modality_admission"] == "FUNDUS_ACCEPTED"
@@ -64,12 +64,28 @@ def test_scan_handles_valid_ambiguous_invalid_and_quality_cases(tmp_path, monkey
     assert cases["ambiguous.png"]["admission"]["modality_admission"] == "NEEDS_REVIEW"
     assert cases["small.png"]["admission"]["quality_state"] == "NEEDS_REVIEW"
     assert cases["wide.png"]["admission"]["modality_admission"] == "NEEDS_REVIEW"
-    assert cases["notes.txt"]["admission"]["modality_admission"] == "REJECTED_INVALID"
     assert cases["corrupt.jpg"]["admission"]["modality_admission"] == "REJECTED_INVALID"
     assert cases["fundus.png"]["admission_ui"]["label"] == "Ready for analysis"
     assert cases["ambiguous.png"]["admission_ui"]["label"] == "Needs review"
-    assert cases["notes.txt"]["admission_ui"]["label"] == "Cannot analyze"
+    assert "notes.txt" not in cases
+    assert "notes.txt" not in [record["filename"] for record in response.json()["records"]]
     assert (input_folder / "fundus.png").read_bytes() == original
+
+
+def test_scan_keeps_ancillary_workspace_files_out_of_clinical_cases(tmp_path, monkeypatch):
+    client, input_folder = _workspace_client(tmp_path, monkeypatch)
+    _write_image(input_folder / "fundus.png", fundus=True)
+    (input_folder / "sources.csv").write_text("filename,source\nfundus.png,fixture\n", encoding="utf-8")
+    (input_folder / "provenance.json").write_text("{}", encoding="utf-8")
+
+    response = client.post("/v1/admissions/scan")
+
+    assert response.status_code == 200
+    assert [record["filename"] for record in response.json()["records"]] == ["fundus.png"]
+    case_filenames = [case["filename"] for case in client.get("/v1/cases").json()]
+    assert "fundus.png" in case_filenames
+    assert "sources.csv" not in case_filenames
+    assert "provenance.json" not in case_filenames
 
 
 def test_manual_admission_and_quality_overrides_are_auditable(tmp_path, monkeypatch):
