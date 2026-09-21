@@ -18,6 +18,7 @@ from .services.resolver import (
     normalize_patient_key,
     resolver_clinician_view,
 )
+from .imaging import DerivativeError
 
 
 class Review(Contract):
@@ -132,8 +133,11 @@ def install_workflow(app, store):
                 'filename': filename or None,
                 'display_name': Path(filename).stem if filename else image_id,
                 'image_sha256': image.sha256 if image is not None else None,
+                'source_sha256': image.sha256 if image is not None else None,
                 'width': width, 'height': height,
-                'image_url': f'/v1/images/{image_id}' if image is not None else None,
+                'image_url': f'/v1/images/{image_id}/display' if image is not None else None,
+                'source_image_url': f'/v1/images/{image_id}' if image is not None else None,
+                'analysis_derivative': case.get('analysis_derivative'),
                 'modality': image.modality if image is not None else 'CFP',
                 'admission': record,
                 'admission_ui': clinician_view(record) if record is not None else None,
@@ -207,6 +211,27 @@ def install_workflow(app, store):
         image = get_image(image_id)
         return Response(image.data, media_type=image.media_type,
                         headers={'Cache-Control': 'private, max-age=3600'})
+
+    @app.get('/v1/images/{image_id}/display')
+    def display_image_bytes(image_id: str):
+        image = get_image(image_id)
+        try:
+            derivative = app.state.derivatives.prepare_display(image)
+        except DerivativeError:
+            raise HTTPException(
+                409,
+                'This image cannot be displayed in the browser. Review the source format or use a supported copy.',
+            ) from None
+        return Response(
+            derivative.data,
+            media_type=derivative.media_type,
+            headers={
+                'Cache-Control': 'private, max-age=3600',
+                'ETag': f'"{derivative.lineage.derivative_sha256}"',
+                'X-Source-SHA256': derivative.lineage.source_sha256,
+                'X-Derivative-SHA256': derivative.lineage.derivative_sha256,
+            },
+        )
 
     @app.post('/v1/cases/{image_id}/review')
     def review(image_id: str, request: Review):

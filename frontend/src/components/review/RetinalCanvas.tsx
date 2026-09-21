@@ -246,6 +246,7 @@ export function RetinalCanvas({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isCoordinateInspector, setIsCoordinateInspector] = useState(false);
   const [pointerCoordinate, setPointerCoordinate] = useState<{ x: number; y: number } | null>(null);
+  const [imageLoadError, setImageLoadError] = useState(false);
 
   const setCoordinateInspector = useCallback((active: boolean) => {
     setIsCoordinateInspector(active);
@@ -263,6 +264,10 @@ export function RetinalCanvas({
     const bounded = { ...view, scale: clamp(view.scale, minScale, maxScale) };
     return isFit ? fitView : constrainView(bounded, viewport, item);
   }, [fitView, isFit, item, maxScale, minScale, view, viewport]);
+
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [item.image_url]);
 
   useEffect(() => {
     setIsFit(true);
@@ -614,6 +619,25 @@ export function RetinalCanvas({
       onContextMenu={handleContextMenu}
       onPointerEnter={handlePointerEnter}
     >
+      {imageLoadError && (
+        <Box
+          role="alert"
+          position="absolute"
+          zIndex={2}
+          top={2}
+          left={2}
+          right={2}
+          maxW="480px"
+          px={3}
+          py={2}
+          bg="blackAlpha.700"
+          borderWidth="1px"
+          borderColor="status.warning"
+          borderRadius="md"
+        >
+          <Text fontSize="sm" color="white">Preview unavailable. This source could not be decoded for browser display.</Text>
+        </Box>
+      )}
       <Box
         position="absolute"
         top={0}
@@ -635,6 +659,7 @@ export function RetinalCanvas({
           userSelect="none"
           pointerEvents="none"
           draggable={false}
+          onError={() => setImageLoadError(true)}
         />
         <Box
           as="svg"

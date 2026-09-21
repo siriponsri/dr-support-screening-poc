@@ -72,6 +72,15 @@ describe('RetinalCanvas navigation', () => {
     expect(screen.getByRole('button', { name: 'Fit' })).toBeInTheDocument();
   });
 
+  it('shows a compact warning when the display representation cannot load', () => {
+    renderCanvas();
+    fireEvent.error(screen.getByAltText('Case 001 retinal image'));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Preview unavailable. This source could not be decoded for browser display.',
+    );
+  });
+
   it('supports bounded zoom, cursor-wheel zoom, pan, and fit reset', () => {
     renderCanvas();
     const { stage, viewport } = setViewportSize();

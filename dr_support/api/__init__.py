@@ -7,6 +7,7 @@ This package exposes the clinician workstation surface:
 - ``GET /v1/cases``          worklist of admitted cases
 - ``GET /v1/cases/{id}``     case detail
 - ``GET /v1/images/{id}``    admitted image bytes
+- ``GET /v1/images/{id}/display`` browser-safe display representation
 - ``POST /v1/infer/global``  grade inference (local mock or remote proxy)
 - ``POST /v1/infer/lesion-roi`` lesion ROI inference (local mock or remote proxy)
 - ``POST /v1/cases/{id}/review`` clinician review action

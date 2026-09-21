@@ -36,6 +36,12 @@ from dr_support.runtime import runtime_snapshot
 from dr_support.providers.retfound import RETFound
 
 from ..images import admitted_demo_images, admitted_samples, synthetic_image
+from ..imaging import (
+    DerivativeError,
+    DerivativePayloadTooLargeError,
+    DerivativeService,
+    map_lesion_result_to_review,
+)
 from ..services.admission import is_inference_eligible, legacy_admission, scan_input_folder
 from ..services.workspaces import WorkspaceManager
 from ..services.resolver import ResolverService
@@ -70,6 +76,7 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
     app.state.workspace_image_ids = set()
     app.state.workspace_admission_ids = set()
     app.state.resolver = ResolverService()
+    app.state.derivatives = DerivativeService()
     workspace_manager = WorkspaceManager(root, state_path=state_path)
     install_workflow(app, workspace_manager.store)
     workspace_manager.attach(app)
@@ -285,10 +292,26 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
         if provider is None or provider.task != task:
             raise HTTPException(404, 'Unknown model for this task')
         try:
+            analysis_image, analysis_derivative = app.state.derivatives.analysis_image(image)
             with inference_lock:
-                result = provider.infer(request, image)
-            save_result(request, task, result)
+                result = provider.infer(request, analysis_image)
+            if task == 'lesion-roi':
+                result = map_lesion_result_to_review(
+                    result,
+                    analysis_derivative.coordinate_mapping,
+                )
+            save_result(request, task, result, analysis_derivative)
             return result
+        except DerivativePayloadTooLargeError:
+            raise HTTPException(
+                413,
+                'This image is too large for the analysis service. No automatic downscaling was applied; review it manually or provide a validated representation.',
+            ) from None
+        except DerivativeError:
+            raise HTTPException(
+                409,
+                'A safe analysis representation is not available for this source. Review it manually or use a supported image.',
+            ) from None
         except RemoteTimeoutError:
             raise HTTPException(504, 'Remote model timeout; inspect REMOTE_MODEL_URL and runtime latency') from None
         except RemoteNotConfiguredError:
@@ -298,14 +321,18 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
         except (RuntimeError, ValueError, KeyError, OSError, ImportError):
             raise HTTPException(503, 'Model unavailable; inspect Models readiness and runtime configuration') from None
 
-    def save_result(request, task, result):
+    def save_result(request, task, result, analysis_derivative=None):
         key = 'global' if task == 'global' else 'lesion'
         store = app.state.store
         with store.lock:
             case = store.get(request.image_id)
             value = result.model_dump(mode='json')
-            if case[key] != value:
+            derivative_record = analysis_derivative.audit_record() if analysis_derivative else None
+            derivative_changed = derivative_record is not None and case.get('analysis_derivative') != derivative_record
+            if case[key] != value or derivative_changed:
                 case[key] = value
+                if derivative_record is not None:
+                    case['analysis_derivative'] = derivative_record
                 case['revision'] += 1
                 if key == 'global':
                     case['state'] = 'PENDING'
@@ -313,6 +340,12 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
                     case['grade_review_source'] = None
                     case['clinician_review'] = None
                 event = {'action': 'INFERENCE', 'model_id': request.model_id}
+                if derivative_record is not None:
+                    event.update({
+                        'source_sha256': derivative_record['source_sha256'],
+                        'analysis_sha256': derivative_record['analysis_sha256'],
+                        'transform_id': derivative_record['transform_id'],
+                    })
                 provider = app.state.providers.get(request.model_id)
                 if isinstance(provider, RemoteModelProvider):
                     event['runtime'] = 'remote'

@@ -23,13 +23,24 @@ from .registry import (
     UnsupportedImageHandlerError,
     default_image_handler_registry,
 )
+from .derivatives import (
+    CoordinateMapping,
+    DerivativeError,
+    DerivativePayloadTooLargeError,
+    DerivativeService,
+    PreparedDerivative,
+    map_lesion_result_to_review,
+)
 
 __all__ = [
     "DerivativeArtifact",
     "DerivativeBuilder",
     "DerivativeBuilderRegistry",
+    "DerivativeError",
+    "DerivativePayloadTooLargeError",
     "DerivativeLineage",
     "DerivativePurpose",
+    "DerivativeService",
     "ImageDecodeError",
     "ImageDimensions",
     "ImageHandler",
@@ -40,8 +51,11 @@ __all__ = [
     "SourceIdentity",
     "SourceMetadata",
     "UnsupportedImageHandlerError",
+    "CoordinateMapping",
+    "PreparedDerivative",
     "default_image_handler_registry",
     "lineage_for_bytes",
     "sha256_bytes",
     "validate_derivative_lineage",
+    "map_lesion_result_to_review",
 ]
