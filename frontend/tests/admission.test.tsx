@@ -90,15 +90,18 @@ describe('image admission UI', () => {
     expect(await screen.findByText('Scanned 1 input files.')).toBeInTheDocument();
   });
 
-  it('disables analysis until review and renders manual admission actions', async () => {
+  it('keeps blocked analysis guarded and routes admission work to the Worklist', async () => {
     mockAdmissionApi();
     renderAppAt('/review/ambiguous');
 
-    expect(await screen.findByText('Needs review')).toBeInTheDocument();
+    expect(await screen.findByText('Needs image review')).toBeInTheDocument();
+    expect(screen.getByText('ambiguous · Eye not confirmed')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Analyze' })).toBeDisabled();
-    expect(screen.getByText('Resolve the image admission review before analysis.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Accept as retinal fundus image/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Mark as non-fundus/i })).toBeInTheDocument();
+    expect(screen.getByText('Resolve this case from the Worklist before analysis.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Worklist' })).toHaveAttribute('href', '/worklist');
+    expect(screen.queryByRole('button', { name: /Accept as retinal fundus image/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mark as non-fundus/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Pseudonymous patient key')).not.toBeInTheDocument();
   });
 
   it('disables analysis when the remote endpoint is not configured', async () => {
