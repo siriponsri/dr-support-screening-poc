@@ -14,6 +14,15 @@ from PIL import Image
 
 from ..contracts import AdmissionMetadata
 from ..images import BridgeImage
+from ..imaging import (
+    IntegrityStatus,
+    SourceAlias,
+    SourceChange,
+    SourceIntegrity,
+    SourceMetadata,
+    default_image_handler_registry,
+    sha256_bytes,
+)
 
 
 SUPPORTED_INPUT_TYPES = {
@@ -27,6 +36,13 @@ SUPPORTED_INPUT_TYPES = {
 MIN_REVIEW_DIMENSION = 128
 MIN_ASPECT_RATIO = 0.45
 MAX_ASPECT_RATIO = 2.4
+
+_RASTER_REGISTRY = default_image_handler_registry()
+_FORMAT_EXTENSIONS = {
+    "JPEG": frozenset({".jpg", ".jpeg"}),
+    "PNG": frozenset({".png"}),
+    "TIFF": frozenset({".tif", ".tiff"}),
+}
 
 
 @dataclass(frozen=True)
@@ -49,6 +65,59 @@ def _image_id_for_unreadable(reference: str) -> str:
     return "invalid-" + hashlib.sha256(reference.encode("utf-8")).hexdigest()
 
 
+def _alias(filename: str, source_reference: str) -> SourceAlias:
+    return SourceAlias(filename=filename, source_reference=source_reference)
+
+
+def _apply_integrity(
+    record: dict,
+    *,
+    aliases: list[SourceAlias],
+    previous_records: dict[str, dict] | None = None,
+) -> dict:
+    """Add deterministic alias, duplicate, and source-change evidence."""
+    previous_records = previous_records or {}
+    normalized_aliases = sorted(
+        {alias.source_reference: alias for alias in aliases}.values(),
+        key=lambda alias: (alias.filename.casefold(), alias.source_reference.casefold()),
+    )
+    current_sha = record.get("source_sha256")
+    changes: list[SourceChange] = []
+    previous_sha = None
+    for alias in normalized_aliases:
+        previous = previous_records.get(alias.source_reference) or {}
+        candidate = previous.get("source_sha256")
+        if candidate is None:
+            candidate = (previous.get("source_metadata") or {}).get("source_sha256")
+        if current_sha and candidate and current_sha != candidate:
+            previous_sha = previous_sha or candidate
+            changes.append(SourceChange(
+                filename=alias.filename,
+                source_reference=alias.source_reference,
+                previous_source_sha256=candidate,
+            ))
+
+    base_status = IntegrityStatus(record.get("integrity_status", IntegrityStatus.OK))
+    duplicate = len(normalized_aliases) > 1
+    status = IntegrityStatus.SOURCE_CHANGED if changes else (
+        IntegrityStatus.DUPLICATE_CONTENT if duplicate else base_status
+    )
+    integrity = SourceIntegrity(
+        status=status,
+        aliases=normalized_aliases,
+        duplicate_content=duplicate,
+        previous_source_sha256=previous_sha,
+        changed_sources=changes,
+    )
+    record = dict(record)
+    record["integrity_status"] = status
+    record["integrity"] = integrity
+    if record.get("source_metadata") is not None:
+        metadata = SourceMetadata.model_validate(record["source_metadata"])
+        record["source_metadata"] = metadata.model_copy(update={"integrity_status": status})
+    return AdmissionMetadata.model_validate(record).model_dump(mode="json")
+
+
 def _metadata(
     *,
     image_id: str,
@@ -66,8 +135,15 @@ def _metadata(
     method: str = "AUTOMATIC",
     created_at: str | None = None,
     updated_at: str | None = None,
+    source_sha256: str | None = None,
+    source_metadata: SourceMetadata | None = None,
+    integrity_status: IntegrityStatus = IntegrityStatus.OK,
+    integrity: SourceIntegrity | None = None,
 ) -> dict:
     now = updated_at or utc_now()
+    if source_metadata is not None and source_metadata.integrity_status != integrity_status:
+        source_metadata = source_metadata.model_copy(update={"integrity_status": integrity_status})
+    source_dimensions = source_metadata.dimensions if source_metadata is not None else None
     return AdmissionMetadata(
         image_id=image_id,
         source_reference=source_reference,
@@ -84,6 +160,13 @@ def _metadata(
         quality_reason_code=quality_reason_code,
         created_at=created_at or now,
         updated_at=now,
+        source_sha256=(source_metadata.source_sha256 if source_metadata is not None else source_sha256),
+        source_format=(source_metadata.source_format if source_metadata is not None else None),
+        source_media_type=(source_metadata.source_media_type if source_metadata is not None else None),
+        source_dimensions=source_dimensions,
+        source_metadata=source_metadata,
+        integrity_status=integrity_status,
+        integrity=integrity or SourceIntegrity(status=integrity_status),
     ).model_dump(mode="json")
 
 
@@ -95,6 +178,10 @@ def _invalid_record(
     extension: str,
     file_size_bytes: int,
     reason: str,
+    source_sha256: str | None = None,
+    source_metadata: SourceMetadata | None = None,
+    integrity_status: IntegrityStatus = IntegrityStatus.DECODE_FAILED,
+    integrity: SourceIntegrity | None = None,
 ) -> dict:
     return _metadata(
         image_id=image_id,
@@ -109,6 +196,10 @@ def _invalid_record(
         quality_state="NOT_EVALUATED",
         admission_reason_code=reason,
         quality_reason_code=None,
+        source_sha256=source_sha256,
+        source_metadata=source_metadata,
+        integrity_status=integrity_status,
+        integrity=integrity or SourceIntegrity(status=integrity_status),
     )
 
 
@@ -203,6 +294,11 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
                 extension=extension,
                 file_size_bytes=0,
                 reason="FILE_READ_FAILED",
+                integrity_status=IntegrityStatus.SOURCE_MISSING,
+                integrity=SourceIntegrity(
+                    status=IntegrityStatus.SOURCE_MISSING,
+                    aliases=[_alias(filename, reference)],
+                ),
             ),
             None,
         )
@@ -217,11 +313,38 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
                 extension=extension,
                 file_size_bytes=len(data),
                 reason="UNSUPPORTED_FORMAT",
+                source_sha256=image_id,
+                integrity_status=IntegrityStatus.UNSUPPORTED_FORMAT,
+                integrity=SourceIntegrity(
+                    status=IntegrityStatus.UNSUPPORTED_FORMAT,
+                    aliases=[_alias(filename, reference)],
+                ),
             ),
             None,
         )
 
+    source_metadata = None
     try:
+        source_metadata = _RASTER_REGISTRY.inspect(data, filename=filename)
+        if extension not in _FORMAT_EXTENSIONS[source_metadata.source_format]:
+            return (
+                _invalid_record(
+                    image_id=image_id,
+                    source_reference=reference,
+                    filename=filename,
+                    extension=extension,
+                    file_size_bytes=len(data),
+                    reason="FORMAT_EXTENSION_MISMATCH",
+                    source_sha256=image_id,
+                    source_metadata=source_metadata,
+                    integrity_status=IntegrityStatus.UNSUPPORTED_FORMAT,
+                    integrity=SourceIntegrity(
+                        status=IntegrityStatus.UNSUPPORTED_FORMAT,
+                        aliases=[_alias(filename, reference)],
+                    ),
+                ),
+                None,
+            )
         with Image.open(io.BytesIO(data)) as image:
             image.load()
             width, height = image.size
@@ -238,6 +361,12 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
                 extension=extension,
                 file_size_bytes=len(data),
                 reason="DECODE_FAILED",
+                source_sha256=image_id,
+                integrity_status=IntegrityStatus.DECODE_FAILED,
+                integrity=SourceIntegrity(
+                    status=IntegrityStatus.DECODE_FAILED,
+                    aliases=[_alias(filename, reference)],
+                ),
             ),
             None,
         )
@@ -255,6 +384,11 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
         quality_state=quality,
         admission_reason_code="FUNDUS_PLAUSIBLE" if modality == "FUNDUS_ACCEPTED" else "FUNDUS_UNCERTAIN",
         quality_reason_code=quality_reason,
+        source_metadata=source_metadata,
+        integrity=SourceIntegrity(
+            status=IntegrityStatus.OK,
+            aliases=[_alias(filename, reference)],
+        ),
     )
     return (
         record,
@@ -279,6 +413,8 @@ def inspect_bytes(
     """Apply the same conservative rules to an API payload without a workspace file."""
     extension = Path(filename).suffix.lower() or "[payload]"
     format_extensions = {"JPEG": ".jpg", "PNG": ".png", "TIFF": ".tiff"}
+    source_sha256 = sha256_bytes(data)
+    source_metadata = None
     try:
         with Image.open(io.BytesIO(data)) as image:
             image.load()
@@ -291,8 +427,11 @@ def inspect_bytes(
                     extension=extension,
                     file_size_bytes=len(data),
                     reason="UNSUPPORTED_FORMAT",
+                    source_sha256=source_sha256,
+                    integrity_status=IntegrityStatus.UNSUPPORTED_FORMAT,
                 )
             extension = detected_extension
+            source_metadata = _RASTER_REGISTRY.inspect(data, filename=f"payload{extension}")
             width, height = image.size
             if width <= 0 or height <= 0:
                 raise ValueError("invalid dimensions")
@@ -306,6 +445,8 @@ def inspect_bytes(
             extension=extension,
             file_size_bytes=len(data),
             reason="DECODE_FAILED",
+            source_sha256=source_sha256,
+            integrity_status=IntegrityStatus.DECODE_FAILED,
         )
 
     return _metadata(
@@ -321,6 +462,11 @@ def inspect_bytes(
         quality_state=quality,
         admission_reason_code="FUNDUS_PLAUSIBLE" if modality == "FUNDUS_ACCEPTED" else "FUNDUS_UNCERTAIN",
         quality_reason_code=quality_reason,
+        source_metadata=source_metadata,
+        integrity=SourceIntegrity(
+            status=IntegrityStatus.OK,
+            aliases=[_alias(filename, source_reference)],
+        ),
     )
 
 
@@ -328,7 +474,9 @@ def legacy_admission(image: BridgeImage) -> dict:
     """Give pre-S2A registry entries an explicit non-gradability default."""
     filename = image.filename or f"{image.image_id}.jpg"
     extension = Path(filename).suffix.lower() or ".jpg"
+    source_metadata = None
     try:
+        source_metadata = _RASTER_REGISTRY.inspect(image.data, filename=filename)
         with Image.open(io.BytesIO(image.data)) as pil:
             width, height = pil.size
             mode = pil.mode
@@ -349,6 +497,12 @@ def legacy_admission(image: BridgeImage) -> dict:
         admission_reason_code="LEGACY_ADMITTED",
         quality_reason_code=None,
         method="LEGACY_COMPAT",
+        source_sha256=sha256_bytes(image.data),
+        source_metadata=source_metadata,
+        integrity=SourceIntegrity(
+            status=IntegrityStatus.OK,
+            aliases=[_alias(filename, image.source)],
+        ),
     )
 
 
@@ -405,8 +559,13 @@ def clinician_view(record: dict) -> dict:
     }
 
 
-def scan_input_folder(folder: str | Path) -> AdmissionScan:
+def scan_input_folder(
+    folder: str | Path,
+    *,
+    previous_records: dict[str, dict] | None = None,
+) -> AdmissionScan:
     """Scan one workspace folder, top-level only, in deterministic order."""
+    previous_records = previous_records or {}
     root = Path(folder)
     if not root.is_dir():
         return AdmissionScan({}, {}, ["Input folder is unavailable."])
@@ -414,7 +573,7 @@ def scan_input_folder(folder: str | Path) -> AdmissionScan:
     try:
         paths = sorted(
             (path for path in root.iterdir() if path.is_file() and not path.is_symlink()),
-            key=lambda path: path.name.casefold(),
+            key=lambda path: (path.name.casefold(), path.name),
         )
     except OSError:
         return AdmissionScan({}, {}, ["Input folder is unavailable."])
@@ -434,10 +593,30 @@ def scan_input_folder(folder: str | Path) -> AdmissionScan:
                 extension=path.suffix.lower() or "[none]",
                 file_size_bytes=0,
                 reason="ADMISSION_RULE_ERROR",
+                integrity_status=IntegrityStatus.DECODE_FAILED,
+                integrity=SourceIntegrity(
+                    status=IntegrityStatus.DECODE_FAILED,
+                    aliases=[_alias(path.name, reference)],
+                ),
             )
             image = None
             warnings.append(f"{path.name}: admission could not be completed ({type(exc).__name__}).")
-        records.setdefault(record["image_id"], record)
+        image_id = record["image_id"]
+        current_aliases = [
+            SourceAlias.model_validate(alias)
+            for alias in (record.get("integrity") or {}).get("aliases", [])
+        ]
+        existing = records.get(image_id)
+        if existing is not None:
+            current_aliases.extend(
+                SourceAlias.model_validate(alias)
+                for alias in (existing.get("integrity") or {}).get("aliases", [])
+            )
+        records[image_id] = _apply_integrity(
+            existing or record,
+            aliases=current_aliases,
+            previous_records=previous_records,
+        )
         if image is not None:
             images.setdefault(image.image_id, image)
     return AdmissionScan(images, records, warnings)

@@ -39,6 +39,21 @@ class Store:
             _set_resolver_defaults(case)
             return case
 
+    def all_cases(self):
+        """Return durable cases for non-destructive source reconciliation."""
+        with self.lock:
+            rows = self.db.execute('SELECT data FROM cases ORDER BY id').fetchall()
+            cases = []
+            for (data,) in rows:
+                case = json.loads(data)
+                case.setdefault('admission', None)
+                case.setdefault('admission_history', [])
+                case.setdefault('queue_state', 'INCLUDED')
+                case.setdefault('queue_history', [])
+                _set_resolver_defaults(case)
+                cases.append(case)
+            return cases
+
     def put(self, case):
         with self.lock:
             self.db.execute('INSERT OR REPLACE INTO cases VALUES (?, ?)',
