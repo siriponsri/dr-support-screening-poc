@@ -73,6 +73,31 @@ class SourceMetadata(Contract):
         return self.dimensions
 
 
+class SourceAlias(Contract):
+    """A safe, workspace-relative reference to the same source bytes."""
+
+    filename: str = Field(min_length=1, max_length=260)
+    source_reference: str = Field(min_length=1, max_length=1000)
+
+
+class SourceChange(Contract):
+    """Evidence that one logical source reference now has different bytes."""
+
+    filename: str = Field(min_length=1, max_length=260)
+    source_reference: str = Field(min_length=1, max_length=1000)
+    previous_source_sha256: str = Field(pattern=SHA256_PATTERN.pattern)
+
+
+class SourceIntegrity(Contract):
+    """Non-destructive integrity facts attached to an admission record."""
+
+    status: IntegrityStatus = IntegrityStatus.OK
+    aliases: list[SourceAlias] = Field(default_factory=list, max_length=500)
+    duplicate_content: bool = False
+    previous_source_sha256: str | None = Field(default=None, pattern=SHA256_PATTERN.pattern)
+    changed_sources: list[SourceChange] = Field(default_factory=list, max_length=500)
+
+
 class DerivativeLineage(Contract):
     """Auditable identity and transform facts for one derivative."""
 
