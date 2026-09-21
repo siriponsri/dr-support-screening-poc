@@ -12,7 +12,6 @@ from ._schema import (
     LesionResult,
     Provenance,
 )
-from .admission import AdmissionMetadata, AdmissionReview
 from .resolver import ResolverReview
 from .workspaces import (
     DatabasePickerRequest,
@@ -49,3 +48,15 @@ __all__ = [
     'ModelConnectionModel',
     'ModelConnectionResponse',
 ]
+
+
+def __getattr__(name):
+    """Load admission contracts lazily so imaging contracts remain acyclic."""
+    if name in {'AdmissionMetadata', 'AdmissionReview'}:
+        from .admission import AdmissionMetadata, AdmissionReview
+        globals().update({
+            'AdmissionMetadata': AdmissionMetadata,
+            'AdmissionReview': AdmissionReview,
+        })
+        return globals()[name]
+    raise AttributeError(name)
