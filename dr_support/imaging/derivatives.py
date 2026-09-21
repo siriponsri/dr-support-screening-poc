@@ -20,22 +20,27 @@ from ..contracts._schema import Contract
 from .contracts import (
     DerivativeLineage,
     DerivativePurpose,
+    IntegrityStatus,
     SourceDimensions,
     SourceMetadata,
     lineage_for_bytes,
 )
-from .registry import default_image_handler_registry
+from .registry import default_dicom_image_handler_registry
 
 
 DISPLAY_SOURCE_TRANSFORM = "display-source-v1"
 DISPLAY_TIFF_PNG_TRANSFORM = "display-tiff-png-rgb-v1"
+DISPLAY_DICOM_PNG_TRANSFORM = "display-dicom-png-rgb-v1"
 ANALYSIS_SOURCE_TRANSFORM = "analysis-source-v1"
 ANALYSIS_TIFF_PNG_TRANSFORM = "analysis-tiff-png-rgb-v1"
+ANALYSIS_DICOM_PNG_TRANSFORM = "analysis-dicom-png-rgb-v1"
 REMOTE_IMAGE_B64_LIMIT = 20_000_000
 
 
 class DerivativeError(RuntimeError):
     """Raised when a safe deterministic representation cannot be prepared."""
+
+    status = IntegrityStatus.DERIVATIVE_FAILED
 
 
 class DerivativePayloadTooLargeError(DerivativeError):
@@ -182,7 +187,7 @@ class DerivativeService:
             return cached
 
         try:
-            source = default_image_handler_registry().inspect(
+            source = default_dicom_image_handler_registry().inspect(
                 image.data,
                 filename=image.filename,
                 media_type=image.media_type,
@@ -208,6 +213,15 @@ class DerivativeService:
                 else ANALYSIS_TIFF_PNG_TRANSFORM
             )
             description = "Deterministic TIFF decode and RGB PNG representation; source bytes unchanged"
+        elif source.source_format == "DICOM":
+            data = _dicom_to_png(image.data)
+            media_type = "image/png"
+            output_format = "PNG"
+            transform_id = (
+                DISPLAY_DICOM_PNG_TRANSFORM if purpose is DerivativePurpose.DISPLAY
+                else ANALYSIS_DICOM_PNG_TRANSFORM
+            )
+            description = "Deterministic DICOM pixel decode and RGB PNG representation; source bytes unchanged"
         else:
             raise DerivativeError("This image format has no validated delivery representation")
 
@@ -267,6 +281,55 @@ def _tiff_to_png(data: bytes) -> bytes:
         raise DerivativeError("The TIFF source could not be converted to a browser-safe representation") from exc
 
 
+def _dicom_to_png(data: bytes) -> bytes:
+    """Decode DICOM through the registered handler and encode deterministic PNG."""
+    handler = default_dicom_image_handler_registry().resolve(media_type="application/dicom")
+    result = handler.decode(data)
+    if result.status is not IntegrityStatus.OK:
+        messages = {
+            IntegrityStatus.DICOM_CODEC_REQUIRED: "A DICOM pixel codec is required for display.",
+            IntegrityStatus.DICOM_MULTIFRAME_UNSUPPORTED: "Multi-frame DICOM display requires explicit frame selection.",
+            IntegrityStatus.UNSUPPORTED_FORMAT: "This DICOM object is outside the supported display scope.",
+            IntegrityStatus.DECODE_FAILED: "The DICOM pixels could not be decoded for display.",
+        }
+        error = DerivativeError(messages.get(result.status, "The DICOM source could not be displayed."))
+        error.status = result.status
+        raise error
+
+    try:
+        import numpy as np
+
+        metadata = result.metadata
+        array = np.asarray(result.pixel_array)
+        if metadata is None:
+            raise ValueError("DICOM metadata is unavailable")
+        max_value = (1 << metadata.bits_stored) - 1
+        if max_value <= 0:
+            raise ValueError("DICOM bit depth is invalid")
+        if array.dtype != np.uint8:
+            array = np.rint(
+                np.clip(array.astype(np.float64), 0, max_value) * 255 / max_value
+            ).astype(np.uint8)
+        if metadata.samples_per_pixel == 1:
+            if array.ndim != 2:
+                raise ValueError("DICOM grayscale dimensions are invalid")
+            if metadata.photometric_interpretation == "MONOCHROME1":
+                array = 255 - array
+        elif metadata.samples_per_pixel == 3:
+            if array.ndim != 3 or array.shape[2] != 3:
+                raise ValueError("DICOM color dimensions are invalid")
+        else:
+            raise ValueError("DICOM channel count is unsupported")
+
+        output = io.BytesIO()
+        Image.fromarray(array).save(output, format="PNG", optimize=False, compress_level=9)
+        return output.getvalue()
+    except DerivativeError:
+        raise
+    except Exception as exc:
+        raise DerivativeError("The DICOM pixels could not be converted to a browser-safe representation") from exc
+
+
 __all__ = [
     "ANALYSIS_SOURCE_TRANSFORM",
     "ANALYSIS_TIFF_PNG_TRANSFORM",
@@ -275,7 +338,9 @@ __all__ = [
     "DerivativePayloadTooLargeError",
     "DerivativeService",
     "DISPLAY_SOURCE_TRANSFORM",
+    "DISPLAY_DICOM_PNG_TRANSFORM",
     "DISPLAY_TIFF_PNG_TRANSFORM",
+    "ANALYSIS_DICOM_PNG_TRANSFORM",
     "PreparedDerivative",
     "REMOTE_IMAGE_B64_LIMIT",
     "map_lesion_result_to_review",
