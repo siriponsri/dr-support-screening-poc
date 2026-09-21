@@ -24,6 +24,7 @@ class Store:
                 case.setdefault('admission', None)
                 case.setdefault('admission_history', [])
                 case.setdefault('analysis_derivative', None)
+                case.setdefault('ai_annotation_reviews', [])
                 case.setdefault('queue_state', 'INCLUDED')
                 case.setdefault('queue_history', [])
                 _set_resolver_defaults(case)
@@ -35,6 +36,7 @@ class Store:
                     'human_annotations': [], 'clinician_review': None,
                     'review_history': [], 'admission': None, 'admission_history': [],
                     'analysis_derivative': None,
+                    'ai_annotation_reviews': [],
                     'queue_state': 'INCLUDED', 'queue_history': []}
             _set_resolver_defaults(case)
             return case
@@ -48,6 +50,8 @@ class Store:
                 case = json.loads(data)
                 case.setdefault('admission', None)
                 case.setdefault('admission_history', [])
+                case.setdefault('analysis_derivative', None)
+                case.setdefault('ai_annotation_reviews', [])
                 case.setdefault('queue_state', 'INCLUDED')
                 case.setdefault('queue_history', [])
                 _set_resolver_defaults(case)

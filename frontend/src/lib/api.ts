@@ -20,6 +20,7 @@ export interface Provenance {
 }
 
 export interface Lesion {
+  detection_id?: string;
   source_label: string;
   canonical_label: string;
   rectangle: [number, number, number, number];
@@ -50,6 +51,49 @@ export interface LesionReview {
     max_per_class: number;
     max_total: number;
   };
+  note?: string;
+}
+
+export type LesionReviewAction = 'CONFIRM' | 'REJECT' | 'CORRECT';
+
+export interface ReviewEvidenceItem {
+  annotation_id: string | null;
+  source: 'AI' | 'HUMAN';
+  label: string | null;
+  score: number | null;
+  original_score: number | null;
+  status: 'AI_SUGGESTED' | 'CLINICIAN_CONFIRMED' | 'CLINICIAN_REMOVED' | 'CLINICIAN_ADDED' | 'LABEL_CHANGED' | 'GEOMETRY_CHANGED' | 'CORRECTED';
+  model_id: string | null;
+  model_version: string | null;
+  reviewer: string | null;
+  timestamp: string | null;
+  original_label: string | null;
+  original_rectangle: [number, number, number, number] | null;
+  corrected_label: string | null;
+  corrected_rectangle: [number, number, number, number] | null;
+}
+
+export interface ReviewEvidence {
+  status: string;
+  reviewer: string | null;
+  timestamp: string | null;
+  summary: { confirmed: number; added: number; removed: number; corrected: number };
+  unresolved_count: number;
+  items: ReviewEvidenceItem[];
+  model_id: string | null;
+  model_version: string | null;
+  source_sha256: string | null;
+  analysis_sha256: string | null;
+  note: string;
+}
+
+export interface LesionReviewActionRequest {
+  revision: number;
+  reviewer: string;
+  detection_id: string;
+  action: LesionReviewAction;
+  label?: LesionLabel;
+  rectangle?: [number, number, number, number];
   note?: string;
 }
 
@@ -138,6 +182,7 @@ export interface CaseRecord {
   global: GlobalResult | null;
   lesion: LesionResult | null;
   lesion_review: LesionReview | null;
+  review_evidence?: ReviewEvidence;
   human_annotations: HumanAnnotation[];
   clinician_review: ClinicianReview | null;
   events?: Array<Record<string, unknown>>;
@@ -480,6 +525,13 @@ export const resolverApi = {
 export const queueApi = {
   update: (imageId: string, request: QueueActionRequest) => apiJson<CaseRecord>(
     `/v1/cases/${encodeURIComponent(imageId)}/queue`,
+    jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
+  ),
+};
+
+export const lesionReviewApi = {
+  review: (imageId: string, request: LesionReviewActionRequest) => apiJson<CaseRecord>(
+    `/v1/cases/${encodeURIComponent(imageId)}/lesion-review`,
     jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
   ),
 };

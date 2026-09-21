@@ -3,12 +3,25 @@
 Raw provider output stays intact in the case record. This module derives the bounded
 review overlay / CVAT pre-label subset without changing model provenance.
 """
+import hashlib
 import json
 import os
 from dr_support.contracts import LABELS, LesionResult
 
 DEFAULT_MAX_PER_CLASS = 25
 DEFAULT_MAX_TOTAL = 80
+
+
+def lesion_detection_id(lesion) -> str:
+    """Return a stable, review-only identity without changing raw model output."""
+    payload = {
+        'source_label': lesion.source_label,
+        'canonical_label': lesion.canonical_label,
+        'rectangle': list(lesion.rectangle),
+        'score': lesion.score,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    return 'ai-' + hashlib.sha256(encoded).hexdigest()[:20]
 
 
 def _bounded_int(name: str, default: int, maximum: int = 500) -> int:
@@ -70,6 +83,127 @@ def lesion_review_view(raw_result: dict | None) -> dict | None:
         'suggestion_count': len(selected),
         'filtered_count': len(result.lesions) - len(selected),
         'policy': policy,
-        'lesions': [x.model_dump(mode='json') for x in selected],
+        'lesions': [
+            {**x.model_dump(mode='json'), 'detection_id': lesion_detection_id(x)}
+            for x in selected
+        ],
         'note': 'Raw provider output is retained; this bounded subset is for clinician display and CVAT pre-label only.',
+    }
+
+
+def _review_status(case: dict) -> str:
+    return {
+        'REVIEWED': 'Reviewed',
+        'NEEDS_CORRECTION': 'Needs correction',
+        'ESCALATED': 'Escalated',
+    }.get(case.get('state'), 'Pending review')
+
+
+def review_evidence_view(case: dict) -> dict:
+    """Build a compact audit projection without rewriting AI or human records."""
+    lesion_result = case.get('lesion')
+    lesion_view = lesion_review_view(lesion_result) if lesion_result else None
+    decisions = {}
+    decision_history = case.get('ai_annotation_reviews') or []
+    for decision in decision_history:
+        detection_id = decision.get('detection_id')
+        if isinstance(detection_id, str):
+            decisions[detection_id] = decision
+
+    items = []
+    unresolved = 0
+    if lesion_view:
+        model_id = lesion_result.get('model_id')
+        model_version = lesion_result.get('model_version')
+        for lesion in lesion_view['lesions']:
+            detection_id = lesion['detection_id']
+            decision = decisions.get(detection_id)
+            action = decision.get('action') if decision else 'AI_SUGGESTED'
+            if action == 'CONFIRM':
+                status = 'CLINICIAN_CONFIRMED'
+            elif action == 'REJECT':
+                status = 'CLINICIAN_REMOVED'
+            elif action == 'CORRECT':
+                original_label = decision.get('original_label')
+                original_rectangle = decision.get('original_rectangle')
+                corrected_label = decision.get('corrected_label')
+                corrected_rectangle = decision.get('corrected_rectangle')
+                label_changed = corrected_label is not None and corrected_label != original_label
+                geometry_changed = corrected_rectangle is not None and corrected_rectangle != original_rectangle
+                status = 'CORRECTED'
+                if label_changed and not geometry_changed:
+                    status = 'LABEL_CHANGED'
+                elif geometry_changed and not label_changed:
+                    status = 'GEOMETRY_CHANGED'
+            else:
+                status = 'AI_SUGGESTED'
+                unresolved += 1
+            items.append({
+                'annotation_id': detection_id,
+                'source': 'AI',
+                'label': lesion['canonical_label'],
+                'score': lesion['score'],
+                'original_score': decision.get('original_score') if decision else lesion['score'],
+                'status': status,
+                'model_id': model_id,
+                'model_version': model_version,
+                'reviewer': decision.get('reviewer') if decision else None,
+                'timestamp': decision.get('timestamp') if decision else None,
+                'original_label': decision.get('original_label') if decision else lesion['canonical_label'],
+                'original_rectangle': decision.get('original_rectangle') if decision else lesion['rectangle'],
+                'corrected_label': decision.get('corrected_label') if decision else None,
+                'corrected_rectangle': decision.get('corrected_rectangle') if decision else None,
+            })
+
+    human_annotations = case.get('human_annotations') or []
+    for annotation in human_annotations:
+        items.append({
+            'annotation_id': annotation.get('shape_id'),
+            'source': 'HUMAN',
+            'label': annotation.get('label'),
+            'score': None,
+            'original_score': None,
+            'status': 'CLINICIAN_ADDED',
+            'model_id': None,
+            'model_version': None,
+            'reviewer': annotation.get('reviewer'),
+            'timestamp': annotation.get('created_at'),
+            'original_label': None,
+            'original_rectangle': None,
+            'corrected_label': None,
+            'corrected_rectangle': None,
+        })
+
+    confirmed = sum(item.get('status') == 'CLINICIAN_CONFIRMED' for item in items)
+    removed = sum(item.get('status') == 'CLINICIAN_REMOVED' for item in items)
+    corrected = sum(item.get('status') in {'CORRECTED', 'LABEL_CHANGED', 'GEOMETRY_CHANGED'} for item in items)
+    added = sum(item.get('status') == 'CLINICIAN_ADDED' for item in items)
+    latest = case.get('clinician_review') or {}
+    if not latest:
+        for item in reversed(items):
+            if item.get('reviewer') or item.get('timestamp'):
+                latest = item
+                break
+    admission = case.get('admission') or {}
+    source_sha256 = admission.get('source_sha256')
+    if not source_sha256 and lesion_result:
+        source_sha256 = (lesion_result.get('provenance') or {}).get('image_sha256')
+
+    return {
+        'status': _review_status(case),
+        'reviewer': latest.get('reviewer'),
+        'timestamp': latest.get('timestamp'),
+        'summary': {
+            'confirmed': confirmed,
+            'added': added,
+            'removed': removed,
+            'corrected': corrected,
+        },
+        'unresolved_count': unresolved,
+        'items': items,
+        'model_id': lesion_result.get('model_id') if lesion_result else None,
+        'model_version': lesion_result.get('model_version') if lesion_result else None,
+        'source_sha256': source_sha256,
+        'analysis_sha256': ((case.get('analysis_derivative') or {}).get('analysis_sha256')),
+        'note': 'Counts describe review actions, not model accuracy or clinical outcomes.',
     }

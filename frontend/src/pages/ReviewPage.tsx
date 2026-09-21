@@ -23,6 +23,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { RetinalCanvas, LESION_COLORS } from '@/components/review/RetinalCanvas';
+import { ReviewEvidencePanel } from '@/components/review/ReviewEvidencePanel';
 import {
   apiJson,
   type CaseRecord,
@@ -162,6 +163,7 @@ export function ReviewPage() {
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
   const [showAi, setShowAi] = useState(true);
+  const [selectedLesionId, setSelectedLesionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState('');
@@ -270,7 +272,7 @@ export function ReviewPage() {
       </HStack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start">
         <Section title="Retinal preview" description={`${item.width} x ${item.height}px - ${item.modality}`}>
-          {item.image_url ? <RetinalCanvas item={item} showAi={showAi} showHuman={false} /> : (
+          {item.image_url ? <RetinalCanvas item={item} showAi={showAi} showHuman={false} selectedLesionId={selectedLesionId} onSelectLesion={setSelectedLesionId} /> : (
             <Alert status="error"><AlertIcon /><Text>{item.admission_ui?.note ?? 'This file has no readable image preview.'}</Text></Alert>
           )}
           <Stack spacing={3} mt={4}>
@@ -320,6 +322,7 @@ export function ReviewPage() {
           </Section>
           <Section title="DR assessment"><Assessment item={item} /></Section>
           <Section title="Lesion suggestions"><LesionSuggestions item={item} /></Section>
+          <ReviewEvidencePanel item={item} selectedLesionId={selectedLesionId} onSelectLesion={setSelectedLesionId} onSaved={setItem} />
           <HStack spacing={2} flexWrap="wrap">
             <Button as={Link} to={`/edit/${encodeURIComponent(item.image_id)}`} leftIcon={<Pencil size={15} />} variant="secondary">Edit annotations</Button>
             <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="outline">Clinician review</Button>

@@ -10,7 +10,7 @@ from pydantic import Field
 from .contracts import AdmissionMetadata, AdmissionReview, Contract, ResolverReview
 from .sync import Sync, digest
 from .cvat import CVATOnline, OnlineError
-from .presentation import lesion_review_view
+from .presentation import lesion_review_view, review_evidence_view
 from .services.admission import clinician_view, legacy_admission
 from .services.resolver import (
     apply_automatic_resolution,
@@ -55,6 +55,16 @@ class QueueAction(Contract):
     revision: int = Field(ge=0)
     action: Literal['EXCLUDE', 'RESTORE']
     note: str = Field(default='', max_length=500)
+
+
+class LesionReviewAction(Contract):
+    revision: int = Field(ge=0)
+    reviewer: str = Field(min_length=1, max_length=80)
+    detection_id: str = Field(pattern=r'^ai-[a-f0-9]{20}$')
+    action: Literal['CONFIRM', 'REJECT', 'CORRECT']
+    label: Literal['MICROANEURYSM', 'HEMORRHAGE', 'HARD_EXUDATE', 'SOFT_EXUDATE'] | None = None
+    rectangle: tuple[float, float, float, float] | None = None
+    note: str = Field(default='', max_length=1000)
 
 
 def install_workflow(app, store):
@@ -148,6 +158,8 @@ def install_workflow(app, store):
                 'human_annotations': case.get('human_annotations', []),
                 'clinician_review': case.get('clinician_review'),
                 'review_history': case.get('review_history', []),
+                'review_evidence': review_evidence_view(case),
+                'ai_annotation_reviews': case.get('ai_annotation_reviews', []),
                 'queue_state': case.get('queue_state', 'INCLUDED'),
                 'queue_history': case.get('queue_history', [])}
 
@@ -329,6 +341,68 @@ def install_workflow(app, store):
             case.setdefault('queue_history', []).append(event)
             case.setdefault('events', []).append(event)
             case['revision'] += 1
+            store.put(case)
+            return detail(image_id)
+
+    @app.post('/v1/cases/{image_id}/lesion-review')
+    def lesion_review(image_id: str, request: LesionReviewAction):
+        image = get_image(image_id)
+        reviewer = request.reviewer.strip()
+        if not reviewer:
+            raise HTTPException(422, 'Reviewer name required')
+        store = current_store()
+        with store.lock:
+            case = store.get(image_id)
+            if request.revision != case['revision']:
+                raise HTTPException(409, 'Case changed; reload before reviewing lesion evidence')
+            raw_result = case.get('lesion')
+            view = lesion_review_view(raw_result) if raw_result else None
+            target = next((item for item in (view or {}).get('lesions', [])
+                           if item.get('detection_id') == request.detection_id), None)
+            if target is None:
+                raise HTTPException(404, 'AI lesion suggestion is no longer available')
+
+            corrected_label = request.label
+            corrected_rectangle = list(request.rectangle) if request.rectangle is not None else None
+            if request.action == 'CORRECT':
+                if corrected_label is None and corrected_rectangle is None:
+                    raise HTTPException(422, 'A corrected label or geometry is required')
+                if corrected_rectangle is not None:
+                    x1, y1, x2, y2 = corrected_rectangle
+                    if not (0 <= x1 < x2 <= image.size[0] and 0 <= y1 < y2 <= image.size[1]):
+                        raise HTTPException(422, 'Corrected lesion geometry must be inside the original image')
+                corrected_label = corrected_label or target['canonical_label']
+            elif request.label is not None or request.rectangle is not None:
+                raise HTTPException(422, 'Label and geometry are only accepted for a correction')
+
+            timestamp = datetime.now(timezone.utc).isoformat()
+            decision = {
+                'detection_id': request.detection_id,
+                'action': request.action,
+                'reviewer': reviewer,
+                'timestamp': timestamp,
+                'note': request.note.strip(),
+                'original_label': target['canonical_label'],
+                'original_rectangle': target['rectangle'],
+                'original_score': target['score'],
+                'corrected_label': corrected_label,
+                'corrected_rectangle': corrected_rectangle,
+                'model_id': (raw_result or {}).get('model_id'),
+                'model_version': (raw_result or {}).get('model_version'),
+            }
+            case.setdefault('ai_annotation_reviews', []).append(decision)
+            case['revision'] += 1
+            case.setdefault('events', []).append({
+                'action': 'AI_ANNOTATION_REVIEWED',
+                'review_action': request.action,
+                'detection_id': request.detection_id,
+                'reviewer': reviewer,
+                'timestamp': timestamp,
+                'original_score': target['score'],
+                'new_label': corrected_label,
+                'new_rectangle': corrected_rectangle,
+                'new_revision': case['revision'],
+            })
             store.put(case)
             return detail(image_id)
 
@@ -521,12 +595,28 @@ def install_workflow(app, store):
             case = store.get(image_id)
             if request.revision != case['revision']:
                 raise HTTPException(409, 'Case changed; reload before saving annotations')
+            previous_by_id = {
+                annotation.get('shape_id'): annotation
+                for annotation in (case.get('human_annotations') or [])
+                if annotation.get('shape_id')
+            }
+            saved_by_id = {annotation['shape_id']: annotation for annotation in saved}
+            annotation_changes = {
+                'added': sorted(set(saved_by_id) - set(previous_by_id)),
+                'removed': sorted(set(previous_by_id) - set(saved_by_id)),
+                'changed': sorted(
+                    shape_id for shape_id in set(previous_by_id) & set(saved_by_id)
+                    if previous_by_id[shape_id].get('label') != saved_by_id[shape_id].get('label')
+                    or previous_by_id[shape_id].get('geometry') != saved_by_id[shape_id].get('geometry')
+                ),
+            }
             case['human_annotations'] = saved
             case['revision'] += 1
             case.setdefault('events', []).append({
                 'action': 'HUMAN_ANNOTATIONS_SAVED',
                 'reviewer': reviewer,
                 'count': len(saved),
+                'annotation_changes': annotation_changes,
                 'timestamp': timestamp,
                 'new_revision': case['revision'],
             })

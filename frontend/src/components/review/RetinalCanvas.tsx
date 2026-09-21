@@ -19,12 +19,18 @@ export const LESION_SHORT_LABELS: Record<LesionLabel, string> = {
 
 export type RectangleResizeHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
 
+export function lesionDetectionId(lesion: Lesion, index: number): string {
+  return lesion.detection_id ?? `ai-fallback-${index}`;
+}
+
 interface RetinalCanvasProps {
   item: CaseRecord;
   showAi?: boolean;
   showHuman?: boolean;
   humanAnnotations?: HumanAnnotation[];
   selectedShapeId?: string | null;
+  selectedLesionId?: string | null;
+  onSelectLesion?: (detectionId: string) => void;
   onSelectHuman?: (shapeId: string) => void;
   onHumanPointerDown?: (shapeId: string, event: ReactPointerEvent<SVGSVGElement>) => void;
   onHumanResizeStart?: (shapeId: string, handle: RectangleResizeHandle, event: ReactPointerEvent<SVGSVGElement>) => void;
@@ -106,14 +112,39 @@ function originalPointFromEvent(event: ReactPointerEvent<SVGSVGElement>, item: C
   };
 }
 
-function AiShape({ lesion }: { lesion: Lesion }) {
+function AiShape({
+  lesion,
+  detectionId,
+  selected,
+  modelId,
+  modelVersion,
+  onSelect,
+}: {
+  lesion: Lesion;
+  detectionId: string;
+  selected: boolean;
+  modelId?: string;
+  modelVersion?: string;
+  onSelect?: (detectionId: string) => void;
+}) {
   const [x1, y1, x2, y2] = lesion.rectangle;
   const color = LESION_COLORS[lesion.canonical_label as LesionLabel] ?? LESION_COLORS.MICROANEURYSM;
   const label = prettyLabel(lesion.canonical_label);
+  const shortLabel = lesion.canonical_label === 'MICROANEURYSM' ? 'MA'
+    : lesion.canonical_label === 'HEMORRHAGE' ? 'HE'
+      : lesion.canonical_label === 'HARD_EXUDATE' ? 'EX' : 'SE';
   const textPoint = labelPoint(lesion);
   return (
-    <g pointerEvents="auto">
-      <title>{`AI suggestion: ${label} - score ${(lesion.score * 100).toFixed(1)}%`}</title>
+    <g
+      pointerEvents="auto"
+      data-ai-detection-id={detectionId}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect?.(detectionId);
+      }}
+      style={{ cursor: onSelect ? 'pointer' : undefined }}
+    >
+      <title>{`AI suggestion: ${label} - detection confidence ${lesion.score.toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`}</title>
       <rect
         x={x1}
         y={y1}
@@ -122,12 +153,12 @@ function AiShape({ lesion }: { lesion: Lesion }) {
         fill={color}
         fillOpacity={0.12}
         stroke={color}
-        strokeWidth={Math.max(2, (x2 - x1) / 120)}
+        strokeWidth={selected ? 3.5 : Math.max(2, (x2 - x1) / 120)}
         strokeDasharray="10 6"
         vectorEffect="non-scaling-stroke"
       />
       <text x={textPoint.x} y={textPoint.y} fill={color} fontSize={Math.max(10, Math.min(18, (x2 - x1) / 8))} fontWeight="700">
-        {label}
+        {shortLabel} · {lesion.score.toFixed(2)}
       </text>
     </g>
   );
@@ -219,6 +250,8 @@ export function RetinalCanvas({
   showHuman = true,
   humanAnnotations = item.human_annotations,
   selectedShapeId,
+  selectedLesionId,
+  onSelectLesion,
   onSelectHuman,
   onHumanPointerDown,
   onHumanResizeStart,
@@ -678,7 +711,20 @@ export function RetinalCanvas({
           onDoubleClick={handleDoubleClick}
           onPointerLeave={handlePointerLeave}
         >
-          {showAi && aiLesions.map((lesion, index) => <AiShape key={`ai-${index}`} lesion={lesion} />)}
+          {showAi && aiLesions.map((lesion, index) => {
+            const detectionId = lesionDetectionId(lesion, index);
+            return (
+              <AiShape
+                key={detectionId}
+                lesion={lesion}
+                detectionId={detectionId}
+                selected={detectionId === selectedLesionId}
+                modelId={item.lesion?.model_id}
+                modelVersion={item.lesion?.model_version}
+                onSelect={onSelectLesion}
+              />
+            );
+          })}
           {showHuman && humanAnnotations.map((annotation) => (
             <HumanShape
               key={annotation.shape_id}
