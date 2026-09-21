@@ -5,6 +5,8 @@ from typing import Literal
 from pydantic import Field
 
 from ._schema import Contract
+from ..imaging.contracts import IntegrityStatus, SourceDimensions, SourceMetadata
+from ..imaging.contracts import SourceIntegrity
 
 
 ModalityAdmission = Literal[
@@ -45,6 +47,14 @@ class AdmissionMetadata(Contract):
     reviewed_by: str | None = Field(default=None, max_length=80)
     reviewed_at: str | None = Field(default=None)
     review_note: str | None = Field(default=None, max_length=1000)
+    # S5A identity facts are additive; legacy admission records omit them.
+    source_sha256: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
+    source_format: str | None = Field(default=None, min_length=1, max_length=40)
+    source_media_type: str | None = Field(default=None, min_length=1, max_length=120)
+    source_dimensions: SourceDimensions | None = None
+    source_metadata: SourceMetadata | None = None
+    integrity_status: IntegrityStatus = IntegrityStatus.OK
+    integrity: SourceIntegrity = Field(default_factory=SourceIntegrity)
 
 
 class AdmissionReview(Contract):

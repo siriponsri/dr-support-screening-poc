@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from dr_support.contracts import (
+    AdmissionMetadata,
     InferenceRequest,
     GlobalResult,
     LesionResult,
@@ -36,6 +37,7 @@ from dr_support.runtime import runtime_snapshot
 from dr_support.providers.retfound import RETFound
 
 from ..images import admitted_demo_images, admitted_samples, synthetic_image
+from ..imaging import IntegrityStatus, SourceAlias, SourceIntegrity
 from ..services.admission import is_inference_eligible, legacy_admission, scan_input_folder
 from ..services.workspaces import WorkspaceManager
 from ..services.resolver import ResolverService
@@ -76,9 +78,73 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
     install_workspace_routes(app, workspace_manager)
     install_dataset_routes(app)
 
+    def previous_source_records():
+        """Index persisted workspace references without changing case identity."""
+        previous = {}
+        with app.state.store.lock:
+            cases = sorted(app.state.store.all_cases(), key=lambda case: (
+                ((case.get('admission') or {}).get('updated_at') or ''),
+                case.get('image_id') or '',
+            ))
+            for case in cases:
+                admission = case.get('admission') or {}
+                aliases = (admission.get('integrity') or {}).get('aliases') or []
+                if not aliases and admission.get('source_reference'):
+                    aliases = [{
+                        'filename': admission.get('filename') or case.get('image_id') or 'unknown',
+                        'source_reference': admission['source_reference'],
+                    }]
+                for alias in aliases:
+                    reference = alias.get('source_reference')
+                    if isinstance(reference, str) and reference.startswith('WORKSPACE_INPUT/'):
+                        previous[reference] = admission
+        return previous
+
+    def mark_missing_sources(scan):
+        """Retain missing-source evidence without reintroducing deleted cases."""
+        current_references = {
+            alias.source_reference
+            for record in scan.records.values()
+            for alias in (
+                SourceAlias.model_validate(item)
+                for item in (record.get('integrity') or {}).get('aliases', [])
+            )
+        }
+        warnings = []
+        store = app.state.store
+        with store.lock:
+            for case in store.all_cases():
+                admission = case.get('admission') or {}
+                reference = admission.get('source_reference')
+                if not isinstance(reference, str) or not reference.startswith('WORKSPACE_INPUT/'):
+                    continue
+                aliases = (admission.get('integrity') or {}).get('aliases') or [{
+                    'filename': admission.get('filename') or case.get('image_id') or 'unknown',
+                    'source_reference': reference,
+                }]
+                if any(alias.get('source_reference') in current_references for alias in aliases):
+                    continue
+                if admission.get('integrity_status') == IntegrityStatus.SOURCE_MISSING:
+                    continue
+                integrity = SourceIntegrity(
+                    status=IntegrityStatus.SOURCE_MISSING,
+                    aliases=[SourceAlias.model_validate(alias) for alias in aliases],
+                    duplicate_content=len(aliases) > 1,
+                )
+                updated = dict(admission)
+                updated['integrity_status'] = IntegrityStatus.SOURCE_MISSING
+                updated['integrity'] = integrity
+                updated = AdmissionMetadata.model_validate(updated).model_dump(mode='json')
+                if updated != admission:
+                    case['admission'] = updated
+                    store.put(case)
+                warnings.append(f"{admission.get('filename') or case.get('image_id')}: source is missing.")
+        return warnings
+
     def apply_scan(scan):
         """Replace workspace-discovered records while preserving manual decisions."""
         store = app.state.store
+        missing_warnings = mark_missing_sources(scan)
         for image_id in app.state.workspace_image_ids:
             app.state.images.pop(image_id, None)
         for image_id in app.state.workspace_admission_ids:
@@ -89,8 +155,19 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
             case = store.get(image_id)
             saved = case.get('admission')
             if saved and saved.get('admission_method') == 'MANUAL':
-                app.state.admissions[image_id] = saved
+                preserved = dict(saved)
+                for key in (
+                    'source_sha256', 'source_format', 'source_media_type', 'source_dimensions',
+                    'source_metadata', 'integrity_status', 'integrity',
+                ):
+                    if key in record:
+                        preserved[key] = record[key]
+                preserved = AdmissionMetadata.model_validate(preserved).model_dump(mode='json')
+                app.state.admissions[image_id] = preserved
                 app.state.workspace_admission_ids.add(image_id)
+                if preserved != saved:
+                    case['admission'] = preserved
+                    store.put(case)
                 continue
             app.state.admissions[image_id] = record
             app.state.workspace_admission_ids.add(image_id)
@@ -117,19 +194,21 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
             **scan.images,
         }
         app.state.workspace_image_ids = set(scan.images)
-        app.state.admission_warnings = list(scan.warnings)
+        app.state.admission_warnings = list(scan.warnings) + missing_warnings
 
     def scan_active_workspace():
         profile = workspace_manager.active_workspace
         if profile is None:
             app.state.admission_warnings = ['No active workspace input folder is configured.']
             return {'records': [], 'warnings': list(app.state.admission_warnings), 'scanned': False}
-        scan = scan_input_folder(profile.input_folder)
+        scan = scan_input_folder(
+            profile.input_folder,
+            previous_records=previous_source_records(),
+        )
         apply_scan(scan)
         return {
-            'records': [app.state.admissions[image_id] for image_id in app.state.admissions
-                        if image_id in scan.records],
-            'warnings': list(scan.warnings),
+            'records': [app.state.admissions[image_id] for image_id in scan.records],
+            'warnings': list(app.state.admission_warnings),
             'scanned': True,
         }
 
