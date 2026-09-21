@@ -10,10 +10,11 @@ function admissionStatus(item: CaseRecord): { label: string; tone: StatusTone; n
 
 export function ImageCell({ item }: { item: CaseRecord }) {
   const status = admissionStatus(item);
+  const filename = item.filename ?? item.display_name;
   return (
     <HStack spacing={3} minW={0}>
       {item.image_url ? (
-        <Image src={item.image_url} alt={`${item.display_name} retinal preview`} w="64px" h="48px" flexShrink={0} objectFit="contain" bg="surface.viewer" borderRadius="sm" />
+        <Image src={item.image_url} alt={`${filename} retinal preview`} w="64px" h="48px" flexShrink={0} objectFit="contain" bg="surface.viewer" borderRadius="sm" />
       ) : (
         <Box aria-label="No image preview" w="64px" h="48px" flexShrink={0} bg="surface.subtle" borderRadius="sm" display="flex" alignItems="center" justifyContent="center" flexDirection="column" gap={1}>
           <FileImage size={16} aria-hidden="true" />
@@ -21,8 +22,8 @@ export function ImageCell({ item }: { item: CaseRecord }) {
         </Box>
       )}
       <Stack spacing={0.5} minW={0}>
-        <Text fontWeight="semibold" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" title={item.display_name} tabIndex={0} _focusVisible={{ boxShadow: 'focus', borderRadius: 'sm', outline: 'none' }}>
-          {item.display_name}
+        <Text fontWeight="semibold" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" title={filename} tabIndex={0} _focusVisible={{ boxShadow: 'focus', borderRadius: 'sm', outline: 'none' }}>
+          {filename}
         </Text>
         {status && <Stack spacing={0} minW={0} title={status.note}><StatusBadge tone={status.tone}>{status.label}</StatusBadge><Text fontSize="xxs" color="text.secondary" noOfLines={1}>{status.note}</Text></Stack>}
       </Stack>

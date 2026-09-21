@@ -7,8 +7,10 @@ export function PatientEyeCell({ item, onResolve }: { item: CaseRecord; onResolv
   const ui = item.resolver_ui;
   const patientLabel = item.patient_key ?? ui?.patient.candidate ?? 'Patient not linked';
   const eyeLabel = item.laterality && item.laterality !== 'UNKNOWN' ? (item.laterality === 'LEFT' ? 'Left' : 'Right') : ui?.laterality.label ?? 'Eye not confirmed';
-  const patientNeedsAction = !item.patient_key || Boolean(ui?.patient.action_required);
-  const eyeNeedsAction = !item.laterality || item.laterality === 'UNKNOWN' || Boolean(ui?.laterality.action_required);
+  const patientNeedsAction = ui ? ui.patient.action_required : !item.patient_key;
+  const eyeNeedsAction = ui
+    ? ui.laterality.action_required
+    : !item.laterality || (item.laterality === 'UNKNOWN' && item.laterality_resolution_state !== 'RESOLVED');
   const actionLabel = patientNeedsAction && eyeNeedsAction ? 'Link patient and confirm eye' : patientNeedsAction ? 'Link patient' : 'Confirm eye';
   const manuallyConfirmed = item.patient_resolution_method === 'MANUAL' || item.laterality_resolution_method === 'MANUAL';
   const assignmentStatus = manuallyConfirmed ? 'Confirmed' : 'Auto-linked';
