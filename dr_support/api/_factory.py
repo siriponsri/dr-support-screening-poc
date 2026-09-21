@@ -47,6 +47,7 @@ from ..services.model_gateway import (
 )
 from ..workflow import install_workflow
 from .workspaces import install_workspace_routes
+from .dataset import install_dataset_routes
 
 
 def create_app(state_path=None, include_samples=True, include_demo_fixtures=True):
@@ -73,6 +74,7 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
     install_workflow(app, workspace_manager.store)
     workspace_manager.attach(app)
     install_workspace_routes(app, workspace_manager)
+    install_dataset_routes(app)
 
     def apply_scan(scan):
         """Replace workspace-discovered records while preserving manual decisions."""

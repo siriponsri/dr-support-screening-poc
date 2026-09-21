@@ -83,7 +83,7 @@ describe('Header and route mapping', () => {
   it('renders the page subtitle in the header', () => {
     renderAppAt('/datasets');
     expect(
-      screen.getByText(/Manage retinal imaging workspaces/i)
+      screen.getByText(/reproducible manifest of the active Workspace/i)
     ).toBeInTheDocument();
   });
 
@@ -184,7 +184,7 @@ describe('Mobile drawer', () => {
     // The router takes the user to /datasets; the page subtitle updates.
     await user.click(screen.getAllByRole('link', { name: /Datasets/i })[0]);
     expect(
-      await screen.findByText(/Manage retinal imaging workspaces/i, {}, { timeout: 4000 })
+      await screen.findByText(/reproducible manifest of the active Workspace/i, {}, { timeout: 4000 })
     ).toBeInTheDocument();
   });
 });

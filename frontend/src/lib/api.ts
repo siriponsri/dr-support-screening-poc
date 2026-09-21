@@ -278,6 +278,85 @@ export interface QueueActionRequest {
   note?: string;
 }
 
+export interface DatasetImageRow {
+  image_id: string;
+  filename: string;
+  image_sha256: string | null;
+  width: number | null;
+  height: number | null;
+  modality: string | null;
+  source_type: string | null;
+  patient_key: string | null;
+  laterality: Laterality;
+  patient_resolution_method: string;
+  laterality_resolution_method: string;
+  modality_admission: string | null;
+  quality_state: string | null;
+  queue_state: 'INCLUDED' | 'EXCLUDED';
+  ai_grade: number | null;
+  ai_model_id: string | null;
+  ai_model_version: string | null;
+  ai_confidence: number | null;
+  clinician_grade: number | null;
+  grade_review_source: string | null;
+  review_status: string;
+  reviewer: string | null;
+  reviewed_at: string | null;
+  human_annotation_count: number;
+  ai_lesion_count: number;
+  cvat_annotation_count: number;
+  verification_status: string;
+  include_in_training: boolean;
+  eligibility_reason: string;
+  dataset_status: 'Ready for dataset' | 'Needs review' | 'Excluded' | 'AI only';
+}
+
+export interface DatasetAnnotationRow {
+  annotation_id: string;
+  image_id: string;
+  label: LesionLabel;
+  shape_type: string;
+  geometry_json: string;
+  annotation_source: 'AI' | 'HUMAN' | 'CVAT_IMPORTED';
+  reviewer: string | null;
+  created_at: string | null;
+  model_id: string | null;
+  model_version: string | null;
+  score: number | null;
+  verification_status: string;
+  include_in_training: boolean;
+  eligibility_reason: string;
+}
+
+export interface DatasetManifestResponse {
+  schema_version: string;
+  export_id: string | null;
+  created_at: string;
+  workspace_id: string | null;
+  workspace_name: string | null;
+  image_count: number;
+  annotation_count: number;
+  training_ready_count: number;
+  needs_review_count: number;
+  excluded_count: number;
+  can_export: boolean;
+  images: DatasetImageRow[];
+  annotations: DatasetAnnotationRow[];
+}
+
+export interface DatasetExportResponse {
+  schema_version: string;
+  export_id: string;
+  created_at: string;
+  workspace_id: string;
+  workspace_name: string;
+  directory_name: string;
+  image_count: number;
+  annotation_count: number;
+  training_ready_count: number;
+  files: string[];
+}
+
 export interface ModelConnectionModel {
   model_id: string;
   ready: boolean;
@@ -362,6 +441,11 @@ export const queueApi = {
     `/v1/cases/${encodeURIComponent(imageId)}/queue`,
     jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
   ),
+};
+
+export const datasetApi = {
+  manifest: () => apiJson<DatasetManifestResponse>('/v1/dataset/manifest'),
+  export: () => apiJson<DatasetExportResponse>('/v1/dataset/export', jsonRequest({ method: 'POST' })),
 };
 
 export const modelConnectionApi = {
