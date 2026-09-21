@@ -150,7 +150,9 @@ def test_uncompressed_dicom_admission_display_and_privacy(tmp_path):
         assert decoded.format == "PNG"
         assert decoded.size == (16, 12)
 
-    public_json = json.dumps(case.json())
+    manifest = client.get("/v1/dataset/manifest")
+    assert manifest.status_code == 200
+    public_json = json.dumps({"case": case.json(), "manifest": manifest.json()})
     for forbidden in (
         "PatientName",
         "PatientID",
