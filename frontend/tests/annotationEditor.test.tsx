@@ -39,8 +39,11 @@ function dispatchPointer(target: Element, eventName: 'pointerDown' | 'pointerMov
   fireEvent(target, event);
 }
 
-function renderEditor(currentItem: CaseRecord = item) {
-  vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: async () => currentItem } as Response);
+function renderEditor(currentItem: CaseRecord = item, onRequest?: (input: RequestInfo | URL, init?: RequestInit) => void) {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    onRequest?.(input, init);
+    return { ok: true, json: async () => currentItem } as Response;
+  });
   render(
     <ChakraProvider theme={theme}>
       <MemoryRouter initialEntries={['/edit/CASE-001']}>
@@ -64,6 +67,24 @@ async function setupStage() {
 }
 
 describe('AnnotationEditorPage human movement', () => {
+  it('displays CWS terminology while saving the canonical SOFT_EXUDATE value', async () => {
+    let annotationBody: Record<string, unknown> | undefined;
+    const softExudateItem = {
+      ...item,
+      human_annotations: [{ ...item.human_annotations[0], label: 'SOFT_EXUDATE' as const }],
+    };
+    renderEditor(softExudateItem, (_input, init) => {
+      if (init?.body) annotationBody = JSON.parse(String(init.body));
+    });
+    await setupStage();
+
+    expect(screen.getByRole('option', { name: 'Soft exudate / Cotton-wool spot (CWS)' })).toHaveValue('SOFT_EXUDATE');
+    fireEvent.change(screen.getByPlaceholderText('Enter reviewer name'), { target: { value: 'Clinician' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save annotations' }));
+    await waitFor(() => expect(annotationBody).toBeDefined());
+    expect(annotationBody).toMatchObject({ annotations: [{ label: 'SOFT_EXUDATE' }] });
+  });
+
   it('moves editable human geometry, records undo, and respects lock state', async () => {
     renderEditor();
     const { svg } = await setupStage();
