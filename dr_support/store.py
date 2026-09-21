@@ -23,6 +23,7 @@ class Store:
                 # readable without a destructive table rewrite.
                 case.setdefault('admission', None)
                 case.setdefault('admission_history', [])
+                case.setdefault('analysis_derivative', None)
                 case.setdefault('queue_state', 'INCLUDED')
                 case.setdefault('queue_history', [])
                 _set_resolver_defaults(case)
@@ -33,6 +34,7 @@ class Store:
                     'lesion_review_state': None, 'annotations': None,
                     'human_annotations': [], 'clinician_review': None,
                     'review_history': [], 'admission': None, 'admission_history': [],
+                    'analysis_derivative': None,
                     'queue_state': 'INCLUDED', 'queue_history': []}
             _set_resolver_defaults(case)
             return case

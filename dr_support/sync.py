@@ -20,7 +20,11 @@ class Sync:
             if not case['lesion']:
                 raise ValueError('Run lesion inference before creating a CVAT task')
             result = LesionResult.model_validate(case['lesion'])
-            if result.provenance.image_sha256 != image.sha256 or result.state != 'AI_SUGGESTION':
+            analysis_sha256 = (case.get('analysis_derivative') or {}).get('analysis_sha256')
+            valid_payload_hashes = {image.sha256}
+            if isinstance(analysis_sha256, str):
+                valid_payload_hashes.add(analysis_sha256)
+            if result.provenance.image_sha256 not in valid_payload_hashes or result.state != 'AI_SUGGESTION':
                 raise ValueError('Prediction identity or modality mismatch')
             _, labels = self.remote.inspect()
             prediction_hash = digest({'raw_prediction': case['lesion'], 'review_view': lesion_review_view(case['lesion'])})

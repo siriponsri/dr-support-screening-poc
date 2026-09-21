@@ -27,6 +27,14 @@ from .registry import (
     default_dicom_image_handler_registry,
     default_image_handler_registry,
 )
+from .derivatives import (
+    CoordinateMapping,
+    DerivativeError,
+    DerivativePayloadTooLargeError,
+    DerivativeService,
+    PreparedDerivative,
+    map_lesion_result_to_review,
+)
 from .dicom import (
     CompressionState,
     DicomAdapterError,
@@ -50,8 +58,11 @@ __all__ = [
     "DerivativeArtifact",
     "DerivativeBuilder",
     "DerivativeBuilderRegistry",
+    "DerivativeError",
+    "DerivativePayloadTooLargeError",
     "DerivativeLineage",
     "DerivativePurpose",
+    "DerivativeService",
     "CompressionState",
     "DicomAdapterError",
     "DicomCodecRequiredError",
@@ -79,6 +90,8 @@ __all__ = [
     "SourceIdentity",
     "SourceMetadata",
     "UnsupportedImageHandlerError",
+    "CoordinateMapping",
+    "PreparedDerivative",
     "default_dicom_handler",
     "default_dicom_image_handler_registry",
     "default_image_handler_registry",
@@ -86,4 +99,5 @@ __all__ = [
     "lineage_for_bytes",
     "sha256_bytes",
     "validate_derivative_lineage",
+    "map_lesion_result_to_review",
 ]

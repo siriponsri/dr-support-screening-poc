@@ -53,6 +53,44 @@ export interface LesionReview {
   note?: string;
 }
 
+export interface CoordinateMapping {
+  kind: 'IDENTITY' | 'SCALE';
+  canonical_width: number;
+  canonical_height: number;
+  analysis_width: number;
+  analysis_height: number;
+  scale_x: number;
+  scale_y: number;
+}
+
+export interface DerivativeLineage {
+  source_sha256: string;
+  derivative_sha256: string;
+  purpose: 'DISPLAY' | 'ANALYSIS' | 'MASTER';
+  format: string;
+  media_type: string;
+  width: number;
+  height: number;
+  bit_depth: number | null;
+  transform_id: string;
+  transform_description: string;
+  coordinate_space: string;
+  created_at: string;
+}
+
+export interface AnalysisDerivativeAudit {
+  source_sha256: string;
+  derivative_sha256: string;
+  analysis_sha256: string;
+  purpose: 'DISPLAY' | 'ANALYSIS' | 'MASTER';
+  transform_id: string;
+  transform_description: string;
+  source_dimensions: { width: number; height: number; bit_depth: number | null; channels?: number | null };
+  analysis_dimensions: { width: number; height: number; bit_depth: number | null; channels?: number | null };
+  coordinate_mapping: CoordinateMapping;
+  lineage: DerivativeLineage;
+}
+
 export type LesionLabel = 'MICROANEURYSM' | 'HEMORRHAGE' | 'HARD_EXUDATE' | 'SOFT_EXUDATE';
 export type AnnotationType = 'rectangle' | 'polygon' | 'point' | 'circle';
 export type AnnotationGeometry =
@@ -92,6 +130,9 @@ export interface CaseRecord {
   width: number;
   height: number;
   image_url: string | null;
+  source_image_url?: string | null;
+  source_sha256?: string | null;
+  analysis_derivative?: AnalysisDerivativeAudit | null;
   state: string;
   revision: number;
   global: GlobalResult | null;

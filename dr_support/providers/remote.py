@@ -11,7 +11,7 @@ Wire format (POST /v1/predict/dr and POST /v1/predict/lesions)::
         "image_id": "<id>",
         "modality": "CFP" | "UWF",
         "model_id": "retfound-aptos5" | "prism-dr-5fold",
-        "image_b64": "<base64 of admitted image bytes>",
+        "image_b64": "<base64 of exact analysis payload bytes>",
         "image_sha256": "<hex>",
         "source_type": "PUBLIC" | "SYNTHETIC",
         "width":  <px>,
@@ -151,8 +151,9 @@ class RemoteModelProvider:
             self.last_error = 'remote endpoint not configured'
             raise RemoteNotConfiguredError('Remote model endpoint is not configured')
         start = time.perf_counter()
+        payload = self._payload(request, image)
         try:
-            response = self._send('POST', self.predict_path, json=self._payload(request, image),
+            response = self._send('POST', self.predict_path, json=payload,
                                   timeout=self._client_timeout)
         except RemoteModelError:
             raise
@@ -175,6 +176,9 @@ class RemoteModelProvider:
         except Exception as exc:
             self.last_error = 'schema mismatch'
             raise RemoteSchemaError(f'Remote model returned malformed response: {exc}') from None
+        if result.provenance.image_sha256 != payload['image_sha256']:
+            self.last_error = 'image hash mismatch'
+            raise RemoteSchemaError('Remote model returned a result for different image bytes')
         # Record provenance surfaced by the remote for the metadata endpoint.
         prov = getattr(result, 'provenance', None)
         if prov is not None:
