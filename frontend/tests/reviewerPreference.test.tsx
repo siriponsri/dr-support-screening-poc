@@ -48,7 +48,7 @@ describe('default reviewer preference', () => {
         </MemoryRouter>
       </ChakraProvider>,
     );
-    expect(await screen.findByPlaceholderText('Enter reviewer name')).toHaveValue('New reviewer');
+    expect(await screen.findByPlaceholderText('Reviewer name')).toHaveValue('New reviewer');
     expect(fetchSpy).toHaveBeenCalled();
 
     cleanup();
@@ -69,6 +69,6 @@ describe('default reviewer preference', () => {
         </MemoryRouter>
       </ChakraProvider>,
     );
-    expect(await screen.findByPlaceholderText('Enter reviewer name')).toHaveValue('Recorded reviewer');
+    expect(await screen.findByPlaceholderText('Reviewer name')).toHaveValue('Recorded reviewer');
   });
 });

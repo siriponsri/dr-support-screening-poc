@@ -1,0 +1,30 @@
+## Troubleshooting and quick reference {#sec-troubleshooting}
+
+| Observation | Action |
+| --- | --- |
+| **Unsupported modality** | The DICOM is recognized but is not supported ophthalmic fundus input. Do not treat it as a generic decoder error or send it to the models. |
+| **AI analysis is not available** | Check the Model API URL, `/health`, firewall, token configuration, and service readiness. Local Worklist and human review can remain available. |
+| **Model score needs interpretation** | Treat it as model evidence, not a calibrated probability. Human review remains authoritative. |
+| **No PRISM overlays** | Check whether **Show AI suggestions** is enabled, the class filter, and the model result. An empty result does not prove lesion absence. |
+| **Draft save failed** | Keep the page open, correct the reviewer or connectivity issue, and use **Save draft** again. The unsaved guard is intentional. |
+| **Case is not Lesion-ready** | Confirm the current active annotation set and verify that its hash has not changed since **Confirm Annotation**. |
+| **Case is not DR-ready** | Check image admission/quality, final grade, reviewer, timestamp, and grade provenance. Annotation confirmation is not required for DR-ready. |
+| **CVAT unavailable** | Continue local review and export where possible. Retry only after the configured URL, project, credentials, and network are available. |
+
+### Privacy and safety limitations
+
+Use only approved data. Keep tokens, raw PHI, DICOM private headers, model weights, and runtime databases out of screenshots, exports, and source control. The product is a research and clinical-support proof of concept, not an autonomous or regulatory decision system.
+
+### Quick reference
+
+| Need | Page / action |
+| --- | --- |
+| Admit or exclude a case | **Worklist** |
+| Confirm context | **Confirm Image** |
+| Inspect image and optional AI | **Review** |
+| Record final grade | **Clinician Review > Confirm DR Grade** |
+| Correct/remove an AI ROI | **Edit Annotations** |
+| Finalize active annotation set | **Confirm Annotation** |
+| Check output eligibility | **Datasets** |
+| Inspect provenance | **Models & Audit** |
+| Set reviewer name or hints | **Settings** |

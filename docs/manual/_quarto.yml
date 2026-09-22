@@ -1,0 +1,47 @@
+project:
+  type: book
+  output-dir: ../../dist/manual/site
+
+book:
+  title: "Retinal Review Workbench"
+  subtitle: "Clinician User Manual"
+  author: "Retinal Review Workbench"
+  date: last-modified
+  date-format: "YYYY-MM-DD"
+  chapters:
+    - index.qmd
+    - 01-overview.qmd
+    - 02-workflow.qmd
+    - 03-review.qmd
+    - 04-annotations.qmd
+    - 05-datasets-audit.qmd
+    - 06-troubleshooting.qmd
+
+format:
+  html:
+    theme: default
+    css: styles.css
+    toc: true
+    number-sections: true
+    html-math-method: plain
+    code-copy: true
+    smooth-scroll: true
+    page-layout: article
+    fig-pos: H
+    tbl-pos: H
+  pdf:
+    pdf-engine: xelatex
+    papersize: a4
+    toc: true
+    number-sections: true
+    colorlinks: true
+    geometry:
+      - top=18mm
+      - bottom=18mm
+      - left=18mm
+      - right=18mm
+
+execute:
+  freeze: auto
+
+lang: en

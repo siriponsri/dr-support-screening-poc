@@ -14,10 +14,11 @@ from pathlib import Path
 from uuid import uuid4
 
 from .admission import legacy_admission
+from ..presentation import annotation_set_hash, lesion_detection_id
 from .resolver import normalize_patient_key
 
 
-EXPORT_SCHEMA_VERSION = "s4.dataset-manifest.v1"
+EXPORT_SCHEMA_VERSION = "s4.dataset-manifest.v2"
 CANONICAL_LABELS = {
     "MICROANEURYSM",
     "HEMORRHAGE",
@@ -56,6 +57,22 @@ IMAGE_FIELDS = [
     "verification_status",
     "include_in_training",
     "eligibility_reason",
+    "image_confirmation_status",
+    "image_confirmed_by",
+    "image_confirmed_at",
+    "dr_grade_confirmation_status",
+    "dr_grade_confirmed_by",
+    "dr_grade_confirmed_at",
+    "annotation_confirmation_status",
+    "annotation_confirmed_by",
+    "annotation_confirmed_at",
+    "annotation_set_hash",
+    "confirmed_annotation_hash",
+    "dr_grade_training_ready",
+    "grade_eligibility_reason",
+    "lesion_training_ready",
+    "lesion_eligibility_reason",
+    "training_group_key",
 ]
 
 ANNOTATION_FIELDS = [
@@ -73,6 +90,10 @@ ANNOTATION_FIELDS = [
     "verification_status",
     "include_in_training",
     "eligibility_reason",
+    "source_detection_id",
+    "original_label",
+    "original_score",
+    "original_geometry_json",
 ]
 
 
@@ -242,6 +263,68 @@ class DatasetManifestService:
             return "AI_ONLY"
         return "UNVERIFIED"
 
+    @staticmethod
+    def _image_confirmation(case: dict, admission: dict | None) -> tuple[str, str | None, str | None]:
+        """Return explicit image confirmation without upgrading old records silently."""
+        if admission and admission.get("reviewed_by") and admission.get("reviewed_at"):
+            return "CONFIRMED", admission.get("reviewed_by"), admission.get("reviewed_at")
+        # Legacy fixture/workspace records predate the explicit Confirm Image
+        # milestone. Keep them readable and compatible without changing their
+        # stored audit state.
+        if admission and admission.get("admission_method") == "LEGACY_COMPAT":
+            return "CONFIRMED", None, None
+        return "DRAFT", None, None
+
+    @staticmethod
+    def _annotation_confirmation(case: dict) -> tuple[bool, dict]:
+        confirmation = case.get("annotation_confirmation") or {}
+        current_hash = case.get("annotation_hash") or annotation_set_hash(case)
+        confirmed = bool(
+            case.get("lesion_review_state") == "REVIEWED"
+            and case.get("confirmed_annotation_hash") == current_hash
+            and confirmation.get("reviewer")
+            and confirmation.get("timestamp")
+        )
+        return confirmed, confirmation
+
+    @staticmethod
+    def _grade_confirmation(case: dict, grade: object, review: dict) -> tuple[str, str | None, str | None]:
+        """Expose the final-grade milestone without changing historical review records."""
+        if grade is not None and review.get("reviewer") and review.get("timestamp"):
+            return "CONFIRMED", review.get("reviewer"), review.get("timestamp")
+        return "DRAFT", None, None
+
+    @staticmethod
+    def _task_reason(case: dict, admission: dict | None, image, image_confirmed: bool, *, task: str) -> str:
+        image_sha256 = image.sha256 if image is not None else ((admission or {}).get("source_sha256"))
+        if not _is_sha256(image_sha256):
+            return "MISSING_PROVENANCE"
+        if case.get("queue_state", "INCLUDED") == "EXCLUDED":
+            return "QUEUE_EXCLUDED"
+        if admission is None or admission.get("modality_admission") != "FUNDUS_ACCEPTED":
+            return "IMAGE_NOT_CONFIRMED" if task == "grade" and not image_confirmed else "ADMISSION_UNRESOLVED"
+        if admission.get("quality_state") == "UNGRADABLE":
+            return "UNGRADABLE"
+        if admission.get("quality_state") == "NEEDS_REVIEW":
+            return "QUALITY_REVIEW_REQUIRED"
+        if not image_confirmed:
+            return "IMAGE_NOT_CONFIRMED"
+        if task == "grade":
+            grade, source, review = DatasetManifestService._final_grade(case)
+            if grade is None:
+                return "NO_FINAL_CLINICIAN_GRADE"
+            if source not in {"AI_ACCEPTED", "AI_CORRECTED", "MANUAL"}:
+                return "MISSING_PROVENANCE"
+            if not review.get("reviewer") or not review.get("timestamp"):
+                return "MISSING_PROVENANCE"
+        else:
+            confirmed, confirmation = DatasetManifestService._annotation_confirmation(case)
+            if not confirmed:
+                return "NO_ANNOTATION_CONFIRMATION"
+            if not confirmation.get("reviewer") or not confirmation.get("timestamp"):
+                return "MISSING_PROVENANCE"
+        return "ELIGIBLE"
+
     def _rows(self) -> tuple[list[dict], list[dict]]:
         image_rows: list[dict] = []
         annotation_rows: list[dict] = []
@@ -251,6 +334,17 @@ class DatasetManifestService:
                 case, image, admission = self._case_context(image_id, store)
                 include, eligibility_reason = self._case_eligibility(case, image, admission)
                 grade, grade_source, review = self._final_grade(case)
+                grade_confirmation_status, grade_confirmed_by, grade_confirmed_at = self._grade_confirmation(
+                    case, grade, review
+                )
+                image_confirmation_status, image_confirmed_by, image_confirmed_at = self._image_confirmation(case, admission)
+                grade_reason = self._task_reason(case, admission, image, image_confirmation_status == "CONFIRMED", task="grade")
+                annotation_confirmed, annotation_confirmation = self._annotation_confirmation(case)
+                current_annotation_hash = case.get("annotation_hash") or annotation_set_hash(case)
+                lesion_reason = self._task_reason(case, admission, image, image_confirmation_status == "CONFIRMED", task="lesion")
+                grade_ready = grade_reason == "ELIGIBLE" and include
+                lesion_ready = lesion_reason == "ELIGIBLE"
+                patient_key = _pseudonymous_patient_key(case.get("patient_key"))
                 global_result = case.get("global") or {}
                 lesion_result = case.get("lesion") or {}
                 human_annotations = case.get("human_annotations") or []
@@ -292,11 +386,28 @@ class DatasetManifestService:
                     "include_in_training": include,
                     "eligibility_reason": eligibility_reason,
                     "dataset_status": self._dataset_status(case, admission, include, image),
+                    "image_confirmation_status": image_confirmation_status,
+                    "image_confirmed_by": image_confirmed_by,
+                    "image_confirmed_at": image_confirmed_at,
+                    "dr_grade_confirmation_status": grade_confirmation_status,
+                    "dr_grade_confirmed_by": grade_confirmed_by,
+                    "dr_grade_confirmed_at": grade_confirmed_at,
+                    "annotation_confirmation_status": "CONFIRMED" if annotation_confirmed else "DRAFT",
+                    "annotation_confirmed_by": annotation_confirmation.get("reviewer") if annotation_confirmed else None,
+                    "annotation_confirmed_at": annotation_confirmation.get("timestamp") if annotation_confirmed else None,
+                    "annotation_set_hash": current_annotation_hash,
+                    "confirmed_annotation_hash": case.get("confirmed_annotation_hash"),
+                    "dr_grade_training_ready": grade_ready,
+                    "grade_eligibility_reason": grade_reason,
+                    "lesion_training_ready": lesion_ready,
+                    "lesion_eligibility_reason": lesion_reason,
+                    "training_group_key": f"patient:{patient_key}" if patient_key else None,
                 }
                 image_rows.append(row)
                 annotation_rows.extend(
                     self._annotation_rows(case, row, global_result, lesion_result, human_annotations,
-                                          imported_annotations, include, eligibility_reason)
+                                          imported_annotations, include, eligibility_reason, lesion_ready,
+                                          annotation_confirmed, annotation_confirmation)
                 )
         return image_rows, annotation_rows
 
@@ -310,32 +421,54 @@ class DatasetManifestService:
         imported_annotations: list[dict],
         image_include: bool,
         image_reason: str,
+        lesion_ready: bool,
+        annotation_confirmed: bool,
+        annotation_confirmation: dict,
     ) -> list[dict]:
         image_id = image_row["image_id"]
         rows: list[dict] = []
+        decisions = {}
+        for decision in case.get("ai_annotation_reviews") or []:
+            if decision.get("detection_id"):
+                decisions[decision["detection_id"]] = decision
         for index, lesion in enumerate(lesion_result.get("lesions") or []):
             x1, y1, x2, y2 = lesion["rectangle"]
+            detection_id = lesion.get("detection_id") or lesion_detection_id(lesion)
+            decision = decisions.get(detection_id) or {}
+            removed = decision.get("action") == "REJECT"
+            corrected_label = decision.get("corrected_label") if decision.get("action") == "CORRECT" else None
+            annotation_source = "HUMAN_CORRECTION" if corrected_label else "AI"
+            active = not removed
+            effective_label = corrected_label or lesion["canonical_label"]
+            effective_geometry = decision.get("corrected_rectangle") or [x1, y1, x2, y2]
+            ex1, ey1, ex2, ey2 = effective_geometry
             rows.append({
-                "annotation_id": f"ai-{image_id}-{index}",
+                "annotation_id": detection_id,
                 "image_id": image_id,
-                "label": lesion["canonical_label"],
+                "label": effective_label,
                 "shape_type": "rectangle",
-                "geometry_json": _geometry_json({"x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1}),
-                "annotation_source": "AI",
-                "reviewer": None,
-                "created_at": None,
+                "geometry_json": _geometry_json({"x": ex1, "y": ey1, "width": ex2 - ex1, "height": ey2 - ey1}),
+                "annotation_source": annotation_source,
+                "reviewer": decision.get("reviewer") if decision else None,
+                "created_at": decision.get("timestamp") if decision else None,
                 "model_id": lesion_result.get("model_id") or global_result.get("model_id"),
                 "model_version": lesion_result.get("model_version") or global_result.get("model_version"),
-                "score": lesion.get("score"),
-                "verification_status": "AI_ONLY",
-                "include_in_training": False,
-                "eligibility_reason": image_reason if not image_include else "AI_ONLY_UNVERIFIED",
+                "score": None if corrected_label else lesion.get("score"),
+                "verification_status": "CLINICIAN_CONFIRMED" if annotation_confirmed and active else ("REMOVED" if removed else "AI_ONLY"),
+                "include_in_training": bool(lesion_ready and active),
+                "eligibility_reason": "ELIGIBLE" if lesion_ready and active else (
+                    "REMOVED_FROM_ACTIVE_SET" if removed else (image_reason if not image_include else "AI_ONLY_UNVERIFIED")
+                ),
+                "source_detection_id": detection_id if corrected_label else None,
+                "original_label": lesion["canonical_label"],
+                "original_score": lesion.get("score"),
+                "original_geometry_json": _geometry_json({"x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1}),
             })
         for index, annotation in enumerate(human_annotations):
             label = annotation.get("label")
             if label not in CANONICAL_LABELS:
                 raise DatasetManifestError("Human annotation uses a non-canonical lesion label")
-            human_ready = False  # The current editor has no finality flag for human drafts.
+            human_ready = bool(lesion_ready)
             rows.append({
                 "annotation_id": annotation.get("shape_id") or f"human-{image_id}-{index}",
                 "image_id": image_id,
@@ -348,21 +481,22 @@ class DatasetManifestService:
                 "model_id": None,
                 "model_version": None,
                 "score": None,
-                "verification_status": "HUMAN_AUTHORED",
+                "verification_status": "CLINICIAN_CONFIRMED" if annotation_confirmed else "HUMAN_DRAFT",
                 "include_in_training": human_ready,
-                "eligibility_reason": image_reason if not image_include else "ANNOTATION_NOT_VERIFIED",
+                "eligibility_reason": "ELIGIBLE" if human_ready else (
+                    image_reason if not image_include else "ANNOTATION_NOT_VERIFIED"
+                ),
+                "source_detection_id": None,
+                "original_label": None,
+                "original_score": None,
+                "original_geometry_json": None,
             })
         confirmation = next(
             (event for event in reversed(case.get("review_history") or [])
              if event.get("review_action") == "CONFIRM_ANNOTATIONS"),
             None,
         )
-        confirmed = bool(
-            case.get("lesion_review_state") == "REVIEWED"
-            and case.get("annotation_hash")
-            and case.get("annotation_hash") == case.get("confirmed_annotation_hash")
-        )
-        imported_ready = confirmed and bool(confirmation and confirmation.get("reviewer") and confirmation.get("timestamp"))
+        imported_ready = bool(annotation_confirmed and annotation_confirmation.get("reviewer") and annotation_confirmation.get("timestamp"))
         for index, annotation in enumerate(imported_annotations):
             label = annotation.get("canonical_label")
             if label not in CANONICAL_LABELS:
@@ -383,11 +517,15 @@ class DatasetManifestService:
                 "model_id": None,
                 "model_version": None,
                 "score": None,
-                "verification_status": "CONFIRMED" if confirmed else "UNVERIFIED",
+                "verification_status": "CLINICIAN_CONFIRMED" if imported_ready else "UNVERIFIED",
                 "include_in_training": ready,
                 "eligibility_reason": "ELIGIBLE" if ready else (
                     image_reason if not image_include else "ANNOTATION_NOT_VERIFIED"
                 ),
+                "source_detection_id": None,
+                "original_label": None,
+                "original_score": None,
+                "original_geometry_json": None,
             })
         return rows
 
@@ -402,6 +540,9 @@ class DatasetManifestService:
     @staticmethod
     def _response(images: list[dict], annotations: list[dict], workspace_id, workspace_name) -> dict:
         ready_count = sum(bool(row["include_in_training"]) for row in images)
+        dr_ready_count = sum(bool(row["dr_grade_training_ready"]) for row in images)
+        lesion_ready_count = sum(bool(row["lesion_training_ready"]) for row in images)
+        lesion_annotation_count = sum(bool(row["include_in_training"]) for row in annotations)
         excluded_count = sum(row["dataset_status"] == "Excluded" for row in images)
         return {
             "schema_version": EXPORT_SCHEMA_VERSION,
@@ -412,11 +553,17 @@ class DatasetManifestService:
             "image_count": len(images),
             "annotation_count": len(annotations),
             "training_ready_count": ready_count,
+            "dr_grade_ready_count": dr_ready_count,
+            "lesion_ready_image_count": lesion_ready_count,
+            "lesion_ready_annotation_count": lesion_annotation_count,
             "needs_review_count": len(images) - ready_count - excluded_count,
             "excluded_count": excluded_count,
             "can_export": workspace_id is not None,
             "images": images,
             "annotations": annotations,
+            "coordinate_system": "original_image_pixels",
+            "lesion_taxonomy": sorted(CANONICAL_LABELS),
+            "eligibility_policy_version": "s8.2-task-specific-v1",
         }
 
     def export(self) -> dict:
@@ -443,6 +590,13 @@ class DatasetManifestService:
                 "image_count": len(images),
                 "annotation_count": len(annotations),
                 "training_ready_count": sum(bool(row["include_in_training"]) for row in images),
+                "dr_grade_ready_count": sum(bool(row["dr_grade_training_ready"]) for row in images),
+                "lesion_ready_image_count": sum(bool(row["lesion_training_ready"]) for row in images),
+                "lesion_ready_annotation_count": sum(bool(row["include_in_training"]) for row in annotations),
+                "coordinate_system": "original_image_pixels",
+                "lesion_taxonomy": sorted(CANONICAL_LABELS),
+                "eligibility_policy_version": "s8.2-task-specific-v1",
+                "grouping_policy": "patient_key_only; no automatic train-validation-test split",
                 "excluded_count": sum(row["dataset_status"] == "Excluded" for row in images),
                 "files": ["manifest.json", "images.csv", "annotations.csv"],
                 "file_sha256": {

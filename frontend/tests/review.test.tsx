@@ -130,9 +130,11 @@ describe('Review responsibility boundary', () => {
 
     await user.click(screen.getByRole('link', { name: 'Clinician review' }));
     expect(await screen.findByRole('heading', { name: 'Clinician sign-off' })).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText('Enter reviewer name'), 'Review clinician');
-    await user.click(screen.getByRole('button', { name: 'Accept AI grade' }));
-    expect(await screen.findByText('AI grade accepted for IMG13.')).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('Reviewer name'), 'Review clinician');
+    await user.selectOptions(screen.getByLabelText('Final DR grade'), '2');
+    expect(screen.queryByRole('button', { name: 'Accept AI grade' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Confirm DR Grade' }));
+    expect(await screen.findByText(/DR grade confirmed from the AI suggestion for IMG13/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('link', { name: 'Back to Review' }));
     await user.click(await screen.findByRole('link', { name: 'Edit annotations' }));

@@ -14,9 +14,9 @@ It is a public/synthetic research and clinical-support proof of concept. It is n
 2. Scan the input folder. The Worklist reports image readiness, patient/eye context, review status, and unsupported inputs in plain language.
 3. Open an eligible image in Review. The original image stays primary; zoom, pan, and full-screen inspection remain available.
 4. Run model assistance when needed. RETFound provides a DR grade suggestion; PRISM-DR provides optional lesion overlays. Overlay labels show class and score such as `HE - 0.90`.
-5. Toggle or filter overlays. A clinician may inspect, edit, remove, or leave any individual ROI. No per-lesion confirmation is required before clinician review can be completed.
-6. Save the human review decision. Use Advanced annotation/CVAT only when detailed geometry correction is necessary.
-7. Inspect Models & Audit for read-only model, inference, hash, and annotation provenance, then export the reviewed dataset from Datasets.
+5. Toggle or filter overlays. Review is read-only inspection; optional AI ROI correction or removal is available from **Edit Annotations**. No per-lesion confirmation is required before clinician review can be completed.
+6. Open **Clinician Review** to confirm the final DR grade. Use **Edit Annotations** only when a human annotation or an optional AI ROI correction/removal is needed, then confirm the active annotation set when appropriate. Advanced geometry work may use CVAT.
+7. Inspect Models & Audit for read-only model, inference, hash, and annotation provenance, then review the separate DR-ready and Lesion-ready states in Datasets before export.
 
 ![Clinician workflow](assets/clinician-workflow.png)
 
@@ -100,10 +100,16 @@ Once setup succeeds, the Model API uses only the verified local source checkouts
 - [Security and Privacy](docs/SECURITY_PRIVACY.md) - data, secrets, and safety boundaries.
 - [Backup and Restore](docs/BACKUP_RESTORE.md) - state, exports, and recovery.
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - actionable failure checks.
-- [Clinician User Manual](docs/CLINICIAN_USER_MANUAL.md) and [PDF](docs/CLINICIAN_USER_MANUAL.pdf).
+- [Clinician User Manual source](docs/manual/index.qmd), [manual build](scripts/manual/build_manual.py), and [PDF](docs/CLINICIAN_USER_MANUAL.pdf). The Quarto HTML site is generated at `dist/manual/site/`.
+- [Clinician workflow](docs/USER_WORKFLOW.md), [feature reference](docs/FEATURE_REFERENCE.md), and [dataset manifest](docs/DATASET_MANIFEST.md).
 - [CVAT Online setup](docs/CVAT_ONLINE_SETUP.md) - optional dense annotation only.
 - [Future Experiments](docs/FUTURE_EXPERIMENTS.md) - explicitly deferred work.
 - [Release Checklist](docs/RELEASE_CHECKLIST.md) - maintainer acceptance checks.
+
+To rebuild the manual, install Quarto and a XeLaTeX distribution, then run
+`.venv\Scripts\python.exe scripts/manual/build_manual.py` from the repository root.
+Set `QUARTO_BIN` when Quarto is not on `PATH`. The same Quarto Book source produces
+the HTML site and the PDF.
 
 ## Validation
 

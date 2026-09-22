@@ -7,6 +7,7 @@ import { admissionApi, apiJson, queueApi, type CaseRecord } from '@/lib/api';
 import { RefreshCw, ScanLine } from '@/lib/icons';
 import { ResolverDialog } from '@/components/worklist/ResolverDialog';
 import { ReadinessDialog } from '@/components/worklist/ReadinessDialog';
+import { ConfirmImageDialog } from '@/components/worklist/ConfirmImageDialog';
 import { WorklistTable } from '@/components/worklist/WorklistTable';
 import { DEFAULT_FILTERS, caseNeedsAttention, filterCases, groupCases, sortCases, type SortOption, type ViewMode, type WorklistFilters } from '@/components/worklist/worklistModel';
 import { WorklistToolbar } from '@/components/worklist/WorklistToolbar';
@@ -20,6 +21,7 @@ export function WorklistPage() {
   const [scanNotice, setScanNotice] = useState<string | null>(null);
   const [resolverCase, setResolverCase] = useState<CaseRecord | null>(null);
   const [readinessCase, setReadinessCase] = useState<CaseRecord | null>(null);
+  const [confirmImageCase, setConfirmImageCase] = useState<CaseRecord | null>(null);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<WorklistFilters>(DEFAULT_FILTERS);
   const [sort, setSort] = useState<SortOption>('filename');
@@ -75,7 +77,7 @@ export function WorklistPage() {
             {filteredCases.length === 0 ? (
               <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Stack spacing={2}><Text fontWeight="semibold">No cases match these filters.</Text><Button size="sm" variant="outline" alignSelf="flex-start" onClick={() => { setSearch(''); setFilters(DEFAULT_FILTERS); }}>Clear filters</Button></Stack></Box>
             ) : (
-              <WorklistTable cases={filteredCases} groups={patientGroups} onResolve={setResolverCase} onReadiness={setReadinessCase} onQueueAction={(item, action) => void updateQueue(item, action)} />
+            <WorklistTable cases={filteredCases} groups={patientGroups} onResolve={setResolverCase} onReadiness={setReadinessCase} onConfirmImage={setConfirmImageCase} onQueueAction={(item, action) => void updateQueue(item, action)} />
             )}
           </>
         )}
@@ -83,6 +85,7 @@ export function WorklistPage() {
       <HStack mt={4} spacing={2} color="text.muted" fontSize="xs"><Text>AI suggestions are optional visual evidence; clinician review remains authoritative.</Text></HStack>
       <ResolverDialog item={resolverCase} onClose={() => setResolverCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
       <ReadinessDialog item={readinessCase} onClose={() => setReadinessCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
+      <ConfirmImageDialog item={confirmImageCase} onClose={() => setConfirmImageCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
     </Box>
   );
 }

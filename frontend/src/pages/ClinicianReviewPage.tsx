@@ -23,10 +23,13 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { RetinalCanvas } from '@/components/review/RetinalCanvas';
 import { apiJson, type CaseRecord } from '@/lib/api';
-import { ArrowLeft, Check, Flag, ShieldCheck, ThumbsDown } from '@/lib/icons';
+import { ArrowLeft, Flag } from '@/lib/icons';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
+import { ReviewerField } from '@/components/common/ReviewerField';
+import { CaseNavigation } from '@/components/common/CaseNavigation';
+import { NextActionHint } from '@/components/common/NextActionHint';
 
-type ReviewAction = 'ACCEPT' | 'MARK_INCORRECT' | 'CORRECT_GRADE' | 'ESCALATE';
+type ReviewAction = 'ACCEPT' | 'CORRECT_GRADE' | 'ESCALATE';
 
 function errorText(err: unknown) {
   return err instanceof Error ? err.message : 'The request could not be completed.';
@@ -45,6 +48,7 @@ export function ClinicianReviewPage() {
   const { imageId } = useParams<{ imageId: string }>();
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
+  const [useAsDefault, setUseAsDefault] = useState(() => Boolean(getDefaultReviewer()));
   const [grade, setGrade] = useState('');
   const [remark, setRemark] = useState('');
   const [loading, setLoading] = useState(true);
@@ -60,12 +64,14 @@ export function ClinicianReviewPage() {
       const loaded = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
       setItem(loaded);
       setReviewer(loaded.clinician_review?.reviewer ?? getDefaultReviewer());
+      setUseAsDefault(Boolean(getDefaultReviewer()));
       if (loaded.clinician_review) {
         setRemark(loaded.clinician_review.remark);
         setGrade(loaded.clinician_review.final_grade === null ? '' : String(loaded.clinician_review.final_grade));
       }
     } catch (err) {
       setError(errorText(err));
+      return false;
     } finally {
       setLoading(false);
     }
@@ -73,18 +79,18 @@ export function ClinicianReviewPage() {
 
   useEffect(() => { void loadCase(); }, [loadCase]);
 
-  const saveReview = async (action: ReviewAction) => {
-    if (!item || savingAction) return;
+  const saveReview = async (action: ReviewAction): Promise<boolean> => {
+    if (!item || savingAction) return false;
     if (!reviewer.trim()) {
       setError('Reviewer name is required.');
-      return;
+      return false;
     }
     if (action === 'CORRECT_GRADE' && grade === '') {
       setError('Choose a final DR grade before saving a correction.');
-      return;
+      return false;
     }
     setSavingAction(action);
-    setDefaultReviewer(reviewer);
+    setDefaultReviewer(useAsDefault ? reviewer : '');
     setError(null);
     setSuccess(null);
     try {
@@ -100,9 +106,11 @@ export function ClinicianReviewPage() {
         }),
       });
       setItem(saved);
-      setSuccess(`${action === 'ACCEPT' ? 'AI grade accepted' : action === 'CORRECT_GRADE' ? 'Final grade saved' : action === 'MARK_INCORRECT' ? 'AI output marked incorrect' : 'Case escalated'} for ${saved.display_name}.`);
+      setSuccess(`${action === 'ACCEPT' ? 'DR grade confirmed from the AI suggestion' : action === 'CORRECT_GRADE' ? 'DR grade confirmed' : 'Case escalated'} for ${saved.display_name}.`);
+      return true;
     } catch (err) {
       setError(errorText(err));
+      return false;
     } finally {
       setSavingAction(null);
     }
@@ -121,6 +129,10 @@ export function ClinicianReviewPage() {
         subtitle={`${item.display_name} - human sign-off and review record`}
         actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />}>Back to Review</Button><Button as={Link} to="/worklist">Back to Worklist</Button></HStack>}
       />
+      <Stack spacing={3} mb={5}>
+        <CaseNavigation imageId={item.image_id} routePrefix="clinician-review" onSaveAndNext={(nextId) => { void saveReview(item.global?.grade === Number(grade) ? 'ACCEPT' : 'CORRECT_GRADE').then((ok) => { if (ok) navigate(`/clinician-review/${encodeURIComponent(nextId)}`); }); }} saveAndNextLabel="Confirm DR Grade & Next" />
+        <NextActionHint item={item} />
+      </Stack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.25fr) minmax(320px, 0.75fr)' }} gap={5} alignItems="start" minW={0}>
         <Section title="Review summary" description="AI output is a suggestion; this page records the clinician decision. ">
           <RetinalCanvas item={item} showAi={false} showHuman={true} />
@@ -138,10 +150,8 @@ export function ClinicianReviewPage() {
         <Stack spacing={5} minW={0}>
           <Section title="Clinician sign-off" description="Save a human review action with an optional remark.">
             <Stack spacing={4}>
-              <FormControl isRequired>
-                <FormLabel htmlFor="clinician-reviewer-name">Reviewer name</FormLabel>
-                <Input id="clinician-reviewer-name" value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Enter reviewer name" autoComplete="name" />
-              </FormControl>
+              <ReviewerField id="clinician-reviewer-name" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
+              <Text fontSize="sm" color="text.secondary">AI suggestion: {item.global?.grade == null ? 'Not available' : `Grade ${item.global.grade}`}</Text>
               <FormControl>
                 <FormLabel htmlFor="clinician-review-grade">Final DR grade</FormLabel>
                 <Select id="clinician-review-grade" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Select grade 0-4">
@@ -155,9 +165,7 @@ export function ClinicianReviewPage() {
               {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
               {success && <Alert status="success"><AlertIcon /><Text fontSize="sm">{success}</Text></Alert>}
               <Stack spacing={2}>
-                <Button variant="solid" leftIcon={<Check size={15} />} onClick={() => void saveReview('ACCEPT')} isLoading={savingAction === 'ACCEPT'} isDisabled={item.global?.grade == null || Boolean(savingAction)}>Accept AI grade</Button>
-                <Button leftIcon={<ShieldCheck size={15} />} variant="secondary" onClick={() => void saveReview('CORRECT_GRADE')} isLoading={savingAction === 'CORRECT_GRADE'} isDisabled={Boolean(savingAction)}>Correct / set grade</Button>
-                <Button leftIcon={<ThumbsDown size={15} />} variant="outline" onClick={() => void saveReview('MARK_INCORRECT')} isLoading={savingAction === 'MARK_INCORRECT'} isDisabled={Boolean(savingAction)}>Mark AI incorrect</Button>
+                <Button variant="solid" onClick={() => void saveReview(item.global?.grade === Number(grade) ? 'ACCEPT' : 'CORRECT_GRADE')} isLoading={Boolean(savingAction)} isDisabled={grade === '' || Boolean(savingAction)}>Confirm DR Grade</Button>
                 <Button leftIcon={<Flag size={15} />} variant="outline" onClick={() => void saveReview('ESCALATE')} isLoading={savingAction === 'ESCALATE'} isDisabled={Boolean(savingAction)}>Escalate</Button>
               </Stack>
             </Stack>

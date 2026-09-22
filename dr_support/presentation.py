@@ -14,11 +14,21 @@ DEFAULT_MAX_TOTAL = 80
 
 def lesion_detection_id(lesion) -> str:
     """Return a stable, review-only identity without changing raw model output."""
+    if isinstance(lesion, dict):
+        source_label = lesion.get('source_label')
+        canonical_label = lesion.get('canonical_label')
+        rectangle = lesion.get('rectangle')
+        score = lesion.get('score')
+    else:
+        source_label = lesion.source_label
+        canonical_label = lesion.canonical_label
+        rectangle = lesion.rectangle
+        score = lesion.score
     payload = {
-        'source_label': lesion.source_label,
-        'canonical_label': lesion.canonical_label,
-        'rectangle': list(lesion.rectangle),
-        'score': lesion.score,
+        'source_label': source_label,
+        'canonical_label': canonical_label,
+        'rectangle': list(rectangle),
+        'score': score,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode('utf-8')
     return 'ai-' + hashlib.sha256(encoded).hexdigest()[:20]
@@ -207,3 +217,46 @@ def review_evidence_view(case: dict) -> dict:
         'analysis_sha256': ((case.get('analysis_derivative') or {}).get('analysis_sha256')),
         'note': 'Counts describe review actions, not model accuracy or clinical outcomes.',
     }
+
+
+def annotation_set_payload(case: dict) -> dict:
+    """Return the active annotation state used for case-level finality.
+
+    AI evidence remains represented as AI evidence.  Human corrections and
+    removals are projected into the active set only for the purpose of the
+    deterministic finality hash; the original evidence stays in the case.
+    """
+    evidence = review_evidence_view(case)
+    active = [
+        {
+            'annotation_id': item.get('annotation_id'),
+            'source': item.get('source'),
+            'label': item.get('corrected_label') or item.get('label'),
+            'score': item.get('score') if item.get('corrected_label') is None else None,
+            'rectangle': item.get('corrected_rectangle') or item.get('original_rectangle'),
+            'status': item.get('status'),
+        }
+        for item in evidence.get('items', [])
+        if item.get('status') != 'CLINICIAN_REMOVED'
+    ]
+    imported = [
+        {
+            'annotation_id': item.get('remote_id', index),
+            'label': item.get('canonical_label'),
+            'geometry': item.get('geometry'),
+            'source': 'CVAT_IMPORTED',
+        }
+        for index, item in enumerate(case.get('annotations') or [])
+    ]
+    return {
+        'active': sorted(active, key=lambda item: str(item.get('annotation_id'))),
+        'human': case.get('human_annotations') or [],
+        'cvat': sorted(imported, key=lambda item: str(item.get('annotation_id'))),
+    }
+
+
+def annotation_set_hash(case: dict) -> str:
+    """Hash the current active annotation state without including PHI."""
+    encoded = json.dumps(annotation_set_payload(case), sort_keys=True,
+                          separators=(',', ':'), ensure_ascii=False).encode('utf-8')
+    return hashlib.sha256(encoded).hexdigest()

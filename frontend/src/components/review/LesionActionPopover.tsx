@@ -4,7 +4,6 @@ import {
   FormControl,
   FormLabel,
   HStack,
-  Input,
   Popover,
   PopoverArrow,
   PopoverBody,
@@ -18,6 +17,7 @@ import {
 } from '@chakra-ui/react';
 import { lesionReviewApi, type CaseRecord, type LesionLabel } from '@/lib/api';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
+import { ReviewerField } from '@/components/common/ReviewerField';
 import { aiEvidenceForLesion, displayedLesions } from './lesionPresentation';
 
 const LABELS: Array<{ value: LesionLabel; label: string; short: string }> = [
@@ -45,6 +45,7 @@ export function LesionActionPopover({ item, selectedLesionId, onSaved, onClose }
   );
   const evidence = aiEvidenceForLesion(item, selectedLesionId);
   const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
+  const [useAsDefault, setUseAsDefault] = useState(() => Boolean(getDefaultReviewer()));
   const [label, setLabel] = useState<LesionLabel>('MICROANEURYSM');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +53,9 @@ export function LesionActionPopover({ item, selectedLesionId, onSaved, onClose }
   useEffect(() => {
     if (!lesion) return;
     setLabel(lesion.canonical_label as LesionLabel);
-    setReviewer((current) => current || getDefaultReviewer());
+    const defaultReviewer = getDefaultReviewer();
+    setReviewer((current) => current || defaultReviewer);
+    setUseAsDefault(Boolean(defaultReviewer));
     setError(null);
   }, [lesion?.detection_id]);
 
@@ -81,7 +84,7 @@ export function LesionActionPopover({ item, selectedLesionId, onSaved, onClose }
         action,
         label: action === 'CORRECT' ? label : undefined,
       });
-      setDefaultReviewer(reviewer);
+      setDefaultReviewer(useAsDefault ? reviewer : '');
       onSaved(saved);
       onClose();
     } catch (requestError) {
@@ -116,10 +119,7 @@ export function LesionActionPopover({ item, selectedLesionId, onSaved, onClose }
                 {LABELS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </Select>
             </FormControl>
-            <FormControl>
-              <FormLabel fontSize="sm">Reviewer name</FormLabel>
-              <Input size="sm" value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Enter reviewer name" />
-            </FormControl>
+            <ReviewerField id="roi-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
             {error && <Text role="alert" fontSize="sm" color="status.danger">{error}</Text>}
             <HStack spacing={2} flexWrap="wrap">
               <Button size="sm" variant="secondary" onClick={() => void save('CORRECT')} isLoading={saving}>Save class correction</Button>

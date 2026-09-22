@@ -44,6 +44,27 @@ def test_manual_sync_confirmation_invalidation(tmp_path):
     assert client.post(base+'/manual-sync',json=payload).status_code == 422
 
 
+def test_confirm_image_is_one_audited_context_milestone(tmp_path):
+    client = TestClient(create_app(tmp_path/'state.sqlite', include_samples=False))
+    base = '/v1/cases/SYNTH_001'
+    case = client.get(base).json()
+    response = client.post(base + '/confirm-image', json={
+        'revision': case['revision'],
+        'reviewer': 'Image reviewer',
+        'patient_key': 'PAT0007',
+        'laterality': 'RIGHT',
+        'note': 'Context checked against the synthetic worklist record.',
+    })
+    assert response.status_code == 200
+    body = response.json()
+    assert body['patient_key'] == 'PAT0007'
+    assert body['laterality'] == 'RIGHT'
+    assert body['admission']['reviewed_by'] == 'Image reviewer'
+    assert body['admission']['reviewed_at']
+    assert body['events'][-1]['action'] == 'CONFIRM_IMAGE'
+    assert body['events'][-1]['identity_assurance'] == 'LOCAL_POC_SELF_DECLARED'
+
+
 def test_cross_origin_and_missing_token_fail_honestly(tmp_path,monkeypatch):
     monkeypatch.delenv('CVAT_TOKEN',raising=False)
     client=TestClient(create_app(tmp_path/'state.sqlite',include_samples=False))

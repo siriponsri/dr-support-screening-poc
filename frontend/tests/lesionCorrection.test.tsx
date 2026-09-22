@@ -88,7 +88,7 @@ describe('lightweight AI ROI correction', () => {
     );
     await user.click(screen.getByRole('button', { name: /Selected AI suggestion: HE/i }));
     await user.selectOptions(screen.getByLabelText('Change lesion class'), 'MICROANEURYSM');
-    await user.type(screen.getByLabelText('Reviewer name'), 'Clinician');
+    await user.type(await screen.findByPlaceholderText('Reviewer name'), 'Clinician');
     await user.click(screen.getByRole('button', { name: 'Save class correction' }));
 
     expect(requestBody).toMatchObject({
@@ -133,7 +133,7 @@ describe('lightweight AI ROI correction', () => {
 
     withProviders(<LesionActionPopover item={item} selectedLesionId={lesions[0].detection_id} onSaved={onSaved} onClose={vi.fn()} />, '/review/CASE-001');
     await user.click(screen.getByRole('button', { name: /Selected AI suggestion: HE/i }));
-    await user.type(screen.getByLabelText('Reviewer name'), 'Clinician');
+    await user.type(await screen.findByPlaceholderText('Reviewer name'), 'Clinician');
     await user.click(screen.getByRole('button', { name: 'Remove this detection' }));
 
     expect(requestBody).toMatchObject({ action: 'REJECT', detection_id: lesions[0].detection_id });

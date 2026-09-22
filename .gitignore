@@ -20,3 +20,6 @@ node_modules/
 
 # Local server output
 server_*.log
+
+# Generated documentation site
+dist/

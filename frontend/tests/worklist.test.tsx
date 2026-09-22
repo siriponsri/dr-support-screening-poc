@@ -64,7 +64,7 @@ describe('PRE-S3 Worklist', () => {
     await user.clear(screen.getByLabelText('Pseudonymous patient key'));
     await user.type(screen.getByLabelText('Pseudonymous patient key'), 'PAT0001');
     await user.selectOptions(screen.getByLabelText('Eye'), 'LEFT');
-    await user.type(screen.getByRole('textbox', { name: 'Reviewer' }), 'Clinician');
+    await user.type(screen.getByRole('textbox', { name: 'Reviewer name' }), 'Clinician');
     await user.click(screen.getByRole('button', { name: 'Save patient / eye' }));
 
     expect(resolverBody).toMatchObject({ revision: 2, patient_action: 'SET', patient_key: 'PAT0001', laterality_action: 'SET', laterality: 'LEFT' });
@@ -127,7 +127,7 @@ describe('PRE-S3 Worklist', () => {
     await user.clear(screen.getByLabelText('Pseudonymous patient key'));
     await user.type(screen.getByLabelText('Pseudonymous patient key'), 'PAT0002');
     await user.selectOptions(screen.getByLabelText('Eye'), 'RIGHT');
-    await user.type(screen.getByRole('textbox', { name: 'Reviewer' }), 'Clinician');
+    await user.type(screen.getByRole('textbox', { name: 'Reviewer name' }), 'Clinician');
     await user.click(screen.getByRole('button', { name: 'Save patient / eye' }));
 
     expect(resolverBody).toMatchObject({ revision: 2, patient_action: 'SET', patient_key: 'PAT0002', laterality_action: 'SET', laterality: 'RIGHT' });

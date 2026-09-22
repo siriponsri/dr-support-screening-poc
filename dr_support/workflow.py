@@ -10,7 +10,7 @@ from pydantic import Field
 from .contracts import AdmissionMetadata, AdmissionReview, Contract, ResolverReview
 from .sync import Sync, digest
 from .cvat import CVATOnline, OnlineError
-from .presentation import lesion_review_view, review_evidence_view
+from .presentation import annotation_set_hash, lesion_review_view, review_evidence_view
 from .services.admission import clinician_view, legacy_admission
 from .services.resolver import (
     apply_automatic_resolution,
@@ -27,6 +27,14 @@ class Review(Contract):
     reviewer: str = Field(min_length=1, max_length=80)
     grade: int | None = Field(default=None, ge=0, le=4, strict=True)
     comment: str = Field(default='', max_length=1000)
+
+
+class ConfirmImage(Contract):
+    revision: int = Field(ge=0)
+    reviewer: str = Field(min_length=1, max_length=80)
+    patient_key: str | None = Field(default=None, max_length=80)
+    laterality: Literal['LEFT', 'RIGHT', 'UNKNOWN'] = 'UNKNOWN'
+    note: str = Field(default='', max_length=1000)
 
 
 class HumanAnnotationDraft(Contract):
@@ -138,6 +146,12 @@ def install_workflow(app, store):
         filename = image.filename if image is not None else record.get('filename')
         width = image.size[0] if image is not None else record.get('width')
         height = image.size[1] if image is not None else record.get('height')
+        current_annotation_hash = annotation_set_hash(case)
+        annotation_confirmed = bool(
+            case.get('confirmed_annotation_hash')
+            and case.get('confirmed_annotation_hash') == current_annotation_hash
+            and case.get('lesion_review_state') == 'REVIEWED'
+        )
         return {**case, 'source_type': image.source_type if image is not None else 'PUBLIC',
                 'source': image.source if image is not None else 'WORKSPACE_INPUT',
                 'filename': filename or None,
@@ -159,6 +173,15 @@ def install_workflow(app, store):
                 'clinician_review': case.get('clinician_review'),
                 'review_history': case.get('review_history', []),
                 'review_evidence': review_evidence_view(case),
+                'annotation_hash': current_annotation_hash,
+                'annotation_set_hash': current_annotation_hash,
+                'annotation_confirmation_status': 'CONFIRMED' if annotation_confirmed else 'DRAFT',
+                'annotation_confirmation': {
+                    'status': 'CONFIRMED' if annotation_confirmed else 'DRAFT',
+                    'reviewer': (case.get('annotation_confirmation') or {}).get('reviewer'),
+                    'timestamp': (case.get('annotation_confirmation') or {}).get('timestamp'),
+                    'annotation_set_hash': case.get('confirmed_annotation_hash') if annotation_confirmed else None,
+                },
                 'ai_annotation_reviews': case.get('ai_annotation_reviews', []),
                 'queue_state': case.get('queue_state', 'INCLUDED'),
                 'queue_history': case.get('queue_history', [])}
@@ -299,8 +322,7 @@ def install_workflow(app, store):
                                                case['global'].get('grade') is not None else 'MANUAL')
                 case['state'] = 'REVIEWED'
             elif request.action == 'CONFIRM_ANNOTATIONS':
-                if not case.get('annotation_hash'):
-                    raise HTTPException(409, 'Import or sync annotations first')
+                case['annotation_hash'] = annotation_set_hash(case)
                 case['lesion_review_state'] = 'REVIEWED'
                 case['confirmed_annotation_hash'] = case['annotation_hash']
             else:
@@ -323,8 +345,18 @@ def install_workflow(app, store):
                 'timestamp': timestamp,
                 'revision': case['revision'],
             }
-            case['clinician_review'] = review_record
+            # Annotation finality is a separate milestone. Keep the recorded
+            # DR-grade reviewer/decision intact when an annotation reviewer
+            # confirms the current active set later.
+            if request.action != 'CONFIRM_ANNOTATIONS':
+                case['clinician_review'] = review_record
             case.setdefault('review_history', []).append(review_record)
+            if request.action == 'CONFIRM_ANNOTATIONS':
+                case['annotation_confirmation'] = {
+                    'reviewer': request.reviewer.strip(),
+                    'timestamp': timestamp,
+                    'annotation_set_hash': case['confirmed_annotation_hash'],
+                }
             store.put(case)
             return detail(image_id)
 
@@ -402,6 +434,9 @@ def install_workflow(app, store):
                 'model_version': (raw_result or {}).get('model_version'),
             }
             case.setdefault('ai_annotation_reviews', []).append(decision)
+            case['annotation_hash'] = annotation_set_hash(case)
+            if case.get('confirmed_annotation_hash') != case['annotation_hash']:
+                case['lesion_review_state'] = 'REQUIRES_CONFIRMATION'
             case['revision'] += 1
             case.setdefault('events', []).append({
                 'action': 'AI_ANNOTATION_REVIEWED',
@@ -574,6 +609,94 @@ def install_workflow(app, store):
             store.put(case)
             return detail(image_id)
 
+    @app.post('/v1/cases/{image_id}/confirm-image')
+    def confirm_image(image_id: str, request: ConfirmImage):
+        """Persist the routine image/context milestone as one clinician action."""
+        image = get_image(image_id)
+        reviewer = request.reviewer.strip()
+        if not reviewer:
+            raise HTTPException(422, 'Reviewer name required')
+        store = current_store()
+        with store.lock:
+            case, current = case_with_admission(image_id)
+            if request.revision != case['revision']:
+                raise HTTPException(409, 'Case changed; reload before confirming image')
+            if current is None:
+                current = legacy_admission(image)
+            timestamp = datetime.now(timezone.utc).isoformat()
+            admission = dict(current)
+            if admission.get('modality_admission') == 'NEEDS_REVIEW':
+                admission['modality_admission'] = 'FUNDUS_ACCEPTED'
+                admission['admission_reason_code'] = 'MANUAL_CONFIRM_IMAGE'
+                admission['admission_method'] = 'MANUAL'
+            if admission.get('quality_state') == 'NEEDS_REVIEW':
+                admission['quality_state'] = 'GRADABLE'
+                admission['quality_reason_code'] = 'MANUAL_CONFIRM_IMAGE'
+                admission['admission_method'] = 'MANUAL'
+            admission['updated_at'] = timestamp
+            admission['reviewed_by'] = reviewer
+            admission['reviewed_at'] = timestamp
+            admission['review_note'] = request.note.strip() or None
+            admission = AdmissionMetadata.model_validate(admission).model_dump(mode='json')
+            case['admission'] = admission
+            app.state.admissions[image_id] = admission
+
+            patient_key = request.patient_key.strip() if request.patient_key else ''
+            if patient_key:
+                try:
+                    patient_key = normalize_patient_key(patient_key)
+                except ValueError as error:
+                    raise HTTPException(422, str(error)) from None
+                case['patient_key'] = patient_key
+                case['patient_resolution_state'] = 'RESOLVED'
+                case['patient_resolution_method'] = 'MANUAL'
+                case['patient_reason_code'] = 'MANUAL_CONFIRMED'
+                case['patient_confidence_or_strength'] = 'HIGH'
+            else:
+                case['patient_key'] = None
+                case['patient_resolution_state'] = 'UNLINKED'
+                case['patient_resolution_method'] = 'MANUAL'
+                case['patient_reason_code'] = 'MANUAL_LEFT_UNLINKED'
+                case['patient_confidence_or_strength'] = None
+            case['laterality'] = request.laterality
+            case['laterality_candidate'] = request.laterality
+            case['laterality_resolution_state'] = 'RESOLVED'
+            case['laterality_resolution_method'] = 'MANUAL'
+            case['laterality_reason_code'] = 'MANUAL_UNKNOWN' if request.laterality == 'UNKNOWN' else 'MANUAL_SET'
+            case['resolver_state'] = combined_resolution_state(
+                case.get('patient_resolution_state', 'UNLINKED'),
+                case.get('laterality_resolution_state', 'UNLINKED'),
+            )
+            case.setdefault('admission_history', []).append({
+                'action': 'CONFIRM_IMAGE',
+                'reviewer': reviewer,
+                'timestamp': timestamp,
+                'new': {
+                    'modality_admission': admission['modality_admission'],
+                    'quality_state': admission['quality_state'],
+                },
+            })
+            case.setdefault('resolution_history', []).append({
+                'action': 'CONFIRM_IMAGE',
+                'reviewer': reviewer,
+                'timestamp': timestamp,
+                'new': {
+                    'patient_key': case.get('patient_key'),
+                    'laterality': case.get('laterality'),
+                },
+                'automatic_evidence': case.get('resolver_evidence'),
+            })
+            case.setdefault('events', []).append({
+                'action': 'CONFIRM_IMAGE',
+                'reviewer': reviewer,
+                'timestamp': timestamp,
+                'note': request.note.strip(),
+                'identity_assurance': 'LOCAL_POC_SELF_DECLARED',
+            })
+            case['revision'] += 1
+            store.put(case)
+            return detail(image_id)
+
     @app.put('/v1/cases/{image_id}/annotations')
     def save_human_annotations(image_id: str, request: HumanAnnotationSave):
         image = get_image(image_id)
@@ -622,6 +745,9 @@ def install_workflow(app, store):
                 ),
             }
             case['human_annotations'] = saved
+            case['annotation_hash'] = annotation_set_hash(case)
+            if case.get('confirmed_annotation_hash') != case['annotation_hash']:
+                case['lesion_review_state'] = 'REQUIRES_CONFIRMATION'
             case['revision'] += 1
             case.setdefault('events', []).append({
                 'action': 'HUMAN_ANNOTATIONS_SAVED',
@@ -671,13 +797,16 @@ def install_workflow(app, store):
             if case['revision'] != request.revision:
                 raise HTTPException(409, 'Case changed; reload')
             fingerprint = digest(request.annotations)
-            if case.get('annotation_hash') != fingerprint:
-                case['annotation_hash'] = fingerprint
+            if case.get('annotation_source_hash') != fingerprint:
+                case['annotation_source_hash'] = fingerprint
                 case['annotations'] = shapes
                 case['annotation_raw'] = request.annotations
-                case['lesion_review_state'] = 'IMPORTED_REQUIRES_REVIEW'
+                case['annotation_hash'] = annotation_set_hash(case)
+                if case.get('confirmed_annotation_hash') != case['annotation_hash']:
+                    case['lesion_review_state'] = 'IMPORTED_REQUIRES_REVIEW'
                 case['revision'] += 1
                 case['events'].append({'action': 'MANUAL_SYNC', 'warning': 'Remote project/author not verified',
-                                       'annotation_hash': fingerprint})
+                                       'annotation_source_hash': fingerprint,
+                                       'annotation_hash': case['annotation_hash']})
                 store.put(case)
             return detail(image_id)

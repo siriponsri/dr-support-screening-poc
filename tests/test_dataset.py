@@ -75,6 +75,9 @@ def test_manifest_preserves_identity_provenance_geometry_and_export_files(tmp_pa
     assert image["ai_grade"] == 2 and image["clinician_grade"] == 3
     assert image["include_in_training"] is True
     assert image["eligibility_reason"] == "ELIGIBLE"
+    assert image["dr_grade_training_ready"] is True
+    assert image["lesion_training_ready"] is False
+    assert image["lesion_eligibility_reason"] == "NO_ANNOTATION_CONFIRMATION"
     assert {row["annotation_source"] for row in body["annotations"]} == {"AI", "HUMAN"}
     assert {row["label"] for row in body["annotations"]} == set(LABELS.values())
     assert {row["shape_type"] for row in body["annotations"]} == {"rectangle", "polygon", "point", "circle"}
@@ -111,6 +114,12 @@ def test_manifest_preserves_identity_provenance_geometry_and_export_files(tmp_pa
         "ai_model_version", "ai_confidence", "clinician_grade", "grade_review_source",
         "review_status", "reviewer", "reviewed_at", "human_annotation_count", "ai_lesion_count",
         "cvat_annotation_count", "verification_status", "include_in_training", "eligibility_reason",
+        "image_confirmation_status", "image_confirmed_by", "image_confirmed_at",
+        "dr_grade_confirmation_status", "dr_grade_confirmed_by", "dr_grade_confirmed_at",
+        "annotation_confirmation_status", "annotation_confirmed_by", "annotation_confirmed_at",
+        "annotation_set_hash", "confirmed_annotation_hash",
+        "dr_grade_training_ready", "grade_eligibility_reason", "lesion_training_ready",
+        "lesion_eligibility_reason", "training_group_key",
     ]
     assert app.state.store.get("SYNTH_001") == before_case
     assert app.state.images["SYNTH_001"].data == source_bytes
@@ -213,6 +222,78 @@ def test_confirmed_cvat_annotations_are_provenanced_but_unreviewed_import_is_not
     })
     assert confirmed.status_code == 200
     rows = client.get("/v1/dataset/manifest").json()["annotations"]
-    assert rows[0]["verification_status"] == "CONFIRMED"
+    assert rows[0]["verification_status"] == "CLINICIAN_CONFIRMED"
     assert rows[0]["include_in_training"] is True
     assert rows[0]["reviewer"] == "CVAT reviewer"
+
+
+def test_task_readiness_is_decoupled_and_annotation_hash_invalidates(tmp_path):
+    app, client, _ = _workspace_client(tmp_path)
+    base = "/v1/cases/SYNTH_001"
+    assert client.post("/v1/infer/global", json={"image_id": "SYNTH_001", "model_id": "mock-global"}).status_code == 200
+    assert client.post("/v1/infer/lesion-roi", json={"image_id": "SYNTH_001", "model_id": "mock-lesion"}).status_code == 200
+
+    case = client.get(base).json()
+    graded = client.post(base + "/review", json={
+        "revision": case["revision"], "action": "ACCEPT", "reviewer": "Grade reviewer",
+    })
+    assert graded.status_code == 200
+    row = client.get("/v1/dataset/manifest").json()["images"][0]
+    assert row["dr_grade_training_ready"] is True
+    assert row["lesion_training_ready"] is False
+    assert row["lesion_eligibility_reason"] == "NO_ANNOTATION_CONFIRMATION"
+
+    case = client.get(base).json()
+    confirmed = client.post(base + "/review", json={
+        "revision": case["revision"], "action": "CONFIRM_ANNOTATIONS", "reviewer": "Annotation reviewer",
+    })
+    assert confirmed.status_code == 200
+    body = confirmed.json()
+    assert body["annotation_confirmation_status"] == "CONFIRMED"
+    assert body["annotation_set_hash"] == body["confirmed_annotation_hash"]
+    row = client.get("/v1/dataset/manifest").json()["images"][0]
+    assert row["dr_grade_training_ready"] is True
+    assert row["lesion_training_ready"] is True
+
+    case = client.get(base).json()
+    saved = client.put(base + "/annotations", json={
+        "revision": case["revision"], "reviewer": "Annotation reviewer", "annotations": [{
+            "type": "point", "label": "MICROANEURYSM", "geometry": {"x": 20, "y": 20},
+        }],
+    })
+    assert saved.status_code == 200
+    row = client.get("/v1/dataset/manifest").json()["images"][0]
+    assert row["dr_grade_training_ready"] is True
+    assert row["lesion_training_ready"] is False
+    assert row["lesion_eligibility_reason"] == "NO_ANNOTATION_CONFIRMATION"
+    assert app.state.store.get("SYNTH_001")["confirmed_annotation_hash"] != app.state.store.get("SYNTH_001")["annotation_hash"]
+
+
+def test_corrected_and_removed_ai_rows_keep_original_provenance(tmp_path):
+    _, client, _ = _workspace_client(tmp_path)
+    base = "/v1/cases/SYNTH_001"
+    assert client.post("/v1/infer/lesion-roi", json={"image_id": "SYNTH_001", "model_id": "mock-lesion"}).status_code == 200
+    initial = client.get(base).json()
+    first = initial["lesion_review"]["lesions"][0]
+    corrected = client.post(base + "/lesion-review", json={
+        "revision": initial["revision"], "reviewer": "ROI reviewer", "detection_id": first["detection_id"],
+        "action": "CORRECT", "label": "MICROANEURYSM",
+    })
+    assert corrected.status_code == 200
+    row = next(row for row in client.get("/v1/dataset/manifest").json()["annotations"] if row["annotation_id"] == first["detection_id"])
+    assert row["annotation_source"] == "HUMAN_CORRECTION"
+    assert row["score"] is None
+    assert row["original_label"] == first["canonical_label"]
+    assert row["original_score"] == first["score"]
+
+    current = corrected.json()
+    removed = client.post(base + "/lesion-review", json={
+        "revision": current["revision"], "reviewer": "ROI reviewer", "detection_id": first["detection_id"],
+        "action": "REJECT",
+    })
+    assert removed.status_code == 200
+    rows = client.get("/v1/dataset/manifest").json()["annotations"]
+    removed_row = next(row for row in rows if row["annotation_id"] == first["detection_id"])
+    assert removed_row["verification_status"] == "REMOVED"
+    assert removed_row["include_in_training"] is False
+    assert removed_row["original_score"] is not None

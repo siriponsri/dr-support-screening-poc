@@ -3,7 +3,7 @@ import hashlib
 import json
 from dr_support.contracts import LesionResult
 from dr_support.cvat import rectangles, reviewed_shapes, OnlineError
-from dr_support.presentation import lesion_review_view
+from dr_support.presentation import annotation_set_hash, lesion_review_view
 
 
 def digest(value):
@@ -88,12 +88,15 @@ class Sync:
                 raise ValueError('Track/tag export requires manual review; no data silently discarded')
             shapes = reviewed_shapes(payload, labels, *image.size)
             fingerprint = digest(payload)
-            if case.get('annotation_hash') != fingerprint:
-                case['annotation_hash'] = fingerprint
+            if case.get('annotation_source_hash') != fingerprint:
+                case['annotation_source_hash'] = fingerprint
                 case['annotations'] = shapes
                 case['annotation_raw'] = payload
+                case['annotation_hash'] = annotation_set_hash(case)
+                if case.get('confirmed_annotation_hash') != case['annotation_hash']:
+                    case['lesion_review_state'] = 'IMPORTED_REQUIRES_REVIEW'
                 case['revision'] += 1
-                case['lesion_review_state'] = 'IMPORTED_REQUIRES_REVIEW'
-                case['events'].append({'action': 'CVAT_SYNC', 'annotation_hash': fingerprint})
+                case['events'].append({'action': 'CVAT_SYNC', 'annotation_source_hash': fingerprint,
+                                       'annotation_hash': case['annotation_hash']})
                 self.store.put(case)
             return case

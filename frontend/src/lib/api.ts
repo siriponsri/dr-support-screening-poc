@@ -185,6 +185,15 @@ export interface CaseRecord {
   review_evidence?: ReviewEvidence;
   human_annotations: HumanAnnotation[];
   clinician_review: ClinicianReview | null;
+  annotation_hash?: string | null;
+  annotation_set_hash?: string | null;
+  annotation_confirmation_status?: 'CONFIRMED' | 'DRAFT';
+  annotation_confirmation?: {
+    status: 'CONFIRMED' | 'DRAFT';
+    reviewer: string | null;
+    timestamp: string | null;
+    annotation_set_hash: string | null;
+  };
   events?: Array<Record<string, unknown>>;
   review_history?: Array<Record<string, unknown>>;
   annotations?: Array<Record<string, unknown>> | null;
@@ -284,6 +293,14 @@ export interface AdmissionReviewRequest {
   revision: number;
   reviewer: string;
   action: AdmissionReviewAction;
+  note?: string;
+}
+
+export interface ConfirmImageRequest {
+  revision: number;
+  reviewer: string;
+  patient_key?: string | null;
+  laterality: Laterality;
   note?: string;
 }
 
@@ -398,6 +415,22 @@ export interface DatasetImageRow {
   include_in_training: boolean;
   eligibility_reason: string;
   dataset_status: 'Ready for dataset' | 'Needs review' | 'Excluded' | 'AI only';
+  image_confirmation_status?: string;
+  image_confirmed_by?: string | null;
+  image_confirmed_at?: string | null;
+  dr_grade_confirmation_status?: string;
+  dr_grade_confirmed_by?: string | null;
+  dr_grade_confirmed_at?: string | null;
+  annotation_confirmation_status?: string;
+  annotation_confirmed_by?: string | null;
+  annotation_confirmed_at?: string | null;
+  annotation_set_hash?: string | null;
+  confirmed_annotation_hash?: string | null;
+  dr_grade_training_ready?: boolean;
+  grade_eligibility_reason?: string;
+  lesion_training_ready?: boolean;
+  lesion_eligibility_reason?: string;
+  training_group_key?: string | null;
 }
 
 export interface DatasetAnnotationRow {
@@ -415,6 +448,10 @@ export interface DatasetAnnotationRow {
   verification_status: string;
   include_in_training: boolean;
   eligibility_reason: string;
+  source_detection_id?: string | null;
+  original_label?: LesionLabel | null;
+  original_score?: number | null;
+  original_geometry_json?: string | null;
 }
 
 export interface DatasetManifestResponse {
@@ -428,6 +465,12 @@ export interface DatasetManifestResponse {
   training_ready_count: number;
   needs_review_count: number;
   excluded_count: number;
+  dr_grade_ready_count?: number;
+  lesion_ready_image_count?: number;
+  lesion_ready_annotation_count?: number;
+  coordinate_system?: string;
+  lesion_taxonomy?: string[];
+  eligibility_policy_version?: string;
   can_export: boolean;
   images: DatasetImageRow[];
   annotations: DatasetAnnotationRow[];
@@ -514,6 +557,10 @@ export const admissionApi = {
   scan: () => apiJson<AdmissionScanResponse>('/v1/admissions/scan', jsonRequest({ method: 'POST' })),
   review: (imageId: string, request: AdmissionReviewRequest) => apiJson<CaseRecord>(
     `/v1/cases/${encodeURIComponent(imageId)}/admission`,
+    jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
+  ),
+  confirmImage: (imageId: string, request: ConfirmImageRequest) => apiJson<CaseRecord>(
+    `/v1/cases/${encodeURIComponent(imageId)}/confirm-image`,
     jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
   ),
 };

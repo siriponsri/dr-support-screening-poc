@@ -67,7 +67,7 @@ describe('Datasets page', () => {
     expect(screen.getByText('review.png')).toBeInTheDocument();
     expect(screen.queryByText('Datasets (reserved)')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: /Training-ready/ }));
+    await user.click(screen.getByRole('tab', { name: /DR-ready/ }));
     expect(screen.getByText('ready.png')).toBeInTheDocument();
     expect(screen.queryByText('review.png')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Export manifest' }));

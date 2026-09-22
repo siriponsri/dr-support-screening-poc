@@ -19,6 +19,10 @@ import {
 } from '@chakra-ui/react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
+import { CaseNavigation } from '@/components/common/CaseNavigation';
+import { NextActionHint } from '@/components/common/NextActionHint';
+import { ReviewerField } from '@/components/common/ReviewerField';
+import { LesionActionPopover } from '@/components/review/LesionActionPopover';
 import { RetinalCanvas, LESION_COLORS, LESION_SHORT_LABELS, type RectangleResizeHandle } from '@/components/review/RetinalCanvas';
 import {
   apiJson,
@@ -176,6 +180,7 @@ export function AnnotationEditorPage() {
   const [label, setLabel] = useState<LesionLabel>('MICROANEURYSM');
   const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [selectedLesionId, setSelectedLesionId] = useState<string | null>(null);
   const [polygonPoints, setPolygonPoints] = useState<Point[]>([]);
   const [dragStart, setDragStart] = useState<Point | null>(null);
   const [preview, setPreview] = useState<{ type: Tool; geometry: AnnotationGeometry } | null>(null);
@@ -186,6 +191,10 @@ export function AnnotationEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<'saved' | 'unsaved' | 'saving' | 'failed'>('saved');
+  const [useAsDefault, setUseAsDefault] = useState(() => Boolean(getDefaultReviewer()));
+  const interactionRef = useRef(false);
+  const skipAutosaveRef = useRef(true);
   const draftRef = useRef<HumanAnnotation[]>(draft);
   const shapeDragRef = useRef<{
     shapeId: string;
@@ -210,6 +219,8 @@ export function AnnotationEditorPage() {
       setItem(loaded);
       setDraft(loaded.human_annotations ?? []);
       setHistory([]);
+      setDraftStatus('saved');
+      skipAutosaveRef.current = true;
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -225,6 +236,7 @@ export function AnnotationEditorPage() {
     setDraft(next);
     setSelectedShapeId(nextSelection);
     setSaved(false);
+    setDraftStatus('unsaved');
   };
 
   const activateTool = (nextTool: Tool) => {
@@ -240,6 +252,7 @@ export function AnnotationEditorPage() {
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (!item || tool === 'select') return;
     event.preventDefault();
+    interactionRef.current = true;
     const point = pointFromEvent(event, item);
     if (tool === 'point') {
       commit([...draft, annotation('point', label, { x: point[0], y: point[1] })]);
@@ -295,6 +308,7 @@ export function AnnotationEditorPage() {
         draftRef.current = next;
         setDraft(next);
         setSaved(false);
+        setDraftStatus('unsaved');
         event.preventDefault();
       }
       return;
@@ -311,6 +325,7 @@ export function AnnotationEditorPage() {
       draftRef.current = next;
       setDraft(next);
       setSaved(false);
+      setDraftStatus('unsaved');
       event.preventDefault();
       return;
     }
@@ -331,6 +346,8 @@ export function AnnotationEditorPage() {
         setSelectedShapeId(resize.shapeId);
       }
       resizeRef.current = null;
+      interactionRef.current = false;
+      if (resize.moved) setDraftStatus('unsaved');
       event.currentTarget.releasePointerCapture?.(event.pointerId);
       event.preventDefault();
       return;
@@ -342,6 +359,8 @@ export function AnnotationEditorPage() {
         setSelectedShapeId(shapeDrag.shapeId);
       }
       shapeDragRef.current = null;
+      interactionRef.current = false;
+      if (shapeDrag.moved) setDraftStatus('unsaved');
       event.currentTarget.releasePointerCapture?.(event.pointerId);
       event.preventDefault();
       return;
@@ -359,6 +378,7 @@ export function AnnotationEditorPage() {
     commit([...draft, annotation(tool, label, geometry)]);
     setDragStart(null);
     setPreview(null);
+    interactionRef.current = false;
   };
 
   const onPointerCancel = () => {
@@ -376,6 +396,7 @@ export function AnnotationEditorPage() {
     }
     setDragStart(null);
     setPreview(null);
+    interactionRef.current = false;
   };
 
   const onDoubleClick = (event: ReactMouseEvent<SVGSVGElement>) => {
@@ -394,6 +415,7 @@ export function AnnotationEditorPage() {
     setHistory((entries) => entries.slice(0, -1));
     setSelectedShapeId(null);
     setSaved(false);
+    setDraftStatus('unsaved');
   };
 
   const deleteSelected = () => {
@@ -522,16 +544,12 @@ export function AnnotationEditorPage() {
     </HStack>
   );
 
-  const save = async () => {
-    if (!item || saving) return;
-    if (!reviewer.trim()) {
-      setSaveError('Reviewer name is required before saving human annotations.');
-      return;
-    }
+  const persistDraft = async () => {
+    if (!item || saving) return false;
+    if (!reviewer.trim()) return false;
     setSaving(true);
-    setDefaultReviewer(reviewer);
+    setDraftStatus('saving');
     setSaveError(null);
-    setSaved(false);
     try {
       const savedCase = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(item.image_id)}/annotations`, {
         method: 'PUT',
@@ -539,7 +557,7 @@ export function AnnotationEditorPage() {
         body: JSON.stringify({
           revision: item.revision,
           reviewer: reviewer.trim(),
-          annotations: draft.map(({ shape_id, type, label: entryLabel, geometry, locked }) => ({
+          annotations: draftRef.current.map(({ shape_id, type, label: entryLabel, geometry, locked }) => ({
             shape_id,
             type,
             label: entryLabel,
@@ -553,12 +571,66 @@ export function AnnotationEditorPage() {
       setDraft(draftRef.current);
       setHistory([]);
       setSaved(true);
+      setDraftStatus('saved');
+      setDefaultReviewer(useAsDefault ? reviewer : '');
+      return true;
     } catch (err) {
       setSaveError(errorText(err));
+      setDraftStatus('failed');
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  const confirmAnnotations = async () => {
+    const persisted = await persistDraft();
+    if (!persisted || !item) return;
+    setSaving(true);
+    try {
+      const confirmed = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(item.image_id)}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revision: item.revision + 1, action: 'CONFIRM_ANNOTATIONS', reviewer: reviewer.trim(), grade: null, comment: '' }),
+      });
+      setItem(confirmed);
+      setSaved(true);
+      setDraftStatus('saved');
+    } catch (err) {
+      setSaveError(errorText(err));
+      setDraftStatus('failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmNavigation = () => {
+    if (draftStatus === 'unsaved' || draftStatus === 'saving' || draftStatus === 'failed') {
+      return window.confirm('You have unsaved annotation changes. Leave this case?');
+    }
+    return true;
+  };
+
+  useEffect(() => {
+    if (skipAutosaveRef.current) {
+      skipAutosaveRef.current = false;
+      return;
+    }
+    if (draftStatus !== 'unsaved' || interactionRef.current || !reviewer.trim()) return;
+    const timer = window.setTimeout(() => { void persistDraft(); }, 900);
+    return () => window.clearTimeout(timer);
+  }, [draft, draftStatus, reviewer]);
+
+  useEffect(() => {
+    const guard = (event: BeforeUnloadEvent) => {
+      if (draftStatus === 'unsaved' || draftStatus === 'saving' || draftStatus === 'failed') {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', guard);
+    return () => window.removeEventListener('beforeunload', guard);
+  }, [draftStatus]);
 
   if (!imageId) return <Center minH="360px"><Text>Select an image from the Worklist.</Text></Center>;
   if (loading && !item) return <Center minH="360px"><Spinner color="action.primary" /></Center>;
@@ -572,8 +644,18 @@ export function AnnotationEditorPage() {
         pathname={pathname}
         title="Annotation Editor"
         subtitle={`${item.display_name} - human annotations are separate from AI suggestions`}
-        actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />}>Back to Review</Button><Button as={Link} to="/worklist">Back to Worklist</Button></HStack>}
+        actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />} onClick={(event) => { if (!confirmNavigation()) event.preventDefault(); }}>Back to Review</Button><Button as={Link} to="/worklist" onClick={(event) => { if (!confirmNavigation()) event.preventDefault(); }}>Back to Worklist</Button></HStack>}
       />
+      <Stack spacing={3} mb={5}>
+        <CaseNavigation
+          imageId={item.image_id}
+          routePrefix="edit"
+          dirty={draftStatus !== 'saved'}
+          onBeforeNavigate={confirmNavigation}
+          onSaveAndNext={(nextId) => { void persistDraft().then((ok) => { if (ok) navigate(`/edit/${encodeURIComponent(nextId)}`); }); }}
+        />
+        <NextActionHint item={item} />
+      </Stack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.4fr) minmax(300px, 0.6fr)' }} gap={5} alignItems="start">
         <Section title="Retinal annotation canvas" description="Coordinates are stored in original image pixel space. Double-click to finish a polygon.">
           <RetinalCanvas
@@ -582,6 +664,8 @@ export function AnnotationEditorPage() {
             showHuman={showHuman}
             humanAnnotations={draft}
             selectedShapeId={selectedShapeId}
+            selectedLesionId={selectedLesionId}
+            onSelectLesion={setSelectedLesionId}
             onSelectHuman={setSelectedShapeId}
             onHumanPointerDown={onHumanPointerDown}
             onHumanResizeStart={onHumanResizeStart}
@@ -597,9 +681,11 @@ export function AnnotationEditorPage() {
             {polygonPoints.length > 0 && <polyline points={polygonPoints.map((point) => point.join(',')).join(' ')} fill="var(--chakra-colors-text-primary)" fillOpacity={0.1} stroke="var(--chakra-colors-text-primary)" strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />}
             {previewShape(preview)}
           </RetinalCanvas>
+          <LesionActionPopover item={item} selectedLesionId={selectedLesionId} onSaved={setItem} onClose={() => setSelectedLesionId(null)} />
           <HStack mt={4} spacing={3} flexWrap="wrap" fontSize="sm">
             <Text fontWeight="semibold">{draft.length} human annotation{draft.length === 1 ? '' : 's'}</Text>
             <Text color="text.secondary">AI suggestions are optional visual evidence; human annotations remain separate.</Text>
+            <Text aria-live="polite" color="text.secondary">{draftStatus === 'saving' ? 'Saving draft…' : draftStatus === 'failed' ? 'Save failed — retry' : draftStatus === 'unsaved' ? 'Unsaved changes' : 'Draft saved'}</Text>
           </HStack>
         </Section>
         <Stack spacing={5}>
@@ -608,13 +694,13 @@ export function AnnotationEditorPage() {
           </Section>
           <Section title="Save human annotations" description="Saving writes only explicit HUMAN annotations to the case record.">
             <Stack spacing={3}>
-              <FormControl isRequired>
-                <FormLabel fontSize="sm">Reviewer name</FormLabel>
-                <Input value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Enter reviewer name" />
-              </FormControl>
+              <ReviewerField id="annotation-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
               {saveError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
               {saved && <Alert status="success"><AlertIcon /><Text fontSize="sm">Human annotations saved.</Text></Alert>}
-              <Button variant="solid" leftIcon={<Save size={15} />} onClick={() => void save()} isLoading={saving} isDisabled={saving}>Save annotations</Button>
+              <HStack spacing={2} flexWrap="wrap">
+                <Button variant="solid" leftIcon={<Save size={15} />} onClick={() => void persistDraft()} isLoading={saving} isDisabled={saving}>Save draft</Button>
+                <Button variant="outline" onClick={() => void confirmAnnotations()} isLoading={saving} isDisabled={saving}>Confirm Annotation</Button>
+              </HStack>
             </Stack>
           </Section>
           <SimpleGrid columns={2} spacing={3} fontSize="sm">

@@ -1,0 +1,41 @@
+## Purpose and scope {#sec-overview}
+
+### Intended users
+
+This manual is for clinicians and reviewers operating the local review workstation, dataset operators preparing research exports, and hospital operators supporting the workstation and Model API.
+
+### Supported input intent
+
+The workstation supports JPEG, PNG, TIFF, and supported single-frame ophthalmic fundus DICOM. Ophthalmic DICOM uses the existing display and provenance path. MRI, OCT, PACS objects, non-fundus DICOM, unsupported SOP classes, multi-frame objects, and untested transfer syntaxes are outside model support.
+
+When a recognized DICOM object is not a supported fundus modality, Worklist reports **Unsupported modality**. This is distinct from a generic decoder or image-read failure.
+
+### System overview
+
+The review workstation uses local Workspace state and calls a provider-neutral Model API when analysis is requested. The workstation does not load model weights in the `review` profile.
+
+| Component | Operating role |
+| --- | --- |
+| Review workstation | Worklist, image display, clinician decisions, annotations, audit display, and export. |
+| RETFound | Five-class DR grade suggestion through `retfound-aptos5`. |
+| PRISM-DR | Optional lesion ROI suggestions through `prism-dr-5fold`. |
+| Model API | Remote hospital service for the existing inference contracts. |
+| CVAT Online | Optional dense annotation and geometry workflow. |
+
+### Safety and interpretation
+
+::: {.callout-warning title="WARNING — model interpretation"}
+RETFound and PRISM-DR output is model-assisted evidence. A displayed confidence or score is not a calibrated clinical probability. An empty PRISM result does not prove that lesions are absent.
+:::
+
+The final clinician grade, annotation state, and exception decision are human-authored. Original AI evidence remains available in **Models & Audit** and the dataset provenance fields.
+
+### Navigation map
+
+- **Worklist**: admission state, context resolution, exclusions, and case entry.
+- **Review**: image-first inspection, optional analysis, overlays, and compact model summaries.
+- **Clinician Review**: final DR grade and escalation.
+- **Edit Annotations**: human annotation work and optional AI ROI correction/removal.
+- **Datasets**: task-specific readiness and export.
+- **Models & Audit**: read-only technical provenance.
+- **Settings**: Workspace and workstation preferences.

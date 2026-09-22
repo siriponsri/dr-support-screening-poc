@@ -26,7 +26,8 @@
 - [ ] Clinician review completes without confirming every AI ROI.
 - [ ] Models & Audit shows read-only evidence and provenance.
 - [ ] Dataset export produces the documented manifest and CSV files.
-- [ ] Manual screenshots and PDF were regenerated from the final UI.
+- [ ] Quarto manual source, final UI screenshots, HTML site, and PDF were regenerated from the final UI.
+- [ ] Dataset export documents `s4.dataset-manifest.v2`, three confirmation states, and separate DR-ready/Lesion-ready semantics.
 
 ## Validation commands
 

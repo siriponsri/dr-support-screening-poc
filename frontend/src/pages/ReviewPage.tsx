@@ -24,8 +24,9 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { RetinalCanvas, LESION_COLORS } from '@/components/review/RetinalCanvas';
-import { LesionActionPopover } from '@/components/review/LesionActionPopover';
 import { displayedLesions } from '@/components/review/lesionPresentation';
+import { CaseNavigation } from '@/components/common/CaseNavigation';
+import { NextActionHint } from '@/components/common/NextActionHint';
 import {
   apiJson,
   type CaseRecord,
@@ -187,7 +188,6 @@ export function ReviewPage() {
   const [models, setModels] = useState<ModelDescriptor[]>([]);
   const [showAi, setShowAi] = useState(true);
   const [lesionFilter, setLesionFilter] = useState<LesionLabel | 'ALL'>('ALL');
-  const [selectedLesionId, setSelectedLesionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState('');
@@ -294,9 +294,13 @@ export function ReviewPage() {
         <Text fontSize="xs" color="text.secondary" textTransform="uppercase" letterSpacing="0.04em">Patient/Eye</Text>
         <Text fontSize="sm" fontWeight="semibold">{patientEyeContext(item)}</Text>
       </HStack>
+      <Stack spacing={3} mb={5}>
+        <CaseNavigation imageId={item.image_id} />
+        <NextActionHint item={item} models={models} />
+      </Stack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start" minW={0}>
         <Section title="Retinal preview" description={`${item.width} x ${item.height}px - ${item.modality}`}>
-          {item.image_url ? <RetinalCanvas item={item} showAi={showAi} visibleLesionLabels={lesionFilter === 'ALL' ? undefined : [lesionFilter]} showHuman={false} selectedLesionId={selectedLesionId} onSelectLesion={setSelectedLesionId} /> : (
+          {item.image_url ? <RetinalCanvas item={item} showAi={showAi} visibleLesionLabels={lesionFilter === 'ALL' ? undefined : [lesionFilter]} showHuman={false} /> : (
             <Alert status="error"><AlertIcon /><Text>{item.admission_ui?.note ?? 'This file has no readable image preview.'}</Text></Alert>
           )}
           <Stack spacing={3} mt={4} minW={0}>
@@ -323,12 +327,6 @@ export function ReviewPage() {
               </Text>
             </HStack>
           <LesionLegend />
-          <LesionActionPopover
-            item={item}
-            selectedLesionId={selectedLesionId}
-            onSaved={setItem}
-            onClose={() => setSelectedLesionId(null)}
-          />
           </Stack>
           <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={3} mt={4} fontSize="sm" minW={0}>
             <Stack spacing={1}><Text color="text.secondary">Image ID</Text><Code fontSize="xs" whiteSpace="normal">{item.image_id}</Code></Stack>

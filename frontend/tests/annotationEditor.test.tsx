@@ -79,8 +79,8 @@ describe('AnnotationEditorPage human movement', () => {
     await setupStage();
 
     expect(screen.getByRole('option', { name: 'Soft exudate' })).toHaveValue('SOFT_EXUDATE');
-    fireEvent.change(screen.getByPlaceholderText('Enter reviewer name'), { target: { value: 'Clinician' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save annotations' }));
+    fireEvent.change(screen.getByPlaceholderText('Reviewer name'), { target: { value: 'Clinician' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(annotationBody).toBeDefined());
     expect(annotationBody).toMatchObject({ annotations: [{ label: 'SOFT_EXUDATE' }] });
   });
