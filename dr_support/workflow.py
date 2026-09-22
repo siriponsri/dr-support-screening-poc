@@ -230,6 +230,11 @@ def install_workflow(app, store):
         if image is None:
             record = admission_record(image_id)
             status = (record or {}).get('integrity_status')
+            if (record or {}).get('admission_reason_code') == 'DICOM_UNSUPPORTED_MODALITY':
+                raise HTTPException(
+                    409,
+                    'This DICOM has an unsupported modality; it is not an ophthalmic retinal image for DR analysis.',
+                )
             messages = {
                 'DICOM_CODEC_REQUIRED': 'This DICOM image needs a supported pixel codec before it can be displayed.',
                 'DICOM_MULTIFRAME_UNSUPPORTED': 'Multi-frame DICOM images require explicit frame selection before display.',
@@ -242,6 +247,12 @@ def install_workflow(app, store):
         try:
             derivative = app.state.derivatives.prepare_display(image)
         except DerivativeError as exc:
+            record = admission_record(image_id)
+            if (record or {}).get('admission_reason_code') == 'DICOM_UNSUPPORTED_MODALITY':
+                raise HTTPException(
+                    409,
+                    'This DICOM has an unsupported modality; it is not an ophthalmic retinal image for DR analysis.',
+                ) from None
             messages = {
                 'DICOM_CODEC_REQUIRED': 'This DICOM image needs a supported pixel codec before it can be displayed.',
                 'DICOM_MULTIFRAME_UNSUPPORTED': 'Multi-frame DICOM images require explicit frame selection before display.',

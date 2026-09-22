@@ -88,8 +88,10 @@ describe('review evidence', () => {
 
     withProviders(<ReviewEvidencePanel item={item} onSaved={onSaved} />, '/review/CASE-001');
 
-    expect(screen.getByText(/Microaneurysm\s+0\.82/)).toBeInTheDocument();
-    expect(screen.getByText('AI detection')).toBeInTheDocument();
+    expect(screen.getByText('MA · 0.82')).toBeInTheDocument();
+    expect(screen.getByText('Microaneurysm · AI visual evidence')).toBeInTheDocument();
+    expect(screen.queryByText(/unresolved/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /MA · 0\.82/ }));
     await user.type(screen.getByPlaceholderText('Enter reviewer name'), 'Clinician');
     await user.click(screen.getByRole('button', { name: 'Confirm' }));
 

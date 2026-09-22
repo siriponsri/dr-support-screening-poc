@@ -186,6 +186,9 @@ export interface CaseRecord {
   human_annotations: HumanAnnotation[];
   clinician_review: ClinicianReview | null;
   events?: Array<Record<string, unknown>>;
+  review_history?: Array<Record<string, unknown>>;
+  annotations?: Array<Record<string, unknown>> | null;
+  cvat?: Record<string, unknown> | null;
   warnings?: string[];
   admission: AdmissionMetadata | null;
   admission_ui: AdmissionUi | null;

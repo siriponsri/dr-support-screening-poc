@@ -364,6 +364,15 @@ def _inspect_dicom(
         DicomIngestStatus.MULTIFRAME_UNSUPPORTED,
     }
     modality = "NEEDS_REVIEW" if reviewable else "REJECTED_INVALID"
+    admission_reason_code = result.status.value
+    if (
+        result.status is IntegrityStatus.UNSUPPORTED_FORMAT
+        and metadata.sop_class_category not in {
+            "OPHTHALMIC_PHOTOGRAPHY_8BIT",
+            "OPHTHALMIC_PHOTOGRAPHY_16BIT",
+        }
+    ):
+        admission_reason_code = "DICOM_UNSUPPORTED_MODALITY"
     record = _metadata(
         image_id=image_id,
         source_reference=source_reference,
@@ -375,7 +384,7 @@ def _inspect_dicom(
         mode=f"DICOM/{metadata.photometric_interpretation}",
         modality_admission=modality,
         quality_state="NOT_EVALUATED",
-        admission_reason_code=result.status.value,
+        admission_reason_code=admission_reason_code,
         quality_reason_code=None,
         source_metadata=source,
         integrity_status=result.status,
@@ -653,6 +662,13 @@ def is_inference_eligible(record: dict) -> bool:
 def clinician_view(record: dict) -> dict:
     modality = record.get("modality_admission")
     quality = record.get("quality_state")
+    if record.get("admission_reason_code") == "DICOM_UNSUPPORTED_MODALITY":
+        return {
+            "label": "Unsupported modality",
+            "note": "This DICOM has an unsupported modality; it is not an ophthalmic retinal image for DR analysis.",
+            "tone": "danger",
+            "action_required": False,
+        }
     if modality == "REJECTED_INVALID":
         return {
             "label": "Cannot analyze",

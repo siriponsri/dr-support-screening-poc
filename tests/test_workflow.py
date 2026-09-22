@@ -208,3 +208,26 @@ def test_review_evidence_keeps_ai_scores_and_human_provenance_separate(tmp_path)
     body = annotation.json()
     assert body['review_evidence']['summary']['added'] == 1
     assert body['human_annotations'][0]['source'] == 'HUMAN'
+
+
+def test_clinician_signoff_does_not_require_ai_lesion_actions(tmp_path):
+    client = TestClient(create_app(tmp_path / 'state.sqlite', include_samples=False))
+    base = '/v1/cases/SYNTH_001'
+    assert client.post('/v1/infer/global', json={
+        'image_id': 'SYNTH_001', 'model_id': 'mock-global',
+    }).status_code == 200
+    assert client.post('/v1/infer/lesion-roi', json={
+        'image_id': 'SYNTH_001', 'model_id': 'mock-lesion',
+    }).status_code == 200
+
+    initial = client.get(base).json()
+    assert initial['review_evidence']['unresolved_count'] == 1
+    saved = client.post(base + '/review', json={
+        'revision': initial['revision'],
+        'action': 'ACCEPT',
+        'reviewer': 'Signoff clinician',
+    })
+
+    assert saved.status_code == 200
+    assert saved.json()['clinician_review']['review_action'] == 'ACCEPT'
+    assert saved.json()['review_evidence']['unresolved_count'] == 1

@@ -597,7 +597,7 @@ export function AnnotationEditorPage() {
           </RetinalCanvas>
           <HStack mt={4} spacing={3} flexWrap="wrap" fontSize="sm">
             <Text fontWeight="semibold">{draft.length} human annotation{draft.length === 1 ? '' : 's'}</Text>
-            <Text color="text.secondary">AI suggestions remain suggestions until explicitly reviewed.</Text>
+            <Text color="text.secondary">AI suggestions are optional visual evidence; human annotations remain separate.</Text>
           </HStack>
         </Section>
         <Stack spacing={5}>

@@ -12,6 +12,7 @@ export function Section({ title, description, action, children }: SectionProps) 
   return (
     <Box
       bg="surface.panel"
+      minW={0}
       borderWidth="1px"
       borderColor="border.subtle"
       borderRadius="lg"
@@ -25,7 +26,7 @@ export function Section({ title, description, action, children }: SectionProps) 
         spacing={4}
         flexDirection={{ base: 'column', tablet: 'row' }}
       >
-        <Box>
+        <Box minW={0}>
           <Heading size="sm" mb={description ? 1 : 0}>
             {title}
           </Heading>

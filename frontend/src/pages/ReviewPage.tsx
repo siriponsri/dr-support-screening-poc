@@ -259,7 +259,7 @@ export function ReviewPage() {
   }
 
   return (
-    <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
+    <Box as="main" maxW="1440px" minW={0} mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader
         pathname={pathname}
         title="AI Review"
@@ -270,12 +270,12 @@ export function ReviewPage() {
         <Text fontSize="xs" color="text.secondary" textTransform="uppercase" letterSpacing="0.04em">Patient/Eye</Text>
         <Text fontSize="sm" fontWeight="semibold">{patientEyeContext(item)}</Text>
       </HStack>
-      <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start">
+      <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start" minW={0}>
         <Section title="Retinal preview" description={`${item.width} x ${item.height}px - ${item.modality}`}>
           {item.image_url ? <RetinalCanvas item={item} showAi={showAi} showHuman={false} selectedLesionId={selectedLesionId} onSelectLesion={setSelectedLesionId} /> : (
             <Alert status="error"><AlertIcon /><Text>{item.admission_ui?.note ?? 'This file has no readable image preview.'}</Text></Alert>
           )}
-          <Stack spacing={3} mt={4}>
+          <Stack spacing={3} mt={4} minW={0}>
             <HStack justify="space-between" align="center" flexWrap="wrap" gap={2}>
               <FormControl display="flex" alignItems="center" w="auto">
                 <Switch id="show-ai-suggestions" isChecked={showAi} onChange={(event) => setShowAi(event.target.checked)} mr={2} />
@@ -287,13 +287,13 @@ export function ReviewPage() {
             </HStack>
             <LesionLegend />
           </Stack>
-          <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={3} mt={4} fontSize="sm">
+          <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={3} mt={4} fontSize="sm" minW={0}>
             <Stack spacing={1}><Text color="text.secondary">Image ID</Text><Code fontSize="xs" whiteSpace="normal">{item.image_id}</Code></Stack>
             <Stack spacing={1}><Text color="text.secondary">Dimensions</Text><Text>{item.width} x {item.height}px</Text></Stack>
             <Stack spacing={1}><Text color="text.secondary">Source</Text><Text>{item.source}</Text></Stack>
           </SimpleGrid>
         </Section>
-        <Stack spacing={5}>
+        <Stack spacing={5} minW={0}>
           <Section
             title="Analysis"
             description="Run both existing remote inference contracts on this admitted image."

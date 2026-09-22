@@ -80,7 +80,7 @@ export function WorklistPage() {
           </>
         )}
       </Section>
-      <HStack mt={4} spacing={2} color="text.muted" fontSize="xs"><Text>AI suggestions require clinician review.</Text></HStack>
+      <HStack mt={4} spacing={2} color="text.muted" fontSize="xs"><Text>AI suggestions are optional visual evidence; clinician review remains authoritative.</Text></HStack>
       <ResolverDialog item={resolverCase} onClose={() => setResolverCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
       <ReadinessDialog item={readinessCase} onClose={() => setReadinessCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
     </Box>

@@ -42,11 +42,12 @@ describe('S3 worklist selectors', () => {
       global: { model_id: 'model', model_version: '1', modality: 'CFP', state: 'COMPLETE', grade: 2, probabilities: [], confidence: 0.8, warnings: [] },
     });
     const unavailable = makeCase({ image_id: 'unavailable', display_name: 'other', filename: 'other.jpg', admission_ui: { label: 'Cannot analyze', note: 'Unavailable.', tone: 'danger', action_required: false }, resolver_ui: { label: 'Patient matched', note: 'Matched.', tone: 'success', action_required: false, patient: { label: 'Patient matched', note: 'Matched.', tone: 'success', action_required: false }, laterality: { label: 'Left eye', note: 'Left.', tone: 'success', action_required: false, value: 'LEFT' } } });
+    const unsupported = makeCase({ image_id: 'unsupported', display_name: 'brain-mri', filename: 'brain-mri.dcm', admission_ui: { label: 'Unsupported modality', note: 'MRI is not supported.', tone: 'danger', action_required: false }, resolver_ui: { label: 'Patient matched', note: 'Matched.', tone: 'success', action_required: false, patient: { label: 'Patient matched', note: 'Matched.', tone: 'success', action_required: false }, laterality: { label: 'Left eye', note: 'Left.', tone: 'success', action_required: false, value: 'LEFT' } } });
 
-    expect(filterCases([resolved, unavailable], 'PAT0007', DEFAULT_FILTERS)).toEqual([resolved]);
-    expect(filterCases([resolved, unavailable], '', { ...DEFAULT_FILTERS, ai: 'analyzed' })).toEqual([resolved]);
-    expect(filterCases([resolved, unavailable], '', { ...DEFAULT_FILTERS, ai: 'unavailable' })).toEqual([unavailable]);
-    expect(filterCases([resolved, unavailable], '', { ...DEFAULT_FILTERS, readiness: 'identity' })).toEqual([]);
+    expect(filterCases([resolved, unavailable, unsupported], 'PAT0007', DEFAULT_FILTERS)).toEqual([resolved]);
+    expect(filterCases([resolved, unavailable, unsupported], '', { ...DEFAULT_FILTERS, ai: 'analyzed' })).toEqual([resolved]);
+    expect(filterCases([resolved, unavailable, unsupported], '', { ...DEFAULT_FILTERS, ai: 'unavailable' })).toEqual([unavailable, unsupported]);
+    expect(filterCases([resolved, unavailable, unsupported], '', { ...DEFAULT_FILTERS, readiness: 'identity' })).toEqual([]);
     expect(identityNeedsAction(resolved)).toBe(false);
     expect(identityNeedsAction(makeCase({
       patient_key: 'PAT0008',

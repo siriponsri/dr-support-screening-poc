@@ -5,6 +5,7 @@ import {
   AlertIcon,
   Badge,
   Box,
+  Code,
   Center,
   HStack,
   Select,
@@ -39,6 +40,68 @@ function Metadata({ result, descriptor }: { result: GlobalResult | LesionResult 
 
 function Warnings({ warnings }: { warnings: string[] }) {
   return warnings.length ? <Alert status="warning" mt={4}><AlertIcon /><Stack spacing={1}>{warnings.map((warning, index) => <Text key={`${warning}-${index}`} fontSize="sm">{warning}</Text>)}</Stack></Alert> : null;
+}
+
+function eventValue(event: Record<string, unknown>, key: string) {
+  const value = event[key];
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : null;
+}
+
+function CaseLineage({ item }: { item: CaseRecord }) {
+  const sourceSha = item.source_sha256 ?? item.review_evidence?.source_sha256 ?? null;
+  const analysisSha = item.analysis_derivative?.analysis_sha256 ?? item.review_evidence?.analysis_sha256 ?? null;
+  const inferenceEvents = (item.events ?? []).filter((event) => event.action === 'INFERENCE');
+  const aiCount = item.lesion?.lesions.length ?? item.review_evidence?.items.filter((entry) => entry.source === 'AI').length ?? 0;
+  const cvatCount = item.annotations?.length ?? 0;
+
+  return (
+    <Section title="Case lineage & annotation provenance" description="Read-only evidence for this case. Hashes identify the source and exact analysis bytes; counts do not establish accuracy.">
+      <Stack spacing={4} minW={0}>
+        <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={3}>
+          <Stack spacing={1} minW={0}>
+            <Text fontSize="sm" color="text.secondary">Source SHA-256</Text>
+            {sourceSha ? <Code fontSize="xs" whiteSpace="normal" wordBreak="break-all">{sourceSha}</Code> : <Text fontSize="sm">Not recorded</Text>}
+          </Stack>
+          <Stack spacing={1} minW={0}>
+            <Text fontSize="sm" color="text.secondary">Analysis SHA-256</Text>
+            {analysisSha ? <Code fontSize="xs" whiteSpace="normal" wordBreak="break-all">{analysisSha}</Code> : <Text fontSize="sm">Not recorded</Text>}
+          </Stack>
+        </SimpleGrid>
+        <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={3}>
+          <Stack spacing={1}><Text fontSize="sm" color="text.secondary">AI visual evidence</Text><Text fontSize="xl" fontWeight="semibold">{aiCount}</Text></Stack>
+          <Stack spacing={1}><Text fontSize="sm" color="text.secondary">Human annotations</Text><Text fontSize="xl" fontWeight="semibold">{item.human_annotations.length}</Text></Stack>
+          <Stack spacing={1}><Text fontSize="sm" color="text.secondary">CVAT imported</Text><Text fontSize="xl" fontWeight="semibold">{cvatCount}</Text></Stack>
+        </SimpleGrid>
+        <Stack spacing={2} minW={0}>
+          <Text fontSize="sm" color="text.secondary">Inference metadata</Text>
+          {inferenceEvents.length ? inferenceEvents.map((event, index) => {
+            const modelId = eventValue(event, 'model_id') ?? 'Model not reported';
+            const model = modelId === item.global?.model_id ? item.global : modelId === item.lesion?.model_id ? item.lesion : null;
+            const revision = model?.model_version ?? 'Revision not reported';
+            const runtime = eventValue(event, 'runtime');
+            const latency = eventValue(event, 'latency_ms');
+            const timestamp = eventValue(event, 'timestamp');
+            return (
+              <Box key={`${modelId}-${index}`} borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3} minW={0}>
+                <HStack justify="space-between" align="flex-start" flexWrap="wrap" gap={2}>
+                  <Text fontWeight="semibold">{modelId}</Text>
+                  <Text fontSize="sm" color="text.secondary">{revision}</Text>
+                </HStack>
+                <Text fontSize="xs" color="text.muted">
+                  {[runtime && `Runtime ${runtime}`, latency && `Latency ${latency} ms`, timestamp && new Date(timestamp).toLocaleString()].filter(Boolean).join(' - ') || 'Event metadata recorded without runtime details.'}
+                </Text>
+              </Box>
+            );
+          }) : <Text fontSize="sm" color="text.secondary">No inference events recorded for this case.</Text>}
+        </Stack>
+        {item.analysis_derivative && <Stack spacing={1} minW={0}>
+          <Text fontSize="sm" color="text.secondary">Analysis transform</Text>
+          <Text fontSize="sm">{item.analysis_derivative.transform_id} - {item.analysis_derivative.lineage.coordinate_space}</Text>
+          <Text fontSize="xs" color="text.muted">{item.analysis_derivative.transform_description}</Text>
+        </Stack>}
+      </Stack>
+    </Section>
+  );
 }
 
 function ProbabilityBars({ result }: { result: GlobalResult }) {
@@ -120,7 +183,7 @@ export function ModelsPage() {
     <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader pathname={pathname} title="Model Audit & Explainability" subtitle="Actual model metadata, case results, and bounded visual evidence" />
       {error && <Alert status="error" mb={5}><AlertIcon /><Text>{error}</Text></Alert>}
-      <Stack spacing={5}>
+      <Stack spacing={5} minW={0}>
         <Section title="Model readiness" description="Metadata is read from the existing /v1/models contract; unavailable remote state is shown honestly.">
           <ModelDescriptorGrid models={models} />
         </Section>
@@ -128,7 +191,7 @@ export function ModelsPage() {
           {cases.length ? <Select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{cases.map((entry) => <option key={entry.image_id} value={entry.image_id}>{entry.display_name} - {entry.image_id}</option>)}</Select> : <Center py={8}><Spinner color="action.primary" /></Center>}
         </Section>
         {item && (
-          <SimpleGrid columns={{ base: 1, laptop: 2 }} spacing={5}>
+          <SimpleGrid columns={{ base: 1, laptop: 2 }} spacing={5} minW={0}>
             <Section title="RETFound - Score-level decision context" description="No saliency explanation is produced by the current RETFound bridge.">
               <Stack spacing={4}>
                 <Metadata result={item.global} descriptor={retfound} />
@@ -146,6 +209,7 @@ export function ModelsPage() {
             </Section>
           </SimpleGrid>
         )}
+        {item && <CaseLineage item={item} />}
         <Alert status="info"><AlertIcon /><Text fontSize="sm">AI outputs support clinician review and are not ground truth.</Text></Alert>
       </Stack>
     </Box>

@@ -11,7 +11,7 @@ pytest.importorskip("pydicom")
 
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.encaps import encapsulate
-from pydicom.uid import ExplicitVRLittleEndian, JPEGBaseline8Bit, generate_uid
+from pydicom.uid import ExplicitVRLittleEndian, JPEGBaseline8Bit, MRImageStorage, generate_uid
 
 from dr_support.api import create_app
 from dr_support.imaging import DicomImageHandler, IntegrityStatus
@@ -20,25 +20,25 @@ from dr_support.imaging import DicomImageHandler, IntegrityStatus
 OPHTHALMIC_PHOTOGRAPHY_8BIT = "1.2.840.10008.5.1.4.1.1.77.1.4.1"
 
 
-def _file_meta(transfer_syntax):
+def _file_meta(transfer_syntax, sop_class_uid=OPHTHALMIC_PHOTOGRAPHY_8BIT):
     meta = FileMetaDataset()
     meta.FileMetaInformationVersion = b"\x00\x01"
-    meta.MediaStorageSOPClassUID = OPHTHALMIC_PHOTOGRAPHY_8BIT
+    meta.MediaStorageSOPClassUID = sop_class_uid
     meta.MediaStorageSOPInstanceUID = generate_uid()
     meta.TransferSyntaxUID = transfer_syntax
     meta.ImplementationClassUID = generate_uid()
     return meta
 
 
-def _dicom_bytes(*, frames=1, transfer_syntax=ExplicitVRLittleEndian):
+def _dicom_bytes(*, frames=1, transfer_syntax=ExplicitVRLittleEndian, sop_class_uid=OPHTHALMIC_PHOTOGRAPHY_8BIT):
     pixels = np.arange(frames * 12 * 16 * 3, dtype=np.uint8).reshape(frames, 12, 16, 3)
     dataset = FileDataset(
         "synthetic.dcm",
         {},
-        file_meta=_file_meta(transfer_syntax),
+        file_meta=_file_meta(transfer_syntax, sop_class_uid),
         preamble=b"\x00" * 128,
     )
-    dataset.SOPClassUID = OPHTHALMIC_PHOTOGRAPHY_8BIT
+    dataset.SOPClassUID = sop_class_uid
     dataset.SOPInstanceUID = generate_uid()
     dataset.StudyInstanceUID = generate_uid()
     dataset.SeriesInstanceUID = generate_uid()
@@ -204,6 +204,35 @@ def test_multiframe_dicom_is_reviewable_but_not_admitted_for_display(tmp_path):
     display = client.get(f"/v1/images/{image_id}/display")
     assert display.status_code == 409
     assert "frame selection" in display.json()["detail"].lower()
+
+
+def test_non_ophthalmic_dicom_reports_unsupported_modality(tmp_path):
+    data = _dicom_bytes(sop_class_uid=str(MRImageStorage))
+    app, client, input_folder = _workspace_client(tmp_path)
+    source = input_folder / "brain-mri.dcm"
+    source.write_bytes(data)
+    image_id = hashlib.sha256(data).hexdigest()
+
+    scan = client.post("/v1/admissions/scan")
+    record = next(item for item in scan.json()["records"] if item["image_id"] == image_id)
+
+    assert record["modality_admission"] == "REJECTED_INVALID"
+    assert record["integrity_status"] == "UNSUPPORTED_FORMAT"
+    assert record["admission_reason_code"] == "DICOM_UNSUPPORTED_MODALITY"
+    assert image_id not in app.state.images
+
+    case = client.get(f"/v1/cases/{image_id}")
+    assert case.status_code == 200
+    assert case.json()["admission_ui"] == {
+        "label": "Unsupported modality",
+        "note": "This DICOM has an unsupported modality; it is not an ophthalmic retinal image for DR analysis.",
+        "tone": "danger",
+        "action_required": False,
+    }
+    display = client.get(f"/v1/images/{image_id}/display")
+    assert display.status_code == 409
+    assert "unsupported" in display.json()["detail"].lower()
+    assert "ophthalmic retinal image" in display.json()["detail"].lower()
 
 
 def test_corrupt_dicom_is_safe_invalid_admission_and_display_failure(tmp_path):

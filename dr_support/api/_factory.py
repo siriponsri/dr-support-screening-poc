@@ -5,6 +5,7 @@ integration, and the inference dispatcher (which transparently routes to local
 providers or the remote proxy based on ``MODEL_RUNTIME``).
 """
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
 
@@ -420,7 +421,11 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
                     case['reviewed_grade'] = None
                     case['grade_review_source'] = None
                     case['clinician_review'] = None
-                event = {'action': 'INFERENCE', 'model_id': request.model_id}
+                event = {
+                    'action': 'INFERENCE',
+                    'model_id': request.model_id,
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                }
                 if derivative_record is not None:
                     event.update({
                         'source_sha256': derivative_record['source_sha256'],

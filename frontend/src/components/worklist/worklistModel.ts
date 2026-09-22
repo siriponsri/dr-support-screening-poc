@@ -50,7 +50,7 @@ export function caseNeedsAttention(item: CaseRecord): boolean {
 export type AiState = 'analyzed' | 'not-analyzed' | 'unavailable';
 
 export function aiState(item: CaseRecord): AiState {
-  if (item.admission_ui?.label === 'Cannot analyze') return 'unavailable';
+  if (['Cannot analyze', 'Unsupported modality'].includes(item.admission_ui?.label ?? '')) return 'unavailable';
   if (item.global || item.lesion) return 'analyzed';
   return 'not-analyzed';
 }
