@@ -7,7 +7,7 @@ interface BrandMarkProps {
 
 export function BrandMark({ compact = false }: BrandMarkProps) {
   return (
-    <HStack spacing={2.5} align="center" as="a" href="#/" aria-label="DR Support Screening home">
+    <HStack spacing={2.5} align="center" as="a" href="#/" aria-label="Retinal Review Workbench home">
       <Box
         as="span"
         display="grid"
@@ -24,10 +24,10 @@ export function BrandMark({ compact = false }: BrandMarkProps) {
       {!compact && (
         <Box as="span" lineHeight="1.2">
           <Text fontSize="md" fontWeight="semibold" color="text.primary">
-            DR Support
+            Retinal Review
           </Text>
           <Text fontSize="xs" color="text.secondary" fontWeight="medium">
-            Clinician review
+            Workbench
           </Text>
         </Box>
       )}

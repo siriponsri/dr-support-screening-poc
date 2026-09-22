@@ -15,3 +15,4 @@ def test_start_cmd_is_the_single_owner_launcher():
     assert 'IMG_02.jpg' not in launcher
     assert 'IMG_03.jpg' not in launcher
     assert not (ROOT / 'START_DEMO.cmd').exists()
+    assert 'Retinal Review Workbench' in launcher or 'clinician review workstation' in launcher

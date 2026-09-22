@@ -1,8 +1,9 @@
 {
   "name": "dr-support-screening-poc-ui-tests",
   "private": true,
+  "description": "Retinal Review Workbench release smoke tests",
   "scripts": {
-    "test": "node tests/overlay.test.cjs && node tests/api_hardening.test.cjs && node tests/ui.test.cjs && node tests/preview.test.cjs",
+    "test": "node tests/overlay.test.cjs && node tests/api_hardening.test.cjs && node tests/ui.test.cjs",
     "test:overlay": "node tests/overlay.test.cjs"
   },
   "devDependencies": {

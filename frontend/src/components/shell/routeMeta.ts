@@ -21,8 +21,8 @@ export const ROUTE_META: Record<string, RouteMeta> = {
     subtitle: 'Manage retinal imaging workspaces',
   },
   '/review': {
-    title: 'AI Review',
-    subtitle: 'Inspect model suggestions before clinician sign-off',
+    title: 'Review',
+    subtitle: 'Inspect optional model evidence before clinician sign-off',
   },
   '/edit': {
     title: 'Annotation Editor',
@@ -40,14 +40,10 @@ export const ROUTE_META: Record<string, RouteMeta> = {
     title: 'Settings',
     subtitle: 'Workspace, runtime, and clinician preferences',
   },
-  '/_foundation': {
-    title: 'Design foundation',
-    subtitle: 'Theme tokens, components, and responsive primitives',
-  },
 };
 
 export const DEFAULT_META: RouteMeta = {
-  title: 'DR Support Screening',
+  title: 'Retinal Review Workbench',
   subtitle: 'Clinician review workspace',
 };
 

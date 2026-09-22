@@ -35,7 +35,7 @@ class RETFound:
     def metadata(self):
         configured = all(os.environ.get(k) for k in ('RETFOUND_SOURCE', 'RETFOUND_WEIGHTS'))
         snap = runtime_snapshot()
-        warnings = ['CC-BY-NC-4.0; research/non-commercial only', 'Uncalibrated Bridge model; not R1 champion']
+        warnings = ['CC-BY-NC-4.0; research/non-commercial only', 'Uncalibrated research model; no clinical performance claim']
         requested = snap.requested_device
         effective = snap.effective_device
         # Surface device honesty: if the request could not be honoured we

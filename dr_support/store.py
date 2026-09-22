@@ -1,4 +1,4 @@
-"""Single-runtime durable Bridge records and optimistic review revisions."""
+"""Single-runtime durable review records and optimistic revisions."""
 import json
 import sqlite3
 from pathlib import Path

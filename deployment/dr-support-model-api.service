@@ -1,0 +1,20 @@
+[Unit]
+Description=Retinal Review Workbench Model API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=drsupport
+WorkingDirectory=/opt/dr-support-screening-poc
+EnvironmentFile=/etc/dr-support/model-server.env
+ExecStart=/opt/dr-support-screening-poc/scripts/model-server/start.sh
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="logo-title logo-desc">
-<title id="logo-title">DR Support logo</title>
+<title id="logo-title">Retinal Review Workbench logo</title>
 <desc id="logo-desc">A minimal medicine-green retinal eye mark with a small red-soil optic-disc accent.</desc>
 <rect x="16" y="16" width="224" height="224" rx="48" fill="#016301"/>
 <path d="M48 128c20-36 48-56 80-56s60 20 80 56c-20 36-48 56-80 56s-60-20-80-56Z" fill="none" stroke="#ffffff" stroke-width="10" stroke-linejoin="round"/>

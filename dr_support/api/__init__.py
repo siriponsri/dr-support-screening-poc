@@ -1,4 +1,4 @@
-"""Provider-neutral review API for the DR Support Screening POC.
+"""Provider-neutral review API for Retinal Review Workbench.
 
 This package exposes the clinician workstation surface:
 

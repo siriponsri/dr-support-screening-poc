@@ -1,1 +1,1 @@
-"""Independent public/synthetic clinician-review POC."""
+"""Model providers for Retinal Review Workbench."""

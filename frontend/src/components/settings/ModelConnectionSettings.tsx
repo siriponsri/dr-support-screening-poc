@@ -54,7 +54,7 @@ export function ModelConnectionSettings() {
 
   const status = statusView(connection);
   return (
-    <Section title="AI Model Connection" description="Optional provider-neutral connection for a Lightning host, hospital LAN GPU server, or local GPU API." action={<StatusBadge tone={status.tone}><CheckCircle2 size={11} aria-hidden="true" /> {status.label}</StatusBadge>}>
+    <Section title="AI Model Connection" description="Optional provider-neutral connection for a hospital LAN GPU server or local GPU API." action={<StatusBadge tone={status.tone}><CheckCircle2 size={11} aria-hidden="true" /> {status.label}</StatusBadge>}>
       {loading ? <HStack color="text.secondary"><Spinner size="sm" /><Text fontSize="sm">Loading connection settings</Text></HStack> : (
         <Stack spacing={4}>
           {feedback && <Alert status={feedback.status}><AlertIcon /><Text fontSize="sm">{feedback.message}</Text></Alert>}

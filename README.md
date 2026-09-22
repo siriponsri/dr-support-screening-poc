@@ -1,88 +1,127 @@
-# DR Support Screening POC
+# Retinal Review Workbench
 
-Independent, public/synthetic clinician-review proof of concept.
-RETFound grade suggestions → PRISM-DR lesion suggestions → clinician review → CVAT Online.
+<p align="center"><img src="assets/dr-support-logo.svg" width="104" alt="Retinal Review Workbench logo"></p>
 
-This project has its own Git history, model API, runtime, and release lifecycle.
-OcuForge is a read-only architecture reference, not a dependency or destination for these commits.
-No frozen OcuForge scientific artifacts, research code, datasets, or results are included.
+Retinal Review Workbench is a clinician-controlled retinal screening review and dataset workspace. It admits retinal images, resolves patient and eye context, keeps the original source and derived analysis traceable, and supports optional model evidence before human review and export.
 
-See [the plan](docs/MASTER_PLAN.md), [V2 implementation plan](docs/V2_IMPLEMENTATION_PLAN.md), and [provenance](docs/PROVENANCE.md).
-Research-only AI suggestions require clinician review. No diagnosis or autonomous referral.
+It is a public/synthetic research and clinical-support proof of concept. It is not autonomous diagnosis, referral, or a regulated medical device.
 
-Current UI profile: neutral premium clinical aesthetic with a subtle red-soil accent (`#A73B24`).
-Lesion overlay colors remain an independent high-contrast annotation palette.
+![Hospital deployment architecture](assets/system-architecture.png)
 
-## Open the delivery
+## Clinician workflow
 
-Extract the ZIP into a new folder. Double-click `PREVIEW.html` to inspect all ten public samples
-and recorded real-model suggestions for 01_dr without installing anything. The preview cannot
-run models or record reviews.
+1. Start or select a local Workspace with an input folder, output folder, and SQLite review database.
+2. Scan the input folder. The Worklist reports image readiness, patient/eye context, review status, and unsupported inputs in plain language.
+3. Open an eligible image in Review. The original image stays primary; zoom, pan, and full-screen inspection remain available.
+4. Run model assistance when needed. RETFound provides a DR grade suggestion; PRISM-DR provides optional lesion overlays. Overlay labels show class and score such as `HE - 0.90`.
+5. Toggle or filter overlays. A clinician may inspect, edit, remove, or leave any individual ROI. No per-lesion confirmation is required before clinician review can be completed.
+6. Save the human review decision. Use Advanced annotation/CVAT only when detailed geometry correction is necessary.
+7. Inspect Models & Audit for read-only model, inference, hash, and annotation provenance, then export the reviewed dataset from Datasets.
 
-For live inference/review on a Python-capable developer host, see
-[LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md); Windows entrypoint: `START.cmd`.
-The restricted owner workstation can remain browser-only when a developer hosts the API later.
+![Clinician workflow](assets/clinician-workflow.png)
 
-## Provider-neutral REMOTE runtime (v0.2.1)
+## Architecture
 
-Inference can be proxied to a separately deployed Remote Model API without
-changing the UI or the persisted review state. The review profile always uses
-`MODEL_RUNTIME=remote`; `REMOTE_MODEL_URL` is optional at startup and
-`REMOTE_MODEL_TOKEN` remains optional. Without an endpoint, model inference is
-unavailable while the local review workflow remains usable. See
-[REMOTE_MODEL_API.md](docs/REMOTE_MODEL_API.md) for the deployment contract
-and [LOCAL_RUNBOOK.md](docs/LOCAL_RUNBOOK.md) for the configuration knobs.
-No models are deployed from this repository.
+The review workstation runs the `review` profile and never loads model weights. It calls the provider-neutral Model API over the configured hospital network. The GPU host runs `model_api` with `MODEL_RUNTIME=local`, verified local assets, and one worker by default. CVAT Online is optional and is not required for offline review or export.
 
-## Multi-runtime-profile architecture (v0.3.0)
+| Component | Role |
+| --- | --- |
+| Review application | React/Vite clinician UI served by FastAPI at `/app/`; local SQLite review state and workspace catalog. |
+| RETFound | Five-class DR grade suggestion through `retfound-aptos5`; score output is uncalibrated model evidence. |
+| PRISM-DR | Lesion ROI suggestions through `prism-dr-5fold`; raw detections remain distinct from bounded display/pre-label evidence. |
+| Model API | FastAPI endpoints `/health`, `/v1/models`, `/v1/predict/dr`, and `/v1/predict/lesions`. |
+| Dataset export | Provenance-preserving `manifest.json`, `images.csv`, and `annotations.csv` written to the configured output folder. |
 
-A single codebase ships three runtime profiles selected via `APP_PROFILE`:
+## Supported input intent
 
-- `review`     clinician workstation; UI, cases, review, CVAT, remote-proxy. **Must not load weights.**
-- `model_api`  GPU deployment of the Remote Model API contract (`/health`, `/v1/models`, `/v1/predict/{dr,lesions}`).
-- `full`       both surfaces mounted together for public/synthetic demos.
+The supported retinal input intent is JPEG, PNG, TIFF, and standards-conformant single-frame ophthalmic photography DICOM handled by the DICOM extras. Ophthalmic DICOM remains on the existing display and provenance path. MRI, OCT, PACS objects, non-fundus DICOM, unsupported SOP classes, multi-frame objects, and untested transfer syntaxes are not added to model support. A recognized non-fundus DICOM is reported as `Unsupported modality`; a codec, decode, or multi-frame problem keeps its specific technical status.
 
-The active profile and `MODEL_RUNTIME` are cross-validated at startup — the
-review workstation refuses to load weights locally; the model API refuses to
-proxy to itself. See [docs/PROFILES.md](docs/PROFILES.md) for the full matrix
-and [docs/PROFILES.md#hf-docker-space-deployment](docs/PROFILES.md) for the
-single-image deployment story. The HF Docker Space target is Nvidia T4 small.
+RETFound and PRISM-DR accept fundus CFP inputs only. Empty PRISM detections do not prove that no lesion is present. Human review remains authoritative.
 
-The codebase layout mirrors the profile split:
+## Review workstation quick start
 
-```
-dr_support/
-  api/        clinician review workstation (cases, review, CVAT, UI, remote proxy)
-  services/   standalone deployment-side services (currently model_api)
-  providers/  shared model adapters (RETFound, PRISM, mock, remote proxy)
-  contracts/  Bridge v1 request/response schemas
-  app.py      top-level profile dispatcher
+Prerequisites: Python 3.11 or 3.12, Node.js/npm, and (for DICOM) the optional DICOM dependencies.
+
+```powershell
+git clone https://github.com/siriponsri/dr-support-screening-poc.git
+cd dr-support-screening-poc
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install -e ".[test,dicom]"
+npm ci
+cd frontend
+npm ci
+npm run build
+cd ..
+START.cmd
 ```
 
-## V2 clinician-first redesign
+Open `http://127.0.0.1:8000/app/`. `START.cmd` sets `APP_PROFILE=review` and `MODEL_RUNTIME=remote`; configure `REMOTE_MODEL_URL` and, when required, `REMOTE_MODEL_TOKEN` in the private process environment before starting. The workstation remains usable for admission, review state, and export while the Model API is unavailable, but inference is disabled until the connection is healthy.
 
-The interface is now organized around three views:
+## Hospital Model API
 
-1. **Worklist** — select a case and see review status at a glance.
-2. **Case Review** — the hero experience: large retinal image viewer, AI grade suggestion,
-   lesion overlay, per-class filters, and a right-side AI Review panel.
-3. **Models & Audit** — provider readiness, provenance, and limitations.
+Use a Linux GPU host for the supported long-running deployment. The one-time setup is online because it installs dependencies, clones the pinned upstream sources, downloads the approved checkpoint assets, verifies hashes, and runs synthetic smoke inference:
 
-Primary clinician workflow:
+```bash
+git clone https://github.com/siriponsri/dr-support-screening-poc.git /opt/dr-support-screening-poc
+cd /opt/dr-support-screening-poc
+./scripts/model-server/setup.sh
+```
 
-- Open a case from the Worklist.
-- Click **Analyze** (or review pre-computed suggestions) to generate the grade and lesion findings.
-- Inspect the retinal image with zoom, pan, and lesion overlays.
-- Record a decision: **Accept**, **Adjust Grade**, **Needs Annotation**, or **Escalate**.
-- Use **Advanced Edit** only when geometry-level correction in CVAT Online is necessary.
+`setup.sh` ends with `READY` only after RETFound and PRISM-DR assets pass revision/checkpoint verification and the smoke checks. The pinned source revisions and hashes are declared in `dr_support/providers/retfound.py`, `dr_support/providers/prism.py`, and `dr_support/providers/prism_assets.json`.
 
-CVAT integration remains intact underneath: Advanced Edit prepares the CVAT task, pushes the
-bounded pre-label set, and opens the CVAT job. Synced corrections are imported back into the
-case and shown as solid geometry over the original AI suggestions.
+Normal startup is read-only and does not download assets:
 
-## v0.1.2 live CVAT overlay patch
+```bash
+cd /opt/dr-support-screening-poc
+./scripts/model-server/start.sh
+# in another shell
+./scripts/model-server/healthcheck.sh
+```
 
-The live backend round-trip has been observed on CVAT Project `445923`. After syncing clinician
-edits, the Annotation canvas shows imported CVAT corrections as the primary solid geometry and
-preserves original AI boxes as dashed/faded provenance. `START.cmd` also supports a uv-managed
-Python 3.12 fallback when Windows `py -3.12` is unavailable.
+The start script verifies all local assets, requires CUDA by default, sets `WORKERS=1`, and starts on `0.0.0.0:7860`. Missing or modified assets fail closed. After setup, normal startup and inference do not require internet access. For systemd, use `sudo ./scripts/model-server/install-service.sh`, then `sudo systemctl start dr-support-model-api`.
+
+## Deployment topology
+
+The review workstation and Model API should be on a protected hospital LAN. Do not expose the Model API directly to the public internet. Put TLS/authentication and firewall policy at the hospital boundary; the optional bearer token is supplied through environment/secrets management and is never committed.
+
+The included service unit uses `/opt/dr-support-screening-poc`, user `drsupport`, `/etc/dr-support/model-server.env`, and port `7860`. The review workstation uses local workspace storage and connects to that service with `REMOTE_MODEL_URL`.
+
+## Offline-after-setup behavior
+
+Once setup succeeds, the Model API uses only the verified local source checkouts and checkpoint files. Startup invokes `python -m dr_support.setup_models --model all --verify`; it never calls a download path. Offline acceptance covers `/health`, `/v1/models`, and local inference. CVAT Online is intentionally optional and excluded from the offline requirement.
+
+## Documentation
+
+- [Installation](docs/INSTALLATION.md) - clean-clone workstation and server setup.
+- [Deployment](docs/DEPLOYMENT.md) - topology, service lifecycle, and connectivity.
+- [Model Server](docs/MODEL_SERVER.md) - assets, verification, startup, and health checks.
+- [Operator Runbook](docs/OPERATOR_RUNBOOK.md) - routine operations and escalation.
+- [Configuration](docs/CONFIGURATION.md) - environment variables and safe defaults.
+- [Security and Privacy](docs/SECURITY_PRIVACY.md) - data, secrets, and safety boundaries.
+- [Backup and Restore](docs/BACKUP_RESTORE.md) - state, exports, and recovery.
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - actionable failure checks.
+- [Clinician User Manual](docs/CLINICIAN_USER_MANUAL.md) and [PDF](docs/CLINICIAN_USER_MANUAL.pdf).
+- [CVAT Online setup](docs/CVAT_ONLINE_SETUP.md) - optional dense annotation only.
+- [Future Experiments](docs/FUTURE_EXPERIMENTS.md) - explicitly deferred work.
+- [Release Checklist](docs/RELEASE_CHECKLIST.md) - maintainer acceptance checks.
+
+## Validation
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe -m ruff check dr_support tests
+cd frontend
+npm test
+npm run typecheck
+npm run build
+cd ..
+npm test
+```
+
+## Privacy and safety
+
+Use only synthetic/public fixtures in tests, screenshots, and examples. Do not commit PHI, secrets, CVAT credentials, model weights, runtime databases, or local-state artifacts. Original admitted images remain immutable; exported manifests use the existing pseudonymous and provenance-aware contracts. Do not treat model scores as calibrated clinical probabilities, and do not interpret an empty model result as absence of disease.
+
+## License
+
+See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for project and third-party terms. RETFound and PRISM-DR remain subject to their upstream research/non-commercial and dependency licenses; hospital deployment must obtain its own legal clearance.

@@ -51,7 +51,7 @@ describe('Sidebar navigation', () => {
 
   it('exposes a brand mark and an explicit workspace recovery state', async () => {
     renderAppAt('/worklist');
-    expect(screen.getAllByLabelText(/DR Support Screening home/i)[0]).toBeInTheDocument();
+    expect(screen.getAllByLabelText(/Retinal Review Workbench home/i)[0]).toBeInTheDocument();
     expect(await screen.findByText(/Workspace unavailable|No workspace open/i)).toBeInTheDocument();
   });
 
@@ -108,9 +108,10 @@ describe('Route navigation', () => {
 
     await user.click(link);
 
-    // The Models placeholder heading appears within the main outlet.
+    // The shell header and page header share the route title; target the
+    // in-content heading to keep the assertion specific.
     expect(
-      await screen.findByRole('heading', { level: 1, name: /Model Audit & Explainability/i }, { timeout: 5000 })
+      (await screen.findAllByRole('heading', { level: 1, name: /Models & Audit/i }, { timeout: 5000 }))[1]
     ).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-"""Acquire exactly the ten owner-authorized public HRF DR smoke images."""
+"""Acquire exactly the ten approved public HRF retinal review samples."""
 import hashlib
 import json
 import urllib.request

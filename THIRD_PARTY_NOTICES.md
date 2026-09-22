@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This file records the principal third-party materials used or referenced by the POC.
+This file records the principal third-party materials used or referenced by the product.
 It is not legal advice and does not replace the upstream license texts.
 
 ## RETFound
@@ -8,8 +8,8 @@ It is not legal advice and does not replace the upstream license texts.
 - Upstream: https://github.com/rmaphoh/RETFound
 - Pinned source revision: `ae9a9ecf37857cf47b8aa9f87cd6f710d75db287`
 - Repository license: Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0).
-- Bridge use: research/non-commercial only; no commercial clearance is asserted.
-- The POC does not redistribute the checkpoint. Setup retrieves the owner-selected upstream checkpoint and verifies its SHA-256.
+- Product use: research/non-commercial only; no commercial clearance is asserted.
+- The product does not redistribute the checkpoint. Setup retrieves the approved upstream checkpoint and verifies its SHA-256.
 
 ## PRISM-DR
 
@@ -17,8 +17,8 @@ It is not legal advice and does not replace the upstream license texts.
 - Pinned source revision: `79637440a535e4f8118e939d3787121f82180125`
 - Repository code license: MIT.
 - The v1.0 release states that the trained weights were produced with Ultralytics YOLO and describes them for academic use.
-- The PRISM-DR runtime depends on Ultralytics components licensed under AGPL-3.0 in the referenced upstream ecosystem. No commercial deployment clearance is asserted by this POC.
-- The POC does not redistribute the PRISM weights in Git history; setup verifies the released assets by SHA-256.
+- The PRISM-DR runtime depends on Ultralytics components licensed under AGPL-3.0 in the referenced upstream ecosystem. No commercial deployment clearance is asserted by this product.
+- The product does not redistribute the PRISM weights in Git history; setup verifies the released assets by SHA-256.
 
 ## HRF / MedOtter mirror
 

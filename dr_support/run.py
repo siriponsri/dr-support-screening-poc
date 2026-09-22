@@ -7,7 +7,7 @@ The active runtime profile is selected via ``APP_PROFILE``:
                             needs ``MODEL_RUNTIME=local``.
 - ``full``                  both surfaces mounted together for public demos.
 
-See ``docs/PROFILES.md`` for the full matrix.
+See ``docs/CONFIGURATION.md`` for the profile matrix.
 """
 import os
 from pathlib import Path

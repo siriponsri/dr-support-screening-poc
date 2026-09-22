@@ -1,8 +1,7 @@
 """Review workstation FastAPI factory.
 
-Preserved from the V2 implementation. Routes the UI, cases, review state, CVAT
-integration, and the inference dispatcher (which transparently routes to local
-providers or the remote proxy based on ``MODEL_RUNTIME``).
+Routes the clinician UI, cases, review state, CVAT integration, and the
+inference dispatcher, which routes to local providers or the remote proxy.
 """
 import os
 from datetime import datetime, timezone
@@ -62,7 +61,7 @@ from .dataset import install_dataset_routes
 
 
 def create_app(state_path=None, include_samples=True, include_demo_fixtures=True):
-    app = FastAPI(title='DR Support Screening POC', version='0.4.0')
+    app = FastAPI(title='Retinal Review Workbench', version='0.6.0')
     root = Path(__file__).resolve().parents[2]
 
     demo_folder = (os.environ.get('DR_DEMO_FOLDER') or '').strip()

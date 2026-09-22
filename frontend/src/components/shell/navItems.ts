@@ -1,5 +1,5 @@
 /**
- * Canonical sidebar navigation for the DR Support Screening shell.
+ * Canonical sidebar navigation for the Retinal Review Workbench shell.
  *
  * Five primary destinations plus Settings. Each entry maps a `to` path to an
  * icon, label, and optional one-liner used in the route header.

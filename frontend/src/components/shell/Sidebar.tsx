@@ -123,7 +123,7 @@ export function Sidebar({
               <Text fontWeight="bold" color="text.primary">
                 Public &amp; synthetic only
               </Text>
-              <Text>Research use · v0.4.0</Text>
+                <Text>Research use · v0.6.0</Text>
             </VStack>
           </HStack>
         </>
@@ -145,7 +145,7 @@ function CollapsedBrandMark() {
     <Box
       as="a"
       href="#/"
-      aria-label="DR Support Screening home"
+      aria-label="Retinal Review Workbench home"
       display="grid"
       placeItems="center"
       w="36px"

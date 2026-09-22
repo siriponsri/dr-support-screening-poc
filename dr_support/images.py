@@ -1,4 +1,4 @@
-"""Only server-admitted, hashed public/synthetic images may enter the Online Bridge."""
+"""Only server-admitted, hashed public/synthetic images enter the review app."""
 import hashlib
 import io
 from dataclasses import dataclass

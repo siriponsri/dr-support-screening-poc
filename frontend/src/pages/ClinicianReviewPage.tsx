@@ -117,7 +117,7 @@ export function ClinicianReviewPage() {
         pathname={pathname}
         title="Clinician Review"
         subtitle={`${item.display_name} - human sign-off and review record`}
-        actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />}>Back to AI Review</Button><Button as={Link} to="/worklist">Back to Worklist</Button></HStack>}
+        actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />}>Back to Review</Button><Button as={Link} to="/worklist">Back to Worklist</Button></HStack>}
       />
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.25fr) minmax(320px, 0.75fr)' }} gap={5} alignItems="start" minW={0}>
         <Section title="Review summary" description="AI output is a suggestion; this page records the clinician decision. ">

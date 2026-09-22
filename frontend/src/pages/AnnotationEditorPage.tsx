@@ -570,7 +570,7 @@ export function AnnotationEditorPage() {
         pathname={pathname}
         title="Annotation Editor"
         subtitle={`${item.display_name} - human annotations are separate from AI suggestions`}
-        actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />}>Back to AI Review</Button><Button as={Link} to="/worklist">Back to Worklist</Button></HStack>}
+        actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />}>Back to Review</Button><Button as={Link} to="/worklist">Back to Worklist</Button></HStack>}
       />
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.4fr) minmax(300px, 0.6fr)' }} gap={5} alignItems="start">
         <Section title="Retinal annotation canvas" description="Coordinates are stored in original image pixel space. Double-click to finish a polygon.">

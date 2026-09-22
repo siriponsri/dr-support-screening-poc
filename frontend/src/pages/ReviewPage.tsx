@@ -14,6 +14,7 @@ import {
   Heading,
   HStack,
   SimpleGrid,
+  Select,
   Spinner,
   Stack,
   Switch,
@@ -27,12 +28,33 @@ import { ReviewEvidencePanel } from '@/components/review/ReviewEvidencePanel';
 import {
   apiJson,
   type CaseRecord,
+  type LesionLabel,
   type ModelDescriptor,
 } from '@/lib/api';
 import { ArrowLeft, Pencil, Play, UserRound } from '@/lib/icons';
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : 'The request could not be completed.';
+}
+
+function clinicianModelStatus(status?: string | null) {
+  switch (status) {
+    case 'LOADED': return 'Ready';
+    case 'REMOTE_NOT_CONFIGURED': return 'Model service unavailable';
+    case 'ASSET_REQUIRED': return 'Model setup required';
+    case 'CONFIGURED_NOT_VERIFIED': return 'Verification required';
+    default: return status ? 'Status available' : 'Status not reported';
+  }
+}
+
+function clinicianResultState(state?: string | null) {
+  switch (state) {
+    case 'AI_SUGGESTION': return 'Model suggestion';
+    case 'UNCERTAIN': return 'Uncertain result';
+    case 'UNGRADABLE': return 'Image not gradable';
+    case 'UNSUPPORTED': return 'Unsupported input';
+    default: return state ? 'Result available' : 'Not analyzed';
+  }
 }
 
 function ResultWarnings({ item }: { item: CaseRecord }) {
@@ -42,8 +64,8 @@ function ResultWarnings({ item }: { item: CaseRecord }) {
     <Alert status="warning" mt={4}>
       <AlertIcon />
       <Stack spacing={1}>
-        <Text fontWeight="semibold">Model warnings</Text>
-        {warnings.map((warning, index) => <Text key={`${warning}-${index}`} fontSize="sm">{warning}</Text>)}
+        <Text fontWeight="semibold">Model notes available</Text>
+        <Text fontSize="sm">Technical model notes are available in Models &amp; Audit. Review remains available; confirm the image and human decision.</Text>
       </Stack>
     </Alert>
   );
@@ -64,7 +86,7 @@ function ModelStatus({ models, error }: { models: ModelDescriptor[]; error: stri
                 <Text fontSize="xs" color="text.secondary">{model.runtime ?? 'runtime not reported'}</Text>
               </Stack>
               <StatusBadge tone={model.status === 'LOADED' ? 'success' : 'warning'}>
-                {model.status ?? 'Unknown'}
+                {clinicianModelStatus(model.status)}
               </StatusBadge>
             </HStack>
             {model.warnings?.length ? <Text mt={2} fontSize="xs" color="text.secondary">{model.warnings[0]}</Text> : null}
@@ -84,7 +106,7 @@ function Assessment({ item }: { item: CaseRecord }) {
           <Text fontSize="sm" color="text.secondary">System-predicted DR grade</Text>
           <Heading size="lg">{item.global.grade === null ? item.global.state : `Grade ${item.global.grade}`}</Heading>
         </Stack>
-        <StatusBadge tone={item.global.state === 'AI_SUGGESTION' ? 'info' : 'warning'}>{item.global.state}</StatusBadge>
+      <StatusBadge tone={item.global.state === 'AI_SUGGESTION' ? 'info' : 'warning'}>{clinicianResultState(item.global.state)}</StatusBadge>
       </HStack>
       {item.global.confidence !== null && (
         <HStack justify="space-between">
@@ -163,6 +185,7 @@ export function ReviewPage() {
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
   const [showAi, setShowAi] = useState(true);
+  const [lesionFilter, setLesionFilter] = useState<LesionLabel | 'ALL'>('ALL');
   const [selectedLesionId, setSelectedLesionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -238,7 +261,7 @@ export function ReviewPage() {
   if (!imageId) {
     return (
       <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
-        <PageHeader pathname={pathname} title="AI Review" />
+        <PageHeader pathname={pathname} title="Review" />
         <Section title="Select an admitted case" description="Choose an image from the Worklist to open AI review." action={<Button as={Link} to="/worklist">Open Worklist</Button>}>
           <Text color="text.secondary">No image was selected.</Text>
         </Section>
@@ -251,7 +274,7 @@ export function ReviewPage() {
   if (error || !item) {
     return (
       <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
-        <PageHeader pathname={pathname} title="AI Review" />
+        <PageHeader pathname={pathname} title="Review" />
         <Alert status="error"><AlertIcon /><Text>{error ?? 'Case unavailable.'}</Text></Alert>
         <Button mt={4} leftIcon={<ArrowLeft size={15} />} onClick={() => navigate('/worklist')}>Back to Worklist</Button>
       </Box>
@@ -259,11 +282,11 @@ export function ReviewPage() {
   }
 
   return (
-    <Box as="main" maxW="1440px" minW={0} mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
+    <Box as="main" maxW="1440px" minW={0} overflowX="hidden" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader
         pathname={pathname}
-        title="AI Review"
-        subtitle={`${item.display_name} - model suggestions for clinician inspection`}
+        title="Review"
+        subtitle={`${item.display_name} - optional model evidence for clinician inspection`}
         actions={<Button as={Link} to="/worklist" leftIcon={<ArrowLeft size={15} />}>Back to Worklist</Button>}
       />
       <HStack mb={5} spacing={2} aria-label="Patient and eye context">
@@ -272,7 +295,7 @@ export function ReviewPage() {
       </HStack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start" minW={0}>
         <Section title="Retinal preview" description={`${item.width} x ${item.height}px - ${item.modality}`}>
-          {item.image_url ? <RetinalCanvas item={item} showAi={showAi} showHuman={false} selectedLesionId={selectedLesionId} onSelectLesion={setSelectedLesionId} /> : (
+          {item.image_url ? <RetinalCanvas item={item} showAi={showAi} visibleLesionLabels={lesionFilter === 'ALL' ? undefined : [lesionFilter]} showHuman={false} selectedLesionId={selectedLesionId} onSelectLesion={setSelectedLesionId} /> : (
             <Alert status="error"><AlertIcon /><Text>{item.admission_ui?.note ?? 'This file has no readable image preview.'}</Text></Alert>
           )}
           <Stack spacing={3} mt={4} minW={0}>
@@ -281,6 +304,19 @@ export function ReviewPage() {
                 <Switch id="show-ai-suggestions" isChecked={showAi} onChange={(event) => setShowAi(event.target.checked)} mr={2} />
                 <FormLabel htmlFor="show-ai-suggestions" mb={0} fontSize="sm">Show AI suggestions</FormLabel>
               </FormControl>
+              <Select
+                aria-label="Filter lesion overlays"
+                size="sm"
+                maxW="190px"
+                value={lesionFilter}
+                onChange={(event) => setLesionFilter(event.target.value as LesionLabel | 'ALL')}
+              >
+                <option value="ALL">All lesion classes</option>
+                <option value="MICROANEURYSM">MA · Microaneurysm</option>
+                <option value="HEMORRHAGE">HE · Hemorrhage</option>
+                <option value="HARD_EXUDATE">EX · Hard exudate</option>
+                <option value="SOFT_EXUDATE">SE · Soft exudate</option>
+              </Select>
               <Text fontSize="xs" color="text.secondary">
                 Displayed {item.lesion_review?.suggestion_count ?? 0} of {item.lesion_review?.raw_count ?? 0} raw suggestions
               </Text>

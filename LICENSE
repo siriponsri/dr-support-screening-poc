@@ -1,4 +1,4 @@
-DR Support Screening POC — Owner Code License
+Retinal Review Workbench — Owner Code License
 
 Copyright (c) 2026 Siripon Srihangpiboon. All rights reserved.
 
@@ -8,9 +8,9 @@ by this file to redistribute, sublicense, sell, or use the owner-authored code i
 commercial product without separate written authorization from the copyright holder.
 
 This license applies only to original code and documentation authored for
-DR Support Screening POC. Third-party software, model code, model weights, datasets,
+Retinal Review Workbench. Third-party software, model code, model weights, datasets,
 and other materials remain governed by their own licenses and terms. See
-THIRD_PARTY_NOTICES.md and docs/MODEL_SOURCES.md.
+THIRD_PARTY_NOTICES.md and docs/MODEL_SERVER.md.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR

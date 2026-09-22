@@ -114,7 +114,7 @@ function mockReviewApi() {
   });
 }
 
-describe('AI Review responsibility boundary', () => {
+describe('Review responsibility boundary', () => {
   it('keeps eligible analysis available while showing compact read-only context and downstream actions', async () => {
     const user = userEvent.setup();
     mockReviewApi();
@@ -134,7 +134,7 @@ describe('AI Review responsibility boundary', () => {
     await user.click(screen.getByRole('button', { name: 'Accept AI grade' }));
     expect(await screen.findByText('AI grade accepted for IMG13.')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('link', { name: 'Back to AI Review' }));
+    await user.click(screen.getByRole('link', { name: 'Back to Review' }));
     await user.click(await screen.findByRole('link', { name: 'Edit annotations' }));
     expect(await screen.findByRole('heading', { name: 'Editor tools' })).toBeInTheDocument();
   });

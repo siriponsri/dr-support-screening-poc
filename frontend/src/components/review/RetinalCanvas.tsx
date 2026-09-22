@@ -26,6 +26,7 @@ export function lesionDetectionId(lesion: Lesion, index: number): string {
 interface RetinalCanvasProps {
   item: CaseRecord;
   showAi?: boolean;
+  visibleLesionLabels?: LesionLabel[];
   showHuman?: boolean;
   humanAnnotations?: HumanAnnotation[];
   selectedShapeId?: string | null;
@@ -247,6 +248,7 @@ function HumanShape({
 export function RetinalCanvas({
   item,
   showAi = true,
+  visibleLesionLabels,
   showHuman = true,
   humanAnnotations = item.human_annotations,
   selectedShapeId,
@@ -559,7 +561,9 @@ export function RetinalCanvas({
 
   const transform = `translate(${displayView.panX}px, ${displayView.panY}px) scale(${displayView.scale})`;
   const zoomPercent = Math.round(displayView.scale * 100);
-  const aiLesions = item.lesion_review?.lesions ?? [];
+  const aiLesions = (item.lesion_review?.lesions ?? []).filter((lesion) => (
+    !visibleLesionLabels || visibleLesionLabels.includes(lesion.canonical_label as LesionLabel)
+  ));
   const coordinateText = pointerCoordinate
     ? `X ${pointerCoordinate.x.toFixed(1)} - Y ${pointerCoordinate.y.toFixed(1)} px`
     : 'Move over the image to inspect original-image pixels';

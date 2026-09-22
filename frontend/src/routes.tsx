@@ -8,7 +8,6 @@ import { AnnotationEditorPage } from '@/pages/AnnotationEditorPage';
 import { ClinicianReviewPage } from '@/pages/ClinicianReviewPage';
 import { ModelsPage } from '@/pages/ModelsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
-import { FoundationDemo } from '@/pages/FoundationDemo';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { WorkspaceProvider } from '@/components/shell/workspace';
 
@@ -18,9 +17,10 @@ interface AppRoutesProps {
 }
 
 /**
- * Route registration for the Round 2 shell.
+ * Route registration for the clinician workstation.
  *
- * Five primary routes deliver placeholder content (migrated in Round 3+):
+ * The primary routes cover worklist, review, datasets, audit, settings, and
+ * the explicit annotation and clinician-review flows.
  *
  *   /worklist   clinician worklist
  *   /datasets   dataset workspace
@@ -28,9 +28,8 @@ interface AppRoutesProps {
  *   /models     provider readiness / audit
  *   /settings   preferences
  *
- * A debug route `/_foundation` keeps the original Round 1 design-system demo
- * reachable. Any unknown path renders the 404 page so the chrome never lands
- * in an empty state.
+ * Any unknown path renders the 404 page so the shell never lands in an empty
+ * state.
  */
 export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
   return (
@@ -46,7 +45,6 @@ export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
           <Route path="/clinician-review/:imageId" element={<ClinicianReviewPage />} />
           <Route path="/models" element={<ModelsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/_foundation" element={<FoundationDemo />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

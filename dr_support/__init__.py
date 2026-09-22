@@ -1,1 +1,1 @@
-"""Independent public/synthetic clinician-review POC."""
+"""Retinal Review Workbench clinician-review runtime."""

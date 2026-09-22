@@ -86,7 +86,7 @@ def _merge_apps(review: FastAPI, model_api: FastAPI, profile: str) -> FastAPI:
     (e.g. the static UI under ``/ui``) are transferred verbatim; route
     handlers keep their original docstrings.
     """
-    app = FastAPI(title='DR Support Screening POC', version='0.4.0')
+    app = FastAPI(title='Retinal Review Workbench', version='0.6.0')
 
     for source_app in (review, model_api):
         for route in source_app.routes:

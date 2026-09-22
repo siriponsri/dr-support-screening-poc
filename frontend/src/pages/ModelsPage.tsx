@@ -181,7 +181,7 @@ export function ModelsPage() {
 
   return (
     <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
-      <PageHeader pathname={pathname} title="Model Audit & Explainability" subtitle="Actual model metadata, case results, and bounded visual evidence" />
+      <PageHeader pathname={pathname} title="Models & Audit" subtitle="Read-only model metadata, case results, and bounded visual evidence" />
       {error && <Alert status="error" mb={5}><AlertIcon /><Text>{error}</Text></Alert>}
       <Stack spacing={5} minW={0}>
         <Section title="Model readiness" description="Metadata is read from the existing /v1/models contract; unavailable remote state is shown honestly.">

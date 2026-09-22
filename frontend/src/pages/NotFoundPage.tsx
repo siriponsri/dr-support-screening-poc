@@ -20,8 +20,7 @@ export function NotFoundPage() {
       />
       <Stack spacing={4} mt={4}>
         <Text fontSize="sm" color="text.secondary">
-          The shell only mounts the five primary destinations plus the
-          design-system preview. Use the navigation to continue.
+          Use the navigation to continue.
         </Text>
         <Stack direction={{ base: 'column', tablet: 'row' }} spacing={3}>
           <Button as={RouterLink} to="/worklist" leftIcon={<Compass size={14} strokeWidth={2.25} />}>

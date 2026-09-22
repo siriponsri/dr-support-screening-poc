@@ -1,14 +1,12 @@
-# DR Support Screening POC Design System
+# Retinal Review Workbench Design System
 
 Status: normative design documentation for future frontend work
 
-Baseline: accepted S1 implementation 9c781a226c082b64323042853ae7f4b06cbddee6
-
 Scope: visual and interaction design only. This document does not add product
 features and does not change APIs, model contracts, database behavior, or the
-S1 viewer interaction model.
+retinal viewer interaction model.
 
-DESIGN.md is the design source of truth for S2 product expansion. The current
+DESIGN.md is the design source of truth for product expansion. The current
 React implementation is Chakra UI + React + Vite. Future sessions must map the
 rules below to the existing component and theme boundaries before introducing
 new page-specific styling.
@@ -41,7 +39,7 @@ new page-specific styling.
 9. **Accessibility is part of clinical correctness.** Keyboard access, visible
    focus, text alternatives, readable contrast, and non-color cues are required
    behavior, not polish.
-10. **Preserve S1 interaction behavior.** Visual refinement must not silently
+10. **Preserve viewer interaction behavior.** Visual refinement must not silently
     change coordinate space, zoom bounds, pan behavior, overlay provenance,
     selection behavior, lock behavior, or the fullscreen review model.
 
@@ -97,7 +95,7 @@ from the application chrome.
 
 ### 2.3 Legacy alignment note
 
-The accepted S1 theme currently assigns Red Soil to the brand role. That is a
+The current theme assigns Red Soil to the brand role. That is a
 naming/role mismatch with this normative system. No frontend implementation is
 changed by this document; future theme work must remap the primary brand role
 and keep Red Soil available as the institutional secondary accent.
@@ -147,7 +145,8 @@ intentionally not brand.redSoil.
 ### 3.3 Retinal annotation palette
 
 These colors belong to the retinal visualization domain and are not UI theme
-tokens. Preserve the current S1 values and their high contrast on the image.
+tokens. Preserve the current retinal overlay values and their high contrast on
+the image.
 Do not replace them with Medicine Green, Red Soil, or semantic status colors.
 
 | Label | Token-like name for documentation | Value | Provenance |
@@ -406,9 +405,9 @@ decorative modal.
 - The retinal image remains visually dominant. No gradient, glow, giant card,
   or decorative illustration is allowed in this surface.
 
-### S1 interaction contract
+### Retinal viewer interaction contract
 
-Future visual work must preserve these behaviors from the accepted baseline:
+Future visual work must preserve these behaviors:
 
 - Fit-to-viewport is the initial state and resets when the active case or
   fullscreen state changes.
@@ -431,7 +430,7 @@ Future visual work must preserve these behaviors from the accepted baseline:
 - Use the fixed class color, a dashed outline, and low-opacity fill.
 - Show a readable class label and score where present; label text must not be
   confused with a human annotation.
-- AI shapes are immutable in the S1 editor: no resize handles and no drag
+ - AI shapes are immutable in the editor: no resize handles and no drag
   editing.
 - Toggling AI visibility must not alter human annotations or their selection.
 
@@ -468,8 +467,7 @@ Future visual work must preserve these behaviors from the accepted baseline:
 
 Do not use color alone to indicate selected or locked state. Use outline,
 handles, icon, label, aria-pressed, or aria-disabled as appropriate. A record
-without an explicit locked: false remains protected by default, as in the
-current S1 behavior.
+without an explicit locked: false remains protected by default.
 
 ## 16. Coordinate Inspector State
 
@@ -485,7 +483,7 @@ Coordinate Inspector is a mode, not a tooltip.
 - Left pointer movement reports original-image X and Y coordinates in a fixed
   status area below the stage. Use one decimal place and tabular numerals.
 - The coordinate readout must be text, not color or a hover-only tooltip.
-- Zoom and bounded pan remain available as in S1. Escape exits Inspector,
+ - Zoom and bounded pan remain available. Escape exits Inspector,
   clears the readout, and returns to Select.
 - Keyboard shortcut X toggles Inspector when the viewer owns focus. Escape
   always exits the mode before performing any page-level escape behavior.
@@ -591,7 +589,7 @@ Use the current breakpoint intent:
 - Use responsive text and spacing changes sparingly. Clinical labels should
   remain readable rather than shrinking below the documented minimums.
 
-## 21. Rules for Future S2 Pages
+## 21. Rules for Product Pages
 
 These rules define presentation for future Workspace, Worklist, Dataset
 Manifest, and Model Audit pages. They do not authorize new product behavior.
@@ -646,7 +644,7 @@ Manifest, and Model Audit pages. They do not authorize new product behavior.
 - Do use Medicine Green for primary product interaction and active navigation.
 - Do use Red Soil as a restrained institutional accent only.
 - Do keep clinical status colors separate from brand colors.
-- Do preserve the four S1 lesion colors and distinguish AI from human by stroke,
+ - Do preserve the four retinal lesion colors and distinguish AI from human by stroke,
   fill, label, and provenance.
 - Do keep the retinal image dominant in review and fullscreen layouts.
 - Do use borders, compact spacing, and small shadows to establish hierarchy.
@@ -658,19 +656,18 @@ Manifest, and Model Audit pages. They do not authorize new product behavior.
 
 - Do not interpret Medicine Green as normal, negative, safe, or resolved.
 - Do not interpret Red Soil as disease, error, danger, or rejection.
-- Do not use brand colors for lesion overlays or replace the S1 lesion palette.
+ - Do not use brand colors for lesion overlays or replace the retinal lesion palette.
 - Do not use glassmorphism, sci-fi AI styling, heavy gradients, glow effects,
   giant rounded cards, or excessive shadows.
 - Do not build KPI-card dashboards for clinical review, worklists, or audit.
 - Do not use emoji-driven UI or decorative visual noise.
 - Do not hide required clinical information on smaller screens.
 - Do not change viewer coordinate space, API/model behavior, persistence, or
-  existing S1 gestures as part of visual work.
+  existing viewer gestures as part of visual work.
 
 ## 23. Design-Token Examples for the Current React Frontend
 
-The following examples are handoff examples, not a request to edit the frontend
-in this task.
+The following examples document the token contracts used by the frontend.
 
 ### CSS variable example
 
@@ -777,21 +774,3 @@ const LESION_COLORS = {
 
 Do not promote those values into brand, status, or generic component tokens.
 They have a different job and must remain independently testable.
-
-## Unresolved Design Questions
-
-These are implementation or product-ownership questions, not permission to
-change the S1 contract:
-
-1. Should the future theme keep Chakra semantic names such as brand.500 for
-   compatibility, or migrate to explicit names such as action.primary in one
-   deliberate theme pass?
-2. Should the current docs/UI_THEME.md be marked historical, updated, or
-   replaced once the Medicine Green role is implemented in the frontend?
-3. Which exact clinical status vocabulary and icon set will be approved for
-   production-facing review states beyond the current POC labels?
-4. Will future S2 work require a formal dark viewer theme for non-fullscreen
-   review, or should the dark surface remain scoped to the retinal stage?
-5. Which additional keyboard and screen-reader test cases are required before
-   Workspace, Dataset Manifest, and Model Audit are considered production-ready?
-

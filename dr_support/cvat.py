@@ -13,7 +13,7 @@ class CVATOnline:
     def __init__(self, transport=None):
         self.base = os.environ.get('CVAT_URL', 'https://app.cvat.ai').rstrip('/')
         if self.base != 'https://app.cvat.ai':
-            raise ValueError('This Bridge is restricted to https://app.cvat.ai')
+            raise ValueError('CVAT integration is restricted to https://app.cvat.ai')
         self.project_id = int(os.environ.get('CVAT_PROJECT_ID', '445923'))
         if self.project_id != 445923:
             raise ValueError('Only the owner-authorized project 445923 is admitted')
@@ -110,11 +110,11 @@ def reviewed_shapes(payload, label_ids, width, height):
     results = []
     for shape in payload.get('shapes', []):
         if shape.get('frame') != 0 or shape.get('label_id') not in names:
-            raise ValueError('Unexpected frame or label in Bridge task')
+            raise ValueError('Unexpected frame or label in CVAT task')
         points = shape.get('points', [])
         shape_type = shape.get('type')
         if shape_type == 'mask':
-            raise ValueError('Mask sync is not supported in Bridge v0.1.2; no mask data was imported')
+            raise ValueError('Mask sync is not supported; no mask data was imported')
         minimum = {'rectangle': 4, 'ellipse': 4, 'polygon': 6, 'polyline': 4, 'points': 2}.get(shape_type)
         if minimum is None or len(points) < minimum or (shape_type in ('rectangle', 'ellipse') and len(points) != 4):
             raise ValueError('Unsupported shape type or incomplete geometry; supported: rectangle, ellipse, polygon, polyline, points')

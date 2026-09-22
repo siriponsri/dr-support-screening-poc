@@ -256,7 +256,7 @@ function actionBar(c) {
 }
 
 function worklist() {
-  $('#content').innerHTML = heading('Worklist','Select a case to review AI grade and lesion suggestions.',`<span class="tag">${cases.filter(c=>c.source_type==='PUBLIC').length} public samples</span>`)+
+  $('#content').innerHTML = heading('Worklist','Select a case to review model evidence and lesion suggestions.',`<span class="tag">${cases.filter(c=>c.source_type==='PUBLIC').length} public samples</span>`)+
     `<div class="worklist-controls"><input id="search" type="search" placeholder="Search case ID" aria-label="Search case ID"><select id="filter" aria-label="Review state"><option value="ALL">All cases</option><option value="PENDING">Pending</option><option value="REVIEWED">Reviewed</option><option value="NEEDS_CORRECTION">Needs annotation</option><option value="ESCALATED">Escalated</option></select></div>
     <section class="panel table-panel"><table><thead><tr><th>Image</th><th>Source</th><th>AI grade</th><th>Review status</th><th></th></tr></thead><tbody id="rows"></tbody></table></section>`;
   const rows = () => {
@@ -276,7 +276,7 @@ function caseReview(c) {
     `<div class="review-layout"><div class="viewer-column">${imagePanel(c)}` +
     (hasLesions ? `<section class="panel"><div class="section-head"><h2>Lesion findings</h2>${c.lesion_review_state ? badge(c.lesion_review_state) : ''}</div>${lesionSummary(c)}${imported?`<p class="help">${c.annotations.length} CVAT-imported shapes are overlaid as solid geometry; original AI boxes remain as faded dashed provenance.</p>`:''}</section>` : '') +
     `<section class="panel"><div class="section-head"><h2>Review history</h2>${badge(c.state)}</div>${c.events.length?`<ol class="history">${c.events.slice(-8).map(e=>`<li>${escapeHTML(e.action.replaceAll('_',' '))}${e.reviewer?' · '+escapeHTML(e.reviewer):''}${e.comment?' — '+escapeHTML(e.comment):''}</li>`).join('')}</ol>`:'<p class="sub">No review decisions yet.</p>'}</section></div>` +
-    `<section class="panel ai-panel"><div class="section-head"><h2>AI Review</h2><span class="kicker panel-kicker">GRADE</span></div>${gradePanel(c)}<hr class="rule"><div class="section-head"><h2>Lesion summary</h2></div>${hasLesions?lesionSummary(c):'<p class="sub">Select Analyze to generate lesion suggestions.</p>'}` +
+    `<section class="panel ai-panel"><div class="section-head"><h2>Model assistance</h2><span class="kicker panel-kicker">GRADE</span></div>${gradePanel(c)}<hr class="rule"><div class="section-head"><h2>Lesion summary</h2></div>${hasLesions?lesionSummary(c):'<p class="sub">Select Analyze to generate lesion suggestions.</p>'}` +
     `<hr class="rule"><h3>Warnings</h3><ul class="warnings">${(c.global?.warnings||c.lesion?.warnings||['Research use only']).map(w=>`<li>${escapeHTML(w)}</li>`).join('')}</ul>` +
     `<hr class="rule"><h3>Your review</h3>${c.reviewed_grade!=null?`<div class="review-result"><strong>Recorded grade ${c.reviewed_grade}</strong><span>${grades[c.reviewed_grade]}${reviewSource?' · '+escapeHTML(reviewSource):''}</span></div>`:''}` +
     `<label class="field" for="reviewer">Reviewer name</label><input id="reviewer" autocomplete="name" value="${escapeHTML(reviewer)}" placeholder="Name for the review record">` +

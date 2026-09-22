@@ -1,6 +1,6 @@
 """Standalone Remote Model API service (``APP_PROFILE=model_api``).
 
-Implements the exact contract documented in ``docs/REMOTE_MODEL_API.md`` so the
+Implements the provider contract documented in ``docs/MODEL_SERVER.md`` so the
 review workstation (``APP_PROFILE=review``) can proxy to this deployment when
 ``MODEL_RUNTIME=remote``. Both profiles share the same Bridge v1 contracts,
 provider classes, and pinned upstream revisions; only the route surface differs.
@@ -55,6 +55,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from dr_support.contracts import GlobalResult, LesionResult, Provenance
+from dr_support.model_assets import verify_assets
 from dr_support.providers.prism import PRISM, REVISION as PRISM_REVISION
 from dr_support.providers.retfound import RETFound, REVISION as RETFOUND_REVISION
 from dr_support.runtime import DeviceUnavailable, assert_cuda_ready, runtime_snapshot
@@ -64,7 +65,7 @@ log = logging.getLogger('dr_support.model_api')
 
 
 # ---------------------------------------------------------------------------
-# Request envelope (mirrors docs/REMOTE_MODEL_API.md)
+# Request envelope (mirrors docs/MODEL_SERVER.md)
 # ---------------------------------------------------------------------------
 
 
@@ -177,12 +178,22 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
             log.error('GPU readiness check failed: %s', exc)
             raise
 
-    app = FastAPI(title='DR Support Model API', version='0.4.0')
+    # Startup is intentionally read-only: setup_models performs acquisition,
+    # while the service refuses to become ready when pinned local assets are
+    # missing or modified. Model weights remain lazy-loaded on first inference.
+    assets_verified = False
+    if (os.environ.get('MODEL_RUNTIME', 'local').strip().lower() == 'local'
+            and os.environ.get('MODEL_REQUIRE_VERIFIED_ASSETS') == '1'):
+        verify_assets('all')
+        assets_verified = True
+
+    app = FastAPI(title='Retinal Review Workbench Model API', version='0.6.0')
     inference_lock = RLock()
     app.state.providers = _build_providers(allow_cpu_fallback=not device_strict)
     app.state.inference_lock = inference_lock
     app.state.profile = os.environ.get('APP_PROFILE', 'model_api')
     app.state.device_strict = device_strict
+    app.state.assets_verified = assets_verified
 
     # --------- /health ---------
     @app.get('/health')
@@ -196,12 +207,10 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
             )
             overall = 'FAIL'
         else:
-            overall = 'PASS_WITH_WARNINGS'
-            if all(s == 'LOADED' for s in statuses.values()):
-                overall = 'PASS'
+            overall = 'PASS' if app.state.assets_verified else 'PASS_WITH_WARNINGS'
         warnings = [
-            'Public/synthetic POC only. No diagnosis or autonomous referral.',
-            'Model readiness is reported in /v1/models; weights are loaded on first use.',
+            'Public/synthetic research deployment only. No diagnosis or autonomous referral.',
+            'Pinned local assets are verified; model weights load on first use.',
         ]
         warnings.extend(device_warnings)
         return {
@@ -214,13 +223,14 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
             'cuda_available': snap.cuda_available,
             'cuda_device_count': snap.cuda_device_count,
             'cuda_device_name': snap.cuda_device_name,
+            'assets_verified': app.state.assets_verified,
         }
 
     # --------- /v1/models ---------
     @app.get('/v1/models')
     def models():
         descriptors = [p.metadata() for p in app.state.providers.values()]
-        # Stable, contract-defined order so the screening POC backend sees a
+        # Stable, contract-defined order so the review workstation sees a
         # predictable list.
         descriptors.sort(key=lambda m: (0 if m['task'] == 'global' else 1, m['model_id']))
         return descriptors

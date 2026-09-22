@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "DR Support Screening POC — React + Vite + Chakra UI foundation (v0.1)",
+  "description": "Retinal Review Workbench clinician review interface",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

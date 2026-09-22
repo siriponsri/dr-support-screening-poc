@@ -1,10 +1,11 @@
-"""Fetch pinned upstream sources/weights for the non-commercial public POC only."""
+"""Acquire, verify, and smoke-test the pinned model assets."""
 import argparse
 import json
 import subprocess
 import urllib.request
 import zipfile
 from pathlib import Path
+from .model_assets import verify_assets
 from .providers.assets import sha256, verify_source, verify_weight
 from .providers.retfound import REVISION as RET_REVISION, WEIGHT_SHA256
 from .providers.prism import REVISION as PRISM_REVISION
@@ -60,8 +61,35 @@ def prepare(which):
         print('PRISM: verified all 21 released weight files')
 
 
+def smoke(which: str) -> None:
+    """Load each selected provider and run one public synthetic inference."""
+    from .contracts import InferenceRequest
+    from .images import synthetic_image
+    from .providers.prism import PRISM
+    from .providers.retfound import RETFound
+
+    image = synthetic_image()
+    request = InferenceRequest(image_id=image.image_id, modality='CFP', model_id='retfound-aptos5')
+    if which in ('all', 'retfound'):
+        result = RETFound(allow_cpu_fallback=False).infer(request, image)
+        print(f"RETFound smoke: {result.state} grade={result.grade}")
+    if which in ('all', 'prism'):
+        request = request.model_copy(update={'model_id': 'prism-dr-5fold'})
+        result = PRISM(allow_cpu_fallback=False).infer(request, image)
+        print(f"PRISM smoke: {result.state} lesions={len(result.lesions)}")
+
+
 if __name__ == '__main__':
-    parser=argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--model',choices=['all','retfound','prism'],default='all')
+    parser.add_argument('--verify', action='store_true', help='Verify local assets without downloading')
+    parser.add_argument('--smoke', action='store_true', help='Run one synthetic inference after verification')
     args=parser.parse_args()
-    prepare(args.model)
+    if not args.verify:
+        prepare(args.model)
+    verification = verify_assets(args.model)
+    for model_id, details in verification['models'].items():
+        print(f'{model_id}: verified revision {details["revision"]}')
+    if args.smoke:
+        smoke(args.model)
+    print('READY')

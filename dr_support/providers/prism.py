@@ -51,7 +51,7 @@ class PRISM:
         configured = all(os.environ.get(k) for k in ('PRISM_SOURCE', 'PRISM_WEIGHTS'))
         snap = runtime_snapshot()
         warnings = [
-            'Research Bridge; not scientific R2/R3',
+            'Research model; no scientific performance claim',
             'PRISM MIT; Ultralytics AGPL-3.0; source weight release: academic use',
             'HRF scale differs from IDRiD; inter-lesion size rule unvalidated on HRF',
             'Raw detections are retained; clinician overlay/CVAT pre-labels use a separate bounded review policy',

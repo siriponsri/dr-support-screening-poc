@@ -7,7 +7,7 @@ Project ID: 445923. These values are deliberately restricted in the connector.
 Required label names (IDs resolved by API, never hard-coded):
 MICROANEURYSM, HEMORRHAGE, HARD_EXUDATE, SOFT_EXUDATE. Labels may remain `type:any`.
 
-Round-trip import currently supports rectangle, ellipse, polygon, polyline, and points. Mask geometry is **not supported in v0.1.2**; the connector fails explicitly instead of silently discarding mask data. Use one of the supported geometry tools for the live acceptance pass.
+Round-trip import supports rectangle, ellipse, polygon, polyline, and points. Mask geometry is outside the supported connector scope; the connector fails explicitly instead of silently discarding mask data. Use one of the supported geometry tools when a dense annotation correction is needed.
 
 Provide a read/write personal access token to the developer server through its secure runtime
 secret/environment configuration, under `CVAT_TOKEN`. Do not paste it in chat, source, Git,
@@ -31,6 +31,4 @@ not duplicate boxes. Existing annotations are preserved. An ambiguous write outc
 that live operation for manual reconciliation; it never blindly repeats a possibly successful
 write. Do not run two independent Bridge servers against the same task/state store.
 
-Current delivery: live auth/create/upload/push/pull NOT_EXECUTED (CVAT_TOKEN absent).
-Offline connector and round-trip fixtures passed. No fake live task URL is reported.
-Missing token affects only live operations; the UI, providers, and offline tests remain usable.
+Live operations require `CVAT_TOKEN` in the secure runtime environment. Without that token, the connector remains available for local review and offline fixture validation but does not attempt remote writes.

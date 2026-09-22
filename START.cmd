@@ -13,7 +13,7 @@ if not exist ".venv\Scripts\python.exe" (
   )
   if not exist ".venv\Scripts\python.exe" (
     echo Python 3.11 or 3.12 is required. If uv is installed, run: uv venv --python 3.12 .venv
-    echo See docs\LOCAL_RUNBOOK.md.
+    echo See docs\INSTALLATION.md.
     pause
     exit /b 1
   )
@@ -54,7 +54,7 @@ if not exist "frontend\dist\index.html" (
 
 set "APP_PROFILE=review"
 set "MODEL_RUNTIME=remote"
-echo Starting clinician review workstation.
+echo Starting Retinal Review Workbench clinician workstation.
 echo Open http://127.0.0.1:8000/app/
 echo Create or open a Workspace from Settings after startup.
 .venv\Scripts\python.exe -m dr_support.run
