@@ -3,6 +3,7 @@ import { Box } from '@chakra-ui/react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { WorkspaceManager } from '@/components/workspace/WorkspaceManager';
 import { ModelConnectionSettings } from '@/components/settings/ModelConnectionSettings';
+import { ReviewerPreference } from '@/components/settings/ReviewerPreference';
 
 export function SettingsPage() {
   const { pathname } = useLocation();
@@ -20,6 +21,9 @@ export function SettingsPage() {
         subtitle="Manage the local workspace used by this review station"
       />
       <WorkspaceManager />
+      <Box mt={5}>
+        <ReviewerPreference />
+      </Box>
       <Box mt={5}>
         <ModelConnectionSettings />
       </Box>

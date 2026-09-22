@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import { Box, Button, HStack, IconButton, Image, Modal, ModalBody, ModalCloseButton, ModalContent, ModalHeader, ModalOverlay, Stack, Text } from '@chakra-ui/react';
 import type { CaseRecord, HumanAnnotation, Lesion, LesionLabel } from '@/lib/api';
 import { Maximize2, Target, ZoomIn, ZoomOut } from '@/lib/icons';
+import { displayedLesions, type DisplayedLesion } from './lesionPresentation';
 
 export const LESION_COLORS: Record<LesionLabel, string> = {
   MICROANEURYSM: '#06B6D4',
@@ -121,7 +122,7 @@ function AiShape({
   modelVersion,
   onSelect,
 }: {
-  lesion: Lesion;
+  lesion: DisplayedLesion;
   detectionId: string;
   selected: boolean;
   modelId?: string;
@@ -135,6 +136,8 @@ function AiShape({
     : lesion.canonical_label === 'HEMORRHAGE' ? 'HE'
       : lesion.canonical_label === 'HARD_EXUDATE' ? 'EX' : 'SE';
   const textPoint = labelPoint(lesion);
+  const corrected = lesion.reviewState === 'CLINICIAN_CORRECTED';
+  const displayScore = lesion.displayScore;
   return (
     <g
       pointerEvents="auto"
@@ -145,7 +148,9 @@ function AiShape({
       }}
       style={{ cursor: onSelect ? 'pointer' : undefined }}
     >
-      <title>{`AI suggestion: ${label} - detection confidence ${lesion.score.toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`}</title>
+      <title>{corrected
+        ? `Clinician corrected: ${label}. Original AI suggestion: ${prettyLabel(lesion.originalLabel ?? lesion.canonical_label)} - detection confidence ${(lesion.originalScore ?? lesion.score).toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`
+        : `AI suggestion: ${label} - detection confidence ${lesion.score.toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`}</title>
       <rect
         x={x1}
         y={y1}
@@ -155,11 +160,11 @@ function AiShape({
         fillOpacity={0.12}
         stroke={color}
         strokeWidth={selected ? 3.5 : Math.max(2, (x2 - x1) / 120)}
-        strokeDasharray="10 6"
+        strokeDasharray={corrected ? undefined : '10 6'}
         vectorEffect="non-scaling-stroke"
       />
       <text x={textPoint.x} y={textPoint.y} fill={color} fontSize={Math.max(10, Math.min(18, (x2 - x1) / 8))} fontWeight="700">
-        {shortLabel} · {lesion.score.toFixed(2)}
+        {corrected ? `${shortLabel} · clinician corrected` : `${shortLabel} · ${displayScore?.toFixed(2) ?? ''}`}
       </text>
     </g>
   );
@@ -561,7 +566,7 @@ export function RetinalCanvas({
 
   const transform = `translate(${displayView.panX}px, ${displayView.panY}px) scale(${displayView.scale})`;
   const zoomPercent = Math.round(displayView.scale * 100);
-  const aiLesions = (item.lesion_review?.lesions ?? []).filter((lesion) => (
+  const aiLesions = displayedLesions(item).filter((lesion) => (
     !visibleLesionLabels || visibleLesionLabels.includes(lesion.canonical_label as LesionLabel)
   ));
   const coordinateText = pointerCoordinate

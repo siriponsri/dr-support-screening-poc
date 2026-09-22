@@ -29,6 +29,7 @@ import {
   type LesionLabel,
 } from '@/lib/api';
 import { ArrowLeft, Circle, Lock, MousePointer2, Pentagon, Save, Square, Trash2, Undo2, Unlock } from '@/lib/icons';
+import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 
 type Tool = 'select' | 'rectangle' | 'polygon' | 'point' | 'circle';
 type Point = [number, number];
@@ -173,7 +174,7 @@ export function AnnotationEditorPage() {
   const [tool, setTool] = useState<Tool>('select');
   const [isCoordinateInspector, setIsCoordinateInspector] = useState(false);
   const [label, setLabel] = useState<LesionLabel>('MICROANEURYSM');
-  const [reviewer, setReviewer] = useState('');
+  const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
   const [polygonPoints, setPolygonPoints] = useState<Point[]>([]);
   const [dragStart, setDragStart] = useState<Point | null>(null);
@@ -528,6 +529,7 @@ export function AnnotationEditorPage() {
       return;
     }
     setSaving(true);
+    setDefaultReviewer(reviewer);
     setSaveError(null);
     setSaved(false);
     try {

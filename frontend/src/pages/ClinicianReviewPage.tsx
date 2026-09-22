@@ -24,6 +24,7 @@ import { Section } from '@/components/common/Section';
 import { RetinalCanvas } from '@/components/review/RetinalCanvas';
 import { apiJson, type CaseRecord } from '@/lib/api';
 import { ArrowLeft, Check, Flag, ShieldCheck, ThumbsDown } from '@/lib/icons';
+import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 
 type ReviewAction = 'ACCEPT' | 'MARK_INCORRECT' | 'CORRECT_GRADE' | 'ESCALATE';
 
@@ -43,7 +44,7 @@ export function ClinicianReviewPage() {
   const navigate = useNavigate();
   const { imageId } = useParams<{ imageId: string }>();
   const [item, setItem] = useState<CaseRecord | null>(null);
-  const [reviewer, setReviewer] = useState('');
+  const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
   const [grade, setGrade] = useState('');
   const [remark, setRemark] = useState('');
   const [loading, setLoading] = useState(true);
@@ -58,8 +59,8 @@ export function ClinicianReviewPage() {
     try {
       const loaded = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
       setItem(loaded);
+      setReviewer(loaded.clinician_review?.reviewer ?? getDefaultReviewer());
       if (loaded.clinician_review) {
-        setReviewer(loaded.clinician_review.reviewer);
         setRemark(loaded.clinician_review.remark);
         setGrade(loaded.clinician_review.final_grade === null ? '' : String(loaded.clinician_review.final_grade));
       }
@@ -83,6 +84,7 @@ export function ClinicianReviewPage() {
       return;
     }
     setSavingAction(action);
+    setDefaultReviewer(reviewer);
     setError(null);
     setSuccess(null);
     try {
@@ -137,18 +139,18 @@ export function ClinicianReviewPage() {
           <Section title="Clinician sign-off" description="Save a human review action with an optional remark.">
             <Stack spacing={4}>
               <FormControl isRequired>
-                <FormLabel>Reviewer name</FormLabel>
-                <Input value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Enter reviewer name" />
+                <FormLabel htmlFor="clinician-reviewer-name">Reviewer name</FormLabel>
+                <Input id="clinician-reviewer-name" value={reviewer} onChange={(event) => setReviewer(event.target.value)} placeholder="Enter reviewer name" autoComplete="name" />
               </FormControl>
               <FormControl>
-                <FormLabel>Final DR grade</FormLabel>
-                <Select value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Select grade 0-4">
+                <FormLabel htmlFor="clinician-review-grade">Final DR grade</FormLabel>
+                <Select id="clinician-review-grade" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Select grade 0-4">
                   {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>Grade {value}</option>)}
                 </Select>
               </FormControl>
               <FormControl>
-                <FormLabel>Remark</FormLabel>
-                <Textarea value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Add a review remark" rows={5} />
+                <FormLabel htmlFor="clinician-review-remark">Remark</FormLabel>
+                <Textarea id="clinician-review-remark" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Add a review remark" rows={5} />
               </FormControl>
               {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
               {success && <Alert status="success"><AlertIcon /><Text fontSize="sm">{success}</Text></Alert>}

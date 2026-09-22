@@ -24,7 +24,8 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { RetinalCanvas, LESION_COLORS } from '@/components/review/RetinalCanvas';
-import { ReviewEvidencePanel } from '@/components/review/ReviewEvidencePanel';
+import { LesionActionPopover } from '@/components/review/LesionActionPopover';
+import { displayedLesions } from '@/components/review/lesionPresentation';
 import {
   apiJson,
   type CaseRecord,
@@ -121,8 +122,7 @@ function Assessment({ item }: { item: CaseRecord }) {
 
 function LesionSuggestions({ item }: { item: CaseRecord }) {
   if (!item.lesion) return <Text color="text.secondary">Not analyzed</Text>;
-  const review = item.lesion_review;
-  const lesions = review?.lesions ?? item.lesion.lesions;
+  const lesions = item.lesion.lesions;
   const counts = lesions.reduce<Record<string, number>>((result, lesion) => {
     result[lesion.canonical_label] = (result[lesion.canonical_label] ?? 0) + 1;
     return result;
@@ -130,8 +130,8 @@ function LesionSuggestions({ item }: { item: CaseRecord }) {
   return (
     <Stack spacing={3}>
       <HStack justify="space-between">
-        <Text color="text.secondary">Displayed suggestions</Text>
-        <Text fontWeight="semibold">{review ? `${review.suggestion_count} of ${review.raw_count}` : lesions.length}</Text>
+        <Text color="text.secondary">AI lesion suggestions</Text>
+        <Text fontWeight="semibold">{lesions.length}</Text>
       </HStack>
       <Stack spacing={2}>
         <Text fontSize="sm" color="text.secondary">Suggested classes</Text>
@@ -139,6 +139,7 @@ function LesionSuggestions({ item }: { item: CaseRecord }) {
           <HStack key={label} justify="space-between"><Text>{LESION_DISPLAY_LABELS[label] ?? label.replace(/_/g, ' ')}</Text><Badge variant="info">{count}</Badge></HStack>
         )) : <Text color="text.secondary">No lesion suggestions</Text>}
       </Stack>
+      <Text fontSize="xs" color="text.muted">Raw AI suggestions by class. Optional visual assistance; no per-detection action is required.</Text>
       <Text fontSize="xs" color="text.muted">Model: {item.lesion.model_id} - {item.lesion.model_version}</Text>
     </Stack>
   );
@@ -318,10 +319,16 @@ export function ReviewPage() {
                 <option value="SOFT_EXUDATE">SE · Soft exudate</option>
               </Select>
               <Text fontSize="xs" color="text.secondary">
-                Displayed {item.lesion_review?.suggestion_count ?? 0} of {item.lesion_review?.raw_count ?? 0} raw suggestions
+                Active overlays {displayedLesions(item).length} of {item.lesion_review?.raw_count ?? item.lesion?.lesions.length ?? 0} raw AI suggestions
               </Text>
             </HStack>
-            <LesionLegend />
+          <LesionLegend />
+          <LesionActionPopover
+            item={item}
+            selectedLesionId={selectedLesionId}
+            onSaved={setItem}
+            onClose={() => setSelectedLesionId(null)}
+          />
           </Stack>
           <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={3} mt={4} fontSize="sm" minW={0}>
             <Stack spacing={1}><Text color="text.secondary">Image ID</Text><Code fontSize="xs" whiteSpace="normal">{item.image_id}</Code></Stack>
@@ -358,7 +365,6 @@ export function ReviewPage() {
           </Section>
           <Section title="DR assessment"><Assessment item={item} /></Section>
           <Section title="Lesion suggestions"><LesionSuggestions item={item} /></Section>
-          <ReviewEvidencePanel item={item} selectedLesionId={selectedLesionId} onSelectLesion={setSelectedLesionId} onSaved={setItem} />
           <HStack spacing={2} flexWrap="wrap">
             <Button as={Link} to={`/edit/${encodeURIComponent(item.image_id)}`} leftIcon={<Pencil size={15} />} variant="secondary">Edit annotations</Button>
             <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="outline">Clinician review</Button>
