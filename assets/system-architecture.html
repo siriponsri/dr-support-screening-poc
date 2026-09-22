@@ -1,0 +1,67 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DR Support — Hospital Deployment Architecture</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#f7f7f4;color:#202428;font-family:Arial,Helvetica,sans-serif}
+body{display:grid;place-items:center}.frame{width:1280px;height:720px;background:#f7f7f4;overflow:hidden}
+svg{display:block;width:1280px;height:720px}.title{font-family:Georgia,'Times New Roman',serif;font-size:34px;font-weight:400;fill:#202428}
+.eyebrow{font-family:Consolas,monospace;font-size:11px;letter-spacing:1.4px;fill:#66706b}.zone{fill:#fbfbf9;stroke:#d6dbd6;stroke-width:1}
+.zone-label{font-family:Consolas,monospace;font-size:10px;letter-spacing:1.1px;fill:#66706b}.node{fill:#fff;stroke:#48504c;stroke-width:1}
+.focal{fill:#e8f3e8;stroke:#016301;stroke-width:1.2}.optional{fill:#fafaf8;stroke:#9da59f;stroke-width:1;stroke-dasharray:4 3}
+.name{font-size:15px;font-weight:600;fill:#202428}.sub{font-family:Consolas,monospace;font-size:10px;fill:#66706b}.line{fill:none;stroke:#6c756f;stroke-width:1.4;marker-end:url(#arrow)}
+.link{fill:none;stroke:#2e5aa8;stroke-width:1.4;marker-end:url(#arrow-link)}.dash{stroke-dasharray:5 4}.note{font-size:12px;fill:#66706b}.accent{fill:#016301}
+</style></head><body><div class="frame">
+<svg viewBox="0 0 1280 720" role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">DR Support hospital deployment architecture</title>
+  <desc id="arch-desc">A clinician workstation connects to a hospital review API and GPU model API. Verified RETFound and PRISM weights remain local after setup, with optional CVAT Online integration.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6c756f"/></marker>
+    <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2e5aa8"/></marker>
+  </defs>
+  <text x="56" y="64" class="eyebrow">DR SUPPORT SCREENING POC · DEPLOYMENT</text>
+  <text x="56" y="106" class="title">Hospital deployment architecture</text>
+  <text x="56" y="132" class="note">Online once for setup; normal inference can run from verified local model assets.</text>
+
+  <rect x="56" y="176" width="316" height="412" rx="8" class="zone"/>
+  <text x="76" y="204" class="zone-label">CLINICIAN WORKSTATION / LAN CLIENT</text>
+  <rect x="88" y="244" width="252" height="84" rx="8" class="focal"/>
+  <text x="108" y="274" class="name">Clinician Review App</text><text x="108" y="296" class="sub">WORKLIST · REVIEW · DATASETS</text>
+  <rect x="88" y="368" width="252" height="84" rx="8" class="node"/>
+  <text x="108" y="398" class="name">Review API</text><text x="108" y="420" class="sub">APP_PROFILE=review</text>
+  <rect x="88" y="492" width="252" height="64" rx="8" class="node"/>
+  <text x="108" y="520" class="name">Workspace storage</text><text x="108" y="540" class="sub">LOCAL CASES · EXPORTS</text>
+
+  <rect x="420" y="176" width="388" height="412" rx="8" class="zone"/>
+  <text x="440" y="204" class="zone-label">HOSPITAL GPU MODEL SERVER</text>
+  <rect x="464" y="244" width="300" height="84" rx="8" class="focal"/>
+  <text x="484" y="274" class="name">Model API</text><text x="484" y="296" class="sub">/health · /v1/models · /v1/predict/*</text>
+  <rect x="464" y="368" width="140" height="88" rx="8" class="node"/>
+  <text x="484" y="398" class="name">RETFound</text><text x="484" y="420" class="sub">DR GRADE</text>
+  <rect x="624" y="368" width="140" height="88" rx="8" class="node"/>
+  <text x="644" y="398" class="name">PRISM-DR</text><text x="644" y="420" class="sub">LESION ROIs</text>
+  <rect x="464" y="492" width="300" height="64" rx="8" class="node"/>
+  <text x="484" y="520" class="name">Verified local weights</text><text x="484" y="540" class="sub">PINNED REVISION · SHA256</text>
+
+  <rect x="856" y="176" width="368" height="412" rx="8" class="zone"/>
+  <text x="876" y="204" class="zone-label">OUTPUTS & OPTIONAL INTEGRATIONS</text>
+  <rect x="900" y="244" width="280" height="84" rx="8" class="node"/>
+  <text x="920" y="274" class="name">Dataset export</text><text x="920" y="296" class="sub">MANIFEST · IMAGES · ANNOTATIONS</text>
+  <rect x="900" y="368" width="280" height="84" rx="8" class="node"/>
+  <text x="920" y="398" class="name">Audit & provenance</text><text x="920" y="420" class="sub">MODEL · HASH · REVIEW LINEAGE</text>
+  <rect x="900" y="492" width="280" height="64" rx="8" class="optional"/>
+  <text x="920" y="520" class="name">CVAT Online</text><text x="920" y="540" class="sub">OPTIONAL DENSE ANNOTATION</text>
+
+  <!-- arrows first in conceptual z-order are drawn behind boxes in source; orthogonal routing -->
+  <path d="M214 328 V352 Q214 360 222 360 H214 V368" class="line"/>
+  <path d="M340 410 H404 Q412 410 412 402 V294 Q412 286 420 286 H464" class="link"/>
+  <path d="M614 328 V352 Q614 360 606 360 H534 V368" class="line"/>
+  <path d="M614 328 V352 Q614 360 622 360 H694 V368" class="line"/>
+  <path d="M534 456 V476 Q534 484 542 484 H606 Q614 484 614 492" class="line"/>
+  <path d="M694 456 V476 Q694 484 686 484 H622 Q614 484 614 492" class="line"/>
+  <path d="M764 286 H884 Q892 286 892 286 H900" class="line"/>
+  <path d="M764 412 H884 Q892 412 892 410 H900" class="line"/>
+  <path d="M340 410 H388 Q396 410 396 524 H900" class="link dash"/>
+  <path d="M340 524 H420 Q428 524 428 524 H464" class="line"/>
+
+  <line x1="56" y1="632" x2="1224" y2="632" stroke="#d6dbd6" stroke-width="1"/>
+  <circle cx="68" cy="666" r="5" class="accent"/><text x="84" y="670" class="note">Human-in-the-loop: AI suggestions support review; clinician decisions remain authoritative.</text>
+</svg></div></body></html>
