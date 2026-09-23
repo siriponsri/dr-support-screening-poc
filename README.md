@@ -107,7 +107,7 @@ Once setup succeeds, the Model API uses only the verified local source checkouts
 - Clinicians: [Clinician User Manual PDF](docs/CLINICIAN_USER_MANUAL.pdf), [Quarto source](docs/manual/index.qmd), and [manual build](scripts/manual/build_manual.py). The HTML site is generated at `dist/manual/site/`.
 - Hospital IT/operators: [Deployment and Operations Manual PDF](docs/DEPLOYMENT_OPERATIONS_MANUAL.pdf), [Quarto source](docs/operator-manual/index.qmd), and [operator build](scripts/operator_manual/build_manual.py). The HTML site is generated at `dist/manual/operator-site/`.
 - [Clinician workflow](docs/USER_WORKFLOW.md), [feature reference](docs/FEATURE_REFERENCE.md), and [dataset manifest](docs/DATASET_MANIFEST.md).
-- [Owner demonstration](docs/demo/RETINAL_REVIEW_DEMO.html) - offline, keyboard-navigable presentation of the clinician workflow, evidence boundaries, provenance, and deployment topology.
+- [Owner demonstration](docs/demo/RETINAL_REVIEW_DEMO.html) - self-contained, offline, presenter-controlled product story (arrow keys / Space step through reveals; Home / End jump). Edit [the source](docs/demo/src/RETINAL_REVIEW_DEMO.source.html) and rebuild with `python scripts/docs/build_demo.py`.
 - [CVAT Online setup](docs/CVAT_ONLINE_SETUP.md) - optional dense annotation only.
 - [Future Experiments](docs/FUTURE_EXPERIMENTS.md) - explicitly deferred work.
 - [Release Checklist](docs/RELEASE_CHECKLIST.md) - maintainer acceptance checks.
@@ -116,6 +116,7 @@ To rebuild either manual, install released Quarto and a XeLaTeX distribution, th
 `.venv\Scripts\python.exe scripts/manual/build_manual.py` or
 `.venv\Scripts\python.exe scripts/operator_manual/build_manual.py` from the repository root.
 Set `QUARTO_BIN` when Quarto is not on `PATH`. Each Quarto Book source produces its matching HTML site and PDF.
+To refresh the manual screenshots, start `python scripts/manual/capture_server.py` (synthetic data only) and run `python scripts/manual/capture_manual.py`.
 
 ## Validation
 
