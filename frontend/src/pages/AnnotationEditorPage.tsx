@@ -174,7 +174,13 @@ function handlePoint(rect: RoiRectangle, handle: RectangleResizeHandle): Point {
 
 function RoiCorrectionBox({ rect, scale }: { rect: RoiRectangle; scale: number }) {
   const [x1, y1, x2, y2] = rect;
-  const size = 11 / Math.max(scale, 0.01);
+  const safeScale = Math.max(scale, 0.01);
+  const screenSize = Math.min(x2 - x1, y2 - y1) * safeScale;
+  // Small lesions keep only corner handles, sized so the lesion stays visible.
+  const compact = screenSize < 44;
+  const size = (compact ? 7 : 10) / safeScale;
+  const handles = compact ? ROI_HANDLES.filter((handle) => handle.length === 2) : ROI_HANDLES;
+  const offset = compact ? size / 2 : 0;
   return (
     <g data-roi-correction="true">
       <rect
@@ -190,8 +196,11 @@ function RoiCorrectionBox({ rect, scale }: { rect: RoiRectangle; scale: number }
         vectorEffect="non-scaling-stroke"
         style={{ cursor: 'move' }}
       />
-      {ROI_HANDLES.map((handle) => {
-        const [x, y] = handlePoint(rect, handle);
+      {handles.map((handle) => {
+        const [hx, hy] = handlePoint(rect, handle);
+        // Compact corner handles sit just outside the box instead of over the lesion.
+        const x = hx + (handle.includes('w') ? -offset : handle.includes('e') ? offset : 0);
+        const y = hy + (handle.includes('n') ? -offset : handle.includes('s') ? offset : 0);
         return (
           <rect
             key={handle}
@@ -752,7 +761,7 @@ export function AnnotationEditorPage() {
       setHistory([]);
       setDraftStatus(nextDraft.length !== (saved.human_annotations ?? []).length ? 'unsaved' : 'saved');
       clearRoiSelection();
-      toast({ id: 'roi-removed', status: 'success', title: 'AI suggestion removed', description: 'The original model output stays in the audit record.', duration: 2500, position: 'bottom' });
+      toast({ id: 'roi-removed', status: 'success', title: 'AI suggestion removed', duration: 2500, position: 'bottom' });
     } catch (err) {
       setRoiError(errorText(err));
     } finally {
@@ -944,8 +953,7 @@ export function AnnotationEditorPage() {
       toast({
         id: 'case-complete',
         status: 'success',
-        title: nextId ? 'Case complete · Opening next image' : 'Case complete',
-        description: nextId ? undefined : 'Every Worklist image is complete.',
+        title: nextId ? 'Case complete · Opening next image' : 'Case complete · Every Worklist image is complete',
         duration: 3500,
         position: 'top',
         isClosable: true,

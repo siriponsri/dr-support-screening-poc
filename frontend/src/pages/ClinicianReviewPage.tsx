@@ -131,8 +131,7 @@ export function ClinicianReviewPage() {
       toast({
         id: 'dr-grade-confirmed',
         status: 'success',
-        title: 'DR grade confirmed',
-        description: 'Grading complete - opening Annotation Editor.',
+        title: 'DR grade confirmed · Grading complete',
         duration: 3500,
         position: 'top',
         isClosable: true,
