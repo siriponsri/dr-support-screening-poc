@@ -44,7 +44,28 @@ interface RetinalCanvasProps {
   onPointerCancel?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onDoubleClick?: (event: ReactMouseEvent<SVGSVGElement>) => void;
   fullScreenControls?: ReactNode;
+  /**
+   * Viewport-level overlay (for example the selected AI ROI card). Rendered
+   * inside the inline and full-screen viewer so it follows the active surface.
+   */
+  renderOverlay?: (context: ViewerOverlayContext) => ReactNode;
+  /** SVG content in original-image space that needs the current viewer scale. */
+  renderInStage?: (scale: number) => ReactNode;
   children?: ReactNode;
+}
+
+export interface ViewerRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export interface ViewerOverlayContext {
+  /** Project an original-image rectangle [x1, y1, x2, y2] into viewport pixels. */
+  toViewport: (rectangle: [number, number, number, number]) => ViewerRect;
+  viewport: { width: number; height: number };
+  fullScreen: boolean;
 }
 
 interface ViewerView {
@@ -118,6 +139,7 @@ function AiShape({
   lesion,
   detectionId,
   selected,
+  dimmed = false,
   modelId,
   modelVersion,
   onSelect,
@@ -125,6 +147,7 @@ function AiShape({
   lesion: DisplayedLesion;
   detectionId: string;
   selected: boolean;
+  dimmed?: boolean;
   modelId?: string;
   modelVersion?: string;
   onSelect?: (detectionId: string) => void;
@@ -144,7 +167,9 @@ function AiShape({
       data-ai-detection-id={detectionId}
       role={onSelect ? 'button' : undefined}
       tabIndex={onSelect ? 0 : undefined}
-      aria-label={onSelect ? `AI suggestion: ${label}, model score ${(lesion.originalScore ?? lesion.score).toFixed(2)}` : undefined}
+      aria-label={onSelect ? (corrected
+        ? `Clinician-corrected ROI: ${label}. Original AI suggestion ${prettyLabel(lesion.originalLabel ?? lesion.canonical_label)}, model score ${(lesion.originalScore ?? lesion.score).toFixed(2)}`
+        : `AI suggestion: ${label}, model score ${lesion.score.toFixed(2)}`) : undefined}
       aria-pressed={onSelect ? selected : undefined}
       onClick={(event) => {
         event.stopPropagation();
@@ -156,7 +181,7 @@ function AiShape({
         event.stopPropagation();
         onSelect?.(detectionId);
       }}
-      style={{ cursor: onSelect ? 'pointer' : undefined }}
+      style={{ cursor: onSelect ? 'pointer' : undefined, opacity: dimmed ? 0.45 : 1 }}
     >
       <title>{corrected
         ? `Clinician corrected: ${label}. Original AI suggestion: ${prettyLabel(lesion.originalLabel ?? lesion.canonical_label)} - detection confidence ${(lesion.originalScore ?? lesion.score).toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`
@@ -173,13 +198,28 @@ function AiShape({
         pointerEvents="all"
         aria-hidden="true"
       />
+      {selected && (
+        <rect
+          data-ai-selected-halo="true"
+          x={x1}
+          y={y1}
+          width={x2 - x1}
+          height={y2 - y1}
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth={7}
+          strokeOpacity={0.9}
+          vectorEffect="non-scaling-stroke"
+          pointerEvents="none"
+        />
+      )}
       <rect
         x={x1}
         y={y1}
         width={x2 - x1}
         height={y2 - y1}
         fill={color}
-        fillOpacity={0.12}
+        fillOpacity={selected ? 0.2 : 0.12}
         stroke={color}
         strokeWidth={selected ? 3.5 : Math.max(2, (x2 - x1) / 120)}
         strokeDasharray={corrected ? undefined : '10 6'}
@@ -292,6 +332,8 @@ export function RetinalCanvas({
   onPointerCancel,
   onDoubleClick,
   fullScreenControls,
+  renderOverlay,
+  renderInStage,
   children,
 }: RetinalCanvasProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -754,6 +796,7 @@ export function RetinalCanvas({
                 lesion={lesion}
                 detectionId={detectionId}
                 selected={detectionId === selectedLesionId}
+                dimmed={Boolean(selectedLesionId) && detectionId !== selectedLesionId}
                 modelId={item.lesion?.model_id}
                 modelVersion={item.lesion?.model_version}
                 onSelect={onSelectLesion}
@@ -771,8 +814,19 @@ export function RetinalCanvas({
             />
           ))}
           {children}
+          {renderInStage?.(displayView.scale)}
         </Box>
       </Box>
+      {renderOverlay?.({
+        toViewport: ([x1, y1, x2, y2]) => ({
+          left: displayView.panX + x1 * displayView.scale,
+          top: displayView.panY + y1 * displayView.scale,
+          width: (x2 - x1) * displayView.scale,
+          height: (y2 - y1) * displayView.scale,
+        }),
+        viewport,
+        fullScreen,
+      })}
     </Box>
   );
 

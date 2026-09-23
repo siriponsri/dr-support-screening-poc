@@ -12,7 +12,7 @@
 
 **Expected result.** Each admitted image appears as one row with its patient and eye context, AI result, review status, and actions. Source files are never moved or changed.
 
-![Worklist with synthetic cases. Confirmed rows show the patient key and eye; unconfirmed rows offer **Link patient and confirm eye**.](screenshots/01-worklist.png){#fig-worklist width=100%}
+![Worklist for the owner-provided demo workspace. Each row starts with **Confirm Image**; the Review column later shows **Grade confirmed** or **Review complete**.](screenshots/01-worklist.png){#fig-worklist width=100%}
 
 ```{=latex}
 \Needspace{32\baselineskip}
@@ -26,14 +26,14 @@
 :::: {}
 **Steps.**
 
-1. In the case row, open the menu (**...**) and choose **Confirm Image**.
+1. In the case row, choose **Confirm Image**. (After the first confirmation the row shows **Review**; **Confirm Image again** stays in the row menu **...**.)
 2. Check the filename and the note above the fields.
 3. Enter the **Pseudonymous patient key**, for example `PAT0001`. Leave it empty when the case should stay unlinked.
 4. Set **Eye** to **Left**, **Right**, or **Unknown**.
 5. Enter your **Reviewer name**. Select **Use as default reviewer on this workstation** to prefill it next time.
-6. Choose **Confirm Image**.
+6. Choose **Confirm image & continue**.
 
-**Expected result.** The patient and eye context, reviewer, and timestamp are saved, and the row shows **Confirmed**. The case can proceed to **Review**.
+**Expected result.** The patient and eye context, reviewer, and timestamp are saved and **Review** opens for this image.
 ::::
 :::: {}
 ![Confirm Image dialog.](screenshots/02-confirm-image.png){#fig-confirm-image width=100%}

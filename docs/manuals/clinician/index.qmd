@@ -6,14 +6,16 @@ Retinal Review Workbench takes one admitted retinal image through a controlled r
 
 ![The clinician workflow. The three green boxes are the case-level confirmation milestones; AI assistance is optional.](images/clinician-workflow.png){#fig-workflow width=100%}
 
-1. **Worklist** -- select the case. Open the row menu (**...**) and choose **Confirm Image**.
-2. **Confirm Image** -- check the pseudonymous patient key, the eye, and your reviewer name, then choose **Confirm Image**.
-3. **Review** -- inspect the retinal image. Choose **Analyze** only when optional model assistance is useful and available.
-4. **Optional AI** -- read the RETFound grade suggestion and toggle the PRISM lesion overlays with **Show AI suggestions**.
-5. **Clinician Review** -- select the **Final DR grade** and choose **Confirm DR Grade**.
-6. **Annotation Editor** -- only when a human annotation, or a correction or removal of an AI ROI, is needed.
-7. **Confirm Annotation** -- confirm the active annotation set after reviewing it.
-8. **Datasets** -- check **DR-ready** and **Lesion-ready** separately, then export or move to the next case.
+The whole review is one forward line for one image at a time:
+
+1. **Worklist** -- choose **Confirm Image** in the case row.
+2. **Confirm Image** -- check the pseudonymous patient key, the eye, and your reviewer name, then choose **Confirm image & continue**. Review opens.
+3. **Review** -- inspect the retinal image and the optional RETFound grade and PRISM-DR lesion suggestions. Choose **Continue to clinician review**; nothing is decided on this page.
+4. **Clinician Review** -- select the **Final DR grade** and choose **Confirm DR Grade**. *Grading complete* appears and the Annotation Editor opens.
+5. **Annotation Editor** -- optional: click an AI ROI only where you disagree, change its class or box, and choose **Confirm** or **Remove**.
+6. **Confirm Annotation** -- finishes the image. *Case complete · Opening next image* appears and Confirm Image opens for the next unfinished Worklist image.
+
+There is no separate "not confirmed" or senior-review button: a grade is simply *Not confirmed* until you choose **Confirm DR Grade**. Datasets (@sec-datasets) shows DR-ready and Lesion-ready separately whenever you need them.
 
 ::: {.callout-important title="Important -- three confirmations"}
 **Confirm Image**, **Confirm DR Grade**, and **Confirm Annotation** are the only case-level confirmations. AI suggestions never need to be accepted or rejected one by one before the review can be completed.

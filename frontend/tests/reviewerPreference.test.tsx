@@ -69,7 +69,8 @@ describe('default reviewer preference', () => {
         </MemoryRouter>
       </ChakraProvider>,
     );
-    expect(await screen.findByText('Reviewer: Recorded reviewer')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'DR grade confirmed' })).toBeInTheDocument();
+    expect(screen.getByText(/Recorded reviewer/, { selector: 'p' })).toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Reviewer name')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit confirmed grade' })).toBeInTheDocument();
   });

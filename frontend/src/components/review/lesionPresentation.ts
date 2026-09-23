@@ -5,6 +5,7 @@ export interface DisplayedLesion extends Lesion {
   reviewState: 'AI_SUGGESTION' | 'CLINICIAN_CORRECTED';
   originalLabel?: LesionLabel;
   originalScore?: number;
+  originalRectangle?: [number, number, number, number];
 }
 
 function isLabel(value: string | null | undefined): value is LesionLabel {
@@ -44,15 +45,22 @@ export function displayedLesions(item: CaseRecord): DisplayedLesion[] {
     const correctedRectangle = entry?.corrected_rectangle?.length === 4
       ? entry.corrected_rectangle as [number, number, number, number]
       : null;
+    const geometryChanged = Boolean(correctedRectangle
+      && correctedRectangle.some((value, index) => value !== lesion.rectangle[index]));
+    // Any clinician correction (class or geometry) is shown without the AI
+    // score: the model scored the original class and box, not the correction.
+    const corrected = Boolean(correctedLabel) || geometryChanged
+      || entry?.status === 'LABEL_CHANGED' || entry?.status === 'GEOMETRY_CHANGED' || entry?.status === 'CORRECTED';
     return [{
       ...lesion,
       rectangle: correctedRectangle ?? lesion.rectangle,
       canonical_label: correctedLabel ?? lesion.canonical_label,
       source_label: correctedLabel ? sourceLabel(correctedLabel) : lesion.source_label,
-      displayScore: correctedLabel ? null : lesion.score,
-      reviewState: correctedLabel || entry?.status === 'LABEL_CHANGED' ? 'CLINICIAN_CORRECTED' : 'AI_SUGGESTION',
-      originalLabel: correctedLabel ? lesion.canonical_label as LesionLabel : undefined,
-      originalScore: correctedLabel ? lesion.score : undefined,
+      displayScore: corrected ? null : lesion.score,
+      reviewState: corrected ? 'CLINICIAN_CORRECTED' : 'AI_SUGGESTION',
+      originalLabel: corrected ? lesion.canonical_label as LesionLabel : undefined,
+      originalScore: corrected ? lesion.score : undefined,
+      originalRectangle: corrected ? lesion.rectangle : undefined,
     }];
   });
 }

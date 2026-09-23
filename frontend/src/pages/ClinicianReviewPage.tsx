@@ -17,12 +17,16 @@ import {
   Stack,
   Text,
   Textarea,
+  useToast,
 } from '@chakra-ui/react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { RetinalCanvas } from '@/components/review/RetinalCanvas';
 import { apiJson, type CaseRecord } from '@/lib/api';
-import { ArrowLeft, Pencil } from '@/lib/icons';
+import { ArrowLeft, CheckCircle2, Pencil } from '@/lib/icons';
+import { StatusBadge } from '@/components/common/StatusBadge';
+import { EDIT_CONFIRMED_GRADE_DIALOG, LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
+import { caseComplete, formatTimestamp, gradeConfirmed } from '@/lib/caseProgress';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 import { ReviewerField } from '@/components/common/ReviewerField';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
@@ -35,15 +39,16 @@ function errorText(err: unknown) {
 }
 
 function reviewLabel(item: CaseRecord) {
+  if (gradeConfirmed(item)) return 'Grading complete';
   if (item.state === 'ESCALATED') return 'Legacy senior-review record';
-  if (item.clinician_review?.final_grade !== null && item.clinician_review?.final_grade !== undefined) return 'Grading complete';
-  if (item.state === 'NEEDS_CORRECTION') return 'Needs correction';
+  if (item.state === 'NEEDS_CORRECTION') return 'Legacy correction record';
   return 'Not confirmed';
 }
 
 export function ClinicianReviewPage() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const toast = useToast();
   const { imageId } = useParams<{ imageId: string }>();
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
@@ -51,10 +56,10 @@ export function ClinicianReviewPage() {
   const [grade, setGrade] = useState('');
   const [remark, setRemark] = useState('');
   const [editingConfirmed, setEditingConfirmed] = useState(false);
-  const [navigationAccepted, setNavigationAccepted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDialog, confirm] = useConfirmDialog();
 
   const loadCase = useCallback(async () => {
     if (!imageId) return;
@@ -68,7 +73,6 @@ export function ClinicianReviewPage() {
       setRemark(loaded.clinician_review?.remark ?? '');
       setGrade(loaded.clinician_review?.final_grade == null ? '' : String(loaded.clinician_review.final_grade));
       setEditingConfirmed(false);
-      setNavigationAccepted(false);
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -78,22 +82,22 @@ export function ClinicianReviewPage() {
 
   useEffect(() => { void loadCase(); }, [loadCase]);
 
-  const confirmed = item?.clinician_review?.final_grade !== null && item?.clinician_review?.final_grade !== undefined;
+  const confirmed = gradeConfirmed(item);
   const readOnly = Boolean(confirmed && !editingConfirmed);
+  const legacyEscalation = item?.state === 'ESCALATED' && !confirmed;
+  // Leaving is guarded while this image is incomplete or a reopened grade is unsaved.
+  const guarded = Boolean(item && (!caseComplete(item) || editingConfirmed));
 
-  const confirmLeave = () => {
-    if (navigationAccepted || confirmed && !editingConfirmed) return true;
-    const accepted = window.confirm('You are still working on this image. Switch image and keep this case unconfirmed?');
-    if (accepted) setNavigationAccepted(true);
-    return accepted;
+  const leaveToWorklist = async () => {
+    if (guarded && !(await confirm(LEAVE_CASE_DIALOG))) return;
+    navigate('/worklist');
   };
 
-  const beginGradeEdit = () => {
+  // One warning per case/edit session: accepting keeps the grade form open
+  // until the page reloads the case or the clinician confirms again.
+  const beginGradeEdit = async () => {
     if (!confirmed || editingConfirmed) return;
-    if (window.confirm('Edit confirmed DR grade?\n\nThis grade has already been confirmed. Continuing will reopen the grading step and create a new review revision.')) {
-      setEditingConfirmed(true);
-      setNavigationAccepted(false);
-    }
+    if (await confirm(EDIT_CONFIRMED_GRADE_DIALOG)) setEditingConfirmed(true);
   };
 
   const saveGrade = async () => {
@@ -123,6 +127,15 @@ export function ClinicianReviewPage() {
       });
       setDefaultReviewer(useAsDefault ? reviewer : '');
       setItem(saved);
+      setEditingConfirmed(false);
+      toast({
+        id: 'dr-grade-confirmed',
+        status: 'success',
+        title: 'DR grade confirmed · Grading complete',
+        duration: 3500,
+        position: 'top',
+        isClosable: true,
+      });
       navigate(`/edit/${encodeURIComponent(saved.image_id)}`, { state: { gradingComplete: true } });
     } catch (err) {
       setError(errorText(err));
@@ -141,23 +154,18 @@ export function ClinicianReviewPage() {
       <PageHeader
         pathname={pathname}
         title="Clinician Review"
-        subtitle={`${item.display_name} - human sign-off and review record`}
-        actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />} onClick={(event) => { if (!confirmLeave()) event.preventDefault(); }}>Back to Review</Button><Button as={Link} to="/worklist" onClick={(event) => { if (!confirmLeave()) event.preventDefault(); }}>Back to Worklist</Button></HStack>}
+        subtitle={`${item.display_name} - final DR grade for this image`}
+        actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />} variant="ghost">Back to Review</Button><Button onClick={() => void leaveToWorklist()}>Back to Worklist</Button></HStack>}
       />
       <Stack spacing={3} mb={5}>
-        <CaseNavigation
-          imageId={item.image_id}
-          routePrefix="clinician-review"
-          incomplete={!confirmed || editingConfirmed}
-          onBeforeNavigate={confirmLeave}
-        />
+        <CaseNavigation imageId={item.image_id} guarded={guarded} confirm={confirm} />
         <NextActionHint item={item} />
       </Stack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.25fr) minmax(320px, 0.75fr)' }} gap={5} alignItems="start" minW={0}>
-        <Section title="Review summary" description="AI output is optional evidence; this page records the clinician's final grade.">
+        <Section title="Retinal image" description="AI output is optional evidence; this page records the clinician's final grade.">
           <RetinalCanvas item={item} showAi={false} showHuman={true} />
           <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={4} mt={4}>
-            <Stack spacing={1}><Text fontSize="sm" color="text.secondary">AI-predicted grade</Text><Heading size="md">{item.global?.grade == null ? 'Not analyzed' : `Grade ${item.global.grade}`}</Heading></Stack>
+            <Stack spacing={1}><Text fontSize="sm" color="text.secondary">AI suggestion</Text><Heading size="md">{item.global?.grade == null ? 'Not available' : `Grade ${item.global.grade}`}</Heading></Stack>
             <Stack spacing={1}><Text fontSize="sm" color="text.secondary">Human annotations</Text><Heading size="md">{item.human_annotations?.length ?? 0}</Heading></Stack>
             <Stack spacing={1}><Text fontSize="sm" color="text.secondary">AI lesion suggestions</Text><Heading size="md">{item.lesion_review?.suggestion_count ?? 0}</Heading></Stack>
           </SimpleGrid>
@@ -165,22 +173,36 @@ export function ClinicianReviewPage() {
             <Text color="text.secondary">Grading status</Text>
             <Text fontWeight="semibold">{reviewLabel(item)}</Text>
           </HStack>
-          {item.clinician_review && <Text mt={3} fontSize="sm" color="text.secondary">Confirmed by {item.clinician_review.reviewer} - {new Date(item.clinician_review.timestamp).toLocaleString()}</Text>}
         </Section>
         <Stack spacing={5} minW={0}>
           {readOnly ? (
-            <Section title="Grading complete" description="The confirmed grade is read-only until you explicitly reopen this edit session.">
+            <Section title="DR grade confirmed" description="The confirmed grade is read-only. Reopen it only if the grade must change.">
               <Stack spacing={3}>
-                <Text><strong>DR grade:</strong> Grade {item.clinician_review?.final_grade}</Text>
-                <Text fontSize="sm" color="text.secondary">Reviewer: {item.clinician_review?.reviewer}</Text>
-                <Button leftIcon={<Pencil size={15} />} variant="outline" onClick={beginGradeEdit}>Edit confirmed grade</Button>
+                <HStack spacing={2}><CheckCircle2 size={18} color="var(--chakra-colors-status-success)" /><Text fontWeight="semibold">Grading complete</Text></HStack>
+                <Text><strong>Grade:</strong> Grade {item.clinician_review?.final_grade}</Text>
+                <Text fontSize="sm" color="text.secondary"><strong>Reviewer:</strong> {item.clinician_review?.reviewer}</Text>
+                <Text fontSize="sm" color="text.secondary"><strong>Confirmed at:</strong> {formatTimestamp(item.clinician_review?.timestamp)}</Text>
+                <HStack spacing={2} flexWrap="wrap">
+                  <Button as={Link} to={`/edit/${encodeURIComponent(item.image_id)}`} variant="solid">Continue to Annotation Editor</Button>
+                  <Button leftIcon={<Pencil size={15} />} variant="outline" onClick={() => void beginGradeEdit()}>Edit confirmed grade</Button>
+                </HStack>
               </Stack>
             </Section>
           ) : (
-            <Section title="Clinician decision" description="Select one final DR grade, then continue to annotation review.">
+            <Section title="Clinician decision" description="Select the final DR grade, then confirm it.">
               <Stack spacing={4}>
+                <HStack spacing={2}>
+                  <Text fontSize="sm" color="text.secondary">Status:</Text>
+                  <StatusBadge tone="neutral">{editingConfirmed ? 'Editing confirmed grade' : 'Not confirmed'}</StatusBadge>
+                </HStack>
+                {legacyEscalation && (
+                  <Alert status="info" variant="subtle">
+                    <AlertIcon />
+                    <Text fontSize="sm"><strong>Legacy senior-review record.</strong> This historical record stays in the review history. Confirm a final DR grade to complete grading.</Text>
+                  </Alert>
+                )}
                 <ReviewerField id="clinician-reviewer-name" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
-                <Text fontSize="sm" color="text.secondary">AI suggestion: {item.global?.grade == null ? 'Not available' : `Grade ${item.global.grade}`}</Text>
+                <Text fontSize="sm" color="text.secondary">AI suggestion: {item.global?.grade == null ? 'Not available' : `Grade ${item.global.grade}`} <Text as="span" color="text.muted">(optional evidence, not pre-selected)</Text></Text>
                 <FormControl>
                   <FormLabel htmlFor="clinician-review-grade">Final DR grade</FormLabel>
                   <Select id="clinician-review-grade" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Select grade 0-4">
@@ -188,12 +210,12 @@ export function ClinicianReviewPage() {
                   </Select>
                 </FormControl>
                 <FormControl>
-                  <FormLabel htmlFor="clinician-review-remark">Remark</FormLabel>
-                  <Textarea id="clinician-review-remark" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Add a review remark" rows={5} />
+                  <FormLabel htmlFor="clinician-review-remark">Remark (optional)</FormLabel>
+                  <Textarea id="clinician-review-remark" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Add a review remark" rows={4} />
                 </FormControl>
                 {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
-                <Button variant="solid" onClick={() => void saveGrade()} isLoading={saving}>Confirm DR Grade</Button>
-                {confirmed && <Text fontSize="sm" color="text.secondary">This finalizes the grade and continues to annotation review.</Text>}
+                <Button variant="solid" onClick={() => void saveGrade()} isLoading={saving} isDisabled={grade === ''}>Confirm DR Grade</Button>
+                <Text fontSize="sm" color="text.secondary">This finalizes the DR grade and continues to annotation review.</Text>
               </Stack>
             </Section>
           )}
@@ -208,6 +230,7 @@ export function ClinicianReviewPage() {
           </Section>
         </Stack>
       </Grid>
+      {confirmDialog}
     </Box>
   );
 }

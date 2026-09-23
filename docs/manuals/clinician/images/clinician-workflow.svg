@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1060" height="400" viewBox="0 0 1060 400" role="img" aria-labelledby="title desc">
   <title id="title">Retinal Review Workbench clinician workflow</title>
-  <desc id="desc">Worklist, Confirm Image (milestone 1), Review, optional RETFound and PRISM assistance, Confirm DR Grade (milestone 2), Edit Annotations when needed, Confirm Annotation (milestone 3), then Dataset or next case.</desc>
+  <desc id="desc">Worklist, Confirm Image (milestone 1), Review, optional RETFound and PRISM assistance, Confirm DR Grade (milestone 2), optional Annotation Editor edits, Confirm Annotation (milestone 3), then the next Worklist image. No per-lesion confirmation queue.</desc>
   <!-- Generated layout; edit node text here and re-run scripts/manual/render_workflow_asset.py. -->
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -55,21 +55,21 @@
   </g>
   <g transform="translate(280,210)">
     <rect class="step" width="232" height="112" rx="12"/>
-    <text class="k" x="18" y="30">STEP 6 · WHEN NEEDED</text>
-    <text class="t" x="18" y="62">Edit Annotations</text>
-    <text class="s" x="18" y="88">Human ROIs · AI ROI edits</text>
+    <text class="k" x="18" y="30">STEP 6 · OPTIONAL EDITS</text>
+    <text class="t" x="18" y="62">Annotation Editor</text>
+    <text class="s" x="18" y="88">Edit only where you disagree</text>
   </g>
   <g transform="translate(546,210)">
     <rect class="milestone" width="232" height="112" rx="12"/>
     <text class="k-m" x="18" y="30">STEP 7 · MILESTONE 3</text>
     <text class="t-m" x="18" y="62">Confirm Annotation</text>
-    <text class="s-m" x="18" y="88">Active set at this hash</text>
+    <text class="s-m" x="18" y="88">Case complete · next image</text>
   </g>
   <g transform="translate(812,210)">
     <rect class="step" width="232" height="112" rx="12"/>
     <text class="k" x="18" y="30">STEP 8</text>
-    <text class="t" x="18" y="62">Dataset / Next Case</text>
-    <text class="s" x="18" y="88">DR-ready · Lesion-ready</text>
+    <text class="t" x="18" y="62">Next Worklist Image</text>
+    <text class="s" x="18" y="88">Confirm Image starts again</text>
   </g>
   <line class="line" x1="246" y1="80.0" x2="276" y2="80.0" marker-end="url(#arrow)"/>
   <line class="line" x1="512" y1="80.0" x2="542" y2="80.0" marker-end="url(#arrow)"/>

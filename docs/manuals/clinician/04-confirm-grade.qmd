@@ -4,19 +4,27 @@
 
 **Steps.**
 
-1. From **Review**, choose **Clinician review**.
-2. Check **Reviewer name**. It is prefilled when a workstation default is set.
-3. Read the **AI suggestion** line, if a suggestion exists.
-4. Select the **Final DR grade** (Grade 0--4).
-5. Add a **Remark** when useful.
-6. Choose **Confirm DR Grade**. Choose **Escalate** when the case needs a separate decision.
+1. From **Review**, choose **Continue to clinician review**.
+2. Check **Status: Not confirmed** and **Reviewer name**. The reviewer is prefilled when a workstation default is set.
+3. Read the **AI suggestion** line, if a suggestion exists. It is never pre-selected.
+4. Select the **Final DR grade** (Grade 0--4). **Confirm DR Grade** stays disabled until a grade is selected.
+5. Add a **Remark (optional)** when useful.
+6. Choose **Confirm DR Grade**.
 
-**Expected result.** A green confirmation appears and **Review record** shows the action, final grade, and remark. Keeping the model grade is recorded as `AI_ACCEPTED`, a different grade as `AI_CORRECTED`, and a grade without a model result as `MANUAL`. The human grade is the authoritative decision.
+**Expected result.** *DR grade confirmed · Grading complete* appears and the **Annotation Editor** opens for the same image, showing *DR grade confirmed · Grade X*. Keeping the model grade is recorded as `AI_ACCEPTED`, a different grade as `AI_CORRECTED`, and a grade without a model result as `MANUAL`. The human grade is the authoritative decision.
 
-::: {layout-ncol=2 layout-valign="top"}
-![Clinician sign-off before confirming.](screenshots/05-confirm-dr-grade.png){#fig-grade}
+If you are not ready to decide, do not press **Confirm DR Grade**; the grade simply stays *Not confirmed*. There is no separate senior-review or not-confirm action. Historical senior-review records from earlier versions remain readable and are labelled *Legacy senior-review record*.
 
-![The saved review record.](screenshots/06-dr-grade-recorded.png){#fig-grade-recorded}
+::: {layout="[52,48]" layout-valign="top"}
+![Clinician decision before confirming.](screenshots/05-confirm-dr-grade.png){#fig-grade}
+
+![A confirmed grade is read-only.](screenshots/06-dr-grade-recorded.png){#fig-grade-recorded}
 :::
 
-**Confirm DR Grade & Next** at the top of the page saves the same decision and opens the next case.
+## Change a confirmed grade
+
+Returning to a confirmed case shows **DR grade confirmed** with the grade, reviewer, and confirmation time. To change it, choose **Edit confirmed grade**. One warning appears for this edit session:
+
+![One warning per edit session.](screenshots/17-edit-grade-warning.png){#fig-edit-grade width=52%}
+
+Choose **Continue editing** to reopen the grade. The new confirmation creates a new review revision; the earlier decision stays in the review history.

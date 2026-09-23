@@ -1,44 +1,35 @@
 # Annotation Editor {#sec-annotations}
 
-## Add human annotations
+**Purpose.** Record human annotations only where you disagree with the AI suggestions or want to add a finding. The Annotation Editor opens automatically after **Confirm DR Grade**.
 
-**Purpose.** Record human annotations, or change an AI ROI, only when the clinician identifies a change that should be recorded.
+AI suggestions are optional visual evidence. You only need to edit a region when you disagree or want to record a human annotation. Confirming annotations completes this case; it does not mean every AI ROI was individually verified. Untouched AI suggestions stay AI suggestions; they never become human labels by themselves.
 
-**Steps.**
+![Annotation Editor after grade confirmation: canvas, **Finish this image** panel, and optional editor tools.](screenshots/07-annotation-editor.png){#fig-editor width=90%}
 
-1. Continue from **Clinician Review** after confirming the final grade. The page opens as **Annotation Editor**.
-2. Under **Editor tools**, choose **Box**, **Polygon**, **Point**, or **Circle**, then choose the **Lesion class**.
-3. Draw on the image. Double-click to finish a polygon.
-4. Use **Select**, **Undo**, **Delete selected**, and **Lock selected** to adjust your own annotations.
-5. Keep **AI suggestions** shown when comparing with the model, or hide them to reduce clutter.
-
-**Expected result.** Human annotations are stored in original image pixels and remain separate from the AI evidence. The draft is saved automatically (see @sec-autosave).
-
-![Annotation Editor: canvas, editor tools, and the save panel.](screenshots/07-annotation-editor.png){#fig-editor width=76%}
+If an image is opened here before its grade is confirmed, a warning with **Open Clinician Review** appears and **Confirm Annotation** stays disabled. Your draft is kept.
 
 ## Correct or remove an AI ROI
 
-**Purpose.** Fix an obvious model class, or remove a wrong detection. This is optional and is not a confirmation queue.
-
 **Steps.**
 
-1. In the Annotation Editor, keep **AI suggestions** shown and click the AI ROI on the image.
-2. In the AI suggestion popover, read the original class, model score, geometry, and model.
-3. Choose the lesion class when a human correction is needed, then choose **Confirm**.
-4. Choose **Remove** when the detection should not remain in the active reviewed result.
-5. Confirm the annotation set with **Confirm Annotation** when the review is complete.
+1. Click an AI ROI on the image (inline or full-screen). It is highlighted, other ROIs dim, and the **AI suggestion** card opens beside it without covering it. Near the edge of the viewer the card moves to the other side or docks in a corner.
+2. Read **Model score** and **Model: PRISM-DR**.
+3. To change the class, choose it in **Lesion class**. The score line then reads *for AI class ...*: the score belongs to the model's class, not to your correction.
+4. To change the box, drag it or drag a handle. The original AI box stays visible underneath.
+5. Choose **Confirm** to record the ROI as a human annotation, **Remove** to remove it from the active reviewed result, or **Close** (or Escape) to leave without a change.
 
-**Expected result.** The corrected ROI shows the new class as **clinician corrected**, without inheriting the original score. The original AI class, score, geometry, and provenance stay available for audit. A removed detection remains in the audit record.
+**Expected result.** *Annotation confirmed* or *AI suggestion removed* appears briefly and you stay on the image. A corrected ROI is shown as **clinician corrected** without a score. The original AI class, score, geometry, and model identity stay in the review record; a removed suggestion stays in the audit record.
 
+::: {layout="[[50,50]]" layout-valign="top"}
+![Selected AI ROI with its card beside it.](screenshots/08-roi-popover.png){#fig-roi}
+
+![After correction: HUMAN annotation, no inherited score.](screenshots/09-roi-corrected.png){#fig-roi-corrected}
+:::
 
 ::: {.callout-important title="Important -- score meaning"}
-A model score belongs to the class the model predicted. If PRISM suggests `Hemorrhage · 0.90` and you change the class to Microaneurysm, the result is **Microaneurysm -- clinician corrected**. It is never shown as `Microaneurysm · 0.90`.
+A model score belongs to the class and box the model predicted. If PRISM suggests `Hemorrhage · 0.55` and you change the class to Hard exudate, the result is **Hard exudate -- clinician corrected**. It is never shown as `Hard exudate · 0.55`.
 :::
 
-Dense geometry work can use the optional CVAT round trip (@sec-cvat). The Annotation Editor does not replace it.
+## Draw human annotations
 
-::: {layout="[[40,-4,40]]" layout-valign="top"}
-![Selected AI ROI with its popover.](screenshots/08-roi-popover.png){#fig-roi}
-
-![After correction: the score stays with the original class.](screenshots/09-roi-corrected.png){#fig-roi-corrected}
-:::
+Under **Editor tools**, choose **Box**, **Polygon**, **Point**, or **Circle** and a **New annotation class**, then draw. Double-click to finish a polygon. **Select**, **Undo**, **Delete selected**, and **Lock selected** adjust your own annotations. Human annotations are stored in original image pixels and remain separate from the AI evidence. Dense geometry work can use the optional CVAT round trip (@sec-cvat).

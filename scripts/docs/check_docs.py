@@ -52,6 +52,8 @@ TEMPORARY = {
     "CLINICIAN_UI_FLOW_REDESIGN_PATCH.md",
     "FULL_HYPERFRAMES_OPHTHALMOLOGIST_PRESENTATION_PATCH.md",
     "PHASE3_SETUP_AND_DOCS_INFORMATION_ARCHITECTURE_PATCH.md",
+    "CLINICIAN_SINGLE_LINE_FLOW_V2_PATCH.md",
+    "FULL_PRESENTATION_REBUILD_MOTION_V2_PATCH.md",
 }
 RETIRED_PATHS = (
     "docs/demo",
@@ -81,6 +83,10 @@ STALE_CONSUMERS = (
     ("senior-review path", "the current UI requires an explicit final DR grade"),
     ("save & next", "the current UI exposes Save draft and explicit confirmation"),
     ("edit annotations", "the current UI page is Annotation Editor"),
+    ("use as human annotation", "the AI ROI card exposes only Confirm / Remove / Close"),
+    ("save draft only", "autosave runs in the background; Confirm Annotation finishes the image"),
+    ("confirm dr grade & next", "Confirm DR Grade continues to the Annotation Editor"),
+    ("confirm final dr grade & next", "Confirm DR Grade continues to the Annotation Editor"),
 )
 LINK = re.compile(r"!?\[[^\]]*\]\(([^)\s#]+)(?:#[^)]*)?\)")
 ID = re.compile(r"IMG-SAMP-\d{3}")
