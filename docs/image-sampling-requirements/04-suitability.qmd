@@ -1,0 +1,32 @@
+# Image Suitability {#sec-suitability}
+
+## A glance-level decision, not a score
+
+Clinicians make a three-way decision for each candidate image: **Use**, **Review first**, or **Skip** (IMG-SAMP-070). There is no numeric quality score, no checklist, and no form. The wording follows established concepts: the NHS Diabetic Eye Screening Programme's *adequate / inadequate* image definitions, and the *Good / Usable / Reject* categories of the EyeQ quality dataset. It is kept deliberately simpler than both.
+
+| Decision | Meaning | Examples |
+|:---------|:--------|:---------|
+| **Use** | A colour fundus/retinal photograph that already has a `Refer` or `Not-refer` class, is the original file, and shows enough retina for normal reading: optic disc, macula, and vessels visible. | A typical screening photograph (IMG-SAMP-071). |
+| **Review first** | Might be useful, but something is uncertain. Take a second look. If you would still use it clinically, stage it without inventing metadata. Otherwise skip it or ask the coordinator. | Borderline blur or exposure; uncertain field or eye; possible duplicate; not sure enough retina is visible (IMG-SAMP-072). |
+| **Skip** | Not suitable for this collection. | Wrong modality (OCT, external-eye or anterior-segment photograph); corrupt or unreadable file; screenshot, crop, or annotated copy; non-retinal image; multi-frame or non-ophthalmic DICOM (IMG-SAMP-073). |
+
+: The clinician suitability decision. Clinical wording requires sign-off. {#tbl-suitability tbl-colwidths="[16,46,38]"}
+
+For reference, the NHS programme defines an adequate macula-centred image as one in which "the centre of fovea is > 2DD from edge of image and the 3rd generation vessels are visible". An adequate disc-centred image shows the complete optic disc more than 2 disc diameters from the edge, with fine vessels visible on the disc surface. These definitions inform the **Use** wording; clinicians are **not** asked to measure them.
+
+## Suitability is not the source class
+
+::: {.callout-warning title="Safety -- do not relabel poor images"}
+Image suitability and gradability are separate from `Refer` / `Not-refer`. A poor-quality or ungradable image must never be relabelled `Refer` or `Not-refer` to fit a sampling target (IMG-SAMP-074).
+:::
+
+This separation matches established practice:
+
+- In NHS screening, an inadequate image set with no referable features gets its own **ungradable (U)** outcome and an inadequate-image pathway. Referable features seen on an inadequate image are still referred at their disease grade.
+- The FDA De Novo summary for IDx-DR (DEN180001) describes a separate **"insufficient quality"** output, in addition to its two disease outputs.
+
+## What the Workbench already does
+
+- **Admission** runs coarse screens: minimum dimension, extreme aspect ratio, near-uniform image, extreme brightness, and weak colour/field signals. An image that fails a screen is flagged **Needs review** or **Image quality review**, not rejected. These checks are safety screens, **not** a gradability assessment (IMG-SAMP-076).
+- **Admission quality state** (`GRADABLE`, `UNGRADABLE`, `NEEDS_REVIEW`, `NOT_EVALUATED`) is independent of the grade. `UNGRADABLE` blocks DR-ready and Lesion-ready in the dataset export.
+- A staged image later found ungradable keeps the existing Workbench quality state (**Image quality issue**, recorded through the existing `QUALITY_INADEQUATE` admission action). **No new clinical label is created** (IMG-SAMP-075). The team counts these images. Whether they count toward N is an owner decision.

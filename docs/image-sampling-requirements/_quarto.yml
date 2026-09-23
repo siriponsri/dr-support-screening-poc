@@ -1,0 +1,70 @@
+project:
+  type: book
+  output-dir: ../../dist/manual/sampling-site
+
+book:
+  title: "Retinal Review Workbench"
+  subtitle: "Team Image Sampling Requirements"
+  author: "Retinal Review Workbench project team"
+  date: "2026-09-23"
+  output-file: "Image-Sampling-Requirements"
+  chapters:
+    - index.qmd
+    - 01-boundary.qmd
+    - 02-source-class.qmd
+    - 03-coverage.qmd
+    - 04-suitability.qmd
+    - 05-optional-metadata.qmd
+    - 06-monitoring.qmd
+    - 07-clinician-burden.qmd
+    - 08-open-decisions.qmd
+    - 09-traceability.qmd
+
+format:
+  html:
+    theme: default
+    css: ../manual/styles.css
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    number-depth: 2
+    page-layout: article
+    callout-icon: false
+  pdf:
+    pdf-engine: xelatex
+    documentclass: report
+    classoption:
+      - 10pt
+      - oneside
+    papersize: a4
+    toc: true
+    toc-depth: 1
+    number-sections: true
+    number-depth: 2
+    colorlinks: true
+    linkcolor: rrwink
+    urlcolor: rrwgreen
+    mainfont: Liberation Sans
+    mainfontoptions:
+      - Scale=1.02
+    monofont: Liberation Mono
+    monofontoptions:
+      - Scale=0.92
+    geometry:
+      - top=25mm
+      - bottom=24mm
+      - left=22mm
+      - right=22mm
+      - headsep=7mm
+      - footskip=10mm
+    fig-pos: H
+    include-in-header: latex-header.tex
+    callout-icon: false
+    keep-tex: false
+
+crossref:
+  chapters: false
+  fig-title: "Figure"
+  tbl-title: "Table"
+
+lang: en

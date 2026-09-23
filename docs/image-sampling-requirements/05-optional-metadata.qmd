@@ -1,0 +1,15 @@
+# Optional Metadata Dimensions {#sec-optional}
+
+Regulatory and reporting guidance asks developers to characterise their datasets. The FDA draft guidance on AI-enabled device software (January 2025) lists demographics, data acquisition equipment and conditions, and sites. STANDING Together (2025) asks for transparent documentation of who is represented and what is missing. These are **recommendations for how a dataset is described**, not quotas for this POC (IMG-SAMP-080).
+
+| Dimension | Why it can matter | POC decision | How it would be collected |
+|:----------|:------------------|:-------------|:--------------------------|
+| Age band | Subgroup characterisation | Optional; defer if not available | Approved source metadata only |
+| Camera / device | Model robustness across devices | Optional; worth tracking when feasible | Metadata or batch-level note by the team, never per image by the clinician |
+| Site / acquisition setting | Generalisability | Optional; one site expected | Batch-level note by the team |
+| Capture period | Drift and era effects | Optional | Batch-level note by the team |
+| Image quality / gradability | Model behaviour degrades with quality (EyeQ) | Covered by suitability and admission state (@sec-suitability) | Existing Workbench admission state |
+
+: Optional dimensions. None becomes per-image clinician entry. {#tbl-optional tbl-colwidths="[18,26,26,30]"}
+
+**Rule.** If a dimension cannot be obtained without extra clinician data entry, defer it and state "not collected" in the dataset description. Do not add it to the clinician guide.

@@ -1,0 +1,49 @@
+# At a Glance {#sec-glance}
+
+This document tells the project team how to plan and monitor the retinal images collected for the current proof-of-concept (POC) annotation batch. It is written for the team. Clinicians get a separate one-page *Clinician Image Selection Guide*.
+
+::: {.callout-important title="Important -- the one rule behind this document"}
+The team needs dataset coverage. Clinicians must not become data managers. Coverage is planned and counted by the team. The clinician only chooses suitable images during normal work and stages them through the approved hospital process.
+:::
+
+| Question the team must answer | Where it is answered |
+|:-----------------------------|:---------------------|
+| Who chooses the images, and who never does? | @sec-boundary (IMG-SAMP-001 to 005) |
+| How many `Refer` versus `Not-refer`? | @sec-source (IMG-SAMP-010 to 022) |
+| Are both sexes represented? | @sec-sex (IMG-SAMP-030 to 033) |
+| Are both left and right eyes represented? | @sec-laterality (IMG-SAMP-040 to 043) |
+| How much metadata is Unknown? | @sec-unknown and @sec-monitoring |
+| Are we collecting duplicates or repeated cases? | @sec-duplicates (IMG-SAMP-050 to 061) |
+| Are the images usable retinal images? | @sec-suitability (IMG-SAMP-070 to 076) |
+| Which dimensions are mandatory and which are best effort? | @tbl-dimensions |
+| When do we stop collecting for this POC? | @sec-stopping (IMG-SAMP-022) |
+| Which items are software constraints, and which are planning only? | Chapter 10 (traceability register) |
+
+: Where to find each answer. {#tbl-glance tbl-colwidths="[46,54]"}
+
+## How to read a requirement
+
+Every requirement has an `IMG-SAMP-` ID and one or more **levels**. The full wording, evidence, and approval status are in the traceability register (Chapter 10). That register is the single source of truth; this document explains it.
+
+| Level | Meaning |
+|:------|:--------|
+| `SW` | Implemented software behaviour on `main`, verified in code and tests. |
+| `OWN` | Explicit owner/team decision. |
+| `TGT` | Internal POC sampling target. Not a clinical requirement, not a prevalence claim, not a powered sample-size calculation. |
+| `EXT` | External best-practice recommendation, adopted as guidance only. |
+| `OPEN` | Proposed; needs owner or clinical approval before use (@sec-open). |
+
+: Requirement levels. {#tbl-levels tbl-colwidths="[14,86]"}
+
+## Dimensions at a glance
+
+| Dimension | Status for this POC | Who provides the value | Unknown allowed? |
+|:----------|:--------------------|:-----------------------|:-----------------|
+| Source class `Refer` / `Not-refer` | **Primary axis**, required | Already held by the source workflow; recorded by the team | Not expected; see @sec-link |
+| Sex | Secondary coverage, best effort | Approved source metadata only | Yes |
+| Laterality (left/right) | Secondary coverage, best effort | **Confirm Image** in the Workbench (existing step) | Yes |
+| Patient grouping | Required for counting patients | Pseudonymous patient key in **Confirm Image** | Yes (unlinked) |
+| Image suitability | Required for entry | Clinician glance (Use / Review first / Skip), then Workbench admission | Not applicable |
+| Age, device, site, period | Optional, team only | Approved metadata when available | Yes; defer if unavailable |
+
+: Mandatory versus best-effort dimensions. {#tbl-dimensions tbl-colwidths="[24,26,32,18]"}

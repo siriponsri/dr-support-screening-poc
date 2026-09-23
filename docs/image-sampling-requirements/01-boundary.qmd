@@ -1,0 +1,34 @@
+# Data Ownership and Staging Boundary {#sec-boundary}
+
+## Purpose
+
+The Workbench turns images a clinician has already chosen into reviewed, traceable dataset records. It does not decide which hospital images are collected. This chapter fixes that boundary so that nobody on the team, and no future feature, drifts across it by accident.
+
+## The boundary
+
+![Image ownership and staging boundary. Source: `docs/architecture/03-image-staging-boundary.mmd`.](../architecture/rendered/03-image-staging-boundary.png){#fig-boundary width=62%}
+
+1. **Hospital-controlled storage** holds the candidate retinal images. The source class `Refer` / `Not-refer` is already recorded there by the existing hospital workflow.
+2. **A clinician or authorized hospital user** chooses a suitable candidate image during normal work (IMG-SAMP-002).
+3. **The hospital-approved staging or transfer process** copies only that selected, original file into the Workspace input folder (IMG-SAMP-003, IMG-SAMP-004).
+4. **The Workbench** admits what it finds in that folder: it records the SHA-256 source identity, checks the format, and runs coarse admission checks. The case then follows the normal Worklist → **Confirm Image** → review workflow.
+5. **The project team** monitors coverage from the Workbench export and its own source-class record (@sec-monitoring). Gaps go back to the hospital coordinator only as aggregate requests (IMG-SAMP-092).
+
+::: {.callout-warning title="Safety -- what the team never does"}
+The project team and the Workbench do **not** browse, query, or harvest hospital-controlled storage, and do **not** pre-select, prioritise, or pull images for clinicians (IMG-SAMP-001). There is no automatic PACS query and no automatic patient selection. Do not propose one without a separate owner-approved specification.
+:::
+
+## What the software actually does at the boundary
+
+These facts are verified in the current `main` branch. They describe the Workbench's behaviour; they do not add new obligations.
+
+- The Workbench reads **only the configured Workspace input folder**, **top level only**. It does not follow sub-folders or symlinks (`scan_input_folder` in `dr_support/services/admission.py`).
+- Ancillary files (`.csv`, `.json`, `.md`, `.txt`, `.log`, `.toml`, `.xml`, `.yaml`) in the input folder are ignored. They never become cases.
+- Supported inputs are JPEG, PNG, TIFF, and single-frame ophthalmic-photography DICOM. Unsupported or unreadable files are reported, not silently dropped.
+- Source files are never moved, renamed, rewritten, or recompressed. The SHA-256 identity of each source is recorded, and a changed file is flagged as `Source changed`.
+
+## Privacy at the staging boundary
+
+- Stage the **original** file. Do not stage screenshots, crops, annotated copies, or re-exported derivatives (IMG-SAMP-004).
+- Staged filenames and folder names must not carry direct identifiers. The export includes the `filename` column. Any pseudonymous naming is done by the approved hospital process, not invented image by image by the clinician (IMG-SAMP-005, **OPEN**).
+- Team tracking records use pseudonymous keys and the Workbench `image_id` / `image_sha256` only. They are stored according to hospital policy and never committed to the repository (IMG-SAMP-091, IMG-SAMP-110).

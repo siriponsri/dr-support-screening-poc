@@ -1,0 +1,85 @@
+# Team Monitoring {#sec-monitoring}
+
+## Two simple summaries
+
+The team keeps **two small summaries**, not an 18-cell quota matrix (IMG-SAMP-090). If joint counts are ever needed (for example sex × eye × class), generate them programmatically from the same data.
+
+| Sex | Refer | Not-refer | Total |
+|:----|------:|----------:|------:|
+| Male | *n* | *n* | *n* |
+| Female | *n* | *n* | *n* |
+| Unknown | *n* | *n* | *n* |
+| **Total** | *n* | *n* | *N* |
+
+: Summary 1 -- sex by source class. {#tbl-mon-sex tbl-colwidths="[34,22,22,22]"}
+
+| Eye (confirmed) | Refer | Not-refer | Total |
+|:----------------|------:|----------:|------:|
+| Left | *n* | *n* | *n* |
+| Right | *n* | *n* | *n* |
+| Unknown | *n* | *n* | *n* |
+| **Total** | *n* | *n* | *N* |
+
+: Summary 2 -- confirmed laterality by source class. {#tbl-mon-eye tbl-colwidths="[34,22,22,22]"}
+
+Each update also reports these metrics:
+
+| Metric | Source |
+|:-------|:-------|
+| `Refer` share of N, and whether it is inside the 40--60 % band | Team source-class record |
+| Unknown rate for sex and for laterality | Team record; `images.csv` `laterality`, `laterality_resolution_method` |
+| Distinct patients; images per patient; patients above the flag value | `images.csv` `patient_key` |
+| Duplicate content (aliases) | Worklist status / admission integrity |
+| Suitability outcomes: Needs review, Image quality issue, Cannot analyze, Excluded | `images.csv` `modality_admission`, `quality_state`, `queue_state` |
+| DR-ready and Lesion-ready counts | `manifest.json` counts |
+| Flags raised (sex, eye, per-patient cap) | The thresholds in @sec-coverage |
+
+: Monitoring metrics per update. {#tbl-mon-metrics tbl-colwidths="[52,48]"}
+
+## How to produce the summaries
+
+1. In the Workbench **Datasets** page, choose **Export manifest**. The export folder contains `manifest.json`, `images.csv`, and `annotations.csv` (schema `s4.dataset-manifest.v2`, see `docs/DATASET_MANIFEST.md`).
+2. Join `images.csv` to the team source-class record by `image_id` or `image_sha256`, using the mechanism chosen in @sec-link (IMG-SAMP-091).
+3. Count laterality only when `laterality_resolution_method` is `MANUAL`. Otherwise count it as `Unknown`.
+4. Store the output according to hospital policy. It contains no direct identifiers, and it is **not** committed to this repository.
+5. Send any coverage gap to the hospital coordinator as an **aggregate** request only, for example "about 15 more `Not-refer` images", never as a list of patients (IMG-SAMP-092).
+
+A minimal reference implementation that uses only the Python standard library:
+
+```python
+import csv
+from collections import Counter
+
+def summaries(images_csv, team_csv):
+    """team_csv columns: image_sha256, source_class, sex."""
+    with open(team_csv, encoding="utf-8") as f:
+        team = {r["image_sha256"]: r for r in csv.DictReader(f)}
+    sex, eye, patients = Counter(), Counter(), Counter()
+    with open(images_csv, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            rec = team.get(row["image_sha256"], {})
+            cls = rec.get("source_class") or "Unlinked"
+            sex[(rec.get("sex") or "Unknown", cls)] += 1
+            manual = row["laterality_resolution_method"] == "MANUAL"
+            known = row["laterality"] in ("LEFT", "RIGHT")
+            side = row["laterality"].title() if manual and known else "Unknown"
+            eye[(side, cls)] += 1
+            if row["patient_key"]:
+                patients[row["patient_key"]] += 1
+    return sex, eye, patients
+```
+
+`Unlinked` in the output means that an exported image has no team source-class entry. Resolve that before reporting.
+
+## Worked example (illustrative numbers only)
+
+| Summary 2 | Refer | Not-refer | Total |
+|:----------|------:|----------:|------:|
+| Left | 21 | 19 | 40 |
+| Right | 24 | 22 | 46 |
+| Unknown | 7 | 7 | 14 |
+| **Total** | 52 | 48 | 100 |
+
+: Illustrative laterality summary for N = 100. {#tbl-mon-example tbl-colwidths="[34,22,22,22]"}
+
+Reading of this example: `Refer` is 52 % (inside the band). Unknown laterality is 14 % (at most 20 %, so the stopping rule is met). Left is 47 % of known eyes (no flag). The batch can stop once the owner confirms N.

@@ -1,0 +1,29 @@
+# Open Owner and Clinical Decisions {#sec-open}
+
+These items are proposals. They stay **OPEN** until the owner (and, where marked, the clinical lead) approves them. The defaults below are suggestions, not decisions.
+
+```{=latex}
+\Needspace{34\baselineskip}
+```
+
+| # | Decision | Proposed default | Requirement | Approver |
+|--:|:---------|:-----------------|:------------|:---------|
+| 1 | Total N for the current POC batch | 100 | IMG-SAMP-020, 022 | Owner |
+| 2 | `Refer` / `Not-refer` planning band | 40--60 % per class | IMG-SAMP-020 | Owner |
+| 3 | How the source class (and sex) is linked to each staged image | Option A, one Workspace per class | IMG-SAMP-013 | Owner, hospital coordinator |
+| 4 | Hospital-approved staging process and pseudonymous filename convention | Defined by hospital IT | IMG-SAMP-003, 005 | Owner, hospital IT |
+| 5 | Soft flag thresholds for sex and laterality | 30 % of known values | IMG-SAMP-032, 043 | Owner |
+| 6 | Images-per-patient flag | More than 4 per batch | IMG-SAMP-052 | Owner |
+| 7 | Whether ungradable or borderline staged images count toward N | Count separately; not toward N | IMG-SAMP-075 | Owner, clinical lead |
+| 8 | Clinical wording of Use / Review first / Skip | As in the Clinician Image Selection Guide | IMG-SAMP-070 to 073 | Clinical lead |
+| 9 | Optional dimensions to record (device, site, age band, period) | Device and site at batch level only | IMG-SAMP-080 | Owner |
+| 10 | Storage location and retention of team monitoring records | Per hospital policy | IMG-SAMP-091 | Owner, hospital IT |
+| 11 | Named dataset coordinator | To be named | IMG-SAMP-090, 092 | Owner |
+
+: Open decisions. {#tbl-open tbl-colwidths="[4,34,24,18,20]"}
+
+None of these decisions requires a software change. If a decision would require one (for example a source-class field in the Workbench), it needs a separate normative specification under `docs/` and owner approval before implementation, in line with `AGENTS.md`.
+
+```{=latex}
+\begin{landscape}
+```

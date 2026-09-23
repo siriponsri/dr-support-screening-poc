@@ -1,0 +1,42 @@
+# Secondary Coverage: Sex, Eyes, and Patients {#sec-coverage}
+
+Sex and laterality are **coverage dimensions**. They are not per-image clinician tasks and not quotas. The team counts them. Clinicians are never asked to balance them.
+
+## Sex {#sec-sex}
+
+- Record sex **only** when it is already available from approved source metadata or the approved workflow. Clinicians never re-enter sex per image (IMG-SAMP-030). The Workbench stores no sex field.
+- Both sexes should be represented where data are available. Report Male / Female / Unknown counts by source class (IMG-SAMP-031).
+- **Soft monitoring flag (internal POC target):** note it to the owner if either known sex is below 30 % of known-sex images (IMG-SAMP-032). This is not a clinical requirement, not a prevalence claim, and not a reason to exclude an image.
+
+The 30 % threshold is operational. It exists to make marked imbalance visible early. A strict 50/50 is not assumed to be scientifically correct: the sex distribution of people with diabetes attending the source service may itself be unequal.
+
+## Left and right eyes {#sec-laterality}
+
+- Both left and right eyes should be represented. Report the laterality distribution by source class (IMG-SAMP-040). There is no fixed 50/50 quota.
+- **Count only the clinician-confirmed eye** from **Confirm Image**. In the export this is `laterality` with `laterality_resolution_method = MANUAL` (IMG-SAMP-041).
+- Filename patterns, optional OCR, and DICOM *Image Laterality (0020,0062)* are **candidates only**. The Workbench extracts the DICOM value as a metadata candidate, but the resolver does not use it. The clinician's **Confirm Image** choice is authoritative inside the workflow.
+- Never guess laterality from a filename for team statistics. Unconfirmed or unsafe laterality stays `Unknown` (IMG-SAMP-042).
+- **Soft monitoring flag:** note it if either known eye is below 30 % of known-laterality images (IMG-SAMP-043).
+
+## Unknown values {#sec-unknown}
+
+`Unknown` / *not available* is an acceptable value for sex, laterality, and every optional dimension (IMG-SAMP-033). Do not exclude a useful retinal image only because demographic metadata is missing, unless the owner or clinical team explicitly requires it. Report the Unknown rate in every monitoring update, so that missing data is visible rather than hidden (STANDING Together, 2025).
+
+## Same patient, both eyes {#sec-duplicates}
+
+- Several images from the same patient, including both eyes, are allowed. They are **not independent patients**. Preserve the pseudonymous patient key recorded in **Confirm Image**, and report **distinct patients** as well as images (IMG-SAMP-050).
+- The export already carries `patient_key` and `training_group_key` (`patient:<key>`), and states `grouping_policy: patient_key_only; no automatic train-validation-test split`.
+- **Future safeguard.** Any later ML train/validation/test experiment should split at patient or group level where identity is available (IMG-SAMP-051). Splitting by image can inflate reported accuracy substantially when one patient's images land in both sets (Tampu et al., 2022). This POC does **not** add a split; the safeguard is recorded here for future experiment designs only.
+- **Soft monitoring flag:** note any patient contributing more than 4 images to a batch (IMG-SAMP-052, value to be approved).
+
+## Duplicates and repeated images
+
+| Situation | Detected by the Workbench? | What happens |
+|:----------|:---------------------------|:-------------|
+| The same file staged twice, or byte-identical copies | **Yes**, by SHA-256 | One case with several aliases, shown as `Duplicate content` (IMG-SAMP-060). |
+| The same file changed after admission | **Yes** | `Source changed` integrity status. |
+| A repeat capture of the same eye, or a resized or re-exported copy | **No** | The team reviews repeated patient + eye combinations (IMG-SAMP-061). |
+
+: Duplicate handling. {#tbl-duplicates tbl-colwidths="[36,24,40]"}
+
+Clinicians only need to avoid *knowingly* staging the same image twice. They are not asked to search for duplicates.

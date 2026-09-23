@@ -1,0 +1,58 @@
+# Source Class: Refer and Not-refer {#sec-source}
+
+## What the source class is
+
+The source hospital classifies images only as **`Refer`** or **`Not-refer`**. This existing class is the **primary sampling axis** for the POC (IMG-SAMP-010). Clinicians do not create it at selection time; it already exists in the source workflow.
+
+::: {.callout-important title="Important -- two separate concepts"}
+The source class (`Refer` / `Not-refer`) is **not** the Workbench clinician DR grade (0--4) and is not an annotation. The Workbench stores no source-class field. Its grade is recorded later, inside the review workflow, as `AI_ACCEPTED`, `AI_CORRECTED`, or `MANUAL`. Never map one onto the other, overwrite one with the other, or derive one from the other (IMG-SAMP-011).
+:::
+
+At pre-selection the clinician is **not** asked for a DR grade, lesion labels, an image-quality score, a research cohort, a train/validation/test group, or demographic data (IMG-SAMP-012). Detailed review stays inside the Workbench.
+
+## Linking the source class to each staged image {#sec-link}
+
+Because the Workbench has no source-class field, the team must know which class each staged image came from without asking clinicians to type it per image. The mechanism is an **open owner decision** (IMG-SAMP-013). Candidate options, all of which work with the current software unchanged:
+
+| Option | How it works | Clinician effort | Notes |
+|:-------|:-------------|:-----------------|:------|
+| A. One Workspace per class | Two Workspace profiles (for example *POC batch -- Refer* and *POC batch -- Not-refer*), each with its own input folder. | Stage into the folder for the class. No typing. | Uses existing Workspace profiles; each export is already split by class. |
+| B. Hospital-supplied list | The approved staging process produces a pseudonymous list (file → class, and sex where approved) that goes to the team. | None | Needs hospital IT or coordinator support. Keep the list outside the input folder. |
+| C. Coordinator batch log | Each staged batch is a single class, recorded by the coordinator. | None | The lightest option. It depends on batch discipline. |
+
+: Options for linking the source class to staged images (owner to choose). {#tbl-link tbl-colwidths="[20,38,20,22]"}
+
+## Primary sampling target {#sec-target}
+
+**POC / annotation-coverage planning target (IMG-SAMP-020):** collect `Refer` and `Not-refer` images in approximately equal numbers, with each class between **40 % and 60 %** of the batch.
+
+Why approximately balanced:
+
+- the DR-grade task needs both classes with enough examples to review;
+- a small batch collected at natural prevalence could leave one class with very few examples;
+- a band is more realistic than an exact 50/50, because images are chosen during normal work.
+
+| Target total (N) | Refer (about) | Not-refer (about) | Acceptable band per class |
+|-----------------:|--------------:|------------------:|:--------------------------|
+| 50 | 25 | 25 | 20 to 30 |
+| 100 | 50 | 50 | 40 to 60 |
+| 200 | 100 | 100 | 80 to 120 |
+
+: POC / annotation-coverage planning example. This is **not** a statistically powered clinical-validation sample-size calculation. {#tbl-planning tbl-colwidths="[24,22,22,32]"}
+
+::: {.callout-warning title="Safety -- balanced collection is not prevalence"}
+A balanced batch does not represent the hospital population. Do not use it to estimate prevalence, sensitivity, specificity, or clinical performance (IMG-SAMP-021). If the purpose later becomes prevalence estimation or clinical-performance evaluation, the sampling design must be redone for that purpose. External reporting guidance (FDA draft guidance on AI-enabled devices, 2025; TRIPOD+AI, 2024) expects the data to be representative of the intended population *for that purpose*, with its characteristics reported.
+:::
+
+**Review of alternatives.** Lesion annotations come mainly from `Refer` images. If the owner later decides that lesion-annotation volume matters more than grade-task balance, a `Refer`-leaning band (for example 55--65 % `Refer`) is defensible *as a planning choice*. Until then, the balanced 40--60 % band is the recommended default.
+
+## Stopping rule {#sec-stopping}
+
+**Proposal (IMG-SAMP-022, TGT + OPEN).** Stop collecting for the current batch when **all** of the following are true, or when the owner decides to stop:
+
+1. the owner-approved total N has been reached;
+2. each class is at least 40 % of N;
+3. no more than 20 % of admitted images have `Unknown` laterality;
+4. the monitoring summary (@sec-monitoring) has been reviewed and any flags have been noted to the owner.
+
+Sex and laterality flags (@sec-coverage) do **not** block stopping. They are reported, not enforced.

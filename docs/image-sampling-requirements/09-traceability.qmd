@@ -1,0 +1,9 @@
+```{=latex}
+\begingroup\footnotesize\setlength{\tabcolsep}{3pt}
+```
+
+{{< include REQUIREMENTS_TRACEABILITY.md >}}
+
+```{=latex}
+\endgroup\end{landscape}
+```
