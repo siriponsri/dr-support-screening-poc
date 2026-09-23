@@ -47,7 +47,7 @@ AI ROI corrections add `annotation_source=HUMAN_CORRECTION`, `source_detection_i
 
 `lesion_training_ready=true` requires valid source provenance, an included fundus image, acceptable/confirmed image state, and a current case-level annotation confirmation with reviewer, timestamp, and a hash matching the active annotation set. A final DR grade is not required.
 
-If the active annotations change after confirmation, the confirmation is invalidated until **Confirm Annotation** is performed again. An empty active set can be confirmed as reviewed; it must not be interpreted as proof that no lesion exists.
+If the active annotations change after confirmation, the confirmation is invalidated until **Confirm Annotation** is performed again. An empty active set can be confirmed as reviewed; it must not be interpreted as proof that no lesion exists. Case-level confirmation also does not mean that every AI ROI was individually verified: untouched AI suggestions remain `AI`-sourced evidence and are never exported as human labels. Only explicit human annotations (drawn, or derived from an AI ROI by **Confirm**) are human-sourced; a corrected class or box never carries the original model score.
 
 ## Readiness examples
 

@@ -12,21 +12,23 @@ The value is stored only in this browser. It stays editable, it is not authentic
 
 ## Previous and Next
 
-**Previous** and **Next** move through the case order shown in the middle (for example `1 of 7`). Moving does not save or confirm anything. **Confirm DR Grade** continues to the Annotation Editor; **Confirm Annotation** completes the annotation milestone and opens the next case when one exists.
+**Previous** and **Next** move through the Worklist order shown in the middle (for example `Image 1 of 4`) and open the other image at Review. Moving never saves a confirmation. While the current image is not complete, or has unsaved edits, one warning appears for that switch:
 
-![Case navigation and the Next action hint at the top of each case page.](screenshots/10-navigation-hint.png){#fig-navigation width=100%}
+![Switching away from an unfinished image.](screenshots/10-navigation-hint.png){#fig-navigation width=52%}
 
-## Autosave and unsaved changes {#sec-autosave}
+Choose **Stay on this image** to continue, or **Switch image** to open the other image; the autosaved draft is kept. **Back to Worklist** on Clinician Review and Annotation Editor asks the same question. A complete image switches without a warning.
 
-In the Annotation Editor, edits are saved as a draft about one second after you stop editing, provided a reviewer name is entered. The status below the canvas shows **Unsaved changes**, **Saving draft...**, **Draft saved**, or **Save failed --- retry**. **Save draft** saves immediately.
+## Autosave {#sec-autosave}
 
-![Draft status after one human annotation was added.](screenshots/11-draft-status.png){#fig-draft width=68%}
+In the Annotation Editor, edits are saved in the background about one second after you stop editing, provided a reviewer name is entered. The status below the canvas shows **Saving...**, **Draft saved**, or **Save failed**. The small **Save draft** button saves immediately if you need it.
 
-A draft is not a confirmation. If you try to leave while changes are unsaved, saving, or failed, the workstation asks *You have unsaved annotation changes. Leave this case?* Choose **Cancel** to stay and save.
+![Draft status below the canvas.](screenshots/11-draft-status.png){#fig-draft width=68%}
+
+A draft is not a confirmation; only **Confirm Annotation** completes the image.
 
 ## Next action hint
 
-The blue **Next action** line suggests the next step, for example **Confirm image**, **Confirm DR grade**, **Review annotations**, or **Complete**. It is guidance only. Choose **Dismiss** to hide hints on this workstation; turn them back on with **Show next action hints** in **Settings**.
+The blue **Next action** line suggests the next step, for example **Confirm image**, **Clinician review - confirm DR grade**, **Confirm annotation**, or **Review complete**. It is guidance only. Choose **Dismiss** to hide hints on this workstation; turn them back on with **Show next action hints** in **Settings**.
 
 ```{=latex}
 \Needspace{30\baselineskip}

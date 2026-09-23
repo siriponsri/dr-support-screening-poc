@@ -430,8 +430,15 @@ Future visual work must preserve these behaviors:
 - Use the fixed class color, a dashed outline, and low-opacity fill.
 - Show a readable class label and score where present; label text must not be
   confused with a human annotation.
- - AI shapes are immutable in the editor: no resize handles and no drag
-  editing.
+- AI shapes are immutable in the editor: the raw AI box never receives
+  resize handles or drag editing.
+- Selecting an AI ROI highlights it (white halo, other ROIs dimmed) and opens
+  one in-viewer card beside it (Confirm / Remove / Close) that never covers
+  the ROI; it flips sides or docks to the farthest viewer corner when needed.
+- An in-place correction uses a separate neutral correction box with handles
+  drawn over the unchanged AI box. Small ROIs show only corner handles outside
+  the box so the lesion stays visible. A corrected class or box is shown as
+  clinician corrected, never with the original model score.
 - Toggling AI visibility must not alter human annotations or their selection.
 
 ### Human annotations

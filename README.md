@@ -6,6 +6,6 @@ Windows workstation: run `SETUP.cmd` once, then `START.cmd` each day. The browse
 
 The review workstation and controlled Linux GPU Model API are separate roles. The workstation does not require model weights or a GPU. Use the [Model API operations guide](docs/operations/MODEL_SERVER.md) for the Linux service.
 
-The normal clinician path is Worklist -> Confirm Image -> Review -> Confirm DR Grade -> Annotation Editor when needed -> Confirm Annotation -> Datasets. Model evidence is optional; human review remains authoritative and original admitted images remain immutable.
+The normal clinician path is one line per image: Worklist -> Confirm Image -> Review -> Clinician Review -> Confirm DR Grade -> Annotation Editor (optional ROI corrections) -> Confirm Annotation -> next Worklist image. Datasets shows DR-ready and Lesion-ready separately. Model evidence is optional; human review remains authoritative and original admitted images remain immutable.
 
 Use only approved synthetic/public fixtures in tests, screenshots, examples, and public documentation. Do not commit PHI, secrets, credentials, model weights, runtime databases, or `local-state/` artifacts. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).

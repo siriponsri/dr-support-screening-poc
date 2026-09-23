@@ -1,21 +1,28 @@
 # Confirm Annotation {#sec-confirm-annotation}
 
-**Purpose.** Confirm that the current active annotation set has been reviewed. This is the third confirmation milestone.
+**Purpose.** Finish this image. This is the third confirmation milestone.
 
-::::: {layout="[56,44]" layout-valign="top"}
+::::: {layout="[50,50]" layout-valign="top"}
 :::: {}
 **Steps.**
 
-1. Finish any human annotations or AI ROI changes.
-2. Check **Reviewer name** in **Save human annotations**.
+1. Make any optional ROI changes. You do not need to inspect every AI ROI.
+2. Check **Reviewer name** in **Finish this image**.
 3. Choose **Confirm Annotation**.
 
-**Expected result.** The draft is saved, then the reviewer, timestamp, and a hash of the active set are recorded. The **Next action** hint changes to **Complete** when the grade is also confirmed.
-
+**Expected result.** Any pending draft is saved, then the reviewer, timestamp, and a hash of the active annotation set are recorded. *Case complete · Opening next image* appears, the Worklist shows **Review complete** for this image, and **Confirm Image** opens for the next unfinished Worklist image. When every image is complete, the Worklist says so.
 ::::
 :::: {}
-![Save human annotations after Confirm Annotation.](screenshots/12-confirm-annotation.png){#fig-confirm-annotation width=100%}
+![Finish this image.](screenshots/12-confirm-annotation.png){#fig-confirm-annotation width=100%}
 ::::
 :::::
 
-**Later edits.** Any later edit changes the hash, so the case needs **Confirm Annotation** again before it is Lesion-ready. Confirming an empty set is allowed; it records that the set was reviewed, not that lesions are absent.
+![Case complete: the next Worklist image opens at Confirm Image.](screenshots/19-case-complete.png){#fig-case-complete width=90%}
+
+## Change confirmed annotations
+
+A confirmed image shows **Annotations confirmed** with the reviewer and time, and the editor is read-only. Choose **Edit confirmed annotations** (or click an AI ROI) to reopen it; one warning appears per edit session. Any later edit changes the hash, so the image needs **Confirm Annotation** again before it is Lesion-ready.
+
+![One warning before reopening confirmed annotations.](screenshots/18-edit-annotations-warning.png){#fig-edit-annotations width=52%}
+
+Confirming an empty set is allowed; it records that the set was reviewed, not that lesions are absent.

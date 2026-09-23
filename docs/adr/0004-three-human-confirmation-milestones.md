@@ -23,6 +23,10 @@ A case has exactly three human confirmations. AI suggestions are optional eviden
 - Good: less clinician burden; clear provenance; AI is never promoted to ground truth.
 - Bad: an empty confirmed set means *reviewed*, not *no lesions*, and the documentation must keep saying so.
 
+### Follow-up (single-line flow v2)
+
+The clinician UI presents the milestones as one forward line per image. Grade finalization has one action (**Confirm DR Grade**); the legacy `ESCALATE`/`MARK_INCORRECT` actions stay in the backend for compatibility and historical records only. Confirm Annotation completes the case and opens the next unfinished Worklist image. Case-level confirmation does not mean every AI ROI was individually verified.
+
 ## More information
 
 `dr_support/workflow.py`, `dr_support/presentation.py`, Clinician User Manual.
