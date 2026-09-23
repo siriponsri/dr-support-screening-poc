@@ -19,7 +19,8 @@ import {
   VStack,
   type BoxProps,
 } from '@chakra-ui/react';
-import { ShieldCheck, Stethoscope } from '@/lib/icons';
+import { ShieldCheck } from '@/lib/icons';
+import logoUrl from '@/assets/dr-support-logo.svg';
 import { BrandMark } from '@/components/common/BrandMark';
 import { SidebarNavList } from './SidebarNavList';
 import { WorkspaceCard } from './WorkspaceCard';
@@ -142,20 +143,8 @@ export function Sidebar({
 
 function CollapsedBrandMark() {
   return (
-    <Box
-      as="a"
-      href="#/"
-      aria-label="Retinal Review Workbench home"
-      display="grid"
-      placeItems="center"
-      w="36px"
-      h="36px"
-      bg="action.primary"
-      color="text.inverse"
-      borderRadius="md"
-      mx="auto"
-    >
-      <Stethoscope size={18} strokeWidth={2.25} aria-hidden="true" />
+    <Box as="a" href="#/" aria-label="Retinal Review Workbench home" display="block" w="36px" h="36px" mx="auto">
+      <Box as="img" src={logoUrl} alt="" w="36px" h="36px" borderRadius="full" />
     </Box>
   );
 }
