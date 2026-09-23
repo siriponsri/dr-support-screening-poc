@@ -1,0 +1,44 @@
+# API and Contract Map {#sec-api}
+
+All request bodies are Pydantic `Contract` models: `extra="forbid"`, with explicit bounds. Mutations use optimistic `revision`. Frontend types mirror the responses in `frontend/src/lib/api.ts`.
+
+## Review workstation API
+
+| Method and path | Purpose | Contract / handler |
+|:----------------|:--------|:-------------------|
+| `GET /health` | Liveness and device snapshot | `_factory.health` |
+| `GET /v1/models` | Provider descriptors, degraded per provider rather than failing | `_factory.models` |
+| `GET` / `PUT /v1/model-connection`, `POST /v1/model-connection/test` | Read, test, or save the remote Model API connection (saves only after a verified probe) | `ModelConnectionInput` / `ModelConnectionResponse`; `services/model_gateway.py` |
+| `GET /v1/workspaces`, `GET /v1/workspaces/active` | Catalog and active profile | `api/workspaces.py` |
+| `POST /v1/workspaces`, `PUT` / `DELETE /v1/workspaces/{id}`, `POST .../{id}/open` | Create, update, delete (catalog only), open | `contracts/workspaces.py` |
+| `POST /v1/workspaces/pickers/{folder,database}` | Native pickers | `services/pickers.py` |
+| `POST /v1/admissions/scan` | Scan the active input folder | `scan_active_workspace` |
+| `GET /v1/cases`, `GET /v1/cases/{id}` | Worklist rows and case detail (with `admission_ui`, `resolver_ui`, `review_evidence`) | `workflow.detail` |
+| `GET /v1/images/{id}`, `.../display` | Source bytes; browser-safe derivative with lineage headers | `workflow.image_bytes`, `display_image_bytes` |
+| `POST /v1/cases/{id}/confirm-image` | Confirm Image milestone | `ConfirmImage` |
+| `POST /v1/cases/{id}/resolver` | Separate patient/eye action | `ResolverReview` |
+| `POST /v1/cases/{id}/admission` | Admission override | `AdmissionReview` |
+| `POST /v1/cases/{id}/queue` | Exclude or restore | `QueueAction` |
+| `POST /v1/infer/global`, `/v1/infer/lesion-roi` | Optional inference | `InferenceRequest` → `GlobalResult` / `LesionResult` |
+| `POST /v1/cases/{id}/review` | Confirm DR Grade, escalate, Confirm Annotation | `Review` |
+| `PUT /v1/cases/{id}/annotations` | Save human annotation set | `HumanAnnotationSave` |
+| `POST /v1/cases/{id}/lesion-review` | AI ROI correction or removal | `LesionReviewAction` |
+| `POST /v1/cases/{id}/cvat/{send,sync}`, `.../manual-sync` | Optional CVAT round trip | `Sync`, `ManualImport` |
+| `GET /v1/cases/{id}/export` | Case detail export | `workflow.export` |
+| `GET /v1/dataset/manifest`, `POST /v1/dataset/export` | Dataset preview and export | `services/dataset.py` |
+| `/app/*`, `/ui/*` | React SPA with fallback to `index.html`; legacy UI | `_factory` static mounts |
+
+: Review API. {#tbl-api tbl-colwidths="[36,36,28]"}
+
+## Model API (GPU host)
+
+| Method and path | Auth | Purpose |
+|:----------------|:-----|:--------|
+| `GET /health` | None | Runtime, device, and asset status |
+| `GET /v1/models` | None | Descriptors for `retfound-aptos5` and `prism-dr-5fold` |
+| `POST /v1/predict/dr` | Bearer when `REMOTE_MODEL_TOKEN` is set | `RemotePredictRequest` → `GlobalResult` |
+| `POST /v1/predict/lesions` | Bearer when `REMOTE_MODEL_TOKEN` is set | `RemotePredictRequest` → `LesionResult` |
+
+: Model API. {#tbl-model-api tbl-colwidths="[30,32,38]"}
+
+The review/Model API split and the result schemas are **protected contracts**. Change them only through an owner-approved specification, and update `providers/remote.py`, `services/model_api.py`, `tests/test_remote.py`, and `tests/test_profiles.py` together.

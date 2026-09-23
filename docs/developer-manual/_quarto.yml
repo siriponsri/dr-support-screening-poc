@@ -1,0 +1,74 @@
+project:
+  type: book
+  output-dir: ../../dist/manual/developer-site
+
+book:
+  title: "Retinal Review Workbench"
+  subtitle: "Developer Technical Guide"
+  author: "Retinal Review Workbench maintainers"
+  date: "2026-09-23"
+  output-file: "Developer-Technical-Guide"
+  chapters:
+    - index.qmd
+    - 01-context.qmd
+    - 02-image-boundary.qmd
+    - 03-repository-stack.qmd
+    - 04-runtime-startup.qmd
+    - 05-admission-resolver.qmd
+    - 06-inference.qmd
+    - 07-review-state.qmd
+    - 08-dataset-export.qmd
+    - 09-api-contracts.qmd
+    - 10-testing.qmd
+    - 11-deployment-security.qmd
+    - 12-docs-as-code.qmd
+    - 13-limitations-glossary.qmd
+
+format:
+  html:
+    theme: default
+    css: ../manual/styles.css
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    number-depth: 2
+    page-layout: article
+    callout-icon: false
+  pdf:
+    pdf-engine: xelatex
+    documentclass: report
+    classoption:
+      - 10pt
+      - oneside
+    papersize: a4
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    number-depth: 2
+    colorlinks: true
+    linkcolor: rrwink
+    urlcolor: rrwgreen
+    mainfont: Liberation Sans
+    mainfontoptions:
+      - Scale=1.02
+    monofont: Liberation Mono
+    monofontoptions:
+      - Scale=0.92
+    geometry:
+      - top=25mm
+      - bottom=24mm
+      - left=22mm
+      - right=22mm
+      - headsep=7mm
+      - footskip=10mm
+    fig-pos: H
+    include-in-header: latex-header.tex
+    callout-icon: false
+    keep-tex: false
+
+crossref:
+  chapters: false
+  fig-title: "Figure"
+  tbl-title: "Table"
+
+lang: en

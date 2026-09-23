@@ -1,0 +1,32 @@
+# Limitations and Glossary {#sec-limits}
+
+## Known limitations
+
+- **Identity.** Single-user localhost runtime. The reviewer name is self-declared (`LOCAL_POC_SELF_DECLARED`). A reverse proxy with authentication is needed before any remote hosting.
+- **Source class and sex.** The Workbench does not store the source `Refer`/`Not-refer` class or sex. Coverage monitoring depends on a team-held record (@sec-boundary).
+- **Near-duplicates.** Near-duplicates (resized, re-exported, or repeat captures) are not detected. Only byte-identical files are.
+- **Quality checks.** Automatic admission checks are coarse screens, not a gradability model.
+- **Resolver.** The resolver uses anchored filename patterns. OCR is off by default. DICOM laterality is extracted but not used by the resolver.
+- **Admission scan.** It is top-level only. Files in sub-folders are ignored.
+- **Model scores.** They are uncalibrated. An empty PRISM-DR result does not prove absence.
+- **Dataset splits.** No automatic train/validation/test split exists. Future experiments must split by `training_group_key`.
+- **Root UI smoke test.** It needs the public HRF samples and a Windows-style `.venv/Scripts/python.exe`.
+- **Screenshots.** The manual screenshots are committed assets. The capture tooling was removed from `main` in `ec74af8`, so re-capturing requires restoring or rewriting a capture script against the current UI.
+
+## Glossary
+
+| Term | Meaning |
+|:-----|:--------|
+| Admission | Conservative decision on whether a staged file is a supported, reviewable retinal image. |
+| Analysis derivative | Deterministic representation sent to a model, with its own SHA-256 and coordinate mapping. |
+| Annotation-set hash | Hash of the active human, AI-decision, and imported annotations. Confirm Annotation binds to it. |
+| Confirmation milestone | Confirm Image, Confirm DR Grade, or Confirm Annotation. |
+| DR-ready / Lesion-ready | Task-specific dataset eligibility. |
+| Model API | GPU-host FastAPI surface (`model_api` profile). |
+| Profile | `APP_PROFILE` value: `review`, `model_api`, or `full`. |
+| Resolver | Filename/OCR evidence for the patient key and eye. It is never authoritative on its own. |
+| Source class | The hospital's `Refer` / `Not-refer` classification. It is outside the Workbench. |
+| Source SHA-256 | Hash of the original admitted bytes; the case identity. |
+| Workspace | Profile of input folder, output folder, and review database. |
+
+: Glossary. {#tbl-glossary tbl-colwidths="[26,74]"}

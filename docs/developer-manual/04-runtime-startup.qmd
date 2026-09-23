@@ -1,0 +1,39 @@
+# Runtime Profiles and Startup {#sec-runtime}
+
+## Profiles
+
+`dr_support/app.py` builds one of three applications. Misconfiguration raises at startup; it never falls back silently.
+
+| `APP_PROFILE` | Required `MODEL_RUNTIME` | Surface | Used by |
+|:--------------|:-------------------------|:--------|:--------|
+| `review` (default) | `remote` | Review API + `/app/` + `/ui/`; no sample or demo fixtures; model calls go to `REMOTE_MODEL_URL` | Clinician workstation (`START.cmd`) |
+| `model_api` | `local` | `/health`, `/v1/models`, `/v1/predict/dr`, `/v1/predict/lesions`; CUDA enforced unless `DR_SUPPORT_RELAX_DEVICE=1` | GPU host (`start.sh`) |
+| `full` | `local` | Both surfaces merged, with synthetic fixtures and public samples; CPU allowed | Local demos and development only |
+
+: Runtime profiles. {#tbl-profiles tbl-colwidths="[18,20,40,22]"}
+
+`dr_support.api:app` is a separate legacy entry point used by the root UI smoke test (`tests/ui.test.cjs`). It does **not** apply the profile invariants and it includes the synthetic fixture and the public samples.
+
+## Workstation startup (`START.cmd`)
+
+1. Create `.venv` with Python 3.12 (Windows `py` launcher, or `uv` as fallback) and install `-e .`.
+2. If `frontend/dist/index.html` is missing: `npm ci` (first run only), then `npm run build` in `frontend/`.
+3. Set `APP_PROFILE=review` and `MODEL_RUNTIME=remote`, then run `python -m dr_support.run`, which serves `127.0.0.1:8000` by default.
+4. At startup, `WorkspaceManager` opens the catalog (`DR_SUPPORT_WORKSPACE_CATALOG`, default `local-state/bridge/workspaces.sqlite`). It then opens the active Workspace's review DB, or the fallback DB (`DR_SUPPORT_STATE`, default `local-state/bridge/reviews.sqlite`), and scans the active input folder once.
+
+`REMOTE_MODEL_URL` and the optional `REMOTE_MODEL_TOKEN` come from the process environment. The connection can also be tested and saved at runtime through **Settings → Model connection** (`/v1/model-connection*`). The token is held in process memory only and is never returned by the API.
+
+## Model-server setup and startup (GPU host)
+
+Scripts are in `scripts/model-server/`.
+
+| Step | Script | Network | Result |
+|:-----|:-------|:--------|:-------|
+| One-time setup | `setup.sh` | Online | Creates `.venv`, installs `.[models,dicom]`, runs `python -m dr_support.setup_models --model all --smoke`, clones pinned sources, downloads checkpoints, verifies hashes, runs synthetic smoke inference, prints `READY`. |
+| Normal start | `start.sh` | None needed | Sets `APP_PROFILE=model_api`, `MODEL_RUNTIME=local`, `INFERENCE_DEVICE=cuda:0`, `HOST=0.0.0.0`, `PORT=7860`, `WORKERS=1`, `MODEL_REQUIRE_VERIFIED_ASSETS=1`, runs `setup_models --verify` (read-only), then `dr_support.run`. Missing or modified assets fail closed. |
+| Health | `healthcheck.sh` | LAN | Calls `/health` and `/v1/models`; fails unless health reports `PASS`. |
+| Service | `sudo ./install-service.sh` | None | Installs `deployment/dr-support-model-api.service` (user `drsupport`, `/opt/dr-support-screening-poc`, `/etc/dr-support/model-server.env`). |
+
+: Model server lifecycle. {#tbl-modelserver tbl-colwidths="[16,20,12,52]"}
+
+Pinned identities: RETFound revision and `WEIGHT_SHA256` in `dr_support/providers/retfound.py`; PRISM-DR revision in `providers/prism.py`; the PRISM archive and per-fold weight hashes in `providers/prism_assets.json`. Changing any of them is a model-provenance change (see `AGENTS.md`).

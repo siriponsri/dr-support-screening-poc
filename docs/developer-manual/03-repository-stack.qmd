@@ -1,0 +1,53 @@
+# Repository Map and Technology Stack {#sec-repo}
+
+## Repository map
+
+| Path | Contents |
+|:-----|:---------|
+| `dr_support/app.py` | Profile-aware `create_app`; enforces `APP_PROFILE` × `MODEL_RUNTIME` invariants. |
+| `dr_support/run.py` | Console entry (`python -m dr_support.run`, `dr-support-run`); reads `HOST`, `PORT`, `WORKERS`. |
+| `dr_support/api/` | Review API factory (`_factory.py`), Workspace routes (`workspaces.py`), dataset routes (`dataset.py`). |
+| `dr_support/workflow.py` | Case, review, Confirm Image, resolver, admission-override, queue, annotation, AI-ROI, CVAT, and manual-sync routes. |
+| `dr_support/services/` | `admission.py` (scan and admission rules), `resolver.py` (patient/eye), `dataset.py` (readiness and export), `workspaces.py` (catalog and profiles), `pickers.py` (native folder/DB pickers), `model_gateway.py` (connection probe), `model_api.py` (GPU Model API). |
+| `dr_support/imaging/` | Integrity contracts, DICOM ingestion (`dicom.py`), handler registry, deterministic display/analysis derivatives (`derivatives.py`). |
+| `dr_support/providers/` | `retfound.py`, `prism.py` (+ `prism_assets.json`), `remote.py` (HTTP client providers), `mock.py` (synthetic fixtures only), `assets.py`. |
+| `dr_support/contracts/` | Pydantic contracts: admission, resolver, workspace, model gateway, inference results. |
+| `dr_support/presentation.py` | Bounded lesion-review view, detection IDs, review evidence, annotation-set hash. |
+| `dr_support/store.py` | SQLite case store with additive JSON migration defaults. |
+| `dr_support/cvat.py`, `sync.py` | Optional CVAT Online transport and round-trip sync. |
+| `dr_support/setup_models.py`, `model_assets.py` | One-time asset acquisition (`--model all`) and read-only verification (`--verify`). |
+| `frontend/src/` | React UI: `pages/`, `components/{shell,worklist,review,workspace,settings,common}`, `lib/` (API client, preferences, navigation), `theme/`. |
+| `frontend/tests/` | Vitest + Testing Library tests (jsdom). |
+| `tests/` | Pytest suite plus root Node smoke tests (`*.test.cjs`). |
+| `web/` | Legacy static UI (`/ui/`). |
+| `scripts/model-server/` | `setup.sh`, `start.sh`, `healthcheck.sh`, `install-service.sh` for the GPU host. |
+| `scripts/docs/` | `build_docs.py` (every document), `check_docs.py` (documentation QA), `generate_manifest_example.py`. |
+| `deployment/` | systemd unit and `model-server.env.example`. |
+| `docs/` | Manuals (Quarto sources), specs, runbooks, architecture sources, ADRs, demo decks. |
+| `local-state/` | Runtime state only (gitignored). Never source data. |
+
+: Repository map. {#tbl-repo tbl-colwidths="[30,70]"}
+
+## Verified technology stack
+
+Versions are taken from `pyproject.toml` (exact pins) and `frontend/package-lock.json` (resolved versions).
+
+| Layer | Component | Version / constraint |
+|:------|:----------|:---------------------|
+| Runtime | Python | `>=3.11,<3.13` (3.12 recommended by `START.cmd`) |
+| Backend | FastAPI / Uvicorn / Pydantic / httpx / Pillow | 0.141.1 / 0.53.0 / 2.13.5 / 0.28.1 / 12.3.0 |
+| DICOM (extra `dicom`) | pydicom, pylibjpeg, -libjpeg, -openjpeg | 3.0.1, 2.1.0, 2.3.0, 2.5.0 |
+| Models (extra `models`, GPU host) | torch / torchvision / timm / ultralytics / sahi / ensemble-boxes / gdown | 2.5.1 / 0.20.1 / 0.9.2 / 8.4.8 / 0.12.6 / 1.0.9 / 6.4.0 |
+| Tests (extra `test`) | pytest / ruff | 8.4.2 / 0.13.0 (Ruff rules `E9`, `F`; line length 110) |
+| Browser tests (extra) | playwright | 1.57.0 |
+| Frontend | React / React DOM / React Router | 18.3.1 / 18.3.1 / 6.30.6 |
+| Frontend | Chakra UI / Emotion / framer-motion / lucide-react | 2.10.10 / 11.x / 11.18.2 / 0.460.0 |
+| Frontend build | Vite / @vitejs/plugin-react / TypeScript | 5.4.21 / 4.7.0 / 5.9.3 (strict) |
+| Frontend tests | Vitest / jsdom / Testing Library React | 2.1.9 / 25.0.1 / 16.3.3 |
+| Root smoke tests | Node.js + jsdom | jsdom 26.1.0 |
+| Model sources | RETFound revision / PRISM-DR revision | `ae9a9ecf…` / `79637440…` (full SHAs in `providers/*.py`) |
+| Documentation | Quarto + XeLaTeX; Mermaid CLI; Playwright (guide PDF) | See @sec-docs |
+
+: Verified stack. {#tbl-stack tbl-colwidths="[22,44,34]"}
+
+Frontend build facts (`frontend/vite.config.ts`): `base: '/app/'`, output `frontend/dist` (gitignored), `sourcemap: true`, `target: es2020`, and alias `@` → `src`. In development, the Vite server on 5173 proxies `/v1`, `/ui`, and `/health` to `127.0.0.1:8000` with `changeOrigin: false`, which keeps the same-origin guard meaningful.

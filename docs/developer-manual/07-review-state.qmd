@@ -1,0 +1,45 @@
+# Review State, Grades, and Annotations {#sec-review}
+
+## Case record and concurrency
+
+Each case is one JSON document in the Workspace SQLite store (`dr_support/store.py`). New fields are added as JSON defaults (additive migration), so there are no table rewrites. Every mutating request carries the client's `revision`. A mismatch returns `409 Case changed; reload`. Success increments `revision` and appends an event. A same-origin middleware rejects cross-origin non-GET requests.
+
+## Confirm DR Grade (`POST /v1/cases/{id}/review`)
+
+The `Review` contract is `revision`, `action`, `reviewer`, `grade` (0--4, strict integer), and `comment`.
+
+| Action | Effect |
+|:-------|:-------|
+| `ACCEPT` | Final grade = model grade; `grade_review_source = AI_ACCEPTED`; state `REVIEWED`. |
+| `CORRECT_GRADE` | Final grade = requested grade. The source is `AI_CORRECTED` when a model grade exists, otherwise `MANUAL`. |
+| `MARK_INCORRECT` / `ESCALATE` | Clear the grade; state `NEEDS_CORRECTION` / `ESCALATED`. |
+| `CONFIRM_ANNOTATIONS` | Annotation milestone (below). Leaves the DR-grade review record untouched. |
+
+: Review actions. {#tbl-review-actions tbl-colwidths="[28,72]"}
+
+The UI sends `ACCEPT` when the chosen grade equals the suggestion and `CORRECT_GRADE` otherwise. The clinician sees one button: **Confirm DR Grade**. Events carry `identity_assurance: LOCAL_POC_SELF_DECLARED`, because the reviewer name is not authentication.
+
+## Human annotations (`PUT /v1/cases/{id}/annotations`)
+
+The request replaces the whole human set (maximum 500 shapes). Shapes are `rectangle`, `polygon`, `point`, or `circle`, with labels `MICROANEURYSM`, `HEMORRHAGE`, `HARD_EXUDATE`, or `SOFT_EXUDATE`. `clean_geometry` validates finite numbers inside the original image bounds. The saved event records added, removed, and changed shape IDs.
+
+In the UI, `AnnotationEditorPage` autosaves 900 ms after the last edit when a reviewer is set. It shows the draft status and guards navigation (`window.confirm`) and page unload (`beforeunload`) while there are unsaved, saving, or failed changes.
+
+## AI ROI correction and removal (`POST /v1/cases/{id}/lesion-review`)
+
+The `LesionReviewAction` contract has `detection_id` (`ai-[a-f0-9]{20}`), `action` (`CONFIRM` / `REJECT` / `CORRECT`), and an optional corrected label or rectangle. The UI (`LesionActionPopover`) exposes class correction and **Remove this detection** (`REJECT`). Each decision is appended to `ai_annotation_reviews` with the **original** label, rectangle, score, and model identity. Raw model output is never modified. `lesionPresentation.ts` shows a corrected ROI as "*class* -- clinician corrected" **without** a score.
+
+## Confirm Annotation
+
+`annotation_set_hash(case)` (`presentation.py`) hashes the active set: human shapes, AI decisions, and CVAT-imported shapes. `CONFIRM_ANNOTATIONS` stores that hash with reviewer and time, and sets `lesion_review_state = REVIEWED`. Any later annotation save, AI-ROI decision, or import changes the hash and moves the case back to `REQUIRES_CONFIRMATION` or `IMPORTED_REQUIRES_REVIEW`. Confirming an empty set is allowed. It means "reviewed", not "no lesions".
+
+## UI conveniences (no clinical state)
+
+| Feature | Code | Rule |
+|:--------|:-----|:-----|
+| Reviewer default | `frontend/src/lib/reviewerPreference.ts` (`localStorage` key `dr-support-screening.default-reviewer.v1`) | Prefills empty or unattributed forms only; never rewrites history. |
+| Next-action hints | `components/common/NextActionHint.tsx`, `lib/hintPreference.ts` | Guidance only. |
+| Previous / Next | `lib/caseNavigation.ts`, `components/common/CaseNavigation.tsx` | Filename order, excluding excluded cases. Never saves or confirms. |
+| Save & Next / Confirm DR Grade & Next | `AnnotationEditorPage.tsx`, `ClinicianReviewPage.tsx` | Performs the named save or confirm first, then navigates. |
+
+: Conveniences. {#tbl-conveniences tbl-colwidths="[24,44,32]"}

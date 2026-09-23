@@ -96,27 +96,49 @@ Once setup succeeds, the Model API uses only the verified local source checkouts
 
 ## Documentation
 
-- [Installation](docs/INSTALLATION.md) - clean-clone workstation and server setup.
-- [Deployment](docs/DEPLOYMENT.md) - topology, service lifecycle, and connectivity.
-- [Model Server](docs/MODEL_SERVER.md) - assets, verification, startup, and health checks.
-- [Operator Runbook](docs/OPERATOR_RUNBOOK.md) - routine operations and escalation.
-- [Configuration](docs/CONFIGURATION.md) - environment variables and safe defaults.
-- [Security and Privacy](docs/SECURITY_PRIVACY.md) - data, secrets, and safety boundaries.
-- [Backup and Restore](docs/BACKUP_RESTORE.md) - state, exports, and recovery.
-- [Troubleshooting](docs/TROUBLESHOOTING.md) - actionable failure checks.
-- Clinicians: [Clinician User Manual PDF](docs/CLINICIAN_USER_MANUAL.pdf), [Quarto source](docs/manual/index.qmd), and [manual build](scripts/manual/build_manual.py). The HTML site is generated at `dist/manual/site/`.
-- Hospital IT/operators: [Deployment and Operations Manual PDF](docs/DEPLOYMENT_OPERATIONS_MANUAL.pdf), [Quarto source](docs/operator-manual/index.qmd), and [operator build](scripts/operator_manual/build_manual.py). The HTML site is generated at `dist/manual/operator-site/`.
-- [Clinician workflow](docs/USER_WORKFLOW.md), [feature reference](docs/FEATURE_REFERENCE.md), and [dataset manifest](docs/DATASET_MANIFEST.md).
-- [Owner demonstration](docs/demo/RETINAL_REVIEW_DEMO.html) - self-contained, offline, presenter-controlled product story (arrow keys / Space step through reveals; Home / End jump). Edit [the source](docs/demo/src/RETINAL_REVIEW_DEMO.source.html) and rebuild with `python scripts/docs/build_demo.py`.
-- [CVAT Online setup](docs/CVAT_ONLINE_SETUP.md) - optional dense annotation only.
-- [Future Experiments](docs/FUTURE_EXPERIMENTS.md) - explicitly deferred work.
-- [Release Checklist](docs/RELEASE_CHECKLIST.md) - maintainer acceptance checks.
+Each topic has one source of truth. The other documents link to it instead of repeating it.
 
-To rebuild either manual, install released Quarto and a XeLaTeX distribution, then run
-`.venv\Scripts\python.exe scripts/manual/build_manual.py` or
-`.venv\Scripts\python.exe scripts/operator_manual/build_manual.py` from the repository root.
-Set `QUARTO_BIN` when Quarto is not on `PATH`. Each Quarto Book source produces its matching HTML site and PDF.
-To refresh the manual screenshots, start `python scripts/manual/capture_server.py` (synthetic data only) and run `python scripts/manual/capture_manual.py`.
+**Clinicians and the project team**
+
+- [Clinician User Manual (PDF)](docs/CLINICIAN_USER_MANUAL.pdf): application procedures. Source: [docs/manual/](docs/manual/index.qmd).
+- [Clinician Image Selection Guide (PDF)](docs/CLINICIAN_IMAGE_SELECTION_GUIDE.pdf) and the [same guide as HTML](docs/image-selection/IMAGE_SELECTION_GUIDE.html): one page on choosing images.
+- [Team Image Sampling Requirements (PDF)](docs/IMAGE_SAMPLING_REQUIREMENTS.pdf): sampling strategy, coverage monitoring, and open owner decisions. Source: [docs/image-sampling-requirements/](docs/image-sampling-requirements/index.qmd). Requirement provenance: [REQUIREMENTS_TRACEABILITY.md](docs/image-sampling-requirements/REQUIREMENTS_TRACEABILITY.md).
+- [Clinician workflow](docs/USER_WORKFLOW.md), [feature reference](docs/FEATURE_REFERENCE.md), and [dataset manifest](docs/DATASET_MANIFEST.md) (the export-schema source of truth).
+
+**Hospital IT and operators**
+
+- [Deployment and Operations Manual (PDF)](docs/DEPLOYMENT_OPERATIONS_MANUAL.pdf). Source: [docs/operator-manual/](docs/operator-manual/index.qmd).
+- Setup and operations: [Installation](docs/INSTALLATION.md), [Deployment](docs/DEPLOYMENT.md), [Model Server](docs/MODEL_SERVER.md), [Operator Runbook](docs/OPERATOR_RUNBOOK.md), [Configuration](docs/CONFIGURATION.md).
+- Safety and recovery: [Security and Privacy](docs/SECURITY_PRIVACY.md), [Backup and Restore](docs/BACKUP_RESTORE.md), [Troubleshooting](docs/TROUBLESHOOTING.md).
+- Optional and future work: [CVAT Online setup](docs/CVAT_ONLINE_SETUP.md), [Future Experiments](docs/FUTURE_EXPERIMENTS.md), [Release Checklist](docs/RELEASE_CHECKLIST.md).
+
+**Developers**
+
+- [Developer Technical Guide (PDF)](docs/DEVELOPER_TECHNICAL_GUIDE.pdf): architecture and internals. Source: [docs/developer-manual/](docs/developer-manual/index.qmd).
+- [Developer Handoff](docs/DEVELOPER_HANDOFF.md): transfer of ownership.
+- [Feature Implementation Map](docs/technical/FEATURE_IMPLEMENTATION_MAP.md): which code implements each feature.
+- [Where to Change What](docs/technical/WHERE_TO_CHANGE_WHAT.md): practical guide to making changes.
+- [Architecture diagrams](docs/architecture/README.md): Mermaid sources, following the C4 model.
+- [ADR log](docs/adr/README.md): recorded architecture decisions.
+- [DESIGN.md](DESIGN.md): UI design source of truth.
+
+**Presentations** (offline, presenter-controlled: Space / → next reveal, ← previous, Home / End, F full screen)
+
+- [Product demo](docs/demo/RETINAL_REVIEW_DEMO.html). Open it with `PRESENT_DEMO.cmd`. Accompanied by the [Thai presentation script](docs/demo/PRESENTATION_SCRIPT_TH.md) and the [presentation source map](docs/demo/PRESENTATION_SOURCE_MAP.md).
+- [Technical briefing](docs/demo/TECHNICAL_BRIEFING.html). Open it with `PRESENT_TECHNICAL.cmd`. Accompanied by the [Thai technical script](docs/demo/TECHNICAL_PRESENTATION_SCRIPT_TH.md).
+- Neither launcher needs Administrator rights, npm, a GPU, model weights, or the Workbench server. Each simply opens a self-contained HTML file.
+
+**Rebuilding the documentation**
+
+Rebuild everything from the repository root with `python scripts/docs/build_docs.py all`, or name targets instead of `all`: `clinician-manual`, `operator-manual`, `sampling`, `developer`, `image-guide`, `demo`, `briefing`, `diagrams`. Then check the result with `python scripts/docs/check_docs.py`.
+
+The builds need these tools:
+
+- **Quarto with XeLaTeX**, for the PDF books. Set `QUARTO_BIN` if Quarto is not on `PATH`.
+- **Playwright**, for the image-guide PDF.
+- **mermaid-cli**, for the diagrams.
+
+The demo and briefing builds need only Python. After every rebuild, open and inspect every PDF page and every presentation scene.
 
 ## Validation
 
@@ -129,7 +151,10 @@ npm run typecheck
 npm run build
 cd ..
 npm test
+python scripts/docs/check_docs.py
 ```
+
+The root `npm test` UI smoke expects the ten public HRF samples; fetch them once with `.venv\Scripts\python.exe -m dr_support.fetch_samples`.
 
 ## Privacy and safety
 

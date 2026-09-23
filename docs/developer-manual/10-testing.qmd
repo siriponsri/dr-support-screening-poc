@@ -1,0 +1,33 @@
+# Testing and Validation {#sec-testing}
+
+## Commands
+
+Run from the repository root. On Windows, use `npm.cmd` when PowerShell blocks `npm.ps1`.
+
+```text
+.venv\Scripts\python.exe -m pytest -q
+.venv\Scripts\python.exe -m ruff check dr_support tests
+cd frontend && npm test && npm run typecheck && npm run build && cd ..
+npm test
+python scripts/docs/check_docs.py
+git diff --check
+```
+
+## What the suites cover
+
+| Suite | Files | Focus |
+|:------|:------|:------|
+| Backend pytest | `tests/test_admission.py`, `test_integrity.py`, `test_dicom_ingest.py`, `test_derivatives.py`, `test_imaging_foundation.py` | Admission rules, SHA-256 integrity, duplicates and source changes, DICOM scope, derivatives and coordinate mapping |
+| | `test_resolver.py`, `test_workflow.py`, `test_dataset.py`, `test_workspaces.py`, `test_sync.py`, `test_bridge.py` | Resolver, review actions and concurrency, readiness and export, Workspace catalog, CVAT sync |
+| | `test_profiles.py`, `test_remote.py`, `test_device.py`, `test_startup.py`, `test_s5_integration.py`, `test_pre_s3_hardening.py`, `test_demo_admission.py` | Profile invariants, remote contract, device strictness, integration |
+| Frontend Vitest | `frontend/tests/*.test.ts(x)` | Shell, Workspace manager, Worklist, admission and resolver dialogs, review, retinal canvas, annotation editor, lesion correction, reviewer preference, datasets |
+| Root Node smoke | `tests/overlay.test.cjs`, `api_hardening.test.cjs`, `ui.test.cjs` | Legacy overlay renderer, API error handling, legacy UI against a live `dr_support.api:app` |
+| Documentation | `scripts/docs/check_docs.py` | Local links, requirement IDs, presentation reveal and script synchronisation, stale references |
+
+: Test suites. {#tbl-tests tbl-colwidths="[18,42,40]"}
+
+## Known environment prerequisites
+
+- `tests/ui.test.cjs` starts `.venv/Scripts/python.exe` (a Windows path) and expects **11 cases**: the synthetic fixture plus the ten public HRF samples. Fetch the samples first with `python -m dr_support.fetch_samples` (needs internet access to Hugging Face). Without them the test times out waiting for 11 rows. This is an environment prerequisite, not a code defect.
+- The frontend build warns about a chunk larger than 500 kB. This is expected for the current bundle.
+- Browser-level pixel checks are not part of CI. `jsdom` validates DOM behaviour only.

@@ -1,0 +1,44 @@
+# System Context and Containers {#sec-context}
+
+## Goals and constraints
+
+- **Goal.** Turn a clinician-selected retinal image into a reviewed, provenance-preserving dataset record. Optional model evidence may support the review, but it never replaces the clinician's decision.
+- **Scope.** A research and clinical-support proof of concept for public/synthetic data and approved hospital use. It is not autonomous diagnosis, referral, or a regulated medical device.
+- **Hard constraints** (enforced in code):
+  - the review workstation never loads model weights (`APP_PROFILE=review` requires `MODEL_RUNTIME=remote`);
+  - original admitted images are immutable;
+  - human review is authoritative;
+  - secrets stay server-side.
+
+## System Context (C4 level 1)
+
+![System Context. Source: `docs/architecture/01-system-context.mmd`.](../architecture/rendered/01-system-context.png){#fig-context width=100%}
+
+| Actor or system | Relationship |
+|:----------------|:-------------|
+| Clinician / reviewer | Uses the browser UI on the workstation (`127.0.0.1:8000/app/`). Owns every confirmation. |
+| Project team | Receives dataset exports and monitors coverage outside the software (@sec-boundary). |
+| Hospital IT / operator | Installs and runs the workstation and the GPU Model API. |
+| Hospital-controlled image storage | **Not accessed by the Workbench.** Images arrive only through authorized human selection and approved staging. |
+| CVAT Online | Optional dense-annotation round trip (`dr_support/cvat.py`, `dr_support/sync.py`). |
+| Upstream model sources | Downloaded once during online setup, then pinned and SHA-256 verified. |
+
+: Context relationships. {#tbl-context tbl-colwidths="[30,70]"}
+
+## Containers (C4 level 2)
+
+![Container view. Source: `docs/architecture/02-container.mmd`.](../architecture/rendered/02-container.png){#fig-container width=100%}
+
+| Container | Technology | Code |
+|:----------|:-----------|:-----|
+| Clinician UI | React 18 + TypeScript (strict) + Vite 5 + Chakra UI 2, served from `frontend/dist` at `/app/` | `frontend/src/**` |
+| Legacy UI | Static HTML/JS at `/ui/` (compatibility only) | `web/**` |
+| Review API | FastAPI app built by `dr_support.api._factory.create_app` | `dr_support/api/**`, `dr_support/workflow.py`, `dr_support/services/**` |
+| Workspace review DB | SQLite, one JSON document per case (`cases(id, data)`), optimistic `revision` | `dr_support/store.py` |
+| Workspace catalog | SQLite list of Workspace profiles (input, output, DB path) | `dr_support/services/workspaces.py` |
+| Workspace input/output folders | File system; input is read-only in practice; output receives `dataset-export-*` | `services/admission.py`, `services/dataset.py` |
+| Model API | FastAPI app from `dr_support.services.model_api.create_app` on the GPU host | `dr_support/services/model_api.py`, `dr_support/providers/**` |
+
+: Containers. {#tbl-containers tbl-colwidths="[24,44,32]"}
+
+One code base serves every container. `dr_support/app.py` selects the surface with `APP_PROFILE` (@sec-runtime).

@@ -1,0 +1,25 @@
+# How to Use This Guide {#sec-intro}
+
+This guide explains how Retinal Review Workbench is built on the current `main` branch and where to start when you change it. Every statement was traced to code, tests, or scripts. If code and this guide disagree, the code is authoritative; fix the guide.
+
+The guide is **explanation and reference** in Diátaxis terms. Task-oriented material lives elsewhere, so it is not duplicated here:
+
+| You want to... | Go to |
+|:---------------|:------|
+| install, start, back up, or troubleshoot a workstation or GPU host | *Deployment and Operations Manual* (`docs/DEPLOYMENT_OPERATIONS_MANUAL.pdf`) and `docs/INSTALLATION.md`, `docs/MODEL_SERVER.md`, `docs/CONFIGURATION.md` |
+| review cases as a clinician | *Clinician User Manual* (`docs/CLINICIAN_USER_MANUAL.pdf`) |
+| know how images are chosen and how coverage is monitored | *Team Image Sampling Requirements* (`docs/IMAGE_SAMPLING_REQUIREMENTS.pdf`) |
+| find the code for a feature | `docs/technical/FEATURE_IMPLEMENTATION_MAP.md` |
+| make a specific kind of change safely | `docs/technical/WHERE_TO_CHANGE_WHAT.md` |
+| take over ownership of the project | `docs/DEVELOPER_HANDOFF.md` |
+| understand why something is designed this way | `docs/adr/` (architecture decision records) |
+| check the export schema | `docs/DATASET_MANIFEST.md` |
+| check UI tokens and interaction rules | `DESIGN.md` |
+
+: Where each kind of information lives. {#tbl-where tbl-colwidths="[46,54]"}
+
+The chapter order follows a simplified arc42 outline: context and scope (@sec-context, @sec-boundary), building blocks (@sec-repo), runtime views (@sec-runtime to @sec-api), then testing, deployment, and cross-cutting concerns (@sec-testing to @sec-limits). Architecture diagrams use C4 levels (System Context, Container, Dynamic, Deployment). They are written in Mermaid under `docs/architecture/` and rendered with `python scripts/docs/build_docs.py diagrams`.
+
+::: {.callout-important title="Important -- rules that bind every change"}
+`AGENTS.md` governs the workflow: bounded `feat/`, `fix/`, or `docs/` branches, never direct implementation on `main`, and a full validation run before merge. It also lists the protected areas. Admission semantics, patient/eye resolver semantics, model/provider contracts, annotation provenance, original-image coordinates, and clinician-review semantics must not change without an owner-approved normative specification.
+:::
