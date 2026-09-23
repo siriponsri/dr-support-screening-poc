@@ -40,6 +40,6 @@ The `LesionReviewAction` contract has `detection_id` (`ai-[a-f0-9]{20}`), `actio
 | Reviewer default | `frontend/src/lib/reviewerPreference.ts` (`localStorage` key `dr-support-screening.default-reviewer.v1`) | Prefills empty or unattributed forms only; never rewrites history. |
 | Next-action hints | `components/common/NextActionHint.tsx`, `lib/hintPreference.ts` | Guidance only. |
 | Previous / Next | `lib/caseNavigation.ts`, `components/common/CaseNavigation.tsx` | Filename order, excluding excluded cases. Never saves or confirms. |
-| Save & Next / Confirm DR Grade & Next | `AnnotationEditorPage.tsx`, `ClinicianReviewPage.tsx` | Performs the named save or confirm first, then navigates. |
+| Save draft / Confirm DR Grade | `AnnotationEditorPage.tsx`, `ClinicianReviewPage.tsx` | Saves or confirms explicitly before navigation; no navigation silently confirms a milestone. |
 
 : Conveniences. {#tbl-conveniences tbl-colwidths="[24,44,32]"}

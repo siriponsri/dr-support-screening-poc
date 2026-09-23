@@ -21,7 +21,7 @@ try {
         exit 1
     }
     $python = Get-PythonPath
-    Ensure-FrontendBuild -AllowInstall | Out-Null
+    Ensure-FrontendBuild | Out-Null
     $stdout = Join-Path $script:LogRoot "workstation.stdout.log"
     $stderr = Join-Path $script:LogRoot "workstation.stderr.log"
     $process = Start-Process -FilePath $python -ArgumentList @("-m", "dr_support.run") -WorkingDirectory $script:RepoRoot -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WindowStyle Hidden -PassThru

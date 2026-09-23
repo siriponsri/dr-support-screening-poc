@@ -8,7 +8,7 @@ This list is an acceptance criterion (IMG-SAMP-100). Reject any process change t
 | count male/female patients or left/right eyes | Team monitoring |
 | enter demographic data already available elsewhere | Approved source metadata, or `Unknown` |
 | assign a DR grade (0--4) before Workbench review | The Workbench **Confirm DR Grade** step, later |
-| assign lesion labels before Workbench review | The Workbench **Edit Annotations** step, only when needed |
+| assign lesion labels before Workbench review | The Workbench **Annotation Editor** step, only when needed |
 | score image quality numerically | A glance-level Use / Review first / Skip decision |
 | choose train/validation/test groups | Not done in this POC (IMG-SAMP-051) |
 | complete a per-image selection form | No form exists (IMG-SAMP-101) |

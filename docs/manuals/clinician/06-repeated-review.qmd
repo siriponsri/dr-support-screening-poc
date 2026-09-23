@@ -10,9 +10,9 @@ Select **Use as default reviewer on this workstation** in any reviewer field, or
 
 The value is stored only in this browser. It stays editable, it is not authentication, and it never rewrites reviewer names already recorded. On a shared workstation, change or clear it when the user changes.
 
-## Previous / Next and Save & Next
+## Previous and Next
 
-**Previous** and **Next** move through the case order shown in the middle (for example `1 of 7`). Moving does not save or confirm anything. In the Annotation Editor, **Save & Next Case** saves the current draft and opens the next case; in Clinician Review, **Confirm DR Grade & Next** confirms the grade first.
+**Previous** and **Next** move through the case order shown in the middle (for example `1 of 7`). Moving does not save or confirm anything. **Confirm DR Grade** continues to the Annotation Editor; **Confirm Annotation** completes the annotation milestone and opens the next case when one exists.
 
 ![Case navigation and the Next action hint at the top of each case page.](screenshots/10-navigation-hint.png){#fig-navigation width=100%}
 

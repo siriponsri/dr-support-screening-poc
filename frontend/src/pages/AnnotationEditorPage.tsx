@@ -169,7 +169,8 @@ function ToolButton({ tool, active, onClick, children, ariaLabel, isDisabled = f
 }
 
 export function AnnotationEditorPage() {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const navigate = useNavigate();
   const { imageId } = useParams<{ imageId: string }>();
   const [item, setItem] = useState<CaseRecord | null>(null);
@@ -193,6 +194,7 @@ export function AnnotationEditorPage() {
   const [saved, setSaved] = useState(false);
   const [draftStatus, setDraftStatus] = useState<'saved' | 'unsaved' | 'saving' | 'failed'>('saved');
   const [useAsDefault, setUseAsDefault] = useState(() => Boolean(getDefaultReviewer()));
+  const [editingConfirmed, setEditingConfirmed] = useState(false);
   const interactionRef = useRef(false);
   const skipAutosaveRef = useRef(true);
   const draftRef = useRef<HumanAnnotation[]>(draft);
@@ -220,6 +222,7 @@ export function AnnotationEditorPage() {
       setDraft(loaded.human_annotations ?? []);
       setHistory([]);
       setDraftStatus('saved');
+      setEditingConfirmed(false);
       skipAutosaveRef.current = true;
     } catch (err) {
       setError(errorText(err));
@@ -230,7 +233,11 @@ export function AnnotationEditorPage() {
 
   useEffect(() => { void loadCase(); }, [loadCase]);
 
+  const annotationConfirmed = item?.annotation_confirmation_status === 'CONFIRMED';
+  const readOnly = Boolean(annotationConfirmed && !editingConfirmed);
+
   const commit = (next: HumanAnnotation[], nextSelection: string | null = null) => {
+    if (readOnly) return;
     setHistory((previous) => [...previous, draftRef.current]);
     draftRef.current = next;
     setDraft(next);
@@ -240,6 +247,7 @@ export function AnnotationEditorPage() {
   };
 
   const activateTool = (nextTool: Tool) => {
+    if (readOnly) return;
     if (tool === 'polygon' && polygonPoints.length >= 3) {
       commit([...draft, annotation('polygon', label, { points: polygonPoints })]);
       setPolygonPoints([]);
@@ -250,7 +258,7 @@ export function AnnotationEditorPage() {
   };
 
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (!item || tool === 'select') return;
+    if (readOnly || !item || tool === 'select') return;
     event.preventDefault();
     interactionRef.current = true;
     const point = pointFromEvent(event, item);
@@ -267,7 +275,7 @@ export function AnnotationEditorPage() {
   };
 
   const onHumanPointerDown = (shapeId: string, event: ReactPointerEvent<SVGSVGElement>) => {
-    if (!item) return;
+    if (readOnly || !item) return;
     const selected = draftRef.current.find((entry) => entry.shape_id === shapeId);
     event.preventDefault();
     if (!selected || annotationLocked(selected)) return;
@@ -282,7 +290,7 @@ export function AnnotationEditorPage() {
 
   const onHumanResizeStart = (shapeId: string, handle: RectangleResizeHandle, event: ReactPointerEvent<SVGSVGElement>) => {
     event.preventDefault();
-    if (!item) return;
+    if (readOnly || !item) return;
     const selected = draftRef.current.find((entry) => entry.shape_id === shapeId);
     if (!selected || selected.type !== 'rectangle' || annotationLocked(selected)) return;
     resizeRef.current = {
@@ -295,7 +303,7 @@ export function AnnotationEditorPage() {
   };
 
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (!item) return;
+    if (readOnly || !item) return;
     const resize = resizeRef.current;
     if (resize) {
       const point = pointFromEvent(event, item);
@@ -339,6 +347,7 @@ export function AnnotationEditorPage() {
   };
 
   const onPointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
+    if (readOnly) return;
     const resize = resizeRef.current;
     if (resize) {
       if (resize.moved) {
@@ -400,7 +409,7 @@ export function AnnotationEditorPage() {
   };
 
   const onDoubleClick = (event: ReactMouseEvent<SVGSVGElement>) => {
-    if (tool !== 'polygon') return;
+    if (readOnly || tool !== 'polygon') return;
     event.preventDefault();
     if (polygonPoints.length < 3) return;
     commit([...draft, annotation('polygon', label, { points: polygonPoints })]);
@@ -408,6 +417,7 @@ export function AnnotationEditorPage() {
   };
 
   const undo = () => {
+    if (readOnly) return;
     const previous = history.at(-1);
     if (!previous) return;
     draftRef.current = previous;
@@ -419,11 +429,13 @@ export function AnnotationEditorPage() {
   };
 
   const deleteSelected = () => {
+    if (readOnly) return;
     if (!selectedShapeId) return;
     commit(draftRef.current.filter((entry) => entry.shape_id !== selectedShapeId));
   };
 
   const toggleSelectedLock = () => {
+    if (readOnly) return;
     if (!selectedShapeId) return;
     const selected = draftRef.current.find((entry) => entry.shape_id === selectedShapeId);
     if (!selected) return;
@@ -433,7 +445,7 @@ export function AnnotationEditorPage() {
   };
 
   const moveSelectedByKeyboard = (shortcut: string) => {
-    if (!item || !selectedShapeId) return;
+    if (readOnly || !item || !selectedShapeId) return;
     const selected = draftRef.current.find((entry) => entry.shape_id === selectedShapeId);
     if (!selected || annotationLocked(selected)) return;
     const step = 1;
@@ -470,15 +482,10 @@ export function AnnotationEditorPage() {
     ? draftRef.current.find((entry) => entry.shape_id === selectedShapeId) ?? null
     : null;
   const selectedIsLocked = selectedAnnotation ? annotationLocked(selectedAnnotation) : false;
-  const reviewSummary = item?.review_evidence?.summary;
-  const hasReviewedAiEvidence = Boolean(reviewSummary && Object.values(reviewSummary).some((count) => count > 0));
-  const annotationNeedsConfirmation = draftStatus !== 'saved' || (
-    item?.annotation_confirmation_status !== 'CONFIRMED'
-    && (draft.length > 0 || hasReviewedAiEvidence)
-  );
+  const annotationNeedsConfirmation = item?.annotation_confirmation_status !== 'CONFIRMED' || draftStatus !== 'saved';
 
   const changeSelectedLabel = (nextLabel: LesionLabel) => {
-    if (!selectedAnnotation || annotationLocked(selectedAnnotation) || selectedAnnotation.label === nextLabel) return;
+    if (readOnly || !selectedAnnotation || annotationLocked(selectedAnnotation) || selectedAnnotation.label === nextLabel) return;
     commit(draftRef.current.map((entry) => entry.shape_id === selectedShapeId
       ? { ...entry, label: nextLabel }
       : entry), selectedShapeId);
@@ -499,7 +506,7 @@ export function AnnotationEditorPage() {
   };
 
   const advanceAfterAnnotation = async (nextId: string | null) => {
-    const advance = () => navigate(nextId ? `/edit/${encodeURIComponent(nextId)}` : '/worklist');
+    const advance = () => navigate(nextId ? `/review/${encodeURIComponent(nextId)}` : '/worklist', { state: { caseComplete: true } });
     if (annotationNeedsConfirmation) {
       if (await confirmAnnotations()) advance();
       return;
@@ -511,20 +518,20 @@ export function AnnotationEditorPage() {
   const annotationControls = (
     <Stack spacing={3}>
       <HStack spacing={2} flexWrap="wrap">
-        <ToolButton active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector}><MousePointer2 size={14} /> Select</ToolButton>
-        <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector}><Square size={14} /> Box</ToolButton>
-        <ToolButton active={tool === 'polygon'} onClick={() => activateTool('polygon')} isDisabled={isCoordinateInspector}><Pentagon size={14} /> Polygon</ToolButton>
-        <ToolButton active={tool === 'point'} onClick={() => activateTool('point')} isDisabled={isCoordinateInspector}><Circle size={14} /> Point</ToolButton>
-        <ToolButton active={tool === 'circle'} onClick={() => activateTool('circle')} isDisabled={isCoordinateInspector}><Circle size={14} /> Circle</ToolButton>
+          <ToolButton active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector || readOnly}><MousePointer2 size={14} /> Select</ToolButton>
+        <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector || readOnly}><Square size={14} /> Box</ToolButton>
+        <ToolButton active={tool === 'polygon'} onClick={() => activateTool('polygon')} isDisabled={isCoordinateInspector || readOnly}><Pentagon size={14} /> Polygon</ToolButton>
+        <ToolButton active={tool === 'point'} onClick={() => activateTool('point')} isDisabled={isCoordinateInspector || readOnly}><Circle size={14} /> Point</ToolButton>
+        <ToolButton active={tool === 'circle'} onClick={() => activateTool('circle')} isDisabled={isCoordinateInspector || readOnly}><Circle size={14} /> Circle</ToolButton>
       </HStack>
       <HStack spacing={2}>
-        <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={isCoordinateInspector || history.length === 0}>Undo</Button>
-        <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={isCoordinateInspector || !selectedShapeId}>Delete selected</Button>
+        <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={isCoordinateInspector || readOnly || history.length === 0}>Undo</Button>
+        <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={isCoordinateInspector || readOnly || !selectedShapeId}>Delete selected</Button>
         <Button
           size="sm"
           leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />}
           onClick={toggleSelectedLock}
-          isDisabled={isCoordinateInspector || !selectedAnnotation}
+          isDisabled={isCoordinateInspector || readOnly || !selectedAnnotation}
           aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}
         >
           {selectedIsLocked ? 'Unlock selected' : 'Lock selected'}
@@ -533,14 +540,14 @@ export function AnnotationEditorPage() {
       <HStack spacing={4} align="end" flexWrap="wrap">
         <FormControl maxW={{ base: '100%', laptop: '250px' }}>
           <FormLabel htmlFor="new-annotation-class" fontSize="sm">New annotation class</FormLabel>
-          <Select id="new-annotation-class" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)}>
+          <Select id="new-annotation-class" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)} isDisabled={readOnly}>
             {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </Select>
         </FormControl>
         {selectedAnnotation && (
           <FormControl maxW={{ base: '100%', laptop: '250px' }}>
             <FormLabel htmlFor="selected-annotation-class" fontSize="sm">Selected annotation class</FormLabel>
-            <Select id="selected-annotation-class" value={selectedAnnotation.label} onChange={(event) => changeSelectedLabel(event.target.value as LesionLabel)} isDisabled={selectedIsLocked}>
+            <Select id="selected-annotation-class" value={selectedAnnotation.label} onChange={(event) => changeSelectedLabel(event.target.value as LesionLabel)} isDisabled={selectedIsLocked || readOnly}>
               {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </Select>
           </FormControl>
@@ -561,27 +568,27 @@ export function AnnotationEditorPage() {
 
   const fullScreenAnnotationControls = (
     <HStack spacing={1} flexWrap="wrap" align="center">
-      <ToolButton ariaLabel="Select tool" active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector}>
+      <ToolButton ariaLabel="Select tool" active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector || readOnly}>
         <MousePointer2 size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Select</Box>
       </ToolButton>
-      <ToolButton ariaLabel="Box tool" active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector}>
+      <ToolButton ariaLabel="Box tool" active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector || readOnly}>
         <Square size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Box</Box>
       </ToolButton>
-      <ToolButton ariaLabel="Polygon tool" active={tool === 'polygon'} onClick={() => activateTool('polygon')} isDisabled={isCoordinateInspector}>
+      <ToolButton ariaLabel="Polygon tool" active={tool === 'polygon'} onClick={() => activateTool('polygon')} isDisabled={isCoordinateInspector || readOnly}>
         <Pentagon size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Polygon</Box>
       </ToolButton>
-      <ToolButton ariaLabel="Point tool" active={tool === 'point'} onClick={() => activateTool('point')} isDisabled={isCoordinateInspector}>
+      <ToolButton ariaLabel="Point tool" active={tool === 'point'} onClick={() => activateTool('point')} isDisabled={isCoordinateInspector || readOnly}>
         <Circle size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Point</Box>
       </ToolButton>
-      <ToolButton ariaLabel="Circle tool" active={tool === 'circle'} onClick={() => activateTool('circle')} isDisabled={isCoordinateInspector}>
+      <ToolButton ariaLabel="Circle tool" active={tool === 'circle'} onClick={() => activateTool('circle')} isDisabled={isCoordinateInspector || readOnly}>
         <Circle size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Circle</Box>
       </ToolButton>
-      <Button size="sm" leftIcon={<Undo2 size={14} />} aria-label="Undo annotation change" onClick={undo} isDisabled={isCoordinateInspector || history.length === 0}>Undo</Button>
-      <Button size="sm" leftIcon={<Trash2 size={14} />} aria-label="Delete selected annotation" onClick={deleteSelected} isDisabled={isCoordinateInspector || !selectedShapeId}>Delete</Button>
-      <Button size="sm" leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />} onClick={toggleSelectedLock} isDisabled={isCoordinateInspector || !selectedAnnotation} aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}>
+      <Button size="sm" leftIcon={<Undo2 size={14} />} aria-label="Undo annotation change" onClick={undo} isDisabled={isCoordinateInspector || readOnly || history.length === 0}>Undo</Button>
+      <Button size="sm" leftIcon={<Trash2 size={14} />} aria-label="Delete selected annotation" onClick={deleteSelected} isDisabled={isCoordinateInspector || readOnly || !selectedShapeId}>Delete</Button>
+      <Button size="sm" leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />} onClick={toggleSelectedLock} isDisabled={isCoordinateInspector || readOnly || !selectedAnnotation} aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}>
         {selectedIsLocked ? 'Unlock' : 'Lock'}
       </Button>
-      <Select aria-label="Lesion class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)} maxW={{ base: '150px', tablet: '190px' }}>
+      <Select aria-label="Lesion class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)} maxW={{ base: '150px', tablet: '190px' }} isDisabled={readOnly}>
         {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </Select>
       <Button size="sm" variant={showAi ? 'secondary' : 'outline'} onClick={() => setShowAi((visible) => !visible)} aria-pressed={showAi}>AI {showAi ? 'on' : 'off'}</Button>
@@ -635,6 +642,10 @@ export function AnnotationEditorPage() {
 
   const confirmAnnotations = async (): Promise<boolean> => {
     if (!item) return false;
+    if (!reviewer.trim()) {
+      setSaveError('Reviewer name is required to confirm annotations.');
+      return false;
+    }
     const imageId = item.image_id;
     const persisted = await persistDraft();
     if (!persisted) return false;
@@ -658,11 +669,17 @@ export function AnnotationEditorPage() {
     }
   };
 
-  const confirmNavigation = () => {
-    if (draftStatus === 'unsaved' || draftStatus === 'saving' || draftStatus === 'failed') {
-      return window.confirm('You have unsaved annotation changes. Leave this case?');
+  const beginAnnotationEdit = () => {
+    if (!annotationConfirmed || editingConfirmed) return;
+    if (window.confirm('Edit confirmed annotations?\n\nThis annotation set has already been confirmed. Continuing will reopen annotation review and create a new revision.')) {
+      setEditingConfirmed(true);
+      setSaveError(null);
     }
-    return true;
+  };
+
+  const confirmNavigation = () => {
+    if (annotationConfirmed && !editingConfirmed && draftStatus === 'saved') return true;
+    return window.confirm('You are still working on this image. Your autosaved draft will be kept, but this case is not complete. Switch image?');
   };
 
   useEffect(() => {
@@ -700,15 +717,28 @@ export function AnnotationEditorPage() {
         subtitle={`${item.display_name} - human annotations are separate from AI suggestions`}
         actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />} onClick={(event) => { if (!confirmNavigation()) event.preventDefault(); }}>Back to Review</Button><Button as={Link} to="/worklist" onClick={(event) => { if (!confirmNavigation()) event.preventDefault(); }}>Back to Worklist</Button></HStack>}
       />
+      {Boolean((location.state as { gradingComplete?: boolean } | null)?.gradingComplete) && (
+        <Alert status="success" mb={4}><AlertIcon /><Text><strong>Grading complete.</strong> Review optional annotations, then confirm this case.</Text></Alert>
+      )}
+      {readOnly && (
+        <Alert status="info" mb={4}>
+          <AlertIcon />
+          <Stack spacing={2}>
+            <Text><strong>Annotations confirmed</strong>{item.annotation_confirmation?.reviewer ? ` by ${item.annotation_confirmation.reviewer}` : ''}.</Text>
+            <Button size="sm" variant="outline" alignSelf="flex-start" onClick={beginAnnotationEdit}>Edit confirmed annotations</Button>
+          </Stack>
+        </Alert>
+      )}
       <Stack spacing={3} mb={5}>
         <CaseNavigation
           imageId={item.image_id}
           routePrefix="edit"
           dirty={draftStatus !== 'saved'}
+          incomplete={!annotationConfirmed || editingConfirmed}
           onBeforeNavigate={confirmNavigation}
-          onSaveAndNext={(nextId) => { void advanceAfterAnnotation(nextId); }}
-          saveAndNextLabel={annotationNeedsConfirmation ? 'Confirm annotations & next' : 'Skip annotation & next'}
-          saveAtEndLabel={annotationNeedsConfirmation ? 'Confirm annotations' : 'Skip annotation'}
+          onSaveAndNext={readOnly ? undefined : (nextId) => { void advanceAfterAnnotation(nextId); }}
+          saveAndNextLabel="Confirm Annotation"
+          saveAtEndLabel="Confirm Annotation"
           actionDisabled={saving}
         />
         <NextActionHint item={item} />
@@ -722,7 +752,7 @@ export function AnnotationEditorPage() {
             humanAnnotations={draft}
             selectedShapeId={selectedShapeId}
             selectedLesionId={selectedLesionId}
-            onSelectLesion={setSelectedLesionId}
+            onSelectLesion={readOnly ? undefined : setSelectedLesionId}
             onSelectHuman={(shapeId) => { setSelectedShapeId(shapeId); setSelectedLesionId(null); }}
             onHumanPointerDown={onHumanPointerDown}
             onHumanResizeStart={onHumanResizeStart}
@@ -738,10 +768,10 @@ export function AnnotationEditorPage() {
             {polygonPoints.length > 0 && <polyline points={polygonPoints.map((point) => point.join(',')).join(' ')} fill="var(--chakra-colors-text-primary)" fillOpacity={0.1} stroke="var(--chakra-colors-text-primary)" strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />}
             {previewShape(preview)}
           </RetinalCanvas>
-          <LesionActionPopover item={item} selectedLesionId={selectedLesionId} onSaved={setItem} onDerived={onHumanAnnotationDerived} onClose={() => setSelectedLesionId(null)} />
+          <LesionActionPopover item={item} selectedLesionId={readOnly ? null : selectedLesionId} reviewer={reviewer} onSaved={setItem} onDerived={onHumanAnnotationDerived} onClose={() => setSelectedLesionId(null)} />
           <HStack mt={4} spacing={3} flexWrap="wrap" fontSize="sm">
             <Text fontWeight="semibold">{draft.length} human annotation{draft.length === 1 ? '' : 's'}</Text>
-            <Text color="text.secondary">AI suggestions are optional visual evidence; human annotations remain separate.</Text>
+            <Text color="text.secondary">AI suggestions are optional visual evidence. Edit only regions where you disagree or want to record a human annotation.</Text>
             <Text aria-live="polite" color="text.secondary">{draftStatus === 'saving' ? 'Saving draft…' : draftStatus === 'failed' ? 'Save failed — retry' : draftStatus === 'unsaved' ? 'Unsaved changes' : 'Draft saved'}</Text>
           </HStack>
           {draft.length === 0 && !annotationNeedsConfirmation && <Text mt={2} fontSize="sm" color="text.secondary">No annotation changes for this case.</Text>}
@@ -756,7 +786,7 @@ export function AnnotationEditorPage() {
               {saveError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
               {saved && <Alert status="success"><AlertIcon /><Text fontSize="sm">Human annotations saved.</Text></Alert>}
               <HStack spacing={2} flexWrap="wrap">
-                <Button variant="ghost" leftIcon={<Save size={15} />} onClick={() => void persistDraft()} isLoading={saving} isDisabled={saving}>Save draft only</Button>
+                <Button variant="ghost" leftIcon={<Save size={15} />} onClick={() => void persistDraft()} isLoading={saving} isDisabled={saving || readOnly}>Save draft</Button>
               </HStack>
             </Stack>
           </Section>

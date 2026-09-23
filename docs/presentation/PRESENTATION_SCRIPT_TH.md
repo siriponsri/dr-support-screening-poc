@@ -89,8 +89,8 @@ Workbench รับภาพที่ถูกเลือกและอนุ�
 ## Scene 12 — เส้นทางของหนึ่ง case
 
 เริ่มที่ Confirm Image เพื่อตรวจ pseudonymous context และ eye จากนั้น Review
-ภาพและ optional AI evidence แล้วเลือก Confirm final DR grade หรือ Send for
-senior review ถ้าจำเป็นจึงเข้า annotation loop และไปต่อที่ next case
+ภาพและ optional AI evidence แล้วเลือกและยืนยัน Confirm final DR grade จากนั้น
+จึงเข้า annotation loop เมื่อจำเป็นและไปต่อที่ next case
 
 **Truth label:** เป็น current Phase-1 clinician workflow
 
@@ -112,14 +112,13 @@ model output เสมอ
 
 ## Scene 15 — การตัดสินใจหลักหนึ่งครั้ง
 
-จุดตัดสินใจมีสองทางที่ mutually exclusive: Confirm final DR grade หรือ Send
-for senior review ระบบไม่ควรค้าง grade และ senior-review decision ที่ active
-พร้อมกัน
+จุดตัดสินใจคือการเลือกและยืนยัน final DR grade อย่างชัดเจน ระบบไม่ยืนยัน
+grade จนกว่าจะมีการเลือกเกรดของ clinician
 
 ## Scene 16 — Annotation เมื่อจำเป็น
 
 เปิด annotation editor เฉพาะเมื่อจำเป็นต่อ human evidence กด ROI เพื่อเลือก
-correct, use หรือ remove แล้วจึง confirm annotation ชุดปัจจุบัน ผล AI เดิม
+confirm, correct หรือ remove แล้วจึง confirm annotation ชุดปัจจุบัน ผล AI เดิม
 อย่าง class, score, geometry และ provenance ยังต้องตรวจสอบย้อนหลังได้
 
 ## Scene 17 — DICOM และ grouped export
@@ -139,7 +138,7 @@ Windows review workstation ใช้ `APP_PROFILE=review` และ `MODEL_RUNTI
 ## Scene 19 — สิ่งที่ต้องการจากจักษุแพทย์
 
 ปิดด้วยคำถามเรื่อง workflow fit, evidence ที่ช่วยตัดสินใจจริง, การจัดการ
-ungradable image, trigger ของ senior review และวิธี validation ที่เหมาะกับ
+ungradable image, trigger ของ uncertainty handling และวิธี validation ที่เหมาะกับ
 human-AI team เป้าหมายคือทำให้ระบบช่วยการ review ได้จริงโดยไม่ลดอำนาจการตัดสินใจ
 ของ clinician
 

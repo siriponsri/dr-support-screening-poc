@@ -2,29 +2,33 @@
 
 ## Review workstation
 
-**Prerequisites.** Windows or Linux host, Python 3.11 or 3.12, Node.js with npm, and the optional DICOM extras when DICOM input is required.
+The supported Windows lifecycle is `SETUP.cmd` -> `START.cmd` -> browser. No
+machine-wide Administrator access is required. `uv` owns the project-managed
+Python 3.12 environment; Node.js is taken from a compatible system install or
+from the official no-admin fallback under ignored `local-state/tools/`.
 
 ```{=latex}
 \Needspace{18\baselineskip}
 ```
 
-**Steps (Windows PowerShell).**
+**Steps (Windows).**
 
-```powershell
+```text
 git clone https://github.com/siriponsri/dr-support-screening-poc.git
 cd dr-support-screening-poc
-py -3.12 -m venv .venv
-.venv\Scripts\python.exe -m pip install --upgrade pip
-.venv\Scripts\python.exe -m pip install -e ".[test,dicom]"
-npm ci
-cd frontend
-npm ci
-npm run build
-cd ..
+SETUP.cmd
 START.cmd
 ```
 
-**Expected result.** The workstation serves `http://127.0.0.1:8000/app/`. The launcher sets `APP_PROFILE=review` and `MODEL_RUNTIME=remote`. When a Model API is available, set `REMOTE_MODEL_URL` and, if required, `REMOTE_MODEL_TOKEN` in the private process environment before starting.
+**Expected result.** The workstation serves `http://127.0.0.1:8000/app/` and
+opens it in the default browser. Daily `START.cmd` calls reuse the project
+environment and frontend dependencies. It rebuilds the frontend only when the
+tracked source signature or lockfile state requires it; it never runs `npm ci`
+on a normal start. Use `OPEN_APP.cmd` to reopen the app and `STOP.cmd` to stop
+only the repository-managed process.
+
+Use `SETUP.cmd --check` for a read-only installation diagnostic and
+`SETUP.cmd --dev` when test, DICOM, and browser-test extras are required.
 
 ## Linux server checkout
 

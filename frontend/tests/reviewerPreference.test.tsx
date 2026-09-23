@@ -32,7 +32,7 @@ describe('default reviewer preference', () => {
     expect(window.localStorage.getItem('dr-support-screening.default-reviewer.v1')).toBeNull();
   });
 
-  it('prefills a new review without overwriting a historical reviewer', async () => {
+  it('prefills a new review and keeps historical review records read-only', async () => {
     window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'New reviewer');
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
@@ -69,6 +69,8 @@ describe('default reviewer preference', () => {
         </MemoryRouter>
       </ChakraProvider>,
     );
-    expect(await screen.findByPlaceholderText('Reviewer name')).toHaveValue('Recorded reviewer');
+    expect(await screen.findByText('Reviewer: Recorded reviewer')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Reviewer name')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit confirmed grade' })).toBeInTheDocument();
   });
 });

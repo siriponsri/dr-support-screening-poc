@@ -1,6 +1,23 @@
 # Documentation Portal
 
-Use this page to choose the document for your role. Authoring sources and published artifacts are kept separate: Quarto and Markdown sources are canonical, while PDFs under `docs/pdfs/` are generated copies.
+Use this page to choose the document for your role. There is one canonical
+source per topic: Quarto/Markdown sources are authoritative, while PDFs and
+standalone presentation HTML are generated outputs under `docs/pdfs/` and
+`docs/presentation/`. Do not edit generated files directly.
+
+## Start Here
+
+| Need | Canonical entry point |
+|:--|:--|
+| Clinician review | [Clinician User Manual](manuals/clinician/index.qmd) |
+| Windows workstation lifecycle | [Installation](operations/INSTALLATION.md) |
+| Linux GPU Model API | [Model API](operations/MODEL_SERVER.md) |
+| Developer change work | [Developer Technical Guide](manuals/developer/index.qmd) |
+| Product/technical presentation | [Presentation sources](presentation/README.md) |
+
+The short clinician pages are indexes that point into the clinician manual;
+they do not define a second workflow. The operator runbooks cover executable
+procedures, while the operator PDF provides the longer explanation.
 
 ## For Clinicians
 

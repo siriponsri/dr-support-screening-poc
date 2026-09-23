@@ -53,8 +53,8 @@ not the generated file. The Thai narration is in
 | `workflow` | Current explicit clinician path and next-case action | Phase-1 workflow in `docs/manuals/clinician/` and `frontend/src/`. |
 | `worklist` | Select case and Confirm Image | `hyperframes/assets/ui-worklist.png`; current UI screenshot using a public/synthetic fixture. |
 | `review` | Image-first review with optional model evidence | `hyperframes/assets/clinical/retina-upstream-roi.png`; upstream image/example plus current UI behavior. |
-| `decision` | Confirm final DR grade or send for senior review | `frontend/src/pages/ClinicianReviewPage.tsx`; current UI behavior and mutual exclusivity. |
-| `annotation` | Correct, use, or remove an ROI while retaining provenance | `frontend/src/components/review/LesionActionPopover.tsx`, `RetinalCanvas.tsx`, and annotation tests; current UI screenshot. |
+| `decision` | Select and confirm the final DR grade | `frontend/src/pages/ClinicianReviewPage.tsx`; current UI behavior and explicit grade requirement. |
+| `annotation` | Confirm, correct, or remove an ROI while retaining provenance | `frontend/src/components/review/LesionActionPopover.tsx`, `RetinalCanvas.tsx`, and annotation tests; current UI screenshot. |
 | `dicom-export` | Immutable source, analysis derivative, and grouped export | `dr_support/images.py`, dataset services, and `docs/reference/DATASET_MANIFEST.md`. |
 | `deployment` | Separate Windows review workstation and Linux GPU Model API | `docs/operations/INSTALLATION.md`, `MODEL_SERVER.md`, and architecture ADRs. |
 | `close` | Questions requested from ophthalmologists | Presentation purpose only; no clinical outcome claim. |
