@@ -1,0 +1,23 @@
+%% Dynamic view - image admission and Confirm Image
+sequenceDiagram
+  autonumber
+  actor C as Clinician
+  participant UI as Clinician UI (Worklist)
+  participant API as Review API
+  participant ADM as services/admission.py
+  participant RES as services/resolver.py
+  participant DB as Workspace SQLite
+  C->>UI: Scan input folder
+  UI->>API: POST /v1/admissions/scan
+  API->>ADM: scan_input_folder(input_folder)
+  ADM->>ADM: top-level files only - skip ancillary .csv/.json/.md
+  ADM->>ADM: decode, SHA-256, format check, coarse fundus/quality screen
+  ADM-->>API: AdmissionMetadata per file (+ duplicate aliases)
+  API->>DB: store admission + AUTOMATIC_ADMISSION history
+  UI->>API: GET /v1/cases
+  API->>RES: resolve(filename) - anchored patterns, optional OCR
+  RES-->>API: patient / eye candidates (evidence only)
+  API-->>UI: rows with plain-language status
+  C->>UI: Confirm Image (patient key, eye, reviewer)
+  UI->>API: POST /v1/cases/{id}/confirm-image
+  API->>DB: laterality method MANUAL, reviewer, timestamp, revision+1

@@ -1,0 +1,36 @@
+%% C4 level 2 - Containers
+flowchart TB
+  user["Clinician browser"]
+  subgraph ws["Review workstation  (APP_PROFILE=review, MODEL_RUNTIME=remote)"]
+    spa["<b>Clinician UI</b><br/>React 18 + Vite + Chakra UI<br/>served at /app/ (frontend/dist)"]
+    api["<b>Review API</b><br/>FastAPI (dr_support.api)<br/>cases, admission, resolver,<br/>review, annotations, dataset"]
+    legacy["<b>Legacy UI</b><br/>static /ui/ (web/)"]
+    db[("<b>Workspace review DB</b><br/>SQLite JSON case records")]
+    cat[("<b>Workspace catalog</b><br/>SQLite profiles")]
+    inbox[/"<b>Workspace input folder</b><br/>staged images (read-only use)"/]
+    out[/"<b>Workspace output folder</b><br/>dataset-export-*"/]
+  end
+  subgraph gpu["Hospital GPU host  (APP_PROFILE=model_api, MODEL_RUNTIME=local)"]
+    mapi["<b>Model API</b><br/>FastAPI (dr_support.services.model_api)<br/>/health /v1/models<br/>/v1/predict/dr /v1/predict/lesions"]
+    ret["RETFound provider<br/>retfound-aptos5"]
+    pri["PRISM-DR provider<br/>prism-dr-5fold"]
+    assets[("Verified local assets<br/>pinned sources + checkpoints")]
+  end
+  cvat["CVAT Online (optional)"]
+  user --> spa
+  spa -- "JSON /v1/*" --> api
+  user -.-> legacy
+  api --> db
+  api --> cat
+  api -- "scan top level" --> inbox
+  api -- "export" --> out
+  api -- "HTTP + optional Bearer<br/>REMOTE_MODEL_URL" --> mapi
+  mapi --> ret
+  mapi --> pri
+  ret --> assets
+  pri --> assets
+  api -. "send / sync" .-> cvat
+  classDef box fill:#FFFFFF,stroke:#016301,color:#172018
+  classDef data fill:#F1F4F1,stroke:#98A79B,color:#172018
+  class spa,api,legacy,mapi,ret,pri box
+  class db,cat,inbox,out,assets data

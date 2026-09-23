@@ -1,0 +1,25 @@
+%% Deployment view
+flowchart LR
+  subgraph lan["Protected hospital LAN (TLS / firewall at the boundary)"]
+    subgraph wsn["Windows review workstation"]
+      b["Browser → 127.0.0.1:8000/app/"]
+      w["START.cmd → python -m dr_support.run<br/>APP_PROFILE=review<br/>MODEL_RUNTIME=remote"]
+      ls[("local-state/ + Workspace folders")]
+    end
+    subgraph gpun["Linux GPU host (/opt/dr-support-screening-poc)"]
+      sd["systemd: dr-support-model-api<br/>scripts/model-server/start.sh<br/>0.0.0.0:7860 · WORKERS=1 · CUDA"]
+      env[("/etc/dr-support/model-server.env<br/>REMOTE_MODEL_TOKEN (optional)")]
+      as[("verified RETFound + PRISM-DR assets")]
+    end
+  end
+  inet(("Internet"))
+  b --> w --> ls
+  w -- "REMOTE_MODEL_URL :7860" --> sd
+  sd --> env
+  sd --> as
+  inet -. "setup.sh only (one-time online)" .-> as
+  inet -. "optional CVAT Online" .-> w
+  classDef n fill:#FFFFFF,stroke:#016301,color:#172018
+  classDef d fill:#F1F4F1,stroke:#98A79B,color:#172018
+  class b,w,sd n
+  class ls,env,as d

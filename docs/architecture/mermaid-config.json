@@ -1,0 +1,28 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Segoe UI, Arial, sans-serif",
+    "fontSize": "15px",
+    "primaryColor": "#E8F3E8",
+    "primaryBorderColor": "#016301",
+    "primaryTextColor": "#172018",
+    "lineColor": "#52605A",
+    "clusterBkg": "#F7F9F7",
+    "clusterBorder": "#BFCABF",
+    "actorBkg": "#E8F3E8",
+    "actorBorder": "#016301",
+    "noteBkgColor": "#FBF2D9"
+  },
+  "flowchart": {
+    "htmlLabels": true,
+    "curve": "basis"
+  },
+  "sequence": {
+    "messageFontSize": 17,
+    "actorFontSize": 16,
+    "noteFontSize": 16,
+    "width": 140,
+    "boxMargin": 8,
+    "mirrorActors": false
+  }
+}

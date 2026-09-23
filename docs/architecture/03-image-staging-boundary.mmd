@@ -1,0 +1,32 @@
+%% Image ownership and staging boundary (owner decision IMG-SAMP-001..005)
+flowchart TB
+  subgraph hosp["Hospital-controlled zone"]
+    direction LR
+    s[("Hospital image storage<br/>source class already held:<br/><b>Refer / Not-refer</b>")]
+    c["Clinician or authorized<br/>hospital user<br/><b>selects a suitable image</b>"]
+    st["Hospital-approved<br/>staging / transfer"]
+    s --> c --> st
+  end
+  subgraph rrw["Retinal Review Workbench"]
+    direction LR
+    in[/"Workspace input folder"/]
+    ad["Admission<br/>SHA-256, format,<br/>coarse checks"]
+    wl["Worklist → Confirm Image<br/>→ review workflow"]
+    in --> ad --> wl
+  end
+  subgraph team["Project team (outside the Workbench)"]
+    direction LR
+    mon["Coverage monitoring<br/>Refer/Not-refer · sex · left/right<br/>from export + team record"]
+    x["Does NOT browse hospital<br/>storage or pre-select images"]
+  end
+  st --> in
+  wl -. "images.csv export" .-> mon
+  mon -. "aggregate requests only<br/>(no per-patient pulls)" .-> c
+  classDef hz fill:#F5E9E5,stroke:#A73B24,color:#172018
+  classDef wz fill:#E8F3E8,stroke:#016301,color:#172018
+  classDef tz fill:#EAF2FB,stroke:#245B9E,color:#172018
+  classDef no fill:#FFFFFF,stroke:#A73B24,color:#7C291A,stroke-dasharray: 4 3
+  class s,c,st hz
+  class in,ad,wl wz
+  class mon tz
+  class x no

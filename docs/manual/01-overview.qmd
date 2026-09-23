@@ -6,6 +6,10 @@ This manual is for clinicians and reviewers using the review workstation. Workst
 
 Retinal Review Workbench is a clinician-controlled research and clinical-support workstation. It keeps source identity, patient and eye context, human decisions, annotations, model evidence, and export provenance together for review. It does not establish a diagnosis, disease truth, referral decision, or treatment decision. The final clinician review remains authoritative.
 
+## Where the images come from
+
+You, or another authorized hospital user, choose each image from hospital-controlled storage, and the approved hospital process stages it into the Workspace input folder. The project team does not browse hospital storage or pre-select images. It monitors overall Refer/Not-refer, sex, and left/right coverage, so you do not manage dataset quotas yourself. What to choose, what to avoid, and what to do when unsure are covered in the one-page *Clinician Image Selection Guide* (`docs/CLINICIAN_IMAGE_SELECTION_GUIDE.pdf`).
+
 ## Supported images
 
 The workstation accepts JPEG, PNG, TIFF, and supported single-frame ophthalmic fundus DICOM. MRI, OCT, PACS objects, non-fundus DICOM, unsupported SOP classes, multi-frame objects, and untested transfer syntaxes are outside model support. A recognized non-fundus DICOM is shown as **Unsupported modality**, not as a generic read failure.

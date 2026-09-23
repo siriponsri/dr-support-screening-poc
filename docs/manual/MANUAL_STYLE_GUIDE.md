@@ -27,7 +27,7 @@ Use sentence case in prose. Preserve the capitalization of buttons, fields, tabs
 
 ## Screenshot rules
 
-Capture the final UI only, with public or synthetic data, by running `scripts/manual/capture_server.py` and then `scripts/manual/capture_manual.py`. Prefer a locator or bounded region over a full-page screenshot. Keep the retinal image and the control being described visible. Crop long lists to a readable header and representative rows. Do not capture PHI, tokens, private paths, raw DICOM identifiers, or development panels. Each figure needs a concise caption and a nearby procedural reference.
+Capture the final UI only, with public or synthetic data. The committed screenshots are v0.7.0 captures; the earlier capture scripts were removed from `main` in `ec74af8`, so a re-capture needs a script written against the current UI (for example Playwright against `python -m dr_support.run` with a synthetic Workspace). Prefer a locator or bounded region over a full-page screenshot. Keep the retinal image and the control being described visible. Crop long lists to a readable header and representative rows. Do not capture PHI, tokens, private paths, raw DICOM identifiers, or development panels. Each figure needs a concise caption and a nearby procedural reference.
 
 ## Model-language restrictions
 
@@ -39,7 +39,7 @@ Use Quarto automatic figure and table numbering. A figure should answer where to
 
 ## Document control
 
-The Quarto sources under `docs/manual/` are the single authoring source. Run `python scripts/manual/build_manual.py` after changing UI labels, screenshots, workflow semantics, or document-control values. The script produces the HTML site under `dist/manual/site/` and copies the Quarto PDF to `docs/CLINICIAN_USER_MANUAL.pdf`.
+The Quarto sources under `docs/manual/` are the single authoring source. Run `python scripts/docs/build_docs.py clinician-manual` after changing UI labels, screenshots, workflow semantics, or document-control values. The script copies the Quarto PDF to `docs/CLINICIAN_USER_MANUAL.pdf`. Add `--html` to also render the HTML site under `dist/manual/site/`.
 
 ## Print layout
 

@@ -1,0 +1,23 @@
+%% C4 level 1 - System Context (flowchart notation for stable rendering)
+flowchart LR
+  clin["<b>Clinician / reviewer</b><br/>[Person]<br/>Confirms image, grade,<br/>annotations"]
+  team["<b>Project team</b><br/>[Person]<br/>Monitors dataset coverage<br/>from exports"]
+  it["<b>Hospital IT / operator</b><br/>[Person]<br/>Runs workstation and<br/>GPU Model API"]
+  store[("<b>Hospital-controlled<br/>image storage</b><br/>[External system]<br/>not accessed by the Workbench")]
+  subgraph boundary["Retinal Review Workbench (software system)"]
+    rrw["<b>Review workstation</b><br/>+ <b>Model API</b>"]
+  end
+  cvat["<b>CVAT Online</b><br/>[External system, optional]<br/>dense annotation"]
+  up["<b>Upstream model sources</b><br/>[External, setup only]<br/>RETFound, PRISM-DR"]
+  store -. "authorized human selection<br/>+ approved staging" .-> rrw
+  clin -- "reviews cases<br/>(browser, 127.0.0.1)" --> rrw
+  rrw -- "manifest.json, images.csv,<br/>annotations.csv" --> team
+  it -- "installs, starts,<br/>health-checks" --> rrw
+  rrw -. "optional round trip" .-> cvat
+  up -. "one-time online setup,<br/>pinned + SHA-256 verified" .-> rrw
+  classDef person fill:#E8F3E8,stroke:#016301,color:#172018
+  classDef ext fill:#F1F4F1,stroke:#98A79B,color:#172018
+  classDef sys fill:#016301,stroke:#004D00,color:#FFFFFF
+  class clin,team,it person
+  class store,cvat,up ext
+  class rrw sys

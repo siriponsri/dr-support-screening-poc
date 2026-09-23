@@ -1,0 +1,24 @@
+%% Dataset readiness and provenance
+flowchart LR
+  src["Source image<br/><b>source SHA-256</b><br/>never modified"]
+  ana["Analysis derivative<br/><b>analysis SHA-256</b><br/>transform_id + mapping"]
+  ai["Model evidence<br/>model id, revision,<br/>raw output, score"]
+  ci["Confirm Image<br/>patient key, eye,<br/>reviewer, time"]
+  cg["Confirm DR Grade<br/>AI_ACCEPTED / AI_CORRECTED /<br/>MANUAL"]
+  ca["Confirm Annotation<br/>active-set hash"]
+  dr{{"DR-ready"}}
+  le{{"Lesion-ready"}}
+  ex[/"dataset-export-*<br/>manifest.json · images.csv ·<br/>annotations.csv<br/>s4.dataset-manifest.v2"/]
+  src --> ana --> ai
+  src --> ci
+  ai -. "suggestion only" .-> cg
+  ci --> cg --> dr
+  ci --> ca --> le
+  dr --> ex
+  le --> ex
+  classDef h fill:#016301,stroke:#004D00,color:#FFFFFF
+  classDef e fill:#FFFFFF,stroke:#98A79B,color:#172018
+  classDef r fill:#E8F3E8,stroke:#016301,color:#172018
+  class ci,cg,ca h
+  class src,ana,ai,ex e
+  class dr,le r

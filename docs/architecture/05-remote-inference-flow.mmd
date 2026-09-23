@@ -1,0 +1,22 @@
+%% Dynamic view - optional remote inference (RETFound / PRISM-DR)
+sequenceDiagram
+  autonumber
+  actor C as Clinician
+  participant UI as Review page
+  participant API as Review API (_factory.infer)
+  participant DER as imaging/derivatives.py
+  participant RP as providers/remote.py
+  participant M as Model API (GPU host)
+  C->>UI: Analyze
+  UI->>API: POST /v1/infer/global and /v1/infer/lesion-roi
+  API->>API: is_inference_eligible(admission), else HTTP 409
+  API->>DER: analysis_image(source)
+  DER-->>API: analysis bytes + analysis SHA-256 + coordinate mapping
+  API->>RP: infer(request, analysis image)
+  RP->>M: POST /v1/predict/dr or /v1/predict/lesions (Bearer if set, 30 s timeout)
+  M->>M: verified assets - RETFound grade / PRISM-DR boxes
+  M-->>RP: GlobalResult / LesionResult + provenance
+  RP-->>API: validated result
+  API->>API: map lesion boxes back to original-image pixels
+  API->>API: save_result: INFERENCE event with source SHA, analysis SHA, transform
+  API-->>UI: model evidence (uncalibrated score, optional overlays)
