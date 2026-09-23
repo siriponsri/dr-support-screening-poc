@@ -1,4 +1,5 @@
 import type { CaseRecord, Laterality } from '@/lib/api';
+import { annotationsConfirmed, gradeConfirmed } from '@/lib/caseProgress';
 
 export type ViewMode = 'cases' | 'patients';
 export type ReadinessFilter = 'all' | 'identity' | 'image' | 'ready';
@@ -55,10 +56,11 @@ export function aiState(item: CaseRecord): AiState {
   return 'not-analyzed';
 }
 
-export type ReviewState = 'pending' | 'reviewed' | 'needs-annotation' | 'escalated' | 'excluded';
+export type ReviewState = 'pending' | 'complete' | 'reviewed' | 'needs-annotation' | 'escalated' | 'excluded';
 
 export function reviewState(item: CaseRecord): ReviewState {
   if (item.queue_state === 'EXCLUDED') return 'excluded';
+  if (gradeConfirmed(item) && annotationsConfirmed(item)) return 'complete';
   if (item.state === 'REVIEWED') return 'reviewed';
   if (item.state === 'NEEDS_CORRECTION') return 'needs-annotation';
   if (item.state === 'ESCALATED') return 'escalated';
@@ -67,9 +69,10 @@ export function reviewState(item: CaseRecord): ReviewState {
 
 export function reviewStateLabel(state: ReviewState): string {
   switch (state) {
-    case 'reviewed': return 'Reviewed';
-    case 'needs-annotation': return 'Needs annotation';
-    case 'escalated': return 'Escalated';
+    case 'complete': return 'Review complete';
+    case 'reviewed': return 'Grade confirmed';
+    case 'needs-annotation': return 'Legacy correction record';
+    case 'escalated': return 'Legacy senior review';
     case 'excluded': return 'Excluded';
     default: return 'Pending review';
   }
@@ -78,7 +81,8 @@ export function reviewStateLabel(state: ReviewState): string {
 function matchesReviewFilter(item: CaseRecord, filter: ReviewFilter): boolean {
   const state = reviewState(item);
   if (filter === 'all') return true;
-  if (filter === 'pending') return state !== 'reviewed' && state !== 'excluded';
+  if (filter === 'pending') return state !== 'reviewed' && state !== 'complete' && state !== 'excluded';
+  if (filter === 'reviewed') return state === 'reviewed' || state === 'complete';
   return state === filter;
 }
 
@@ -118,7 +122,8 @@ export function compareCases(left: CaseRecord, right: CaseRecord, sort: SortOpti
       'needs-annotation': 1,
       escalated: 2,
       reviewed: 3,
-      excluded: 4,
+      complete: 4,
+      excluded: 5,
     };
     result = order[reviewState(left)] - order[reviewState(right)];
   } else if (sort === 'recent') {

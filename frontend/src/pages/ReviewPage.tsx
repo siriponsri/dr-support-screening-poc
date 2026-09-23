@@ -34,6 +34,8 @@ import {
   type ModelDescriptor,
 } from '@/lib/api';
 import { ArrowLeft, Play, UserRound } from '@/lib/icons';
+import { useConfirmDialog } from '@/components/common/ConfirmDialog';
+import { caseComplete } from '@/lib/caseProgress';
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : 'The request could not be completed.';
@@ -195,6 +197,7 @@ export function ReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [confirmDialog, confirm] = useConfirmDialog();
 
   const loadCase = useCallback(async () => {
     if (!imageId) return;
@@ -291,15 +294,12 @@ export function ReviewPage() {
         subtitle={`${item.display_name} - optional model evidence for clinician inspection`}
         actions={<Button as={Link} to="/worklist" leftIcon={<ArrowLeft size={15} />}>Back to Worklist</Button>}
       />
-      {Boolean((location.state as { caseComplete?: boolean } | null)?.caseComplete) && (
-        <Alert status="success" mb={4}><AlertIcon /><Text><strong>Case complete.</strong> The next Worklist image is ready for review.</Text></Alert>
-      )}
       <HStack mb={5} spacing={2} aria-label="Patient and eye context">
         <Text fontSize="xs" color="text.secondary" textTransform="uppercase" letterSpacing="0.04em">Patient/Eye</Text>
         <Text fontSize="sm" fontWeight="semibold">{patientEyeContext(item)}</Text>
       </HStack>
       <Stack spacing={3} mb={5}>
-        <CaseNavigation imageId={item.image_id} />
+        <CaseNavigation imageId={item.image_id} guarded={!caseComplete(item)} confirm={confirm} />
         <NextActionHint item={item} models={models} />
       </Stack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start" minW={0}>
@@ -367,13 +367,15 @@ export function ReviewPage() {
           </Section>
           <Section title="DR assessment"><Assessment item={item} /></Section>
           <Section title="Lesion suggestions"><LesionSuggestions item={item} /></Section>
-          <HStack spacing={2} flexWrap="wrap">
-            <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid">Continue to clinician review</Button>
-          </HStack>
+          <Stack spacing={2}>
+            <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid" alignSelf="flex-start">Continue to clinician review</Button>
+            <Text fontSize="xs" color="text.secondary">No clinical decision is recorded on this page. The DR grade is confirmed in Clinician Review.</Text>
+          </Stack>
         </Stack>
       </Grid>
       <Box mt={5}><ModelStatus models={models} error={modelError} /></Box>
       {allWarnings.length > 0 && <ResultWarnings item={item} />}
+      {confirmDialog}
     </Box>
   );
 }

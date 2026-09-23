@@ -114,7 +114,11 @@ describe('AnnotationEditorPage human movement', () => {
     fireEvent.click(hitTarget);
     expect(await screen.findByRole('button', { name: 'Confirm' })).toBeInTheDocument();
 
-    await userEvent.setup().click(within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Close' })[0]);
+    const popover = screen.getByRole('dialog', { name: 'AI suggestion' });
+    expect(within(popover).getAllByRole('button').map((button) => button.textContent || button.getAttribute('aria-label')))
+      .toEqual(['Close AI suggestion', 'Confirm', 'Remove', 'Close']);
+    await userEvent.setup().click(within(popover).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog', { name: 'AI suggestion' })).not.toBeInTheDocument();
     fireEvent.keyDown(group, { key: 'Enter' });
     expect(await screen.findByRole('button', { name: 'Confirm' })).toBeInTheDocument();
     expect(group).toHaveAttribute('aria-pressed', 'true');
@@ -124,6 +128,7 @@ describe('AnnotationEditorPage human movement', () => {
     const detectionId = 'ai-aaaaaaaaaaaaaaaaaaaa';
     const initial: CaseRecord = {
       ...item,
+      clinician_review: { reviewer: 'Clinician', final_grade: 2, review_action: 'ACCEPT', remark: '', timestamp: '2026-01-01T00:00:00Z', revision: 1 },
       annotation_confirmation_status: 'DRAFT',
       lesion: {
         model_id: 'prism-dr-5fold', model_version: 'fixture', modality: 'CFP', state: 'AI_SUGGESTION', width: 800, height: 600,
@@ -183,6 +188,8 @@ describe('AnnotationEditorPage human movement', () => {
       return group;
     });
     expect(humanGroup).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'AI suggestion' })).not.toBeInTheDocument();
+    fireEvent.click(humanGroup!.querySelector('rect')!);
     expect(screen.getByLabelText('Selected annotation class')).toHaveValue('MICROANEURYSM');
     await user.selectOptions(screen.getByLabelText('Selected annotation class'), 'HEMORRHAGE');
 
@@ -199,7 +206,13 @@ describe('AnnotationEditorPage human movement', () => {
   });
 
   it('confirms an annotation-free case without writing an annotation draft', async () => {
-    const unchanged = { ...item, human_annotations: [], annotation_confirmation_status: 'DRAFT' as const };
+    const unchanged: CaseRecord = {
+      ...item,
+      human_annotations: [],
+      annotation_confirmation_status: 'DRAFT',
+      clinician_review: { reviewer: 'Clinician', final_grade: 1, review_action: 'CORRECT_GRADE', remark: '', timestamp: '2026-01-01T00:00:00Z', revision: 1 },
+    };
+    window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'Clinician');
     const requests: string[] = [];
     renderEditor(unchanged, (input) => {
       requests.push(new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname);

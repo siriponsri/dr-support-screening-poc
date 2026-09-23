@@ -13,8 +13,14 @@ import { DEFAULT_FILTERS, caseNeedsAttention, filterCases, groupCases, sortCases
 import { WorklistToolbar } from '@/components/worklist/WorklistToolbar';
 
 export function WorklistPage() {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const navigate = useNavigate();
+  const flowState = location.state as { caseComplete?: string; openConfirmImage?: string | null } | null;
+  const [completedNotice, setCompletedNotice] = useState<{ nextId: string | null } | null>(() => (
+    flowState?.caseComplete ? { nextId: flowState.openConfirmImage ?? null } : null
+  ));
+  const [pendingConfirmId, setPendingConfirmId] = useState<string | null>(() => flowState?.openConfirmImage ?? null);
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -61,10 +67,26 @@ export function WorklistPage() {
 
   useEffect(() => { void loadCases(); }, []);
 
+  // Single-line flow: after Case complete, open Confirm Image for the next
+  // incomplete Worklist image so the clinician continues on the same line.
+  useEffect(() => {
+    if (!pendingConfirmId || loading) return;
+    const next = cases.find((entry) => entry.image_id === pendingConfirmId);
+    if (next) setConfirmImageCase(next);
+    setPendingConfirmId(null);
+    if (flowState) navigate(pathname, { replace: true, state: null });
+  }, [cases, loading, pendingConfirmId]);
+
   return (
     <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader pathname={pathname} subtitle="Admitted retinal images for clinician review" />
       <Section title="Worklist" description="Review admitted images, resolve patient and eye identity, and keep AI assistance separate from the clinician decision." action={<HStack spacing={2} width={{ base: '100%', tablet: 'auto' }} justifyContent={{ base: 'flex-start', tablet: 'flex-end' }} flexWrap="wrap"><Button leftIcon={<ScanLine size={15} />} onClick={() => void scanInput()} isLoading={scanning}>Scan input folder</Button><Button variant="outline" leftIcon={<RefreshCw size={15} />} onClick={() => void loadCases()} isLoading={loading}>Refresh</Button></HStack>}>
+        {completedNotice && (
+          <Alert status="success" mb={4} role="status">
+            <AlertIcon />
+            <Text><strong>Case complete.</strong> {completedNotice.nextId ? 'Opening the next Worklist image.' : 'Every Worklist image is complete.'}</Text>
+          </Alert>
+        )}
         {error && <Alert status="error" mb={4}><AlertIcon /><Text>{error}</Text></Alert>}
         {scanNotice && <Alert status="info" mb={4}><AlertIcon /><Text>{scanNotice}</Text></Alert>}
         {loading && cases.length === 0 ? (
@@ -86,7 +108,7 @@ export function WorklistPage() {
       <HStack mt={4} spacing={2} color="text.muted" fontSize="xs"><Text>AI suggestions are optional visual evidence; clinician review remains authoritative.</Text></HStack>
       <ResolverDialog item={resolverCase} onClose={() => setResolverCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
       <ReadinessDialog item={readinessCase} onClose={() => setReadinessCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
-      <ConfirmImageDialog item={confirmImageCase} onClose={() => setConfirmImageCase(null)} onSaved={(saved) => { setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry)); navigate(`/review/${encodeURIComponent(saved.image_id)}`); }} />
+      <ConfirmImageDialog item={confirmImageCase} onClose={() => { setConfirmImageCase(null); setCompletedNotice(null); }} onSaved={(saved) => { setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry)); navigate(`/review/${encodeURIComponent(saved.image_id)}`); }} />
     </Box>
   );
 }

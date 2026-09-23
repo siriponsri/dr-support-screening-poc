@@ -1,17 +1,25 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { ReviewPage } from '@/pages/ReviewPage';
-import { LesionActionPopover } from '@/components/review/LesionActionPopover';
 import { RetinalCanvas } from '@/components/review/RetinalCanvas';
+import { placeRoiPopover } from '@/components/review/AiRoiPopover';
 import { displayedLesions } from '@/components/review/lesionPresentation';
-import type { CaseRecord } from '@/lib/api';
+import { editRoiRectangle } from '@/pages/AnnotationEditorPage';
+import type { CaseRecord, ReviewEvidenceItem } from '@/lib/api';
 import { renderAppAt, withProviders } from './testUtils';
 
 const lesions = [
-  { detection_id: 'ai-aaaaaaaaaaaaaaaaaaaa', source_label: 'HE', canonical_label: 'HEMORRHAGE' as const, rectangle: [10, 20, 30, 40] as [number, number, number, number], score: 0.9, state: 'AI_SUGGESTION' },
+  { detection_id: 'ai-aaaaaaaaaaaaaaaaaaaa', source_label: 'HE', canonical_label: 'HEMORRHAGE' as const, rectangle: [10, 20, 30, 40] as [number, number, number, number], score: 0.55, state: 'AI_SUGGESTION' },
   { detection_id: 'ai-bbbbbbbbbbbbbbbbbbbb', source_label: 'MA', canonical_label: 'MICROANEURYSM' as const, rectangle: [50, 60, 80, 90] as [number, number, number, number], score: 0.82, state: 'AI_SUGGESTION' },
 ];
+
+function evidence(overrides: Partial<ReviewEvidenceItem> = {}): ReviewEvidenceItem {
+  return {
+    annotation_id: lesions[0].detection_id, source: 'AI', label: 'HEMORRHAGE', score: 0.55, original_score: 0.55,
+    status: 'AI_SUGGESTED', model_id: 'prism-dr-5fold', model_version: 'revision', reviewer: null, timestamp: null,
+    original_label: 'HEMORRHAGE', original_rectangle: lesions[0].rectangle, corrected_label: null, corrected_rectangle: null,
+    ...overrides,
+  };
+}
 
 const item: CaseRecord = {
   image_id: 'CASE-001', display_name: 'Case 001', filename: 'case-001.jpg', source_type: 'SYNTHETIC', source: 'fixture', modality: 'CFP', width: 800, height: 600,
@@ -21,11 +29,7 @@ const item: CaseRecord = {
   review_evidence: {
     status: 'Pending review', reviewer: null, timestamp: null,
     summary: { confirmed: 0, added: 0, removed: 0, corrected: 0 }, unresolved_count: 2,
-    items: lesions.map((lesion) => ({
-      annotation_id: lesion.detection_id, source: 'AI' as const, label: lesion.canonical_label, score: lesion.score, original_score: lesion.score,
-      status: 'AI_SUGGESTED' as const, model_id: 'prism-dr-5fold', model_version: 'revision', reviewer: null, timestamp: null,
-      original_label: lesion.canonical_label, original_rectangle: lesion.rectangle, corrected_label: null, corrected_rectangle: null,
-    })),
+    items: [evidence(), evidence({ annotation_id: lesions[1].detection_id, label: 'MICROANEURYSM', score: 0.82, original_score: 0.82, original_label: 'MICROANEURYSM', original_rectangle: lesions[1].rectangle })],
     model_id: 'prism-dr-5fold', model_version: 'revision', source_sha256: 'a'.repeat(64), analysis_sha256: null,
     note: 'Model evidence remains optional.',
   },
@@ -37,134 +41,77 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-describe('lightweight AI ROI correction', () => {
+describe('AI ROI evidence presentation', () => {
   beforeEach(() => window.localStorage.clear());
 
   it('renders an untouched AI ROI with its class and model score', () => {
-    withProviders(
-      <RetinalCanvas item={{ ...item, image_url: '/case-001.jpg' }} />,
-      '/review/CASE-001',
-    );
-
-    expect(screen.getByText('HE · 0.90')).toBeInTheDocument();
+    withProviders(<RetinalCanvas item={{ ...item, image_url: '/case-001.jpg' }} />, '/review/CASE-001');
+    expect(screen.getByText('HE · 0.55')).toBeInTheDocument();
   });
 
-  it('keeps review image-first without the detailed evidence queue', async () => {
+  it('keeps review image-first without a per-detection queue', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
       if (path === '/v1/cases/CASE-001') return jsonResponse(item);
       if (path === '/v1/models') return jsonResponse([]);
       return jsonResponse({ detail: 'Unexpected request' }, 404);
     });
-
     renderAppAt('/review/CASE-001');
-
     expect(await screen.findByText('AI lesion suggestions')).toBeInTheDocument();
-    expect(screen.queryByText('PRISM evidence')).not.toBeInTheDocument();
-    expect(screen.queryByText('Evidence status')).not.toBeInTheDocument();
-    expect(screen.queryByText('Confirmed')).not.toBeInTheDocument();
     expect(screen.queryByText(/unresolved/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Edit annotations/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit annotations/i })).not.toBeInTheDocument();
   });
 
-  it('confirms a class correction as human provenance while retaining AI evidence', async () => {
-    const user = userEvent.setup();
-    let requestBody: Record<string, unknown> | undefined;
-    const humanAnnotation = {
-      shape_id: 'human-derived-1',
-      type: 'rectangle' as const,
-      label: 'HEMORRHAGE' as const,
-      geometry: { x: 10, y: 20, width: 20, height: 20 },
-      locked: false,
-      source_detection_id: lesions[0].detection_id,
-      source: 'HUMAN' as const,
-      reviewer: 'Clinician',
-      created_at: '2026-01-01T00:00:00Z',
-    };
-    const corrected = {
-      ...item,
-      revision: 3,
-      human_annotations: [humanAnnotation],
-      review_evidence: {
-        ...item.review_evidence!,
-        items: [...item.review_evidence!.items, {
-          annotation_id: humanAnnotation.shape_id,
-          source: 'HUMAN' as const,
-          label: humanAnnotation.label,
-          score: null,
-          original_score: null,
-          status: 'CLINICIAN_ADDED' as const,
-          model_id: null,
-          model_version: null,
-          reviewer: 'Clinician',
-          timestamp: humanAnnotation.created_at,
-          original_label: null,
-          original_rectangle: null,
-          corrected_label: null,
-          corrected_rectangle: null,
-          source_detection_id: lesions[0].detection_id,
-        }],
-      },
-    };
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
-      if (path.endsWith('/lesion-review')) {
-        requestBody = JSON.parse(String(init?.body));
-        return jsonResponse({ ...item, revision: 3 });
-      }
-      expect(path).toBe('/v1/cases/CASE-001/annotations/from-ai');
-      return jsonResponse(corrected);
-    });
-    const onDerived = vi.fn();
-
-    withProviders(
-      <LesionActionPopover item={item} selectedLesionId={lesions[0].detection_id} onSaved={vi.fn()} onDerived={onDerived} onClose={vi.fn()} />,
-      '/review/CASE-001',
-    );
-    await user.click(screen.getByRole('button', { name: /Selected AI suggestion: HE/i }));
-    expect(screen.getByRole('dialog')).toHaveTextContent(/Model score: 0\.90/);
-    expect(screen.getByText(/not a clinical probability/)).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('Lesion class'), 'SOFT_EXUDATE');
-    await user.click(screen.getByRole('button', { name: 'Confirm' }));
-
-    expect(requestBody).toMatchObject({
-      revision: 2,
-      detection_id: lesions[0].detection_id,
-      action: 'CORRECT',
-      label: 'SOFT_EXUDATE',
-      reviewer: 'Clinician',
-    });
-    expect(onDerived).toHaveBeenCalledWith(corrected, humanAnnotation, 'CORRECT_AS_HUMAN');
-    expect(corrected.lesion.lesions[0]).toMatchObject({ canonical_label: 'HEMORRHAGE', score: 0.9 });
-    expect(corrected.human_annotations[0]).toMatchObject({ source_detection_id: lesions[0].detection_id, label: 'HEMORRHAGE' });
-    expect(corrected.human_annotations[0]).not.toHaveProperty('score');
-    expect(displayedLesions(corrected)[0]).toMatchObject({ canonical_label: 'HEMORRHAGE', displayScore: 0.9 });
+  it('never shows the AI score on a clinician class correction', () => {
+    const corrected = { ...item, review_evidence: { ...item.review_evidence!, items: [evidence({ status: 'LABEL_CHANGED', corrected_label: 'HARD_EXUDATE' }), item.review_evidence!.items[1]] } };
+    const [first] = displayedLesions(corrected);
+    expect(first).toMatchObject({ canonical_label: 'HARD_EXUDATE', displayScore: null, reviewState: 'CLINICIAN_CORRECTED', originalLabel: 'HEMORRHAGE', originalScore: 0.55 });
+    withProviders(<RetinalCanvas item={{ ...corrected, image_url: '/case-001.jpg' }} />, '/edit/CASE-001');
+    expect(screen.queryByText(/EX · 0\.55/)).not.toBeInTheDocument();
+    expect(screen.getByText('EX · clinician corrected')).toBeInTheDocument();
   });
 
-  it('removes only the selected active overlay while preserving other detections', async () => {
-    const user = userEvent.setup();
-    let requestBody: Record<string, unknown> | undefined;
-    const removed = { ...item, revision: 3, review_evidence: { ...item.review_evidence!, items: [{ ...item.review_evidence!.items[0], status: 'CLINICIAN_REMOVED' as const }] } };
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
-      requestBody = JSON.parse(String(init?.body));
-      return jsonResponse(removed);
-    });
-    const onSaved = vi.fn();
+  it('treats a geometry-only correction as clinician corrected and keeps the raw AI box', () => {
+    const moved = { ...item, review_evidence: { ...item.review_evidence!, items: [evidence({ status: 'GEOMETRY_CHANGED', corrected_label: 'HEMORRHAGE', corrected_rectangle: [12, 22, 40, 44] }), item.review_evidence!.items[1]] } };
+    const [first, second] = displayedLesions(moved);
+    expect(first).toMatchObject({ rectangle: [12, 22, 40, 44], displayScore: null, originalRectangle: [10, 20, 30, 40] });
+    expect(second).toMatchObject({ displayScore: 0.82, reviewState: 'AI_SUGGESTION' });
+    expect(moved.lesion!.lesions[0]).toMatchObject({ rectangle: [10, 20, 30, 40], score: 0.55 });
+  });
 
-    withProviders(<LesionActionPopover item={item} selectedLesionId={lesions[0].detection_id} onSaved={onSaved} onDerived={vi.fn()} onClose={vi.fn()} />, '/review/CASE-001');
-    await user.click(screen.getByRole('button', { name: /Selected AI suggestion: HE/i }));
-    await user.click(screen.getByRole('button', { name: 'Remove' }));
+  it('removes only the rejected ROI from the active overlay', () => {
+    const removed = { ...item, review_evidence: { ...item.review_evidence!, items: [evidence({ status: 'CLINICIAN_REMOVED' }), item.review_evidence!.items[1]] } };
+    expect(displayedLesions(removed).map((entry) => entry.detection_id)).toEqual([lesions[1].detection_id]);
+  });
+});
 
-    expect(requestBody).toMatchObject({ action: 'REJECT', detection_id: lesions[0].detection_id });
-    expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ revision: 3 }));
-    expect(removed.review_evidence.items[0]).toMatchObject({
-      annotation_id: lesions[0].detection_id,
-      original_label: 'HEMORRHAGE',
-      original_score: 0.9,
-      status: 'CLINICIAN_REMOVED',
-    });
-    expect(displayedLesions(removed)).toEqual([
-      expect.objectContaining({ detection_id: lesions[1].detection_id, canonical_label: 'MICROANEURYSM', displayScore: 0.82 }),
-    ]);
-    expect(lesions[1]).toMatchObject({ canonical_label: 'MICROANEURYSM', score: 0.82 });
+describe('in-place ROI correction geometry', () => {
+  it('moves and resizes the correction box inside original image bounds', () => {
+    const bounds = { width: 800, height: 600 };
+    expect(editRoiRectangle([10, 20, 30, 40], null, [15, 25], [25, 45], bounds)).toEqual([20, 40, 40, 60]);
+    expect(editRoiRectangle([10, 20, 30, 40], 'se', [30, 40], [60, 90], bounds)).toEqual([10, 20, 60, 90]);
+    expect(editRoiRectangle([10, 20, 30, 40], null, [15, 25], [-500, -500], bounds)).toEqual([0, 0, 20, 20]);
+  });
+});
+
+describe('ROI popover collision placement', () => {
+  const viewport = { width: 1000, height: 700 };
+  const card = { width: 290, height: 260 };
+
+  it('places the card beside the ROI without covering it', () => {
+    const roi = { left: 200, top: 200, width: 40, height: 40 };
+    const position = placeRoiPopover(roi, viewport, card);
+    expect(position.placement).toBe('right');
+    expect(position.left).toBeGreaterThanOrEqual(roi.left + roi.width);
+  });
+
+  it('flips to the left near the right edge', () => {
+    expect(placeRoiPopover({ left: 900, top: 300, width: 40, height: 40 }, viewport, card).placement).toBe('left');
+  });
+
+  it('docks to the farthest corner when no side fits', () => {
+    const position = placeRoiPopover({ left: 100, top: 50, width: 800, height: 600 }, viewport, card);
+    expect(position.placement).toBe('docked');
   });
 });
