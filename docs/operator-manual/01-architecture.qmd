@@ -1,22 +1,26 @@
-# Architecture and supported scope {#sec-architecture}
+# Architecture and Supported Scope {#sec-architecture}
 
 ## Topology
 
-![Hospital deployment architecture](../../assets/system-architecture.png){#fig-architecture fig-cap="The review workstation uses the provider-neutral Model API; verified model assets remain on the GPU host."}
+The deployment has three parts: the clinician workstation, the protected hospital LAN, and the hospital GPU host (@fig-architecture).
 
 | Component | Role |
-| --- | --- |
-| Review workstation | React/Vite clinician UI, FastAPI review routes, Workspace catalog, local review state, annotations, and export. |
+|:----------|:-----|
+| Review workstation | React/Vite clinician UI and FastAPI review routes at `/app/`; Workspace catalog, local review state, annotations, and export. |
 | Model API | FastAPI service on a GPU host with `APP_PROFILE=model_api` and `MODEL_RUNTIME=local`. |
 | RETFound | Five-class DR grade suggestion through `retfound-aptos5`. |
 | PRISM-DR | Optional lesion ROI suggestions through `prism-dr-5fold`. |
-| CVAT Online | Optional dense annotation and geometry correction. It is not part of offline acceptance. |
+| CVAT Online | Optional dense annotation and geometry correction. Not part of offline acceptance. |
+
+: {tbl-colwidths="[24,76]"}
+
+![Hospital deployment architecture. The review workstation calls the provider-neutral Model API; verified model assets stay on the GPU host.](images/system-architecture.png){#fig-architecture width=94%}
 
 ## Boundaries
 
 The review profile does not load model weights. It calls the provider-neutral Model API. The Model API supports the existing fundus image contracts only. MRI, OCT, PACS, DICOMweb, calibration, XAI/Grad-CAM, and autonomous diagnosis are outside this release.
 
-The application retains the `/ui` static surface for compatibility with existing local integrations. Normal users and deployments must use `/app/`; `/ui` is legacy compatibility only.
+The application keeps the `/ui` static surface for compatibility with existing local integrations. Normal users and deployments use `/app/`; `/ui` is legacy compatibility only.
 
 ## Data ownership
 

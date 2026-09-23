@@ -1,0 +1,156 @@
+% Retinal Review Workbench - shared print styling for the Quarto manuals.
+% Goals: compact practical user-guide layout, no forced chapter pages,
+% no hyphenation, no widows/orphans, restrained callouts.
+\usepackage{xcolor}
+\definecolor{rrwgreen}{HTML}{205C45}
+\definecolor{rrwink}{HTML}{24312C}
+\definecolor{rrwmuted}{HTML}{62716A}
+\definecolor{rrwline}{HTML}{D5DFD9}
+\definecolor{rrwtint}{HTML}{F2F6F3}
+
+% Ragged-right text without hyphenation keeps long UI labels intact.
+\usepackage[document]{ragged2e}
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\setlength{\RaggedRightParindent}{0pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em plus 0.15em}
+% Body leading ~1.45x the font size (layout guidance: 1.5 for body text);
+% code blocks and tables stay single-spaced.
+\linespread{1.2}
+
+% Widow and orphan control; allow the page bottom to vary instead of stretching.
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+\raggedbottom
+\usepackage{needspace}
+
+% Headings: chapters do not force a new page; headings never end a page.
+\usepackage{titlesec}
+\titleclass{\chapter}{straight}
+\titleformat{\chapter}[hang]
+  {\Needspace{10\baselineskip}\normalfont\color{rrwgreen}\fontsize{18}{22}\selectfont\bfseries}
+  {\thechapter}{0.55em}{}
+  [\vspace{3pt}{\color{rrwline}\titlerule[0.8pt]}]
+\titlespacing*{\chapter}{0pt}{16pt}{10pt}
+\titleformat{\section}
+  {\Needspace{8\baselineskip}\normalfont\color{rrwgreen}\large\bfseries}
+  {\thesection}{0.6em}{}
+\titlespacing*{\section}{0pt}{14pt}{4pt}
+\titleformat{\subsection}
+  {\Needspace{5\baselineskip}\normalfont\color{rrwink}\normalsize\bfseries}
+  {\thesubsection}{0.6em}{}
+\titlespacing*{\subsection}{0pt}{10pt}{2pt}
+
+% Header and footer.
+\usepackage{fancyhdr}
+\fancypagestyle{rrw}{%
+  \fancyhf{}%
+  \fancyhead[L]{\footnotesize\color{rrwmuted}Retinal Review Workbench \textbar{} \rrwDocTitle}%
+  \fancyhead[R]{\footnotesize\color{rrwmuted}Software 0.7.0}%
+  \fancyfoot[L]{\footnotesize\color{rrwmuted}\rrwDocId{} \textbar{} Version 0.7.0 \textbar{} 2026-09-23 \textbar{} \rrwFooterNote}%
+  \fancyfoot[R]{\footnotesize\color{rrwgreen}\bfseries\thepage}%
+  \renewcommand{\headrulewidth}{0.4pt}%
+  \renewcommand{\headrule}{{\color{rrwline}\hrule height\headrulewidth width\headwidth}}%
+  \renewcommand{\footrulewidth}{0pt}}
+\pagestyle{rrw}
+\AtBeginDocument{\fancypagestyle{plain}{\pagestyle{rrw}}}
+
+% Lists.
+\usepackage{enumitem}
+\setlist{itemsep=0.15em,topsep=0.3em,parsep=0pt,leftmargin=1.6em}
+
+% Figures and captions.
+\usepackage{caption}
+\captionsetup{font={small,color=rrwmuted},labelfont={color=rrwgreen,bf},skip=5pt,justification=raggedright,singlelinecheck=false}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+\setlength{\fboxsep}{0pt}
+\setlength{\fboxrule}{0.5pt}
+
+% Tables.
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\renewcommand{\arraystretch}{1.15}
+\AtBeginEnvironment{longtable}{\linespread{1}\selectfont}
+
+% Table of contents: one compact page, then start the manual.
+\makeatletter
+\renewcommand{\contentsname}{Contents}
+\let\rrw@oldtoc\tableofcontents
+\renewcommand{\tableofcontents}{\begingroup\justifying\setlength{\parskip}{0.2em}\rrw@oldtoc\endgroup\clearpage}
+\makeatother
+
+% Cover page. Each manual defines \rrwDocTitle, \rrwDocId, \rrwFooterNote,
+% \rrwCoverTagline and \rrwCoverRows before including this style.
+\makeatletter
+\renewcommand{\maketitle}{%
+  \newgeometry{top=28mm,bottom=24mm,left=24mm,right=24mm}
+  \begin{titlepage}
+  \thispagestyle{empty}
+  {\color{rrwgreen}\rule{\linewidth}{3pt}}\par
+  \vspace*{22mm}
+  \includegraphics[width=22mm]{images/dr-support-logo.png}\par
+  \vspace{12mm}
+  {\color{rrwink}\fontsize{32}{38}\selectfont\bfseries Retinal Review Workbench\par}
+  \vspace{4mm}
+  {\color{rrwgreen}\fontsize{19}{24}\selectfont \rrwDocTitle\par}
+  \vspace{10mm}
+  {\color{rrwmuted}\large \rrwCoverTagline\par}
+  \vfill
+  {\color{rrwline}\rule{\linewidth}{0.6pt}}\par
+  \vspace{3mm}
+  {\small\color{rrwink}
+  \begin{tabular}{@{}p{38mm}p{120mm}@{}}
+  \rrwCoverRows
+  \end{tabular}\par}
+  \vspace{5mm}
+  {\footnotesize\color{rrwmuted}Research and clinical-support proof of concept for public or synthetic data. Model output is assistive evidence; human review remains authoritative.\par}
+  \end{titlepage}
+  \restoregeometry}
+\makeatother
+
+% Restrained callout colours (applied after Quarto defines its callout colours).
+\AtBeginDocument{%
+  \definecolor{quarto-callout-important-color}{HTML}{205C45}%
+  \definecolor{quarto-callout-warning-color}{HTML}{A0521B}%
+  \definecolor{quarto-callout-caution-color}{HTML}{A0521B}%
+  \definecolor{quarto-callout-note-color}{HTML}{56708A}%
+  \definecolor{quarto-callout-tip-color}{HTML}{205C45}}
+\AtBeginDocument{%
+  \definecolor{quarto-callout-important-color-frame}{HTML}{205C45}%
+  \definecolor{quarto-callout-warning-color-frame}{HTML}{B8742E}%
+  \definecolor{quarto-callout-caution-color-frame}{HTML}{B8742E}%
+  \definecolor{quarto-callout-note-color-frame}{HTML}{7F95AA}%
+  \definecolor{quarto-callout-tip-color-frame}{HTML}{205C45}}
+
+% Keep figures exactly where they are written (including layout figures).
+\makeatletter
+\renewcommand{\fps@figure}{H}
+\makeatother
+
+% Callouts and short tables never split across pages.
+\usepackage{etoolbox}
+\BeforeBeginEnvironment{tcolorbox}{\par\Needspace{6\baselineskip}\noindent\begin{minipage}{\linewidth}}
+\AfterEndEnvironment{tcolorbox}{\end{minipage}\par\medskip}
+\BeforeBeginEnvironment{longtable}{\Needspace{12\baselineskip}}
+\frenchspacing
+\AtBeginDocument{\tcbset{fonttitle=\bfseries}}
+
+% Code blocks: light panel, slightly smaller mono text, never start at a page bottom.
+\AtBeginDocument{\definecolor{shadecolor}{HTML}{F2F5F3}}
+\makeatletter
+\AtBeginDocument{\@ifundefined{fvset}{}{\fvset{fontsize=\small}}}
+\makeatother
+\BeforeBeginEnvironment{Shaded}{\Needspace{7\baselineskip}}
+\makeatletter
+\AtBeginDocument{\@ifundefined{Shaded}{}{%
+  \renewenvironment{Shaded}{\par\smallskip\linespread{1}\selectfont\def\FrameCommand{\fboxsep=5pt\colorbox{shadecolor}}\MakeFramed{\advance\hsize-\width\FrameRestore}}{\endMakeFramed\smallskip}}}
+\makeatother
+\usepackage{multicol}
+
+% Side-by-side layouts (text beside a screenshot) align to the top edge.
+\let\rrwoldminipage\minipage
+\let\rrwoldendminipage\endminipage
+\renewenvironment{minipage}[2][t]{\rrwoldminipage[t]{#2}\vspace{0pt}}{\rrwoldendminipage}

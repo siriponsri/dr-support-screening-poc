@@ -1,0 +1,44 @@
+# Troubleshooting, Safety, and Glossary {#sec-troubleshooting}
+
+## Troubleshooting
+
+| What you see | What to do |
+|:-------------|:-----------|
+| **Unsupported modality** | The DICOM is recognized but is not supported fundus input. Do not send it to the models. |
+| **AI analysis is not available** | Continue image review and human decisions. Ask the operator to check the Model API and the workstation connection. |
+| No PRISM overlays | Check **Show AI suggestions**, the lesion filter, and whether a result exists. An empty result does not prove lesion absence. |
+| **Save failed --- retry** | Stay on the page, check the reviewer name and connection, then choose **Save draft** again. |
+| Case is not DR-ready | Check **Confirm Image**, the final grade, the reviewer, and the timestamp. |
+| Case is not Lesion-ready | Check whether the annotation set changed after **Confirm Annotation**; confirm it again. |
+| Wrong reviewer prefilled | Edit the field, or change **Default reviewer** in **Settings**. |
+| CVAT is unavailable | Continue local review. Retry once the operator confirms URL, project, credentials, and network. |
+
+: {tbl-colwidths="[28,72]"}
+
+## Safety and privacy
+
+::: {.callout-warning title="Safety -- clinical use"}
+This is a research and clinical-support proof of concept. Model output is assistive evidence and human review remains authoritative. The product does not establish diagnosis, referral, treatment, or disease truth.
+:::
+
+::: {.callout-warning title="Safety -- data handling"}
+Use only approved public, synthetic, or authorized data. Never put PHI, private DICOM headers, tokens, passwords, CVAT credentials, model weights, or runtime databases in screenshots, examples, exports, or source control.
+:::
+
+```{=latex}
+\Needspace{16\baselineskip}
+```
+
+## Glossary
+
+| Term | Meaning |
+|:-----|:--------|
+| AI suggestion | A model output shown to support inspection. |
+| Confirmation milestone | One of **Confirm Image**, **Confirm DR Grade**, **Confirm Annotation**. |
+| DR-ready | The case meets the dataset rules for the DR-grade task. |
+| Lesion-ready | The case meets the dataset rules for the lesion-annotation task. |
+| Model score | A value returned by a model; not a calibrated clinical probability. |
+| Original AI evidence | Class, score, geometry, identity, model, and provenance returned by inference, kept unchanged after human edits. |
+| Reviewer default | A browser-local name used to prefill new forms; not authentication. |
+
+: {tbl-colwidths="[28,72]"}

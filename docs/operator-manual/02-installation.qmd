@@ -2,7 +2,13 @@
 
 ## Review workstation
 
-**Prerequisites:** Windows or Linux host, Python 3.11 or 3.12, Node.js/npm, and optional DICOM extras when DICOM input is required.
+**Prerequisites.** Windows or Linux host, Python 3.11 or 3.12, Node.js with npm, and the optional DICOM extras when DICOM input is required.
+
+```{=latex}
+\Needspace{18\baselineskip}
+```
+
+**Steps (Windows PowerShell).**
 
 ```powershell
 git clone https://github.com/siriponsri/dr-support-screening-poc.git
@@ -18,7 +24,7 @@ cd ..
 START.cmd
 ```
 
-Open `http://127.0.0.1:8000/app/`. The review launcher uses `APP_PROFILE=review` and `MODEL_RUNTIME=remote`. Set `REMOTE_MODEL_URL` and the optional `REMOTE_MODEL_TOKEN` outside Git before starting when a Model API is available.
+**Expected result.** The workstation serves `http://127.0.0.1:8000/app/`. The launcher sets `APP_PROFILE=review` and `MODEL_RUNTIME=remote`. When a Model API is available, set `REMOTE_MODEL_URL` and, if required, `REMOTE_MODEL_TOKEN` in the private process environment before starting.
 
 ## Linux server checkout
 
@@ -26,4 +32,4 @@ Place the release at `/opt/dr-support-screening-poc` when using the included sys
 
 ## Configuration
 
-Copy `.env.example` only as a reference. Use private process environment or an approved secret manager for tokens. The model-server example is [deployment/model-server.env.example](../../deployment/model-server.env.example). See [Configuration](../CONFIGURATION.md) for the complete variable matrix.
+Use `.env.example` only as a reference. Supply tokens through the private process environment or an approved secret manager. The model-server example is `deployment/model-server.env.example`; `docs/CONFIGURATION.md` lists every variable and its safe default.

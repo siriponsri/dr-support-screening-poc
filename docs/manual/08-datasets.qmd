@@ -1,0 +1,35 @@
+# Dataset Readiness and Export {#sec-datasets}
+
+## Check readiness
+
+**Purpose.** See which cases are ready for each task. Classification readiness and lesion readiness are separate states.
+
+**Steps.**
+
+1. Open **Datasets**. The summary line shows **Images**, **Annotations**, **DR-ready**, and **Lesion-ready** for the active Workspace.
+2. Choose a tab: **All**, **DR-ready**, **Lesion-ready**, **Needs review**, or **Excluded**.
+3. Read the two status chips in **Dataset status**: one for DR, one for lesions.
+4. Fix a case in **Clinician Review** or **Edit annotations** when its status asks for it.
+
+![Dataset manifest summary with separate DR-ready and Lesion-ready counts.](screenshots/14-dataset-summary.png){#fig-dataset-summary width=70%}
+
+![The DR-ready tab. PAT0002 is both DR-ready and Lesion-ready; PAT0003 is DR-ready but still needs annotation confirmation.](screenshots/14-dataset-readiness.png){#fig-dataset-readiness width=80%}
+
+**Expected result.**
+
+- **DR-ready** needs valid source provenance, an included fundus image, and a final clinician grade with reviewer and timestamp.
+- **Lesion-ready** needs valid source provenance, an included fundus image, and a current **Confirm Annotation** whose hash matches the active set.
+
+One task can be ready while the other is not. AI-only evidence is never promoted to ground truth by itself.
+
+## Export the manifest
+
+**Steps.**
+
+1. Check the readiness of the active Workspace.
+2. Choose **Export manifest**.
+3. Read the confirmation message.
+
+![Export confirmation.](screenshots/15-export-success.png){#fig-export width=62%}
+
+**Expected result.** The package is written to the Workspace output folder: `manifest.json`, `images.csv`, and `annotations.csv` (schema `s4.dataset-manifest.v2`). Source images and case records are not changed. Untouched AI, human-authored, corrected, removed, and CVAT-imported states remain distinguishable in the export.

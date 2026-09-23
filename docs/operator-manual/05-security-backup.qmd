@@ -1,16 +1,21 @@
-# Security, privacy, backup, and restore {#sec-security}
+# Security, Privacy, Backup, and Restore {#sec-security}
 
 ## Security and privacy
 
-Use approved public, synthetic, or authorized clinical data. Keep PHI, private DICOM headers, model weights, tokens, passwords, CVAT credentials, runtime SQLite files, and local-state directories out of Git and screenshots. Original source images are immutable.
+Use approved public, synthetic, or authorized clinical data. Keep PHI, private DICOM headers, model weights, tokens, passwords, CVAT credentials, runtime SQLite files, and `local-state/` directories out of Git and screenshots. Original source images are immutable.
 
 The product is a research and clinical-support proof of concept. Human review remains authoritative. No product claim establishes regulatory approval, autonomous diagnosis, referral, treatment, or calibrated probability.
 
 ## Backup
 
-Back up the active Workspace SQLite database, approved export packages, Workspace configuration, and the exact release/configuration record according to hospital policy. Keep model assets with their verified hashes and preserve the relationship between release, model assets, and exports.
+Back up, according to hospital policy:
 
-Do not back up or copy secret files into the repository. Store `/etc/dr-support/model-server.env` through the hospital secret-management process.
+- the active Workspace SQLite database;
+- approved export packages;
+- Workspace configuration;
+- the exact release and configuration record.
+
+Keep model assets with their verified hashes and preserve the relationship between release, model assets, and exports. Do not copy secret files into the repository; manage `/etc/dr-support/model-server.env` through the hospital secret-management process.
 
 ## Restore
 

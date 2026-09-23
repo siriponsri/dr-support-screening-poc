@@ -5,8 +5,9 @@ project:
 book:
   title: "Retinal Review Workbench"
   subtitle: "Deployment and Operations Manual"
-  author: "Retinal Review Workbench"
+  author: "Retinal Review Workbench maintainers"
   date: "2026-09-23"
+  output-file: "Retinal-Review-Workbench"
   chapters:
     - index.qmd
     - 01-architecture.qmd
@@ -25,27 +26,46 @@ format:
     number-sections: true
     number-depth: 2
     page-layout: article
+    fig-pos: H
+    tbl-pos: H
+    html-math-method: plain
     callout-icon: false
   pdf:
     pdf-engine: xelatex
-    documentclass: scrreprt
+    documentclass: report
     classoption:
-      - open=any
-      - numbers=noendperiod
+      - 10pt
+      - oneside
     papersize: a4
     toc: true
     toc-depth: 2
     number-sections: true
     number-depth: 2
     colorlinks: true
-    mainfont: Arial
+    linkcolor: rrwink
+    urlcolor: rrwgreen
+    mainfont: Liberation Sans
+    mainfontoptions:
+      - Scale=1.02
+    monofont: Liberation Mono
+    monofontoptions:
+      - Scale=0.92
     geometry:
-      - top=18mm
-      - bottom=18mm
-      - left=19mm
-      - right=19mm
-    include-in-header: ../manual/latex-header.tex
+      - top=25mm
+      - bottom=24mm
+      - left=25mm
+      - right=25mm
+      - headsep=7mm
+      - footskip=10mm
+    fig-pos: H
+    include-in-header: latex-header.tex
     callout-icon: false
+    keep-tex: false
+
+crossref:
+  chapters: false
+  fig-title: "Figure"
+  tbl-title: "Table"
 
 execute:
   freeze: auto

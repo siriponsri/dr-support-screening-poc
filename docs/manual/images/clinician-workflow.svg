@@ -1,67 +1,89 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1060" height="400" viewBox="0 0 1060 400" role="img" aria-labelledby="title desc">
   <title id="title">Retinal Review Workbench clinician workflow</title>
-  <desc id="desc">Worklist, Confirm Image, Review with optional model assistance, Confirm DR Grade, optional Edit Annotations, Confirm Annotation, and Datasets.</desc>
-  <style>
-    .ink { fill: #24312c; font-family: Arial, sans-serif; }
-    .muted { fill: #62716a; font-family: Arial, sans-serif; }
-    .green { fill: #205c45; }
-    .box { fill: #ffffff; stroke: #b8c7be; stroke-width: 2; }
-    .milestone { fill: #f3f7f4; stroke: #205c45; stroke-width: 2; }
-    .optional { fill: #ffffff; stroke: #b8c7be; stroke-width: 2; stroke-dasharray: 7 5; }
-    .arrow { stroke: #7a8981; stroke-width: 2.5; fill: none; marker-end: url(#arrowhead); }
-  </style>
+  <desc id="desc">Worklist, Confirm Image (milestone 1), Review, optional RETFound and PRISM assistance, Confirm DR Grade (milestone 2), Edit Annotations when needed, Confirm Annotation (milestone 3), then Dataset or next case.</desc>
+  <!-- Generated layout; edit node text here and re-run scripts/manual/render_workflow_asset.py. -->
   <defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
-      <path d="M0,0 L10,4 L0,8 Z" fill="#7a8981" />
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6f8279"/>
     </marker>
   </defs>
-  <rect width="1200" height="360" fill="#ffffff" />
-  <text x="48" y="42" class="green" font-size="14" letter-spacing="2">CLINICIAN WORKFLOW</text>
-  <text x="48" y="78" class="ink" font-size="27" font-weight="700">From admitted image to reviewed dataset</text>
-  <text x="48" y="104" class="muted" font-size="15">Model output is optional evidence. Human review remains authoritative.</text>
-
-  <line x1="194" y1="215" x2="216" y2="215" class="arrow" />
-  <line x1="382" y1="215" x2="404" y2="215" class="arrow" />
-  <line x1="570" y1="215" x2="592" y2="215" class="arrow" />
-  <line x1="758" y1="215" x2="780" y2="215" class="arrow" />
-  <line x1="946" y1="215" x2="968" y2="215" class="arrow" />
-
-  <rect x="48" y="145" width="146" height="140" rx="8" class="box" />
-  <text x="66" y="176" class="green" font-size="22" font-weight="700">01</text>
-  <text x="66" y="207" class="ink" font-size="16" font-weight="700">Worklist</text>
-  <text x="66" y="235" class="muted" font-size="13">Select a case</text>
-  <text x="66" y="256" class="muted" font-size="13">Review status</text>
-
-  <rect x="216" y="145" width="166" height="140" rx="8" class="milestone" />
-  <text x="234" y="176" class="green" font-size="22" font-weight="700">02</text>
-  <text x="234" y="207" class="ink" font-size="16" font-weight="700">Confirm Image</text>
-  <text x="234" y="235" class="muted" font-size="13">Patient and eye</text>
-  <text x="234" y="256" class="muted" font-size="13">Reviewer and context</text>
-
-  <rect x="404" y="145" width="166" height="140" rx="8" class="box" />
-  <text x="422" y="176" class="green" font-size="22" font-weight="700">03</text>
-  <text x="422" y="207" class="ink" font-size="16" font-weight="700">Review</text>
-  <text x="422" y="235" class="muted" font-size="13">Image first</text>
-  <text x="422" y="256" class="muted" font-size="13">Optional AI assistance</text>
-
-  <rect x="592" y="145" width="166" height="140" rx="8" class="milestone" />
-  <text x="610" y="176" class="green" font-size="22" font-weight="700">04</text>
-  <text x="610" y="207" class="ink" font-size="16" font-weight="700">Confirm DR Grade</text>
-  <text x="610" y="235" class="muted" font-size="13">Human final grade</text>
-  <text x="610" y="256" class="muted" font-size="13">Escalate when needed</text>
-
-  <rect x="780" y="145" width="166" height="140" rx="8" class="optional" />
-  <text x="798" y="176" class="green" font-size="22" font-weight="700">05</text>
-  <text x="798" y="207" class="ink" font-size="16" font-weight="700">Edit Annotations</text>
-  <text x="798" y="235" class="muted" font-size="13">Only when needed</text>
-  <text x="798" y="256" class="muted" font-size="13">Human or AI ROI edit</text>
-
-  <rect x="968" y="145" width="184" height="140" rx="8" class="milestone" />
-  <text x="986" y="176" class="green" font-size="22" font-weight="700">06</text>
-  <text x="986" y="207" class="ink" font-size="16" font-weight="700">Confirm Annotation</text>
-  <text x="986" y="235" class="muted" font-size="13">Then check Datasets</text>
-  <text x="986" y="256" class="muted" font-size="13">Export when ready</text>
-
-  <line x1="48" y1="316" x2="1152" y2="316" stroke="#dce4df" stroke-width="1" />
-  <text x="48" y="341" class="muted" font-size="13">The optional annotation step does not create a mandatory per-lesion confirmation queue.</text>
+  <style>
+    text { font-family: "Liberation Sans", Arial, Helvetica, sans-serif; }
+    .step { fill: #ffffff; stroke: #b9c9c0; stroke-width: 2; }
+    .optional { fill: #fbfcfb; stroke: #8fa39a; stroke-width: 2; stroke-dasharray: 7 6; }
+    .milestone { fill: #205c45; }
+    .k { fill: #62716a; font-size: 12.5px; font-weight: 700; letter-spacing: .07em; }
+    .k-m { fill: #bfe0cf; font-size: 12.5px; font-weight: 700; letter-spacing: .07em; }
+    .t { fill: #1f2b26; font-size: 20px; font-weight: 700; }
+    .t-m { fill: #ffffff; font-size: 20px; font-weight: 700; }
+    .s { fill: #56655e; font-size: 14.5px; }
+    .s-m { fill: #d9ebe1; font-size: 14.5px; }
+    .line { stroke: #6f8279; stroke-width: 2.5; fill: none; }
+    .dash { stroke: #8fa39a; stroke-width: 2.5; fill: none; stroke-dasharray: 6 6; }
+    .legend { fill: #3d4a44; font-size: 14.5px; }
+  </style>
+  <rect width="1060" height="400" fill="#ffffff"/>
+  <g transform="translate(14,24)">
+    <rect class="step" width="232" height="112" rx="12"/>
+    <text class="k" x="18" y="30">STEP 1</text>
+    <text class="t" x="18" y="62">Worklist</text>
+    <text class="s" x="18" y="88">Select an admitted image</text>
+  </g>
+  <g transform="translate(280,24)">
+    <rect class="milestone" width="232" height="112" rx="12"/>
+    <text class="k-m" x="18" y="30">STEP 2 · MILESTONE 1</text>
+    <text class="t-m" x="18" y="62">Confirm Image</text>
+    <text class="s-m" x="18" y="88">Patient key, eye, reviewer</text>
+  </g>
+  <g transform="translate(546,24)">
+    <rect class="step" width="232" height="112" rx="12"/>
+    <text class="k" x="18" y="30">STEP 3</text>
+    <text class="t" x="18" y="62">Review</text>
+    <text class="s" x="18" y="88">The image stays primary</text>
+  </g>
+  <g transform="translate(812,24)">
+    <rect class="optional" width="232" height="112" rx="12"/>
+    <text class="k" x="18" y="30">STEP 4 · OPTIONAL</text>
+    <text class="t" x="18" y="62">AI assistance</text>
+    <text class="s" x="18" y="88">RETFound grade · PRISM ROIs</text>
+  </g>
+  <g transform="translate(14,210)">
+    <rect class="milestone" width="232" height="112" rx="12"/>
+    <text class="k-m" x="18" y="30">STEP 5 · MILESTONE 2</text>
+    <text class="t-m" x="18" y="62">Confirm DR Grade</text>
+    <text class="s-m" x="18" y="88">Final clinician grade</text>
+  </g>
+  <g transform="translate(280,210)">
+    <rect class="step" width="232" height="112" rx="12"/>
+    <text class="k" x="18" y="30">STEP 6 · WHEN NEEDED</text>
+    <text class="t" x="18" y="62">Edit Annotations</text>
+    <text class="s" x="18" y="88">Human ROIs · AI ROI edits</text>
+  </g>
+  <g transform="translate(546,210)">
+    <rect class="milestone" width="232" height="112" rx="12"/>
+    <text class="k-m" x="18" y="30">STEP 7 · MILESTONE 3</text>
+    <text class="t-m" x="18" y="62">Confirm Annotation</text>
+    <text class="s-m" x="18" y="88">Active set at this hash</text>
+  </g>
+  <g transform="translate(812,210)">
+    <rect class="step" width="232" height="112" rx="12"/>
+    <text class="k" x="18" y="30">STEP 8</text>
+    <text class="t" x="18" y="62">Dataset / Next Case</text>
+    <text class="s" x="18" y="88">DR-ready · Lesion-ready</text>
+  </g>
+  <line class="line" x1="246" y1="80.0" x2="276" y2="80.0" marker-end="url(#arrow)"/>
+  <line class="line" x1="512" y1="80.0" x2="542" y2="80.0" marker-end="url(#arrow)"/>
+  <line class="dash" x1="778" y1="80.0" x2="808" y2="80.0" marker-end="url(#arrow)"/>
+  <line class="line" x1="246" y1="266.0" x2="276" y2="266.0" marker-end="url(#arrow)"/>
+  <line class="line" x1="512" y1="266.0" x2="542" y2="266.0" marker-end="url(#arrow)"/>
+  <line class="line" x1="778" y1="266.0" x2="808" y2="266.0" marker-end="url(#arrow)"/>
+  <path class="line" d="M662.0,136 L662.0,173.0 L130.0,173.0 L130.0,206" marker-end="url(#arrow)"/>
+  <path class="dash" d="M928.0,136 L928.0,173.0 L668.0,173.0"/>
+  <g transform="translate(14,352)">
+    <rect class="milestone" width="24" height="17" rx="4"/>
+    <text class="legend" x="34" y="14">Case-level confirmation milestone</text>
+    <rect class="optional" x="290" width="24" height="17" rx="4"/>
+    <text class="legend" x="324" y="14">Optional model assistance</text>
+    <text class="legend" x="560" y="14">No per-lesion confirmation queue · human review decides</text>
+  </g>
 </svg>

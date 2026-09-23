@@ -1,4 +1,4 @@
-# Routine operations {#sec-operations}
+# Routine Operations {#sec-operations}
 
 ## systemd service
 
@@ -12,9 +12,13 @@ sudo systemctl status dr-support-model-api
 ./scripts/model-server/healthcheck.sh
 ```
 
-The service runs as `drsupport`, reads `/etc/dr-support/model-server.env`, uses one worker, and starts `scripts/model-server/start.sh`.
+The service runs as user `drsupport`, reads `/etc/dr-support/model-server.env`, uses one worker, and starts `scripts/model-server/start.sh`.
 
-Use the following for lifecycle and logs:
+```{=latex}
+\Needspace{7\baselineskip}
+```
+
+Lifecycle and logs:
 
 ```bash
 sudo systemctl stop dr-support-model-api
@@ -24,12 +28,18 @@ sudo journalctl -u dr-support-model-api -n 100 --no-pager
 
 ## Connect a workstation
 
-Set `REMOTE_MODEL_URL` on the review workstation to the Model API base URL, for example `http://model-host.example:7860`. Use HTTPS across an untrusted segment. Set `REMOTE_MODEL_TOKEN` through a private environment or secret manager when required. The token is not returned to the UI, stored in SQLite, or logged.
+Set `REMOTE_MODEL_URL` on the review workstation to the Model API base URL, for example:
+
+```text
+REMOTE_MODEL_URL=http://model-host.example:7860
+```
+
+Use HTTPS across any untrusted segment. When required, set `REMOTE_MODEL_TOKEN` through a private environment or secret manager. The token is never returned to the UI, stored in SQLite, or logged.
 
 ## Daily readiness check
 
 1. Confirm the service is active with `systemctl status`.
 2. Run `healthcheck.sh` and confirm `/health` reports `PASS`.
-3. Confirm `/v1/models` returns both expected model IDs and verified status.
+3. Confirm `/v1/models` returns both expected model IDs with verified status.
 4. Open the review workstation and check **Models & Audit**.
 5. Run a public or synthetic smoke image only when the release acceptance procedure requires it.

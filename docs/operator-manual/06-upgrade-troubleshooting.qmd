@@ -1,41 +1,55 @@
-# Upgrade, rollback, and release acceptance {#sec-upgrade}
+# Upgrade, Rollback, and Release Acceptance {#sec-upgrade}
 
 ## Upgrade
 
 1. Keep the previous validated release and model asset directory intact.
 2. Place the new clean checkout at a separate path.
 3. Run the one-time model setup on the new release if its verified assets are not already present.
-4. Run backend tests, Ruff, frontend tests, typecheck, and production build.
-5. Start the new Model API, run health and model metadata checks, and perform one public/synthetic smoke inference.
-6. Connect a review workstation and verify `/app/`, dataset export, and Models & Audit.
-7. Record the release SHA, software version, model asset hashes, and acceptance result before switching service configuration.
+4. Run backend tests, Ruff, frontend tests, typecheck, and the production build.
+5. Start the new Model API, run the health and model metadata checks, and perform one public or synthetic smoke inference.
+6. Connect a review workstation and verify `/app/`, dataset export, and **Models & Audit**.
+7. Record the release SHA, software version, model asset hashes, and acceptance result before switching the service configuration.
 
 ## Rollback
 
-Stop the service, restore the previous release/configuration, verify the previous asset hashes, and restart. Do not overwrite verified model assets in place. Preserve the failed release for investigation according to hospital policy.
+Stop the service, restore the previous release and configuration, verify the previous asset hashes, and restart. Do not overwrite verified model assets in place. Preserve the failed release for investigation according to hospital policy.
+
+```{=latex}
+\Needspace{22\baselineskip}
+```
 
 ## Troubleshooting
 
 | Observation | Action |
-| --- | --- |
+|:------------|:-------|
 | `READY` is not printed | Read the setup error. Check Python, dependencies, CUDA, source revisions, checkpoint hashes, and storage. |
 | Startup fails verification | Treat changed or missing assets as a deliberate fail-closed state. Reacquire through the controlled online setup. |
 | `/health` is not `PASS` | Check service logs, CUDA visibility, environment values, port binding, and asset verification. |
-| `/v1/models` is missing a model | Check local assets and the configured provider package. Do not substitute a different model. |
-| Workstation cannot infer | Check `REMOTE_MODEL_URL`, token handling, firewall policy, and Model API health. Human review and export can remain available. |
-| DICOM is unsupported | A non-fundus DICOM should be reported as **Unsupported modality**. Do not expand support to MRI, OCT, PACS, or DICOMweb. |
+| `/v1/models` lacks a model | Check local assets and the configured provider package. Do not substitute a different model. |
+| Workstation cannot infer | Check `REMOTE_MODEL_URL`, token handling, firewall policy, and Model API health. Human review and export remain available. |
+| DICOM is unsupported | A non-fundus DICOM is reported as **Unsupported modality**. Do not expand support to MRI, OCT, PACS, or DICOMweb. |
+
+: {tbl-colwidths="[30,70]"}
 
 ## Release acceptance
 
 Record the release SHA and confirm:
 
-- clean clone installation succeeds;
-- frontend production build succeeds;
-- review workstation opens at `/app/`;
+```{=latex}
+\begin{multicols}{2}
+```
+
+- clean-clone installation succeeds;
+- the frontend production build succeeds;
+- the review workstation opens at `/app/`;
 - one-time model setup verifies pinned sources and prints `READY`;
 - normal startup is offline-safe;
 - `/health` and `/v1/models` pass;
 - one public or synthetic image completes the supported inference path;
 - dataset export contains the documented manifest and CSV files;
 - no secrets, PHI, model weights, or runtime databases are tracked;
-- clinician and operator manuals render successfully.
+- the clinician and operator manuals render successfully.
+
+```{=latex}
+\end{multicols}
+```

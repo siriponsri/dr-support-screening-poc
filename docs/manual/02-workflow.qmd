@@ -1,45 +1,55 @@
-# Worklist and case setup {#sec-worklist}
+# Worklist and Confirm Image {#sec-worklist}
 
-## Start a review session
+## Open the Worklist
 
-**Purpose.** Open the workstation and select the Workspace that contains the cases for the current review session.
+**Purpose.** Start a review session in the approved Workspace.
 
-**Procedure.**
+**Steps.**
 
-1. Start the review workstation using the local launcher provided by the operator.
-2. Open `http://127.0.0.1:8000/app/`.
-3. Open **Settings** and select or create the approved Workspace.
-4. Return to **Worklist** and choose **Scan input folder**.
+1. Start the workstation with the launcher provided by your operator and open `http://127.0.0.1:8000/app/`.
+2. Check that the sidebar shows the correct **Active workspace**. If not, open **Settings** and select it.
+3. In **Worklist**, choose **Scan input folder** when new images have been added.
 
-**Expected result.** The Worklist shows admitted files with plain-language status and available actions. Original source files remain unchanged.
+**Expected result.** Each admitted image appears as one row with its patient and eye context, AI result, review status, and actions. Source files are never moved or changed.
+
+![Worklist with synthetic cases. Confirmed rows show the patient key and eye; unconfirmed rows offer **Link patient and confirm eye**.](screenshots/01-worklist.png){#fig-worklist width=100%}
+
+```{=latex}
+\Needspace{32\baselineskip}
+```
 
 ## Confirm Image
 
-**Purpose.** Confirm the image context before analysis or downstream clinical review.
+**Purpose.** Confirm the image context before analysis or clinical review. This is the first confirmation milestone.
 
-**Before you begin.** Open a case with **Confirm Image** available. Filename or resolver suggestions are evidence only until you confirm them.
+::::: {layout="[58,42]" layout-valign="top"}
+:::: {}
+**Steps.**
 
-**Procedure.**
-
-1. Choose **Confirm Image** in the case action menu.
-2. Review the displayed filename and admission status.
-3. Enter or clear **Pseudonymous patient key**. Leave it empty when the case should remain unlinked.
+1. In the case row, open the menu (**...**) and choose **Confirm Image**.
+2. Check the filename and the note above the fields.
+3. Enter the **Pseudonymous patient key**, for example `PAT0001`. Leave it empty when the case should stay unlinked.
 4. Set **Eye** to **Left**, **Right**, or **Unknown**.
-5. Enter **Reviewer name**, or use the workstation default when appropriate.
+5. Enter your **Reviewer name**. Select **Use as default reviewer on this workstation** to prefill it next time.
 6. Choose **Confirm Image**.
 
-**Expected result.** The patient and eye context, reviewer, timestamp, and image-confirmation milestone are saved. A supported fundus image can proceed to **Review**.
+**Expected result.** The patient and eye context, reviewer, and timestamp are saved, and the row shows **Confirmed**. The case can proceed to **Review**.
+::::
+:::: {}
+![Confirm Image dialog.](screenshots/02-confirm-image.png){#fig-confirm-image width=100%}
+::::
+:::::
 
-::: {.callout-important title="IMPORTANT - reviewer preference"}
-The default reviewer is a browser-local convenience, not an authenticated identity. On a shared workstation, change or clear it when the user changes. Previously saved reviewer names are not rewritten.
-:::
-
-![Worklist overview](screenshots/01-worklist.png){#fig-worklist fig-cap="Worklist orientation: use the case row and action menu to enter Confirm Image."}
+Filename or resolver suggestions are evidence only; nothing is inferred from a filename until you confirm it.
 
 ## Admission exceptions
 
-Use the visible case status to decide the next action. A recognized MRI or other non-fundus DICOM remains **Unsupported modality**. Do not send it to RETFound or PRISM-DR.
+Use the row status to decide the next action. **Resolve image readiness** and **Exclude from queue** are available in the same row menu. A recognized MRI or other non-fundus DICOM stays **Unsupported modality** and is never sent to RETFound or PRISM-DR.
 
-::: {.callout-caution title="CAUTION - source files"}
-Do not rename, move, overwrite, or recompress admitted source images from the review workstation. Work with the recorded source and derived display paths.
+::: {.callout-important title="Important -- source files"}
+Do not rename, move, overwrite, or recompress admitted source images. The workstation records the original source identity and works from it.
 :::
+
+```{=latex}
+\Needspace{40\baselineskip}
+```

@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Offline, presenter-controlled product story for Retinal Review Workbench v0.7.0.">
+<title>Retinal Review Workbench — Product Demonstration</title>
+<!--
+  Source for docs/demo/RETINAL_REVIEW_DEMO.html. Build with:
+      python scripts/docs/build_demo.py
+  which inlines every local image as a data URI so the published file works offline
+  from any folder. This source file also opens directly from the repository.
+
+  Original implementation. Visual direction inspired by the "Blue Professional"
+  template (zarazhangrui/beautiful-html-templates) and presenter-controlled motion
+  principles from HyperFrames (heygen-com/hyperframes). No upstream code or assets
+  are copied. All product images are real v0.7.0 UI captures with synthetic data
+  (scripts/manual/capture_manual.py).
+-->
+<style>
+  :root {
+    --paper: #f7f4ea;
+    --paper-2: #efeadb;
+    --ink: #15171c;
+    --muted: #5b606c;
+    --soft: #8b8f99;
+    --blue: #1f3bd6;
+    --blue-2: #1530b8;
+    --blue-tint: rgba(31, 59, 214, .08);
+    --blue-line: rgba(31, 59, 214, .28);
+    --line: #d9d3c1;
+    --green: #1f6b45;
+    --amber: #9a5b12;
+    --ease: cubic-bezier(.2, .7, .2, 1);
+    --font: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #101114; overflow: hidden; }
+  body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  button { font: inherit; }
+
+  /* Fixed 1600x900 stage, scaled uniformly to the window: always 16:9, never overflows. */
+  #viewport { position: fixed; inset: 0; overflow: hidden; }
+  #stage {
+    position: absolute; left: 50%; top: 50%; width: 1600px; height: 900px;
+    background: var(--paper); overflow: hidden; transform-origin: center center;
+    transform: translate(-50%, -50%);
+  }
+  .scene {
+    position: absolute; inset: 0; padding: 72px 96px 96px;
+    opacity: 0; visibility: hidden; transition: opacity .45s var(--ease), visibility 0s linear .45s;
+  }
+  .scene.active { opacity: 1; visibility: visible; transition: opacity .45s var(--ease); }
+
+  /* Frame chrome shared by all scenes. */
+  .kicker { display: flex; align-items: center; gap: 14px; margin-bottom: 26px;
+    font-size: 15px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--blue); }
+  .kicker .no { font-family: var(--mono); letter-spacing: 0; color: var(--ink); }
+  .kicker .bar { width: 44px; height: 3px; background: var(--blue); }
+  h1, h2, h3, p { margin: 0; }
+  h2 { font-size: 54px; line-height: 1.04; letter-spacing: -.025em; font-weight: 800; max-width: 1100px; }
+  h2 em { font-style: normal; color: var(--blue); }
+  .lede { margin-top: 18px; font-size: 22px; line-height: 1.45; color: var(--muted); max-width: 900px; }
+  .mono { font-family: var(--mono); }
+
+  /* Progressive reveal. Elements with data-step="n" show once the scene reaches step n. */
+  [data-step] { opacity: 0; transform: translateY(14px); transition: opacity .5s var(--ease), transform .5s var(--ease); }
+  [data-step].on { opacity: 1; transform: none; }
+  [data-step].dim { opacity: .38; }
+
+  /* Product screenshot frame: object-fit contain, never cropped by CSS. */
+  .shot { background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+    box-shadow: 0 18px 50px rgba(21, 23, 28, .12); }
+  .shot img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .shot .bar { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 14px;
+    background: #f1efe8; border-bottom: 1px solid var(--line); }
+  .shot .bar i { width: 10px; height: 10px; border-radius: 50%; background: #d4cfbf; }
+  .shot .bar span { margin-left: 10px; font-family: var(--mono); font-size: 12px; color: var(--soft); }
+  .cap { margin-top: 10px; font-size: 14px; color: var(--soft); }
+
+  /* ------------------------------------------------------------------ 01 hero */
+  #s1 { padding: 0; }
+  #s1 .left { position: absolute; left: 96px; top: 150px; width: 820px; }
+  #s1 .brand { display: flex; align-items: center; gap: 14px; font-size: 16px; font-weight: 700;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--blue); }
+  #s1 .brand img { width: 38px; height: 38px; }
+  #s1 h1 { margin-top: 40px; font-size: 104px; line-height: .96; letter-spacing: -.04em; font-weight: 850; }
+  #s1 .tag { margin-top: 44px; display: flex; align-items: center; gap: 22px; font-size: 34px; font-weight: 700; }
+  #s1 .tag .arrow { color: var(--blue); }
+  #s1 .sub { margin-top: 28px; font-size: 24px; color: var(--muted); }
+  #s1 .meta { position: absolute; left: 96px; bottom: 64px; font-size: 14px; color: var(--soft); letter-spacing: .04em; }
+  #s1 .right { position: absolute; right: 0; top: 0; bottom: 0; width: 560px; background: var(--blue); }
+  #s1 .right::before { content: ""; position: absolute; left: -1px; top: 0; bottom: 0; width: 120px;
+    background: var(--paper); clip-path: polygon(0 0, 100% 0, 0 100%); }
+  #s1 .eye { position: absolute; right: 90px; top: 170px; width: 400px; height: 400px; border-radius: 50%;
+    overflow: hidden; box-shadow: 0 0 0 14px rgba(255,255,255,.12), 0 30px 70px rgba(0,0,0,.35); }
+  #s1 .eye img { width: 100%; height: 100%; object-fit: contain; background: #080808; }
+  #s1 .files { position: absolute; right: 96px; top: 612px; display: flex; gap: 10px; }
+  #s1 .files span { font-family: var(--mono); font-size: 14px; color: #fff; padding: 8px 12px;
+    border: 1px solid rgba(255,255,255,.4); border-radius: 6px; }
+  #s1 .synthetic { position: absolute; right: 96px; bottom: 64px; color: rgba(255,255,255,.7); font-size: 13px; }
+
+  /* ------------------------------------------------------------------ 02 worklist */
+  #s2 .grid { display: grid; grid-template-columns: 430px 1fr; gap: 56px; margin-top: 8px; }
+  #s2 .copy h2 { font-size: 50px; }
+  #s2 .copy .lede { font-size: 21px; }
+  #s2 .facts { margin-top: 34px; display: grid; gap: 16px; }
+  #s2 .facts div { font-size: 18px; color: var(--muted); padding-left: 18px; border-left: 3px solid var(--blue); }
+  #s2 .facts b { color: var(--ink); }
+  #s2 .shot { position: relative; }
+  #s2 .shot .frame { position: relative; aspect-ratio: 1440 / 810; }
+  .hot { position: absolute; border: 3px solid var(--blue); border-radius: 10px;
+    box-shadow: 0 0 0 9999px rgba(21, 23, 28, .28); }
+  .hot-label { position: absolute; transform: translateY(-100%); margin-top: -10px; background: var(--blue); color: #fff;
+    font-size: 15px; font-weight: 700; padding: 7px 12px; border-radius: 7px; white-space: nowrap; }
+
+  /* ------------------------------------------------------------------ 03 three decisions */
+  #s3 .row { margin-top: 40px; display: grid; grid-template-columns: 1fr 60px 1fr 60px 1fr; align-items: stretch; }
+  #s3 .gate { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 24px 24px 20px;
+    display: grid; grid-template-rows: auto auto auto 1fr; gap: 10px; }
+  #s3 .gate .n { font-family: var(--mono); font-size: 15px; color: var(--blue); font-weight: 700; }
+  #s3 .gate h3 { font-size: 32px; letter-spacing: -.02em; }
+  #s3 .gate p { font-size: 18px; color: var(--muted); line-height: 1.4; }
+  #s3 .gate .ui { margin-top: 12px; height: 330px; border-radius: 10px; border: 1px solid var(--line); overflow: hidden; background: #fbfbf9; }
+  #s3 .gate .ui img { width: 100%; height: 100%; object-fit: contain; }
+  #s3 .link { display: grid; place-items: center; color: var(--blue); font-size: 34px; font-weight: 800; }
+  #s3 .foot { margin-top: 26px; font-size: 20px; color: var(--muted); }
+  #s3 .foot b { color: var(--ink); }
+
+  /* ------------------------------------------------------------------ 04 AI assists */
+  #s4 { padding-right: 72px; }
+  #s4 .grid { display: grid; grid-template-columns: 800px 1fr; gap: 44px; margin-top: 10px; }
+  #s4 .canvas { position: relative; aspect-ratio: 506 / 379; background: #0e1517; border-radius: 14px; overflow: hidden; }
+  #s4 .canvas img { width: 100%; height: 100%; object-fit: contain; }
+  #s4 .ring { position: absolute; border: 3px solid #ffd24a; border-radius: 50%; }
+  #s4 .rail { display: grid; gap: 14px; align-content: start; }
+  #s4 .item { display: grid; grid-template-columns: 34px 1fr; gap: 14px; align-items: start; }
+  #s4 .item .dot { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--blue); color: #fff; font-weight: 800; font-size: 15px; }
+  #s4 .item.opt .dot { background: #fff; color: var(--blue); border: 2px dashed var(--blue); }
+  #s4 .item h3 { font-size: 22px; letter-spacing: -.01em; }
+  #s4 .item p { font-size: 15px; color: var(--muted); margin-top: 3px; }
+  #s4 .item .crop { margin-top: 8px; height: 170px; background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  #s4 .item .crop img { width: 100%; height: 100%; object-fit: contain; }
+  #s4 .decide { margin-top: 4px; padding: 16px 18px; border-radius: 12px; background: var(--blue); color: #fff; }
+  #s4 .decide h3 { font-size: 22px; }
+  #s4 .decide p { color: rgba(255,255,255,.85); font-size: 15px; margin-top: 4px; }
+  #s4 .claims { position: absolute; left: 96px; right: 72px; bottom: 58px; display: flex; gap: 40px; font-size: 18px; font-weight: 700; }
+  #s4 .claims span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 10px; background: var(--blue); }
+
+  /* ------------------------------------------------------------------ 05 correct AI */
+  #s5 .flow { margin-top: 40px; display: grid; grid-template-columns: 380px 60px 400px 60px 380px; align-items: center; justify-content: start; }
+  #s5 .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  #s5 .card .t { font-size: 14px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--blue); margin-bottom: 12px; }
+  #s5 .zoom { height: 220px; border-radius: 10px; overflow: hidden; background: #6b392b; }
+  #s5 .zoom img { width: 100%; height: 100%; object-fit: contain; }
+  #s5 .pop { height: 400px; }
+  #s5 .pop img { width: 100%; height: 100%; object-fit: contain; }
+  #s5 .chip { margin-top: 12px; height: 46px; }
+  #s5 .chip img { height: 100%; object-fit: contain; }
+  #s5 .arrow { text-align: center; font-size: 34px; color: var(--blue); font-weight: 800; }
+  #s5 .labels { margin-top: 12px; font-size: 17px; }
+  #s5 .labels b { font-family: var(--mono); font-weight: 700; }
+  #s5 .labels .corr { color: var(--green); }
+  #s5 .strip { position: absolute; left: 96px; right: 96px; bottom: 58px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  #s5 .keep { padding: 18px 22px; border-radius: 12px; background: var(--blue-tint); border: 1px solid var(--blue-line); font-size: 18px; line-height: 1.45; }
+  #s5 .never { padding: 18px 22px; border-radius: 12px; background: #fff; border: 1px solid var(--line); font-size: 18px; line-height: 1.45; }
+  #s5 .never s { font-family: var(--mono); color: #b0321f; }
+
+  /* ------------------------------------------------------------------ 06 repeated review */
+  #s6 .grid { display: grid; grid-template-columns: 1fr 470px; gap: 56px; margin-top: 40px; }
+  #s6 .screen { position: relative; height: 540px; background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  #s6 .screen .view { position: absolute; inset: 0; display: grid; place-items: center; padding: 36px;
+    opacity: 0; transition: opacity .45s var(--ease); }
+  #s6 .screen .view.show { opacity: 1; }
+  #s6 .screen .view img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  #s6 .screen .view .stack { display: grid; gap: 18px; width: 100%; }
+  #s6 .screen .view .stack img { width: 100%; }
+  #s6 .confirm { width: 560px; border-radius: 12px; border: 1px solid var(--line); box-shadow: 0 18px 44px rgba(0,0,0,.16);
+    padding: 26px 28px; background: #fff; }
+  #s6 .confirm p { font-size: 20px; }
+  #s6 .confirm .btns { margin-top: 22px; display: flex; justify-content: flex-end; gap: 12px; }
+  #s6 .confirm .btns span { padding: 9px 18px; border-radius: 8px; border: 1px solid var(--line); font-size: 16px; }
+  #s6 .confirm .btns span.p { background: var(--blue); color: #fff; border-color: var(--blue); }
+  #s6 .confirm .src { margin-top: 14px; font-size: 13px; color: var(--soft); }
+  #s6 .strip { display: grid; gap: 0; align-content: start; border-top: 1px solid var(--line); }
+  #s6 .strip .it { display: grid; grid-template-columns: 30px 1fr; gap: 14px; padding: 15px 4px; border-bottom: 1px solid var(--line);
+    transition: background .3s var(--ease); }
+  #s6 .strip .it .k { font-family: var(--mono); font-size: 14px; color: var(--soft); padding-top: 4px; }
+  #s6 .strip .it h3 { font-size: 21px; }
+  #s6 .strip .it p { font-size: 15px; color: var(--muted); margin-top: 3px; }
+  #s6 .strip .it.cur { background: var(--blue-tint); }
+  #s6 .strip .it.cur .k { color: var(--blue); font-weight: 700; }
+  #s6 .msg { position: absolute; left: 96px; bottom: 50px; font-size: 22px; font-weight: 700; }
+  #s6 .msg span { color: var(--blue); }
+
+  /* ------------------------------------------------------------------ 07 review becomes data */
+  #s7 .pair { margin-top: 46px; display: grid; grid-template-columns: 1fr 120px 1fr; align-items: stretch; }
+  #s7 .state { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 32px 34px; }
+  #s7 .state .lbl { display: inline-block; font-size: 30px; font-weight: 800; letter-spacing: -.01em; }
+  #s7 .state .chip { margin-left: 14px; vertical-align: 6px; font-size: 13px; font-weight: 700; padding: 5px 10px; border-radius: 99px;
+    background: #e6f2eb; color: var(--green); }
+  #s7 .state .task { margin-top: 8px; font-size: 16px; color: var(--soft); letter-spacing: .06em; text-transform: uppercase; }
+  #s7 .state ul { margin: 20px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; font-size: 19px; color: var(--muted); }
+  #s7 .state li::before { content: "→"; color: var(--blue); margin-right: 10px; font-weight: 700; }
+  #s7 .neq { display: grid; place-items: center; font-size: 84px; font-weight: 300; color: var(--blue); }
+  #s7 .evidence { margin-top: 30px; display: grid; grid-template-columns: 720px 1fr; gap: 36px; align-items: center; }
+  #s7 .evidence .shot { height: 180px; }
+  #s7 .evidence p { font-size: 19px; color: var(--muted); line-height: 1.45; }
+  #s7 .evidence b { color: var(--ink); }
+
+  /* ------------------------------------------------------------------ 08 traceability */
+  #s8 .chain { margin-top: 90px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; position: relative; }
+  #s8 .node { position: relative; padding: 0 22px 0 0; }
+  #s8 .node .pin { position: relative; z-index: 1; width: 22px; height: 22px; border-radius: 50%; background: var(--paper);
+    border: 4px solid var(--blue); }
+  #s8 .node.human .pin { background: var(--blue); }
+  #s8 .node::after { content: ""; position: absolute; left: 22px; right: 0; top: 9px; height: 4px; background: var(--blue);
+    transform: scaleX(0); transform-origin: left; transition: transform .6s var(--ease); }
+  #s8 .node.on::after { transform: scaleX(1); }
+  #s8 .node:last-child::after { display: none; }
+  #s8 .node h3 { margin-top: 30px; font-size: 28px; letter-spacing: -.01em; }
+  #s8 .node p { margin-top: 12px; font-size: 19px; color: var(--muted); line-height: 1.45; }
+  #s8 .node .id { margin-top: 14px; display: inline-block; font-family: var(--mono); font-size: 13px; padding: 5px 9px;
+    border-radius: 6px; background: var(--blue-tint); color: var(--blue-2); }
+  #s8 .rules { position: absolute; left: 96px; right: 96px; bottom: 90px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+  #s8 .rules div { border-top: 3px solid var(--ink); padding-top: 14px; font-size: 18px; line-height: 1.4; }
+  #s8 .rules b { display: block; font-size: 20px; margin-bottom: 4px; }
+
+  /* ------------------------------------------------------------------ 09 deployment */
+  #s9 .topo { margin-top: 60px; display: grid; grid-template-columns: 1fr 44px 1fr 44px 1fr 44px 1fr 44px 1fr; align-items: stretch; }
+  #s9 .box { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 22px 20px; min-height: 210px; }
+  #s9 .box.zone { background: transparent; border: 2px dashed var(--blue-line); }
+  #s9 .box.core { background: var(--blue); color: #fff; border-color: var(--blue); }
+  #s9 .box .t { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--blue); }
+  #s9 .box.core .t { color: rgba(255,255,255,.8); }
+  #s9 .box h3 { margin-top: 12px; font-size: 23px; line-height: 1.15; letter-spacing: -.01em; }
+  #s9 .box p { margin-top: 10px; font-size: 15px; color: var(--muted); line-height: 1.4; }
+  #s9 .box.core p { color: rgba(255,255,255,.85); }
+  #s9 .box .m { margin-top: 10px; font-family: var(--mono); font-size: 13px; color: var(--blue-2); }
+  #s9 .box.core .m { color: #fff; }
+  #s9 .con { display: grid; place-items: center; }
+  #s9 .con i { display: block; width: 100%; height: 3px; background: var(--blue); position: relative; }
+  #s9 .con i::after { content: ""; position: absolute; right: -2px; top: -6px; border: 7px solid transparent; border-left: 10px solid var(--blue); border-right: 0; }
+  #s9 .badges { margin-top: 56px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  #s9 .badge { padding: 20px 22px; border-radius: 12px; background: var(--blue-tint); border: 1px solid var(--blue-line); }
+  #s9 .badge b { display: block; font-size: 21px; }
+  #s9 .badge span { display: block; margin-top: 6px; font-size: 16px; color: var(--muted); }
+
+  /* ------------------------------------------------------------------ 10 live demo */
+  #s10 { padding: 0; background: var(--blue); color: #fff; }
+  #s10 .wrap { position: absolute; left: 96px; right: 96px; top: 170px; }
+  #s10 .kicker { color: rgba(255,255,255,.85); }
+  #s10 .kicker .no { color: #fff; }
+  #s10 .kicker .bar { background: #fff; }
+  #s10 h2 { font-size: 92px; letter-spacing: -.035em; max-width: none; }
+  #s10 .path { margin-top: 80px; display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+  #s10 .path span { font-size: 20px; font-weight: 700; padding: 12px 14px; border-radius: 10px; background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.3); }
+  #s10 .path span.m { background: #fff; color: var(--blue); border-color: #fff; }
+  #s10 .path em { font-style: normal; font-size: 20px; color: rgba(255,255,255,.7); }
+  #s10 .note { margin-top: 44px; font-size: 19px; color: rgba(255,255,255,.8); }
+  #s10 .foot { position: absolute; left: 96px; bottom: 60px; font-size: 14px; color: rgba(255,255,255,.7); }
+
+  /* Presenter chrome. */
+  #chrome { position: absolute; left: 96px; right: 96px; bottom: 26px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--soft); pointer-events: none; z-index: 5; }
+  #chrome .dots { display: flex; gap: 6px; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  #chrome .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+  #chrome .dots i.on { background: var(--blue); }
+  #stage.dark #chrome { color: rgba(255,255,255,.7); }
+  #stage.dark #chrome .dots i { background: rgba(255,255,255,.35); }
+  #stage.dark #chrome .dots i.on { background: #fff; }
+  #chrome .count { position: absolute; right: 0; font-family: var(--mono); }
+  #progress { position: absolute; left: 0; bottom: 0; height: 4px; background: var(--blue); transition: width .4s var(--ease); z-index: 6; }
+  #stage.dark #progress { background: #fff; }
+  .nav { position: absolute; top: 0; bottom: 0; width: 12%; z-index: 4; background: transparent; border: 0; cursor: pointer; }
+  .nav.prev { left: 0; } .nav.next { right: 0; }
+  .nav:focus-visible { outline: 3px solid var(--blue); outline-offset: -6px; }
+  #help { position: absolute; right: 96px; top: 30px; font-size: 13px; color: var(--soft); z-index: 5; }
+  #stage.dark #help { color: rgba(255,255,255,.7); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
+    [data-step] { transform: none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="viewport">
+<main id="stage" aria-roledescription="presentation" aria-label="Retinal Review Workbench product demonstration">
+
+  <!-- 01 Hero -->
+  <section class="scene" id="s1" data-title="Retinal Review Workbench" data-steps="0" aria-label="Scene 1: Retinal Review Workbench">
+    <div class="left">
+      <div class="brand"><img src="../../../assets/dr-support-logo.svg" alt="">Software 0.7.0</div>
+      <h1>Retinal Review<br>Workbench</h1>
+      <div class="tag"><span>One retinal image</span><span class="arrow">→</span><span>reviewed dataset</span></div>
+      <p class="sub">Clinician-led retinal review and dataset preparation</p>
+    </div>
+    <p class="meta">Research and clinical-support proof of concept · public and synthetic data · human review remains authoritative</p>
+    <div class="right" aria-hidden="true">
+      <div class="eye"><img src="../assets/demo-synthetic-fundus.png" alt=""></div>
+      <div class="files"><span>manifest.json</span><span>images.csv</span><span>annotations.csv</span></div>
+      <p class="synthetic">Synthetic drawing, not a retinal photograph</p>
+    </div>
+  </section>
+
+  <!-- 02 One case arrives -->
+  <section class="scene" id="s2" data-title="One case arrives" data-steps="2" aria-label="Scene 2: One case arrives">
+    <div class="kicker"><span class="no">02</span><span class="bar"></span>One case arrives</div>
+    <div class="grid">
+      <div class="copy">
+        <h2>One retinal image enters a <em>controlled</em> review workflow.</h2>
+        <p class="lede">The Worklist shows every admitted image with its patient and eye context, AI result, and review status.</p>
+        <div class="facts">
+          <div data-step="1"><b>Admitted, hashed, immutable.</b> The source file is never moved or rewritten.</div>
+          <div data-step="2"><b>Nothing is inferred silently.</b> Patient and eye stay unlinked until a reviewer confirms them.</div>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          <div class="bar"><i></i><i></i><i></i><span>127.0.0.1:8000/app/#/worklist</span></div>
+          <div class="frame">
+            <img src="../assets/demo-worklist.png" alt="Worklist in Retinal Review Workbench with seven synthetic cases">
+            <div class="hot" data-step="1" data-hotspot="worklist_row"><span class="hot-label">SYNTH_001 · Grade 2 suggestion available · Pending review</span></div>
+          </div>
+        </div>
+        <p class="cap">Real v0.7.0 Worklist with synthetic cases.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 Three human decisions -->
+  <section class="scene" id="s3" data-title="Three human decisions" data-steps="4" aria-label="Scene 3: Three human decisions">
+    <div class="kicker"><span class="no">03</span><span class="bar"></span>Three human decisions</div>
+    <h2>Every case passes <em>three explicit</em> confirmation boundaries.</h2>
+    <div class="row">
+      <div class="gate" data-step="1">
+        <span class="n">MILESTONE 1</span><h3>Confirm Image</h3>
+        <p>Is this the right image, patient key, and eye?</p>
+        <div class="ui"><img src="../../manual/screenshots/02-confirm-image.png" alt="Confirm Image dialog"></div>
+      </div>
+      <div class="link" data-step="2">→</div>
+      <div class="gate" data-step="2">
+        <span class="n">MILESTONE 2</span><h3>Confirm DR Grade</h3>
+        <p>What is the clinician's final DR grade?</p>
+        <div class="ui"><img src="../../manual/screenshots/05-confirm-dr-grade.png" alt="Clinician sign-off with Confirm DR Grade"></div>
+      </div>
+      <div class="link" data-step="3">→</div>
+      <div class="gate" data-step="3">
+        <span class="n">MILESTONE 3</span><h3>Confirm Annotation</h3>
+        <p>Has the active annotation set been reviewed, at this hash?</p>
+        <div class="ui"><img src="../../manual/screenshots/12-confirm-annotation.png" alt="Save human annotations with Confirm Annotation"></div>
+      </div>
+    </div>
+    <p class="foot" data-step="4"><b>No per-lesion queue.</b> AI suggestions never need to be accepted or rejected one by one.</p>
+  </section>
+
+  <!-- 04 AI assists, human decides -->
+  <section class="scene" id="s4" data-title="AI assists, human decides" data-steps="4" aria-label="Scene 4: AI assists, human decides">
+    <div class="kicker"><span class="no">04</span><span class="bar"></span>AI assists, human decides</div>
+    <div class="grid">
+      <div class="canvas">
+        <img src="../assets/demo-review-canvas.png" alt="Review viewer with the synthetic SYNTH_001 fixture and one AI lesion overlay">
+        <div class="ring" data-step="2" data-hotspot="review_roi" data-pad="3"></div>
+      </div>
+      <div class="rail">
+        <div class="item opt" data-step="1">
+          <span class="dot">1</span>
+          <div><h3>RETFound grade suggestion</h3><p>Optional model evidence · a model score, not a calibrated probability</p>
+            <div class="crop"><img src="../assets/demo-dr-assessment.png" alt="DR assessment panel: Grade 2 model suggestion"></div></div>
+        </div>
+        <div class="item opt" data-step="2">
+          <span class="dot">2</span>
+          <div><h3>PRISM lesion ROIs</h3><p>Optional overlays · an empty result never proves absence</p>
+            <div class="crop"><img src="../assets/demo-lesion-suggestions.png" alt="Lesion suggestions panel with one microaneurysm suggestion"></div></div>
+        </div>
+        <div class="item" data-step="3">
+          <span class="dot">3</span>
+          <div class="decide"><h3>Clinician final decision</h3><p>Confirm DR Grade records the human grade as the authoritative decision.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="claims" data-step="4"><span>Model evidence is optional</span><span>Human review remains authoritative</span></div>
+  </section>
+
+  <!-- 05 Correct AI only when needed -->
+  <section class="scene" id="s5" data-title="Correct AI only when needed" data-steps="4" aria-label="Scene 5: Correct AI only when needed">
+    <div class="kicker"><span class="no">05</span><span class="bar"></span>Correct AI only when needed</div>
+    <h2>Fix one ROI. <em>Keep</em> the original AI evidence.</h2>
+    <div class="flow">
+      <div class="card" data-step="1">
+        <div class="t">AI ROI</div>
+        <div class="zoom"><img src="../assets/demo-roi-before.png" alt="AI ROI labelled MA 0.80"></div>
+        <p class="labels"><b>Microaneurysm · 0.80</b></p>
+      </div>
+      <div class="arrow" data-step="2">→</div>
+      <div class="card" data-step="2">
+        <div class="t">Select · popover</div>
+        <div class="pop"><img src="../assets/demo-roi-popover.png" alt="Optional ROI action popover"></div>
+      </div>
+      <div class="arrow" data-step="3">→</div>
+      <div class="card" data-step="3">
+        <div class="t">Class correction</div>
+        <div class="zoom"><img src="../assets/demo-roi-after.png" alt="ROI now labelled HE clinician corrected"></div>
+        <div class="chip"><img src="../assets/demo-roi-corrected-chip.png" alt="Selected: HE - clinician corrected"></div>
+        <p class="labels"><b>Hemorrhage</b> · <span class="corr">clinician corrected</span></p>
+      </div>
+    </div>
+    <div class="strip" data-step="4">
+      <div class="keep"><b>Preserved for audit:</b> original class, score, geometry, model, and detection identity. Removal is also available and equally auditable.</div>
+      <div class="never"><b>Never displayed:</b> <s>Hemorrhage · 0.80</s> — the score belongs to the class the model predicted.</div>
+    </div>
+  </section>
+
+  <!-- 06 Built for repeated review -->
+  <section class="scene" id="s6" data-title="Built for repeated review" data-steps="6" aria-label="Scene 6: Built for repeated review">
+    <div class="kicker"><span class="no">06</span><span class="bar"></span>Built for repeated review</div>
+    <h2>Less repetitive work, <em>without silently changing</em> clinical state.</h2>
+    <div class="grid">
+      <div class="screen">
+        <div class="view" data-view="1"><img src="../../manual/screenshots/10-navigation-hint.png" alt="Previous, case position, Save and Next Case, and the Next action hint"></div>
+        <div class="view" data-view="2"><img src="../assets/demo-grade-nav.png" alt="Previous and Confirm DR Grade and Next"></div>
+        <div class="view" data-view="3"><div class="stack"><img src="../assets/demo-draft-unsaved.png" alt="Draft status: Unsaved changes"><img src="../../manual/screenshots/11-draft-status.png" alt="Draft status: Draft saved"></div></div>
+        <div class="view" data-view="4"><img src="../../manual/screenshots/13-reviewer-default.png" alt="Review preferences: default reviewer Dr. Example"></div>
+        <div class="view" data-view="5"><img src="../../manual/screenshots/10-navigation-hint.png" alt="Next action hint: Review annotations"></div>
+        <div class="view" data-view="6"><div class="confirm"><p>You have unsaved annotation changes. Leave this case?</p>
+          <div class="btns"><span>Cancel</span><span class="p">OK</span></div>
+          <p class="src">Browser confirmation shown by the Annotation Editor while a draft is unsaved, saving, or failed.</p></div></div>
+      </div>
+      <div class="strip">
+        <div class="it" data-item="1"><span class="k">01</span><div><h3>Previous / Next</h3><p>Moves through the case order; never saves or confirms.</p></div></div>
+        <div class="it" data-item="2"><span class="k">02</span><div><h3>Save &amp; Next</h3><p>Saves the draft or confirms the grade, then opens the next case.</p></div></div>
+        <div class="it" data-item="3"><span class="k">03</span><div><h3>Autosave draft</h3><p>Unsaved changes → Draft saved, about a second after editing stops.</p></div></div>
+        <div class="it" data-item="4"><span class="k">04</span><div><h3>Default reviewer</h3><p>Browser-local convenience; editable, not authentication.</p></div></div>
+        <div class="it" data-item="5"><span class="k">05</span><div><h3>Next action</h3><p>Quiet guidance only; it never changes case state.</p></div></div>
+        <div class="it" data-item="6"><span class="k">06</span><div><h3>Unsaved changes guard</h3><p>Leaving with unsaved edits asks first.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 Review becomes data -->
+  <section class="scene" id="s7" data-title="Review becomes data" data-steps="3" aria-label="Scene 7: Review becomes data">
+    <div class="kicker"><span class="no">07</span><span class="bar"></span>Review becomes data</div>
+    <h2>Classification readiness <em>≠</em> lesion annotation readiness.</h2>
+    <div class="pair">
+      <div class="state" data-step="1">
+        <span class="lbl">DR-ready</span><span class="chip">DR: Ready</span>
+        <p class="task">DR-grade task</p>
+        <ul><li>Valid source provenance</li><li>Included fundus image</li><li>Final clinician grade, reviewer, and time</li></ul>
+      </div>
+      <div class="neq" data-step="2">≠</div>
+      <div class="state" data-step="2">
+        <span class="lbl">Lesion-ready</span><span class="chip">Lesions: Ready</span>
+        <p class="task">Lesion-annotation task</p>
+        <ul><li>Valid source provenance</li><li>Included fundus image</li><li>Confirm Annotation matching the active set hash</li></ul>
+      </div>
+    </div>
+    <div class="evidence" data-step="3">
+      <div class="shot"><img src="../../manual/screenshots/14-dataset-readiness.png" alt="Datasets DR-ready tab: PAT0002 DR and lesions ready, PAT0003 DR ready but no annotation confirmation"></div>
+      <p><b>One task can be ready while the other is not.</b> PAT0003 has a final grade but no annotation confirmation, so it exports as DR-ready only.</p>
+    </div>
+  </section>
+
+  <!-- 08 Traceability -->
+  <section class="scene" id="s8" data-title="Traceability" data-steps="5" aria-label="Scene 8: Traceability">
+    <div class="kicker"><span class="no">08</span><span class="bar"></span>Traceability</div>
+    <h2>Every exported record traces back to its <em>source</em>.</h2>
+    <div class="chain">
+      <div class="node" data-step="1"><span class="pin"></span><h3>Source image</h3><p>Admitted once, hashed, never modified.</p><span class="id">source SHA-256</span></div>
+      <div class="node" data-step="2"><span class="pin"></span><h3>Analysis</h3><p>Derived analysis image with its own identity and coordinate mapping.</p><span class="id">analysis SHA-256</span></div>
+      <div class="node" data-step="3"><span class="pin"></span><h3>Model evidence</h3><p>Model ID, revision, raw output, and score kept exactly as returned.</p><span class="id">retfound-aptos5 · prism-dr-5fold</span></div>
+      <div class="node human" data-step="4"><span class="pin"></span><h3>Clinician decision / correction</h3><p>Human grade, corrections, and removals recorded beside the AI evidence.</p><span class="id">reviewer · time · hash</span></div>
+      <div class="node" data-step="5"><span class="pin"></span><h3>Dataset manifest</h3><p>Task-specific readiness and provenance in the export.</p><span class="id">s4.dataset-manifest.v2</span></div>
+    </div>
+    <div class="rules" data-step="5">
+      <div><b>Original AI evidence stays auditable</b>Class, score, geometry, and provenance are never overwritten.</div>
+      <div><b>Human correction stays distinct</b>Corrected, human-authored, removed, and CVAT-imported states remain separate.</div>
+      <div><b>Identity stays traceable</b>Source and analysis identities link the export to the admitted image.</div>
+    </div>
+  </section>
+
+  <!-- 09 Deployment -->
+  <section class="scene" id="s9" data-title="Deployment" data-steps="3" aria-label="Scene 9: Deployment">
+    <div class="kicker"><span class="no">09</span><span class="bar"></span>Deployment</div>
+    <h2>Review on the workstation. Models on the <em>hospital GPU host</em>.</h2>
+    <div class="topo">
+      <div class="box" data-step="1"><span class="t">Clinician</span><h3>Workstation</h3><p>Review app at /app/ · local Workspace · export</p><div class="m">APP_PROFILE=review</div></div>
+      <div class="con" data-step="1"><i></i></div>
+      <div class="box zone" data-step="1"><span class="t">Network</span><h3>Protected hospital LAN</h3><p>Firewall and TLS at the boundary · no public exposure</p></div>
+      <div class="con" data-step="2"><i></i></div>
+      <div class="box core" data-step="2"><span class="t">Contract</span><h3>Provider-neutral Model API</h3><p>/health · /v1/models · predict routes</p><div class="m">REMOTE_MODEL_URL</div></div>
+      <div class="con" data-step="2"><i></i></div>
+      <div class="box" data-step="2"><span class="t">Server</span><h3>Hospital GPU host</h3><p>CUDA · one worker · systemd</p><div class="m">APP_PROFILE=model_api</div></div>
+      <div class="con" data-step="2"><i></i></div>
+      <div class="box" data-step="2"><span class="t">Assets</span><h3>Verified RETFound + PRISM</h3><p>Pinned revisions and SHA-256 · fail closed</p></div>
+    </div>
+    <div class="badges" data-step="3">
+      <div class="badge"><b>Online setup once</b><span>setup.sh acquires, verifies, and prints READY</span></div>
+      <div class="badge"><b>Offline-safe normal startup</b><span>start.sh verifies local assets and never downloads</span></div>
+      <div class="badge"><b>CVAT optional</b><span>Dense annotation only; not needed for review or export</span></div>
+    </div>
+  </section>
+
+  <!-- 10 Live demo -->
+  <section class="scene" id="s10" data-title="Live demo" data-steps="1" data-dark="true" aria-label="Scene 10: Live demo">
+    <div class="wrap">
+      <div class="kicker"><span class="no">10</span><span class="bar"></span>Live demo</div>
+      <h2>Now let's review one case.</h2>
+      <div class="path" data-step="1">
+        <span>Worklist</span><em>→</em><span class="m">Confirm Image</span><em>→</em><span>Review</span><em>→</em>
+        <span class="m">Confirm DR Grade</span><em>→</em><span>Edit one ROI</span><em>→</em><span class="m">Confirm Annotation</span><em>→</em><span>Dataset</span>
+      </div>
+      <p class="note" data-step="1">Switch to the workstation at <span class="mono">127.0.0.1:8000/app/</span> with the synthetic Workspace.</p>
+    </div>
+    <p class="foot">Retinal Review Workbench 0.7.0 · research and clinical-support proof of concept · no autonomous diagnosis or referral</p>
+  </section>
+
+  <button class="nav prev" type="button" aria-label="Previous step"></button>
+  <button class="nav next" type="button" aria-label="Next step"></button>
+  <div id="help">← → / Space · Home / End · F fullscreen</div>
+  <div id="chrome"><span class="title visually-hidden" aria-live="polite"></span><span class="dots"></span><span class="count"></span></div>
+  <div id="progress"></div>
+</main>
+</div>
+
+<script id="hotspot-data" type="application/json">{}</script>
+<script>
+(() => {
+  const stage = document.getElementById('stage');
+  const scenes = [...document.querySelectorAll('.scene')];
+  const title = document.querySelector('#chrome .title');
+  const count = document.querySelector('#chrome .count');
+  const dots = document.querySelector('#chrome .dots');
+  const progress = document.getElementById('progress');
+  let hotspots = {};
+  try { hotspots = JSON.parse(document.getElementById('hotspot-data').textContent || '{}'); } catch (e) { hotspots = {}; }
+
+  // Position overlays from measured capture coordinates (percent of the captured frame).
+  document.querySelectorAll('[data-hotspot]').forEach((el) => {
+    const box = hotspots[el.dataset.hotspot];
+    if (!box) { el.style.display = 'none'; return; }
+    const pad = Number(el.dataset.pad || 0.4);
+    el.style.left = (box.left - pad) + '%';
+    el.style.top = (box.top - pad) + '%';
+    el.style.width = (box.width + 2 * pad) + '%';
+    el.style.height = (box.height + 2 * pad) + '%';
+    const label = el.querySelector('.hot-label');
+    if (label) { label.style.left = '0'; label.style.top = '0'; }
+  });
+
+  let index = 0;
+  let step = 0;
+  const maxStep = (s) => Number(s.dataset.steps || 0);
+
+  function fit() {
+    const scale = Math.min(window.innerWidth / 1600, window.innerHeight / 900);
+    stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  }
+
+  function render() {
+    scenes.forEach((s, i) => {
+      s.classList.toggle('active', i === index);
+      s.setAttribute('aria-hidden', i === index ? 'false' : 'true');
+    });
+    const scene = scenes[index];
+    scene.querySelectorAll('[data-step]').forEach((el) => el.classList.toggle('on', Number(el.dataset.step) <= step));
+    // Scene 6: one interaction at a time on the shared screen.
+    scene.querySelectorAll('[data-view]').forEach((el) => el.classList.toggle('show', Number(el.dataset.view) === Math.max(step, 1)));
+    scene.querySelectorAll('[data-item]').forEach((el) => {
+      const n = Number(el.dataset.item);
+      el.classList.toggle('cur', n === Math.max(step, 1));
+    });
+    stage.classList.toggle('dark', scene.dataset.dark === 'true');
+    title.textContent = scene.dataset.title || '';
+    count.textContent = String(index + 1).padStart(2, '0') + ' / ' + String(scenes.length).padStart(2, '0');
+    dots.innerHTML = '';
+    for (let i = 1; i <= maxStep(scene); i++) {
+      const d = document.createElement('i');
+      if (i <= step) d.className = 'on';
+      dots.appendChild(d);
+    }
+    const total = scenes.reduce((n, s) => n + maxStep(s) + 1, 0);
+    const done = scenes.slice(0, index).reduce((n, s) => n + maxStep(s) + 1, 0) + step + 1;
+    progress.style.width = (done / total * 100) + '%';
+    document.title = `${String(index + 1).padStart(2, '0')} ${scene.dataset.title} · Retinal Review Workbench`;
+    if (location.hash !== '#' + (index + 1)) history.replaceState(null, '', '#' + (index + 1));
+  }
+
+  function next() {
+    if (step < maxStep(scenes[index])) step++;
+    else if (index < scenes.length - 1) { index++; step = 0; }
+    render();
+  }
+  function prev() {
+    if (step > 0) step--;
+    else if (index > 0) { index--; step = maxStep(scenes[index]); }
+    render();
+  }
+  function go(i, full) { index = Math.max(0, Math.min(scenes.length - 1, i)); step = full ? maxStep(scenes[index]) : 0; render(); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    switch (e.key) {
+      case 'ArrowRight': case ' ': case 'PageDown': case 'Enter': e.preventDefault(); next(); break;
+      case 'ArrowLeft': case 'PageUp': case 'Backspace': e.preventDefault(); prev(); break;
+      case 'Home': e.preventDefault(); go(0); break;
+      case 'End': e.preventDefault(); go(scenes.length - 1, true); break;
+      case 'f': case 'F':
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.();
+        break;
+      default: break;
+    }
+  });
+  document.querySelector('.nav.next').addEventListener('click', next);
+  document.querySelector('.nav.prev').addEventListener('click', prev);
+  window.addEventListener('resize', fit);
+
+  // Test/QA hooks: #N opens scene N; ?all=1 reveals every step (static review, print).
+  const start = parseInt(location.hash.slice(1), 10);
+  if (start >= 1 && start <= scenes.length) index = start - 1;
+  if (new URLSearchParams(location.search).get('all') === '1') step = maxStep(scenes[index]);
+  window.rrwDemo = { next, prev, go, state: () => ({ index, step, scenes: scenes.length, maxStep: maxStep(scenes[index]) }) };
+  fit();
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="600" viewBox="0 0 860 600" role="img" aria-labelledby="title desc">
+  <title id="title">Retinal Review Workbench hospital deployment architecture</title>
+  <desc id="desc">The clinician workstation runs the review profile with local Workspace storage and dataset export. It calls the provider-neutral Model API across the protected hospital LAN using REMOTE_MODEL_URL and an optional REMOTE_MODEL_TOKEN. The hospital GPU host runs the Model API with verified local RETFound and PRISM-DR assets. CVAT Online is optional.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#44534c"/></marker>
+    <marker id="b" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a9a92"/></marker>
+  </defs>
+  <style>
+    text { font-family: "Liberation Sans", Arial, Helvetica, sans-serif; fill: #1f2b26; }
+    .zone { fill: #f6f8f7; stroke: #cfd9d3; stroke-width: 1.5; }
+    .lan { fill: #eef4f1; stroke: #9fb6aa; stroke-width: 1.5; stroke-dasharray: 8 6; }
+    .zl { font-size: 13px; font-weight: 700; letter-spacing: .07em; fill: #205c45; }
+    .zs { font-family: "Liberation Mono", Consolas, monospace; font-size: 12px; fill: #56655e; }
+    .node { fill: #ffffff; stroke: #b9c9c0; stroke-width: 1.5; }
+    .focal { fill: #205c45; }
+    .opt { fill: #ffffff; stroke: #8fa39a; stroke-width: 1.5; stroke-dasharray: 6 5; }
+    .n { font-size: 17px; font-weight: 700; }
+    .nf { font-size: 17px; font-weight: 700; fill: #ffffff; }
+    .d { font-size: 14px; fill: #4c5b54; }
+    .df { font-size: 14px; fill: #d9ebe1; }
+    .m { font-family: "Liberation Mono", Consolas, monospace; font-size: 12.5px; fill: #2f3d37; }
+    .l { stroke: #44534c; stroke-width: 2; fill: none; }
+    .lo { stroke: #8a9a92; stroke-width: 2; fill: none; stroke-dasharray: 6 5; }
+    .note { font-size: 14px; fill: #3d4a44; }
+  </style>
+  <rect width="860" height="600" fill="#ffffff"/>
+
+  <!-- Zone 1: clinician workstation -->
+  <rect class="zone" x="12" y="12" width="262" height="478" rx="12"/>
+  <text class="zl" x="28" y="38">CLINICIAN WORKSTATION</text>
+  <text class="zs" x="28" y="57">APP_PROFILE=review</text>
+  <text class="zs" x="28" y="73">MODEL_RUNTIME=remote</text>
+  <rect class="focal" x="28" y="90" width="230" height="92" rx="10"/>
+  <text class="nf" x="44" y="118">Review application</text>
+  <text class="df" x="44" y="142">Clinician UI at /app/</text>
+  <text class="df" x="44" y="164">No model weights loaded</text>
+  <rect class="node" x="28" y="204" width="230" height="92" rx="10"/>
+  <text class="n" x="44" y="232">Workspace storage</text>
+  <text class="d" x="44" y="256">Input folder · SQLite DB</text>
+  <text class="d" x="44" y="278">Sources stay immutable</text>
+  <rect class="node" x="28" y="318" width="230" height="154" rx="10"/>
+  <text class="n" x="44" y="346">Dataset export</text>
+  <text class="m" x="44" y="372">manifest.json</text>
+  <text class="m" x="44" y="392">images.csv</text>
+  <text class="m" x="44" y="412">annotations.csv</text>
+  <text class="d" x="44" y="444">Written to output folder</text>
+
+  <!-- Zone 2: protected LAN -->
+  <rect class="lan" x="298" y="12" width="236" height="478" rx="12"/>
+  <text class="zl" x="314" y="38">PROTECTED HOSPITAL LAN</text>
+  <text class="d" x="314" y="60">Firewall · TLS at the</text>
+  <text class="d" x="314" y="78">hospital boundary</text>
+  <rect class="node" x="314" y="90" width="204" height="136" rx="10"/>
+  <text class="n" x="330" y="118">Model API contract</text>
+  <text class="m" x="330" y="144">REMOTE_MODEL_URL</text>
+  <text class="m" x="330" y="164">REMOTE_MODEL_TOKEN</text>
+  <text class="d" x="330" y="188">Token optional; kept in</text>
+  <text class="d" x="330" y="208">the backend only</text>
+  <rect class="node" x="314" y="248" width="204" height="130" rx="10"/>
+  <text class="n" x="330" y="276">Routes</text>
+  <text class="m" x="330" y="302">/health</text>
+  <text class="m" x="330" y="322">/v1/models</text>
+  <text class="m" x="330" y="342">/v1/predict/dr</text>
+  <text class="m" x="330" y="362">/v1/predict/lesions</text>
+  <text class="d" x="314" y="410">Provider-neutral; not</text>
+  <text class="d" x="314" y="430">exposed to the public</text>
+  <text class="d" x="314" y="450">internet</text>
+
+  <!-- Zone 3: GPU host -->
+  <rect class="zone" x="558" y="12" width="290" height="478" rx="12"/>
+  <text class="zl" x="574" y="38">HOSPITAL GPU HOST</text>
+  <text class="zs" x="574" y="57">APP_PROFILE=model_api</text>
+  <text class="zs" x="574" y="73">CUDA · WORKERS=1 · :7860</text>
+  <rect class="focal" x="574" y="90" width="258" height="92" rx="10"/>
+  <text class="nf" x="590" y="118">Model API service</text>
+  <text class="df" x="590" y="142">MODEL_RUNTIME=local · systemd</text>
+  <text class="df" x="590" y="164">start.sh verifies, never downloads</text>
+  <rect class="node" x="574" y="204" width="258" height="64" rx="10"/>
+  <text class="n" x="590" y="230">RETFound</text>
+  <text class="d" x="680" y="230">DR grade</text>
+  <text class="m" x="590" y="253">retfound-aptos5</text>
+  <rect class="node" x="574" y="280" width="258" height="64" rx="10"/>
+  <text class="n" x="590" y="306">PRISM-DR</text>
+  <text class="d" x="680" y="306">Lesion ROIs</text>
+  <text class="m" x="590" y="329">prism-dr-5fold</text>
+  <rect class="node" x="574" y="366" width="258" height="106" rx="10"/>
+  <text class="n" x="590" y="394">Verified local assets</text>
+  <text class="d" x="590" y="418">Pinned revisions · SHA-256</text>
+  <text class="d" x="590" y="440">setup.sh once, prints READY</text>
+  <text class="d" x="590" y="462">Changed assets fail closed</text>
+
+  <!-- Optional CVAT -->
+  <rect class="opt" x="12" y="516" width="262" height="72" rx="10"/>
+  <text class="n" x="28" y="544">CVAT Online (optional)</text>
+  <text class="d" x="28" y="568">Dense annotation; not needed offline</text>
+
+  <!-- Notes -->
+  <text class="note" x="298" y="532">Online once: setup.sh acquires and verifies approved assets.</text>
+  <text class="note" x="298" y="554">Afterwards: startup and inference run offline from verified assets.</text>
+  <text class="note" x="298" y="576">Clinician review remains authoritative; model output is assistive.</text>
+
+  <!-- Connections drawn last so zones never cover arrowheads -->
+  <line class="l" x1="143" y1="182" x2="143" y2="200" marker-end="url(#a)"/>
+  <line class="l" x1="143" y1="296" x2="143" y2="314" marker-end="url(#a)"/>
+  <line class="l" x1="258" y1="136" x2="310" y2="136" marker-end="url(#a)"/>
+  <line class="l" x1="518" y1="136" x2="570" y2="136" marker-end="url(#a)"/>
+  <line class="l" x1="703" y1="182" x2="703" y2="200" marker-end="url(#a)"/>
+  <line class="l" x1="703" y1="362" x2="703" y2="348" marker-end="url(#a)"/>
+  <line class="lo" x1="143" y1="512" x2="143" y2="476" marker-start="url(#b)" marker-end="url(#b)"/>
+</svg>
