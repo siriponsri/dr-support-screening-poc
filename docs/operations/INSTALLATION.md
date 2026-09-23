@@ -1,3 +1,5 @@
+<!-- canonical-topic: workstation-lifecycle -->
+
 # Installation
 
 This guide installs the review workstation and the separate hospital Model API from a clean checkout. The repository slug and Python import namespace remain `dr_support`; the product display name is Retinal Review Workbench.

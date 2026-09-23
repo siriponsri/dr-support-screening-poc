@@ -1,3 +1,5 @@
+<!-- canonical-topic: developer-guide -->
+
 # How to Use This Guide {#sec-intro}
 
 This guide explains how Retinal Review Workbench is built on the current `main` branch and where to start when you change it. Every statement was traced to code, tests, or scripts. If code and this guide disagree, the code is authoritative; fix the guide.

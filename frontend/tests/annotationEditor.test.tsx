@@ -83,7 +83,7 @@ describe('AnnotationEditorPage human movement', () => {
     expect(screen.getByLabelText('Selected annotation class')).toHaveValue('SOFT_EXUDATE');
     fireEvent.change(screen.getByLabelText('Selected annotation class'), { target: { value: 'HEMORRHAGE' } });
     fireEvent.change(screen.getByPlaceholderText('Reviewer name'), { target: { value: 'Clinician' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save draft only' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(annotationBody).toBeDefined());
     expect(annotationBody).toMatchObject({ annotations: [{ label: 'HEMORRHAGE' }] });
   });
@@ -112,11 +112,11 @@ describe('AnnotationEditorPage human movement', () => {
     dispatchPointer(hitTarget, 'pointerDown', { button: 0, pointerId: 11, clientX: 330, clientY: 230 });
     expect(setPointerCapture).not.toHaveBeenCalled();
     fireEvent.click(hitTarget);
-    expect(await screen.findByRole('button', { name: 'Correct annotation' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Confirm' })).toBeInTheDocument();
 
     await userEvent.setup().click(within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Close' })[0]);
     fireEvent.keyDown(group, { key: 'Enter' });
-    expect(await screen.findByRole('button', { name: 'Use as human annotation' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Confirm' })).toBeInTheDocument();
     expect(group).toHaveAttribute('aria-pressed', 'true');
   });
 
@@ -175,7 +175,7 @@ describe('AnnotationEditorPage human movement', () => {
     const { svg } = await setupStage();
     const aiHitTarget = svg.querySelector(`[data-ai-detection-id="${detectionId}"] rect`)!;
     fireEvent.click(aiHitTarget);
-    await user.click(screen.getByRole('button', { name: 'Correct annotation' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
     const humanGroup = await waitFor(() => {
       const group = svg.querySelector('[data-human-shape-id="human-derived-1"]');
@@ -194,11 +194,11 @@ describe('AnnotationEditorPage human movement', () => {
     expect(current.lesion?.lesions[0]).toMatchObject({ canonical_label: 'MICROANEURYSM', score: 0.9 });
     expect(await screen.findByText('Draft saved')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Confirm annotations' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm Annotation' }));
     await waitFor(() => expect(confirmationRequest).toMatchObject({ revision: 2, action: 'CONFIRM_ANNOTATIONS' }));
   });
 
-  it('skips annotation confirmation when the case has no annotation changes', async () => {
+  it('confirms an annotation-free case without writing an annotation draft', async () => {
     const unchanged = { ...item, human_annotations: [], annotation_confirmation_status: 'DRAFT' as const };
     const requests: string[] = [];
     renderEditor(unchanged, (input) => {
@@ -208,10 +208,10 @@ describe('AnnotationEditorPage human movement', () => {
     });
     await waitFor(() => expect(screen.getByText('0 human annotations')).toBeInTheDocument());
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Skip annotation' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm Annotation' }));
 
     expect(requests).not.toContain('/v1/cases/CASE-001/annotations');
-    expect(requests).not.toContain('/v1/cases/CASE-001/review');
+    expect(requests).toContain('/v1/cases/CASE-001/review');
   });
 
   it('moves editable human geometry, records undo, and respects lock state', async () => {

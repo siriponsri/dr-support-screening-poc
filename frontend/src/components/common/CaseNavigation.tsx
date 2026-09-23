@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight } from '@/lib/icons';
 interface CaseNavigationProps {
   imageId: string;
   dirty?: boolean;
+  incomplete?: boolean;
   onBeforeNavigate?: () => boolean;
   onSaveAndNext?: (nextId: string | null) => void;
   saveAndNextLabel?: string;
@@ -14,13 +15,13 @@ interface CaseNavigationProps {
   routePrefix?: string;
 }
 
-export function CaseNavigation({ imageId, dirty = false, onBeforeNavigate, onSaveAndNext, saveAndNextLabel = 'Save & Next Case', saveAtEndLabel = 'Complete case', actionDisabled = false, routePrefix = 'review' }: CaseNavigationProps) {
+export function CaseNavigation({ imageId, dirty = false, incomplete = false, onBeforeNavigate, onSaveAndNext, saveAndNextLabel = 'Save & Next Case', saveAtEndLabel = 'Complete case', actionDisabled = false, routePrefix = 'review' }: CaseNavigationProps) {
   const navigate = useNavigate();
   const { previousId, nextId, position, total, loading } = useCaseNeighbors(imageId);
 
   const move = (target: string | null) => {
     if (!target) return;
-    if (dirty && onBeforeNavigate && !onBeforeNavigate()) return;
+    if ((dirty || incomplete) && onBeforeNavigate && !onBeforeNavigate()) return;
     navigate(`/${routePrefix}/${encodeURIComponent(target)}`);
   };
 

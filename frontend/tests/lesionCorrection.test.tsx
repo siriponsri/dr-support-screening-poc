@@ -66,7 +66,7 @@ describe('lightweight AI ROI correction', () => {
     expect(screen.queryByText(/unresolved/i)).not.toBeInTheDocument();
   });
 
-  it('creates a human correction copy while retaining the original AI evidence and score', async () => {
+  it('confirms a class correction as human provenance while retaining AI evidence', async () => {
     const user = userEvent.setup();
     let requestBody: Record<string, unknown> | undefined;
     const humanAnnotation = {
@@ -106,8 +106,12 @@ describe('lightweight AI ROI correction', () => {
       },
     };
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      expect(new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname).toBe('/v1/cases/CASE-001/annotations/from-ai');
-      requestBody = JSON.parse(String(init?.body));
+      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
+      if (path.endsWith('/lesion-review')) {
+        requestBody = JSON.parse(String(init?.body));
+        return jsonResponse({ ...item, revision: 3 });
+      }
+      expect(path).toBe('/v1/cases/CASE-001/annotations/from-ai');
       return jsonResponse(corrected);
     });
     const onDerived = vi.fn();
@@ -119,13 +123,14 @@ describe('lightweight AI ROI correction', () => {
     await user.click(screen.getByRole('button', { name: /Selected AI suggestion: HE/i }));
     expect(screen.getByRole('dialog')).toHaveTextContent(/Model score: 0\.90/);
     expect(screen.getByText(/not a clinical probability/)).toBeInTheDocument();
-    await user.type(await screen.findByPlaceholderText('Reviewer name'), 'Clinician');
-    await user.click(screen.getByRole('button', { name: 'Correct annotation' }));
+    await user.selectOptions(screen.getByLabelText('Lesion class'), 'SOFT_EXUDATE');
+    await user.click(screen.getByRole('button', { name: 'Confirm' }));
 
     expect(requestBody).toMatchObject({
       revision: 2,
       detection_id: lesions[0].detection_id,
-      intent: 'CORRECT_AS_HUMAN',
+      action: 'CORRECT',
+      label: 'SOFT_EXUDATE',
       reviewer: 'Clinician',
     });
     expect(onDerived).toHaveBeenCalledWith(corrected, humanAnnotation, 'CORRECT_AS_HUMAN');
@@ -147,8 +152,7 @@ describe('lightweight AI ROI correction', () => {
 
     withProviders(<LesionActionPopover item={item} selectedLesionId={lesions[0].detection_id} onSaved={onSaved} onDerived={vi.fn()} onClose={vi.fn()} />, '/review/CASE-001');
     await user.click(screen.getByRole('button', { name: /Selected AI suggestion: HE/i }));
-    await user.type(await screen.findByPlaceholderText('Reviewer name'), 'Clinician');
-    await user.click(screen.getByRole('button', { name: 'Remove from reviewed result' }));
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
 
     expect(requestBody).toMatchObject({ action: 'REJECT', detection_id: lesions[0].detection_id });
     expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ revision: 3 }));

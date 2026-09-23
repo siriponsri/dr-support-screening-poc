@@ -13,14 +13,14 @@
 3. Check the **Patient/Eye** line above the image.
 4. Choose **Analyze** when model assistance is wanted and the Model API is available. If it is not available, continue with manual review.
 
-**Expected result.** The retinal image stays the main surface. The right column shows **Analysis**, **DR assessment**, and **Lesion suggestions**, followed by **Edit annotations** and **Clinician review**.
+**Expected result.** The retinal image stays the main surface. The right column shows **Analysis**, **DR assessment**, and **Lesion suggestions**, followed by **Clinician Review**.
 
 ## Read the model suggestions
 
 - **DR assessment** shows the RETFound grade suggestion and its model confidence. This is a model score, not a calibrated probability.
 - **Lesion suggestions** counts PRISM-DR suggestions by class. An untouched overlay is labelled with class and score, for example `MA · 0.80`.
 - The lesion summary is not a task list. The review can be completed without confirming, rejecting, or reducing any AI detection.
-- Review is read-only. Corrections are made in **Edit annotations** (see @sec-annotations).
+- Review is read-only. After the final grade is confirmed, the **Annotation Editor** opens when annotation work is needed (see @sec-annotations).
 
 ## Show or filter the overlays
 

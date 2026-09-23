@@ -9,7 +9,7 @@
 1. Open **Datasets**. The summary line shows **Images**, **Annotations**, **DR-ready**, and **Lesion-ready** for the active Workspace.
 2. Choose a tab: **All**, **DR-ready**, **Lesion-ready**, **Needs review**, or **Excluded**.
 3. Read the two status chips in **Dataset status**: one for DR, one for lesions.
-4. Fix a case in **Clinician Review** or **Edit annotations** when its status asks for it.
+4. Fix a case in **Clinician Review** or **Annotation Editor** when its status asks for it.
 
 ![Dataset manifest summary with separate DR-ready and Lesion-ready counts.](screenshots/14-dataset-summary.png){#fig-dataset-summary width=70%}
 

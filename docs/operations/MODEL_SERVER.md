@@ -1,3 +1,5 @@
+<!-- canonical-topic: model-api -->
+
 # Model Server
 
 The Model API is the hospital-side inference service. It supports the existing provider-neutral contract only; it does not add MRI, OCT, PACS, DICOMweb, calibration, or explainability models.

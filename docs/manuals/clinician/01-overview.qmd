@@ -27,8 +27,8 @@ A displayed confidence or score is a model score, not a calibrated clinical prob
 |:-----|:------------------|
 | **Worklist** | Find admitted cases, see their status, and start **Confirm Image**. |
 | **Review** | Inspect the image and optional model assistance (read-only). |
-| **Clinician Review** | Record the final DR grade, or escalate an exception. |
-| **Edit annotations** | Draw human annotations; correct or remove an AI ROI when needed. |
+| **Clinician Review** | Select and record the final DR grade. |
+| **Annotation Editor** | Add human annotations or confirm, correct, or remove an AI ROI when needed. |
 | **Datasets** | Check DR-ready and Lesion-ready status and export the manifest. |
 | **Models & Audit** | Read model, inference, hash, and annotation provenance. |
 | **Settings** | Select a Workspace, set the default reviewer, and manage hints. |

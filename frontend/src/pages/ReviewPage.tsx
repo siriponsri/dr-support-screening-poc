@@ -33,7 +33,7 @@ import {
   type LesionLabel,
   type ModelDescriptor,
 } from '@/lib/api';
-import { ArrowLeft, Pencil, Play, UserRound } from '@/lib/icons';
+import { ArrowLeft, Play, UserRound } from '@/lib/icons';
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : 'The request could not be completed.';
@@ -181,7 +181,8 @@ function patientEyeContext(item: CaseRecord) {
 }
 
 export function ReviewPage() {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const navigate = useNavigate();
   const { imageId } = useParams<{ imageId: string }>();
   const [item, setItem] = useState<CaseRecord | null>(null);
@@ -290,6 +291,9 @@ export function ReviewPage() {
         subtitle={`${item.display_name} - optional model evidence for clinician inspection`}
         actions={<Button as={Link} to="/worklist" leftIcon={<ArrowLeft size={15} />}>Back to Worklist</Button>}
       />
+      {Boolean((location.state as { caseComplete?: boolean } | null)?.caseComplete) && (
+        <Alert status="success" mb={4}><AlertIcon /><Text><strong>Case complete.</strong> The next Worklist image is ready for review.</Text></Alert>
+      )}
       <HStack mb={5} spacing={2} aria-label="Patient and eye context">
         <Text fontSize="xs" color="text.secondary" textTransform="uppercase" letterSpacing="0.04em">Patient/Eye</Text>
         <Text fontSize="sm" fontWeight="semibold">{patientEyeContext(item)}</Text>
@@ -365,7 +369,6 @@ export function ReviewPage() {
           <Section title="Lesion suggestions"><LesionSuggestions item={item} /></Section>
           <HStack spacing={2} flexWrap="wrap">
             <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid">Continue to clinician review</Button>
-            <Button as={Link} to={`/edit/${encodeURIComponent(item.image_id)}`} leftIcon={<Pencil size={15} />} variant="outline">Edit annotations</Button>
           </HStack>
         </Stack>
       </Grid>

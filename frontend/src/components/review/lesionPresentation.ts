@@ -41,8 +41,12 @@ export function displayedLesions(item: CaseRecord): DisplayedLesion[] {
     const correctedLabel = isLabel(entry?.corrected_label) && entry.corrected_label !== lesion.canonical_label
       ? entry.corrected_label
       : null;
+    const correctedRectangle = entry?.corrected_rectangle?.length === 4
+      ? entry.corrected_rectangle as [number, number, number, number]
+      : null;
     return [{
       ...lesion,
+      rectangle: correctedRectangle ?? lesion.rectangle,
       canonical_label: correctedLabel ?? lesion.canonical_label,
       source_label: correctedLabel ? sourceLabel(correctedLabel) : lesion.source_label,
       displayScore: correctedLabel ? null : lesion.score,

@@ -1,3 +1,5 @@
+<!-- canonical-topic: clinician-workflow -->
+
 # Quick Start {#sec-quick-start}
 
 Retinal Review Workbench takes one admitted retinal image through a controlled review and turns the clinician's decisions into a traceable dataset record. Use this page as the everyday checklist; the following chapters explain each step.
@@ -9,7 +11,7 @@ Retinal Review Workbench takes one admitted retinal image through a controlled r
 3. **Review** -- inspect the retinal image. Choose **Analyze** only when optional model assistance is useful and available.
 4. **Optional AI** -- read the RETFound grade suggestion and toggle the PRISM lesion overlays with **Show AI suggestions**.
 5. **Clinician Review** -- select the **Final DR grade** and choose **Confirm DR Grade**.
-6. **Edit annotations** -- only when a human annotation, or a correction or removal of an AI ROI, is needed.
+6. **Annotation Editor** -- only when a human annotation, or a correction or removal of an AI ROI, is needed.
 7. **Confirm Annotation** -- confirm the active annotation set after reviewing it.
 8. **Datasets** -- check **DR-ready** and **Lesion-ready** separately, then export or move to the next case.
 

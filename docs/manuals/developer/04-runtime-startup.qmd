@@ -14,12 +14,25 @@
 
 `dr_support.api:app` is a separate legacy entry point used by the root UI smoke test (`tests/ui.test.cjs`). It does **not** apply the profile invariants and it includes the synthetic fixture and the public samples.
 
-## Workstation startup (`START.cmd`)
+## Workstation startup (`SETUP.cmd` -> `START.cmd`)
 
-1. Create `.venv` with Python 3.12 (Windows `py` launcher, or `uv` as fallback) and install `-e .`.
-2. If `frontend/dist/index.html` is missing: `npm ci` (first run only), then `npm run build` in `frontend/`.
-3. Set `APP_PROFILE=review` and `MODEL_RUNTIME=remote`, then run `python -m dr_support.run`, which serves `127.0.0.1:8000` by default.
-4. At startup, `WorkspaceManager` opens the catalog (`DR_SUPPORT_WORKSPACE_CATALOG`, default `local-state/bridge/workspaces.sqlite`). It then opens the active Workspace's review DB, or the fallback DB (`DR_SUPPORT_STATE`, default `local-state/bridge/reviews.sqlite`), and scans the active input folder once.
+`SETUP.cmd` is the one-time provisioning owner. It bootstraps per-user `uv`
+when needed, installs the supported Python 3.12 toolchain, runs `uv sync`,
+selects system Node.js or the ignored no-admin fallback, installs the root and
+frontend lockfiles, and builds `frontend/dist/`.
+
+`START.cmd` is the daily runtime owner. It requires the project environment and
+frontend dependencies to already exist, reuses them, and rebuilds only when the
+tracked frontend source or lockfile signature is stale. It never reinstalls
+dependencies. It sets `APP_PROFILE=review` and `MODEL_RUNTIME=remote`, then runs
+`python -m dr_support.run` on `127.0.0.1:8000`. `OPEN_APP.cmd` opens the app or
+delegates to `START.cmd`; `STOP.cmd` stops only the recorded repository process.
+
+At startup, `WorkspaceManager` opens the catalog
+(`DR_SUPPORT_WORKSPACE_CATALOG`, default `local-state/bridge/workspaces.sqlite`).
+It then opens the active Workspace's review DB, or the fallback DB
+(`DR_SUPPORT_STATE`, default `local-state/bridge/reviews.sqlite`), and scans the
+active input folder once.
 
 `REMOTE_MODEL_URL` and the optional `REMOTE_MODEL_TOKEN` come from the process environment. The connection can also be tested and saved at runtime through **Settings → Model connection** (`/v1/model-connection*`). The token is held in process memory only and is never returned by the API.
 

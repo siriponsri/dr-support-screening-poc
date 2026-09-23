@@ -17,6 +17,8 @@ def test_start_cmd_is_the_single_owner_launcher():
     assert '$env:WORKERS = "1"' in common
     assert 'http://127.0.0.1:8000/app/' in worker
     assert 'Start-Process' in worker
+    assert 'Ensure-FrontendBuild -AllowInstall' not in worker
+    assert 'Ensure-FrontendBuild | Out-Null' in worker
     assert 'DR_DEMO_FOLDER' not in launcher
     assert 'IMG_01.jpg' not in launcher
     assert 'IMG_02.jpg' not in launcher
@@ -24,3 +26,4 @@ def test_start_cmd_is_the_single_owner_launcher():
     assert not (ROOT / 'START_DEMO.cmd').exists()
     assert (ROOT / 'OPEN_APP.cmd').exists()
     assert (ROOT / 'STOP.cmd').exists()
+    assert (ROOT / 'SETUP.cmd').exists()

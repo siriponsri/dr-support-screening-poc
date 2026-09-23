@@ -16,13 +16,14 @@ Use this checklist to take over ownership of Retinal Review Workbench. It points
 ## 2. Reproduce locally (first day)
 
 ```powershell
-py -3.12 -m venv .venv
-.venv\Scripts\python.exe -m pip install -e ".[test,dicom]"
+uv python install 3.12
+uv venv --python 3.12 .venv
+uv sync --python 3.12 --extra test --extra dicom
 npm ci
 cd frontend; npm ci; npm test; npm run typecheck; npm run build; cd ..
-.venv\Scripts\python.exe -m pytest -q
-.venv\Scripts\python.exe -m ruff check dr_support tests
-.venv\Scripts\python.exe -m dr_support.fetch_samples   # needed by the root UI smoke test
+uv run pytest -q
+uv run ruff check dr_support tests
+uv run python -m dr_support.fetch_samples   # needed by the root UI smoke test
 npm test
 ```
 
@@ -66,7 +67,7 @@ Baseline on `main` `ec74af8` (2026-09-23):
 - The Workbench stores no source `Refer`/`Not-refer` class and no sex. How the team links them to images is an **open owner decision** (IMG-SAMP-013).
 - Screenshot capture tooling was removed from `main` in `ec74af8`. The manual screenshots are committed assets.
 - The root UI smoke test (`tests/ui.test.cjs`) is Windows-path specific and depends on the public samples.
-- There is no near-duplicate detection and no automatic dataset split (by design).
+- Docs QA checks canonical topic ownership and semantic duplicate source pairs; there is no automatic dataset split (by design).
 - `CHANGELOG.md` was removed in `ec74af8`. Record releases in commit messages or restore a changelog if the owner wants one.
 
 ## 6. Where things are generated
