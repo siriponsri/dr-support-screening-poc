@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Offline technical briefing for developers, technical lead, and hospital IT: Retinal Review Workbench v0.7.0.">
+<title>Retinal Review Workbench — Technical Briefing</title>
+<!-- BUILD:SOURCE -->
+<!--
+  Source for docs/demo/TECHNICAL_BRIEFING.html. Build with: python scripts/docs/build_docs.py briefing
+  Diagrams are the rendered docs/architecture/*.mmd sources (single source of truth); rebuild them with
+  build_docs.py diagrams. Facts come from the Developer Technical Guide (docs/developer-manual/).
+  Narration: docs/demo/TECHNICAL_PRESENTATION_SCRIPT_TH.md (one [กด Space] per reveal).
+  Audience: developers, technical lead, hospital IT. This deck may show the full team sampling matrix.
+-->
+<link rel="stylesheet" href="presenter.css">
+<style>
+  .dg { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; overflow: hidden; }
+  .dg img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 26px; }
+  .col h3 { font-size: 22px; margin-bottom: 10px; }
+  .col ul { margin: 0; padding-left: 20px; font-size: 18px; line-height: 1.5; color: var(--muted); }
+  .col ul b { color: var(--ink); }
+  table.t { width: 100%; border-collapse: collapse; font-size: 16px; }
+  table.t th { text-align: left; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+    border-bottom: 2px solid var(--line-2); padding: 8px 10px; }
+  table.t td { border-bottom: 1px solid var(--line); padding: 8px 10px; vertical-align: top; }
+  table.t td code, .mono { font-family: var(--mono); font-size: 14px; color: var(--green); }
+  table.t td.n { text-align: right; font-family: var(--mono); color: var(--muted); }
+  .lv { display: inline-block; font-family: var(--mono); font-size: 13px; font-weight: 700; padding: 2px 7px; border-radius: 5px; margin-right: 6px; }
+  .lv.sw { background: var(--green); color: #fff; } .lv.own { background: var(--info); color: #fff; }
+  .lv.tgt { background: var(--amber-soft); color: var(--amber); border: 1px solid #E7D19A; }
+  .lv.ext { background: var(--subtle); color: var(--muted); border: 1px solid var(--line-2); }
+  .lv.open { background: var(--soil-soft); color: var(--soil); border: 1px solid #E2BFB5; }
+  .note { font-size: 17px; color: var(--muted); line-height: 1.45; }
+  .note b { color: var(--ink); }
+  .cmd { margin-top: 10px; background: #0F1712; color: #D9F0DC; font-family: var(--mono); font-size: 15px; border-radius: 10px; padding: 14px 16px; line-height: 1.6; }
+  #b1 { padding: 0; background: var(--viewer); color: #fff; }
+  #b1 .wrap { position: absolute; left: 88px; top: 180px; right: 88px; }
+  #b1 .brand { font-size: 15px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #9FD19F; }
+  #b1 h1 { margin-top: 26px; font-size: 88px; line-height: .98; letter-spacing: -.035em; }
+  #b1 p { margin-top: 26px; font-size: 25px; color: rgba(255,255,255,.8); max-width: 1100px; }
+  #b1 .aud { position: absolute; left: 88px; bottom: 64px; font-size: 15px; color: rgba(255,255,255,.65); }
+</style>
+</head>
+<body data-deck="Technical Briefing">
+<div id="viewport">
+<main id="stage" aria-roledescription="presentation" aria-label="Retinal Review Workbench technical briefing">
+
+  <section class="scene" id="b1" data-title="Technical briefing" data-steps="0" data-dark="true">
+    <div class="wrap">
+      <div class="brand">Retinal Review Workbench 0.7.0 · Technical briefing</div>
+      <h1>How it is built,<br>and where to change it</h1>
+      <p>Architecture, image intake boundary, implementation map, and handoff. Verified against <span class="mono" style="color:#9FD19F">main @ ec74af8</span>.</p>
+    </div>
+    <p class="aud">Audience: developers · technical lead · hospital IT</p>
+  </section>
+
+  <section class="scene" id="b2" data-title="System overview" data-steps="2">
+    <div class="kicker"><span class="no">02</span><span class="bar"></span>System overview</div>
+    <h2>One code base, <em>three runtime profiles</em>.</h2>
+    <div class="two">
+      <div class="col" data-step="1"><h3>What it is</h3><ul>
+        <li><b>Clinician-controlled</b> review and dataset workstation</li>
+        <li>Three human milestones: Confirm Image, Confirm DR Grade, Confirm Annotation</li>
+        <li>Optional model evidence: RETFound grade, PRISM-DR lesion ROIs</li>
+        <li>Provenance-preserving export: <span class="mono">s4.dataset-manifest.v2</span></li>
+        <li><b>Not</b> diagnosis, referral, or a regulated device</li></ul></div>
+      <div class="col" data-step="2"><table class="t">
+        <tr><th>APP_PROFILE</th><th>MODEL_RUNTIME</th><th>Role</th></tr>
+        <tr><td><code>review</code></td><td><code>remote</code></td><td>Workstation: UI, Review API, no weights</td></tr>
+        <tr><td><code>model_api</code></td><td><code>local</code></td><td>GPU host: /health, /v1/models, /v1/predict/*</td></tr>
+        <tr><td><code>full</code></td><td><code>local</code></td><td>Local demos only</td></tr></table>
+        <p class="note" style="margin-top:14px">Invalid combinations fail at startup (<span class="mono">dr_support/app.py</span>).</p></div>
+    </div>
+    <p class="src">Developer Technical Guide ch. 2, 5 · ADR-0002</p>
+  </section>
+
+  <section class="scene" id="b3" data-title="Image intake and sampling" data-steps="3">
+    <div class="kicker"><span class="no">03</span><span class="bar"></span>Image intake and sampling</div>
+    <h2>Humans select. <em>The team monitors.</em> The software admits.</h2>
+    <div style="display:grid;grid-template-columns:330px 1fr;gap:34px;margin-top:20px">
+      <div class="dg" style="height:560px" data-step="1"><img src="../../architecture/rendered/03-image-staging-boundary.png" alt="Image ownership and staging boundary diagram"></div>
+      <div>
+        <div data-step="2" style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+          <table class="t"><tr><th>Sex</th><th>Refer</th><th>Not-refer</th><th>Total</th></tr>
+            <tr><td>Male</td><td class="n">n</td><td class="n">n</td><td class="n">n</td></tr>
+            <tr><td>Female</td><td class="n">n</td><td class="n">n</td><td class="n">n</td></tr>
+            <tr><td>Unknown</td><td class="n">n</td><td class="n">n</td><td class="n">n</td></tr></table>
+          <table class="t"><tr><th>Eye (confirmed)</th><th>Refer</th><th>Not-refer</th><th>Total</th></tr>
+            <tr><td>Left</td><td class="n">n</td><td class="n">n</td><td class="n">n</td></tr>
+            <tr><td>Right</td><td class="n">n</td><td class="n">n</td><td class="n">n</td></tr>
+            <tr><td>Unknown</td><td class="n">n</td><td class="n">n</td><td class="n">n</td></tr></table>
+        </div>
+        <p class="note" data-step="2" style="margin-top:12px">Team monitoring summaries. Planning band: <b>40–60 % Refer</b> for the POC batch; <b>not prevalence</b>, not a powered sample size. Flags: known sex or eye below 30 %; more than 4 images per patient.</p>
+        <div data-step="3" style="margin-top:18px;display:grid;gap:10px">
+          <div class="note"><span class="lv sw">SW</span><b>No Refer/Not-refer or sex field exists in the Workbench.</b> Laterality comes from Confirm Image (<span class="mono">method MANUAL</span>); SHA-256 detects duplicates.</div>
+          <div class="note"><span class="lv own">OWN</span>No storage browsing by the team; clinicians do not manage quotas.</div>
+          <div class="note"><span class="lv tgt">TGT</span>Balanced collection band, soft flags, stopping rule.</div>
+          <div class="note"><span class="lv open">OPEN</span>How source class is linked to images (one Workspace per class / hospital list / batch log).</div>
+        </div>
+      </div>
+    </div>
+    <p class="src">Team Image Sampling Requirements · IMG-SAMP-001, 010, 013, 020, 031, 032, 040, 041, 043, 052, 060, 090 · ADR-0006</p>
+  </section>
+
+  <section class="scene" id="b4" data-title="C4 System Context" data-steps="1">
+    <div class="kicker"><span class="no">04</span><span class="bar"></span>C4 · System Context</div>
+    <h2>Who and what the Workbench <em>talks to</em>.</h2>
+    <div class="dg" style="height:600px;margin-top:22px" data-step="1"><img src="../../architecture/rendered/01-system-context.png" alt="C4 system context diagram"></div>
+    <p class="src">docs/architecture/01-system-context.mmd</p>
+  </section>
+
+  <section class="scene" id="b5" data-title="C4 Containers" data-steps="1">
+    <div class="kicker"><span class="no">05</span><span class="bar"></span>C4 · Containers</div>
+    <h2>Workstation containers and the <em>GPU Model API</em>.</h2>
+    <div class="dg" style="height:600px;margin-top:22px" data-step="1"><img src="../../architecture/rendered/02-container.png" alt="C4 container diagram"></div>
+    <p class="src">docs/architecture/02-container.mmd</p>
+  </section>
+
+  <section class="scene" id="b6" data-title="Technology stack" data-steps="2">
+    <div class="kicker"><span class="no">06</span><span class="bar"></span>Technology stack</div>
+    <h2>Pinned and <em>verified</em> versions.</h2>
+    <div class="two">
+      <div data-step="1"><table class="t">
+        <tr><th>Backend</th><th>Version</th></tr>
+        <tr><td>Python</td><td><code>&gt;=3.11,&lt;3.13</code></td></tr>
+        <tr><td>FastAPI · Uvicorn · Pydantic</td><td><code>0.141.1 · 0.53.0 · 2.13.5</code></td></tr>
+        <tr><td>httpx · Pillow · pydicom</td><td><code>0.28.1 · 12.3.0 · 3.0.1</code></td></tr>
+        <tr><td>torch · timm · ultralytics (GPU host)</td><td><code>2.5.1 · 0.9.2 · 8.4.8</code></td></tr>
+        <tr><td>pytest · ruff</td><td><code>8.4.2 · 0.13.0</code></td></tr>
+        <tr><td>Storage</td><td>SQLite (JSON case docs)</td></tr></table></div>
+      <div data-step="2"><table class="t">
+        <tr><th>Frontend and docs</th><th>Version</th></tr>
+        <tr><td>React · Router</td><td><code>18.3.1 · 6.30.6</code></td></tr>
+        <tr><td>Chakra UI · lucide-react</td><td><code>2.10.10 · 0.460.0</code></td></tr>
+        <tr><td>Vite · TypeScript (strict)</td><td><code>5.4.21 · 5.9.3</code></td></tr>
+        <tr><td>Vitest · jsdom</td><td><code>2.1.9 · 25.0.1</code></td></tr>
+        <tr><td>Docs</td><td>Quarto + XeLaTeX · Mermaid · Playwright</td></tr>
+        <tr><td>Models</td><td><code>retfound-aptos5 · prism-dr-5fold</code></td></tr></table></div>
+    </div>
+    <p class="src">pyproject.toml · frontend/package-lock.json · Developer Technical Guide ch. 4</p>
+  </section>
+
+  <section class="scene" id="b7" data-title="Feature to implementation" data-steps="2">
+    <div class="kicker"><span class="no">07</span><span class="bar"></span>Feature → implementation</div>
+    <h2>Where to start <em>for each feature</em>.</h2>
+    <table class="t" style="margin-top:22px">
+      <tr><th>Feature</th><th>Backend</th><th>Frontend</th><th>Protected</th></tr>
+      <tr data-step="1"><td>Admission · resolver</td><td><code>services/admission.py · resolver.py</code></td><td><code>components/worklist/*</code></td><td>Yes</td></tr>
+      <tr data-step="1"><td>Confirm Image</td><td><code>workflow.py confirm_image</code></td><td><code>ConfirmImageDialog.tsx</code></td><td>Yes</td></tr>
+      <tr data-step="1"><td>Review · overlays</td><td><code>imaging/derivatives.py · presentation.py</code></td><td><code>ReviewPage.tsx · RetinalCanvas.tsx</code></td><td>Yes</td></tr>
+      <tr data-step="1"><td>RETFound · PRISM-DR</td><td><code>providers/remote.py · services/model_api.py</code></td><td><code>ReviewPage.tsx</code></td><td>Yes</td></tr>
+      <tr data-step="2"><td>Confirm DR Grade</td><td><code>workflow.py review</code></td><td><code>ClinicianReviewPage.tsx</code></td><td>Yes</td></tr>
+      <tr data-step="2"><td>Annotations · AI ROI</td><td><code>workflow.py save_human_annotations · lesion_review</code></td><td><code>AnnotationEditorPage.tsx · LesionActionPopover.tsx</code></td><td>Yes</td></tr>
+      <tr data-step="2"><td>Readiness · export</td><td><code>services/dataset.py</code></td><td><code>DatasetsPage.tsx</code></td><td>Yes (schema)</td></tr>
+      <tr data-step="2"><td>Autosave · Save &amp; Next · reviewer default</td><td>none</td><td><code>AnnotationEditorPage.tsx · CaseNavigation.tsx · reviewerPreference.ts</code></td><td>No</td></tr>
+    </table>
+    <p class="src">docs/technical/FEATURE_IMPLEMENTATION_MAP.md · WHERE_TO_CHANGE_WHAT.md</p>
+  </section>
+
+  <section class="scene" id="b8" data-title="Admission" data-steps="2">
+    <div class="kicker"><span class="no">08</span><span class="bar"></span>Admission (dynamic view)</div>
+    <h2>Conservative admission, <em>confirmed by a human</em>.</h2>
+    <div class="dg" style="height:430px;margin-top:18px" data-step="1"><img src="../../architecture/rendered/04-image-admission-flow.png" alt="Admission sequence diagram"></div>
+    <div class="two" style="margin-top:16px" data-step="2">
+      <p class="note"><b>Top-level scan only;</b> ancillary files skipped; SHA-256 identity; byte-identical files merge into one case with aliases; manual decisions preserved on re-scan.</p>
+      <p class="note"><b>Four weak fundus signals</b> needed for automatic acceptance; otherwise <span class="mono">NEEDS_REVIEW</span>. Non-fundus DICOM → <span class="mono">Unsupported modality</span>. Confirm Image sets laterality with method <span class="mono">MANUAL</span>.</p>
+    </div>
+    <p class="src">Developer Technical Guide ch. 6 · docs/architecture/04-image-admission-flow.mmd</p>
+  </section>
+
+  <section class="scene" id="b9" data-title="Inference" data-steps="2">
+    <div class="kicker"><span class="no">09</span><span class="bar"></span>Remote inference (dynamic view)</div>
+    <h2>Analysis derivative in, <em>provenance</em> out.</h2>
+    <div class="dg" style="height:400px;margin-top:18px" data-step="1"><img src="../../architecture/rendered/05-remote-inference-flow.png" alt="Remote inference sequence diagram"></div>
+    <table class="t" style="margin-top:16px" data-step="2">
+      <tr><th>Identity</th><th>Hashes</th><th>Recorded in</th></tr>
+      <tr><td><b>Source SHA-256</b></td><td>original admitted bytes · case identity</td><td><code>images.csv image_sha256</code>, admission, audit</td></tr>
+      <tr><td><b>Analysis SHA-256</b></td><td>bytes sent to the model (TIFF/DICOM converted)</td><td><code>analysis_derivative</code>, INFERENCE event</td></tr>
+    </table>
+    <p class="src">Developer Technical Guide ch. 7 · ADR-0003</p>
+  </section>
+
+  <section class="scene" id="b10" data-title="Provenance and export" data-steps="2">
+    <div class="kicker"><span class="no">10</span><span class="bar"></span>Provenance and export</div>
+    <h2>Two readiness states, <em>one traceable export</em>.</h2>
+    <div class="dg" style="height:230px;margin-top:22px" data-step="1"><img src="../../architecture/rendered/06-dataset-provenance-flow.png" alt="Dataset provenance flow"></div>
+    <div class="two" data-step="2">
+      <div class="col"><h3>DR-ready</h3><ul><li>provenance · included · fundus accepted · quality OK</li><li>image confirmed</li><li>final grade <span class="mono">AI_ACCEPTED / AI_CORRECTED / MANUAL</span> + reviewer + time</li></ul></div>
+      <div class="col"><h3>Lesion-ready</h3><ul><li>same base rules</li><li>Confirm Annotation hash equals active-set hash</li><li>export: <span class="mono">manifest.json · images.csv · annotations.csv</span>; no automatic split</li></ul></div>
+    </div>
+    <p class="src">Developer Technical Guide ch. 9 · docs/DATASET_MANIFEST.md · ADR-0005</p>
+  </section>
+
+  <section class="scene" id="b11" data-title="Deployment and security" data-steps="2">
+    <div class="kicker"><span class="no">11</span><span class="bar"></span>Deployment and security</div>
+    <h2>Protected LAN, <em>offline after setup</em>.</h2>
+    <div class="dg" style="height:380px;margin-top:18px" data-step="1"><img src="../../architecture/rendered/07-deployment-topology.png" alt="Deployment topology diagram"></div>
+    <div class="two" style="margin-top:14px" data-step="2">
+      <p class="note"><b>GPU host:</b> <span class="mono">setup.sh</span> once (online) → <span class="mono">start.sh</span> verifies assets, never downloads, fails closed · port 7860 · 1 worker · optional Bearer token (constant-time check).</p>
+      <p class="note"><b>Workstation:</b> 127.0.0.1:8000 · same-origin mutations only · secrets never in the browser · no absolute paths in exports · no authentication yet (reviewer self-declared).</p>
+    </div>
+    <p class="src">Developer Technical Guide ch. 12 · Deployment &amp; Operations Manual</p>
+  </section>
+
+  <section class="scene" id="b12" data-title="Handoff" data-steps="1">
+    <div class="kicker"><span class="no">12</span><span class="bar"></span>Handoff</div>
+    <h2>Read, reproduce, <em>then change</em>.</h2>
+    <div class="two" data-step="1">
+      <div class="col"><h3>Read first</h3><ul>
+        <li><b>AGENTS.md</b>: branches, protected areas</li><li><b>DEVELOPER_HANDOFF.md</b>: ownership checklist</li>
+        <li><b>Developer Technical Guide</b>: internals</li><li><b>FEATURE_IMPLEMENTATION_MAP</b> · <b>WHERE_TO_CHANGE_WHAT</b></li>
+        <li><b>docs/adr/</b>: seven decisions</li></ul></div>
+      <div class="col"><h3>Reproduce</h3>
+        <div class="cmd">pytest -q · ruff check dr_support tests<br>cd frontend · npm test · npm run typecheck · npm run build<br>python scripts/docs/build_docs.py all<br>python scripts/docs/check_docs.py</div>
+        <p class="note" style="margin-top:12px">Open owner decisions: sampling N and band, source-class linking, thresholds, counting of ungradable images.</p></div>
+    </div>
+    <p class="src">docs/DEVELOPER_HANDOFF.md</p>
+  </section>
+
+  <button class="nav prev" type="button" aria-label="Previous step"></button>
+  <button class="nav next" type="button" aria-label="Next step"></button>
+  <div id="help">← → / Space · Home / End · F fullscreen</div>
+  <div id="chrome"><span class="title visually-hidden" aria-live="polite"></span><span class="dots"></span><span class="count"></span></div>
+  <div id="progress"></div>
+</main>
+</div>
+<script src="presenter.js"></script>
+</body>
+</html>

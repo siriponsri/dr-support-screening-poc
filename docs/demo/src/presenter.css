@@ -1,0 +1,117 @@
+/* Shared presenter styles for RETINAL_REVIEW_DEMO and TECHNICAL_BRIEFING.
+   Inlined into the published HTML by scripts/docs/build_docs.py.
+   Colours follow DESIGN.md (brand.medicineGreen, neutral canvas, semantic status). */
+:root {
+  --green: #016301; --green-hover: #004D00; --green-soft: #E8F3E8; --green-line: #B9D6B9;
+  --soil: #A73B24; --soil-soft: #F5E9E5;
+  --info: #245B9E; --info-soft: #EAF2FB;
+  --amber: #9A6700; --amber-soft: #FBF2D9;
+  --ink: #172018; --muted: #52605A; --soft: #75817B;
+  --canvas: #F7F9F7; --panel: #FFFFFF; --subtle: #F1F4F1; --line: #D8DFD9; --line-2: #BFCABF;
+  --viewer: #0D1110;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --t: .5s;
+  --font: "Inter", "Segoe UI", "Noto Sans Thai", "Leelawadee UI", "Helvetica Neue", Arial, sans-serif;
+  --mono: "Cascadia Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0B0E0C; overflow: hidden; }
+body { font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; }
+h1, h2, h3, p { margin: 0; }
+button { font: inherit; }
+
+/* Fixed 1600x900 stage scaled to the window: always 16:9, never scrolls. */
+#viewport { position: fixed; inset: 0; overflow: hidden; }
+#stage { position: absolute; left: 50%; top: 50%; width: 1600px; height: 900px; overflow: hidden;
+  background: var(--canvas); transform-origin: center center; transform: translate(-50%, -50%); }
+.scene { position: absolute; inset: 0; padding: 64px 88px 84px; opacity: 0; visibility: hidden;
+  transition: opacity .4s var(--ease), visibility 0s linear .4s; }
+.scene.active { opacity: 1; visibility: visible; transition: opacity .4s var(--ease); }
+
+/* Scene chrome. */
+.kicker { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; font-size: 15px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--green); }
+.kicker .no { font-family: var(--mono); letter-spacing: 0; color: var(--ink); }
+.kicker .bar { width: 40px; height: 3px; background: var(--green); }
+h2 { font-size: 50px; line-height: 1.06; letter-spacing: -.025em; font-weight: 800; max-width: 1180px; }
+h2 em { font-style: normal; color: var(--green); }
+.lede { margin-top: 14px; font-size: 21px; line-height: 1.45; color: var(--muted); max-width: 980px; }
+.mono { font-family: var(--mono); }
+.src { position: absolute; left: 88px; bottom: 40px; font-size: 13px; color: var(--soft); }
+
+/* Progressive reveal: [data-step=n] shows at step n; [data-until=m] leaves after step m. */
+[data-step] { opacity: 0; transform: translateY(12px); transition: opacity var(--t) var(--ease), transform var(--t) var(--ease); }
+[data-step].on { opacity: 1; transform: none; }
+[data-step].on.gone, .gone { opacity: 0 !important; pointer-events: none; }
+.dimmed { opacity: .28 !important; filter: saturate(.4); transition: opacity var(--t) var(--ease), filter var(--t) var(--ease); }
+[data-step].fade { transform: none; }
+
+/* Screenshot frame (object-fit contain, never distorted). */
+.shot { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+  box-shadow: 0 16px 44px rgba(23, 32, 24, .12); }
+.frame > img, .shot > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.shot .chrome { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 14px; background: var(--subtle);
+  border-bottom: 1px solid var(--line); }
+.shot .chrome i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-2); }
+.shot .chrome span { margin-left: 10px; font-family: var(--mono); font-size: 12px; color: var(--soft); }
+.zoomable { position: relative; overflow: hidden; }
+.zoomable > .zin { position: absolute; inset: 0; transform-origin: 0 0; transition: transform .8s var(--ease); }
+.zoomable > .zin > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+/* Focus ring + spotlight over a screenshot region (percent coordinates). */
+.focus { position: absolute; border: 3px solid var(--green); border-radius: 10px; box-shadow: 0 0 0 9999px rgba(13, 17, 16, .45);
+  pointer-events: none; }
+.focus.ring { border-color: #FFD24A; border-radius: 50%; box-shadow: 0 0 0 4px rgba(255, 210, 74, .35); }
+.focus.soft { box-shadow: none; }
+.tag { position: absolute; background: var(--green); color: #fff; font-size: 15px; font-weight: 700; padding: 7px 12px;
+  border-radius: 8px; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+.tag.info { background: var(--info); } .tag.amber { background: var(--amber); } .tag.soil { background: var(--soil); }
+
+/* Popover card that slides in over a screenshot. */
+.pop { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(13, 17, 16, .28); overflow: hidden; }
+.pop > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+[data-step].pop { transform: translateX(28px) scale(.98); }
+[data-step].pop.on { transform: none; }
+
+/* Connector lines that draw themselves. */
+svg.wire { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+svg.wire path, svg.wire line { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; }
+svg.wire .draw { stroke-dasharray: 1400; stroke-dashoffset: 1400; transition: stroke-dashoffset 1s var(--ease); opacity: 1; transform: none; }
+svg.wire .draw.on { stroke-dashoffset: 0; }
+svg.wire .dash { stroke-dasharray: 6 7; stroke: var(--line-2); }
+
+/* Chips and cards. */
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 99px; font-size: 15px; font-weight: 700;
+  background: var(--green-soft); color: var(--green); border: 1px solid var(--green-line); }
+.chip.info { background: var(--info-soft); color: var(--info); border-color: #C5D8EF; }
+.chip.amber { background: var(--amber-soft); color: var(--amber); border-color: #E7D19A; }
+.chip.soil { background: var(--soil-soft); color: var(--soil); border-color: #E2BFB5; }
+.chip.solid { background: var(--green); color: #fff; border-color: var(--green); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+
+/* Presenter chrome. */
+#chrome { position: absolute; left: 88px; right: 88px; bottom: 22px; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--soft); pointer-events: none; z-index: 5; }
+#chrome .dots { display: flex; gap: 6px; }
+#chrome .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); }
+#chrome .dots i.on { background: var(--green); }
+#chrome .count { position: absolute; right: 0; font-family: var(--mono); }
+#stage.dark #chrome { color: rgba(255,255,255,.7); }
+#stage.dark #chrome .dots i { background: rgba(255,255,255,.35); }
+#stage.dark #chrome .dots i.on { background: #fff; }
+#progress { position: absolute; left: 0; bottom: 0; height: 4px; background: var(--green); transition: width .4s var(--ease); z-index: 6; }
+#stage.dark #progress { background: #fff; }
+.nav { position: absolute; top: 0; bottom: 0; width: 10%; z-index: 4; background: transparent; border: 0; cursor: pointer; }
+.nav.prev { left: 0; } .nav.next { right: 0; }
+.nav:focus-visible { outline: 3px solid var(--green); outline-offset: -6px; }
+#help { position: absolute; right: 88px; top: 24px; font-size: 13px; color: var(--soft); z-index: 5; transition: opacity .6s; }
+#stage.dark #help { color: rgba(255,255,255,.7); }
+#help.hide { opacity: 0; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
+  [data-step], [data-step].pop { transform: none !important; }
+  .zoomable > .zin { transition: none !important; }
+}
