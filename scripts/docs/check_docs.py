@@ -42,6 +42,10 @@ PDF_NAMES = {
     "DEVELOPER_TECHNICAL_GUIDE.pdf",
     "IMAGE_SAMPLING_REQUIREMENTS.pdf",
 }
+# Owner-provided source material stays at the repository root and is never a
+# published artifact. Keep this allowlist exact so other PDFs cannot drift out
+# of docs/pdfs unnoticed.
+LOCAL_SOURCE_PDFS = {ROOT / "ICOGuidelinesforDiabeticEyeCare.pdf"}
 TEMPORARY = {
     "CLINICIAN_UI_FLOW_REDESIGN_PATCH.md",
     "FULL_HYPERFRAMES_OPHTHALMOLOGIST_PRESENTATION_PATCH.md",
@@ -147,6 +151,8 @@ def check_artifacts() -> list[str]:
     errors: list[str] = []
     all_pdfs = list(ROOT.rglob("*.pdf"))
     for pdf in all_pdfs:
+        if pdf in LOCAL_SOURCE_PDFS:
+            continue
         if ROOT / "dist" in pdf.parents:
             continue
         if pdf.parent != DOCS / "pdfs":
