@@ -263,7 +263,7 @@ export function ReviewPage() {
     return (
       <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
         <PageHeader pathname={pathname} title="Review" />
-        <Section title="Select an admitted case" description="Choose an image from the Worklist to open AI review." action={<Button as={Link} to="/worklist">Open Worklist</Button>}>
+        <Section title="Select an admitted case" description="Choose an image from the Worklist to open Review." action={<Button as={Link} to="/worklist">Open Worklist</Button>}>
           <Text color="text.secondary">No image was selected.</Text>
         </Section>
       </Box>

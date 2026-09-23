@@ -91,7 +91,7 @@ def admitted_demo_images(folder):
 
 def admitted_samples(root):
     import json
-    manifest_path = root / 'docs/SAMPLE_MANIFEST.json'
+    manifest_path = root / 'docs/SAMPLE_SOURCE_MANIFEST.json'
     if not manifest_path.exists():
         return {}
     registry = {}

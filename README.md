@@ -1,5 +1,7 @@
 # Retinal Review Workbench
 
+Software version: **0.7.0**
+
 <p align="center"><img src="assets/dr-support-logo.svg" width="104" alt="Retinal Review Workbench logo"></p>
 
 Retinal Review Workbench is a clinician-controlled retinal screening review and dataset workspace. It admits retinal images, resolves patient and eye context, keeps the original source and derived analysis traceable, and supports optional model evidence before human review and export.
@@ -19,6 +21,8 @@ It is a public/synthetic research and clinical-support proof of concept. It is n
 7. Inspect Models & Audit for read-only model, inference, hash, and annotation provenance, then review the separate DR-ready and Lesion-ready states in Datasets before export.
 
 ![Clinician workflow](assets/clinician-workflow.png)
+
+The legacy `/ui/` surface remains mounted for compatibility with existing local integrations. Normal users should open `/app/`.
 
 ## Architecture
 
@@ -100,16 +104,18 @@ Once setup succeeds, the Model API uses only the verified local source checkouts
 - [Security and Privacy](docs/SECURITY_PRIVACY.md) - data, secrets, and safety boundaries.
 - [Backup and Restore](docs/BACKUP_RESTORE.md) - state, exports, and recovery.
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - actionable failure checks.
-- [Clinician User Manual source](docs/manual/index.qmd), [manual build](scripts/manual/build_manual.py), and [PDF](docs/CLINICIAN_USER_MANUAL.pdf). The Quarto HTML site is generated at `dist/manual/site/`.
+- Clinicians: [Clinician User Manual PDF](docs/CLINICIAN_USER_MANUAL.pdf), [Quarto source](docs/manual/index.qmd), and [manual build](scripts/manual/build_manual.py). The HTML site is generated at `dist/manual/site/`.
+- Hospital IT/operators: [Deployment and Operations Manual PDF](docs/DEPLOYMENT_OPERATIONS_MANUAL.pdf), [Quarto source](docs/operator-manual/index.qmd), and [operator build](scripts/operator_manual/build_manual.py). The HTML site is generated at `dist/manual/operator-site/`.
 - [Clinician workflow](docs/USER_WORKFLOW.md), [feature reference](docs/FEATURE_REFERENCE.md), and [dataset manifest](docs/DATASET_MANIFEST.md).
+- [Owner demonstration](docs/demo/RETINAL_REVIEW_DEMO.html) - offline, keyboard-navigable presentation of the clinician workflow, evidence boundaries, provenance, and deployment topology.
 - [CVAT Online setup](docs/CVAT_ONLINE_SETUP.md) - optional dense annotation only.
 - [Future Experiments](docs/FUTURE_EXPERIMENTS.md) - explicitly deferred work.
 - [Release Checklist](docs/RELEASE_CHECKLIST.md) - maintainer acceptance checks.
 
-To rebuild the manual, install Quarto and a XeLaTeX distribution, then run
-`.venv\Scripts\python.exe scripts/manual/build_manual.py` from the repository root.
-Set `QUARTO_BIN` when Quarto is not on `PATH`. The same Quarto Book source produces
-the HTML site and the PDF.
+To rebuild either manual, install released Quarto and a XeLaTeX distribution, then run
+`.venv\Scripts\python.exe scripts/manual/build_manual.py` or
+`.venv\Scripts\python.exe scripts/operator_manual/build_manual.py` from the repository root.
+Set `QUARTO_BIN` when Quarto is not on `PATH`. Each Quarto Book source produces its matching HTML site and PDF.
 
 ## Validation
 

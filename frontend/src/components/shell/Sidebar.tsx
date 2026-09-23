@@ -123,7 +123,7 @@ export function Sidebar({
               <Text fontWeight="bold" color="text.primary">
                 Public &amp; synthetic only
               </Text>
-                <Text>Research use · v0.6.0</Text>
+                <Text>Research use · v0.7.0</Text>
             </VStack>
           </HStack>
         </>

@@ -27,6 +27,7 @@
 - [ ] Models & Audit shows read-only evidence and provenance.
 - [ ] Dataset export produces the documented manifest and CSV files.
 - [ ] Quarto manual source, final UI screenshots, HTML site, and PDF were regenerated from the final UI.
+- [ ] Offline owner demonstration opens in Chromium/Edge, uses current focused screenshots, and passes keyboard/reduced-motion smoke checks.
 - [ ] Dataset export documents `s4.dataset-manifest.v2`, three confirmation states, and separate DR-ready/Lesion-ready semantics.
 
 ## Validation commands

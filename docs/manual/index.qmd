@@ -1,55 +1,34 @@
----
-title: "Retinal Review Workbench"
-subtitle: "Clinician User Manual"
-description: "Controlled operating guidance for the clinician review and dataset workstation."
----
-
-![](images/dr-support-logo.png){fig-alt="Retinal Review Workbench" width=115}
-
-This manual describes the final clinician workflow for **Retinal Review Workbench**. It is intended for clinician onboarding, hospital/internal demonstration, clinical research workflow documentation, and software audit.
-
-::: {.callout-warning title="WARNING — clinical scope"}
-This software provides model-assisted evidence for clinician review. It does not autonomously establish diagnosis, disease truth, referral, or treatment decisions. Human review remains authoritative.
-:::
-
 ## Document control
 
 | Field | Value |
 | --- | --- |
-| Document title | Retinal Review Workbench — Clinician User Manual |
+| Document title | Retinal Review Workbench - Clinician User Manual |
 | Document ID | RRW-CLIN-UM-001 |
-| Software version | 0.6.0 |
+| Software version | 0.7.0 |
 | Manual version | 1.0 |
 | Status | Controlled release documentation |
-| Date | `2026-09-23` |
+| Date | 2026-09-23 |
 | Owner | Retinal Review Workbench maintainers |
 
-### Revision history
+**Revision history**
 
 | Version | Date | Change |
 | --- | --- | --- |
-| 1.0 | 2026-09-23 | Rebuilt as a Quarto Book for the simplified clinician workflow and v2 dataset manifest. |
+| 1.0 | 2026-09-23 | Rebuilt as a concise Quarto manual for the current clinician workflow. |
 
-## Two-minute workflow
+## Quick start
 
-1. In **Worklist**, select a case and complete **Confirm Image**.
-2. In **Review**, inspect the retinal image and run optional analysis if the Model API is available.
-3. Toggle or filter PRISM overlays as needed. No per-detection confirmation is required.
-4. In **Clinician Review**, choose the final grade and select **Confirm DR Grade**.
-5. In **Edit Annotations**, make only the corrections or additions needed, then select **Confirm Annotation** when the active annotation set is reviewed.
+Use this sequence for an ordinary supported retinal image:
+
+1. In **Worklist**, select the case and choose **Confirm Image**.
+2. In **Review**, inspect the retinal image. Choose **Analyze** only when optional model assistance is useful.
+3. Use **Show AI suggestions** and the lesion filter to inspect PRISM overlays. No individual ROI confirmation is required.
+4. In **Clinician Review**, select the final grade and choose **Confirm DR Grade**.
+5. Open **Edit Annotations** only when a correction or human annotation is needed. Choose **Confirm Annotation** after reviewing the active set.
 6. In **Datasets**, check **DR-ready** and **Lesion-ready** separately before export.
 
-```{mermaid}
-flowchart LR
-  W[Worklist] --> I[Confirm Image]
-  I --> R[Review]
-  R --> A[Optional AI assistance]
-  R --> G[Confirm DR Grade]
-  G --> E[Edit Annotations]
-  E --> C[Confirm Annotation]
-  C --> D[Dataset / next case]
-```
+![Clinician workflow](images/clinician-workflow.png){#fig-workflow fig-cap="The clinician workflow has three case-level confirmation milestones. Optional model evidence and ROI edits do not create a mandatory per-lesion queue."}
 
-::: {.callout-important title="IMPORTANT — three milestones"}
-The three confirmation actions are case-level workflow milestones. ROI correction and removal are optional edits; they are not a queue of detections that must all be resolved.
+::: {.callout-important title="IMPORTANT - three confirmation milestones"}
+**Confirm Image**, **Confirm DR Grade**, and **Confirm Annotation** record separate case-level milestones. AI suggestions are optional assistance. They do not have to be confirmed or rejected one by one before the clinical review can be completed.
 :::

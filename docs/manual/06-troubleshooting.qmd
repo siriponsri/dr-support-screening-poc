@@ -1,30 +1,38 @@
-## Troubleshooting and quick reference {#sec-troubleshooting}
+# Troubleshooting and safety {#sec-troubleshooting}
+
+## Common situations
 
 | Observation | Action |
 | --- | --- |
-| **Unsupported modality** | The DICOM is recognized but is not supported ophthalmic fundus input. Do not treat it as a generic decoder error or send it to the models. |
-| **AI analysis is not available** | Check the Model API URL, `/health`, firewall, token configuration, and service readiness. Local Worklist and human review can remain available. |
-| **Model score needs interpretation** | Treat it as model evidence, not a calibrated probability. Human review remains authoritative. |
-| **No PRISM overlays** | Check whether **Show AI suggestions** is enabled, the class filter, and the model result. An empty result does not prove lesion absence. |
-| **Draft save failed** | Keep the page open, correct the reviewer or connectivity issue, and use **Save draft** again. The unsaved guard is intentional. |
-| **Case is not Lesion-ready** | Confirm the current active annotation set and verify that its hash has not changed since **Confirm Annotation**. |
-| **Case is not DR-ready** | Check image admission/quality, final grade, reviewer, timestamp, and grade provenance. Annotation confirmation is not required for DR-ready. |
-| **CVAT unavailable** | Continue local review and export where possible. Retry only after the configured URL, project, credentials, and network are available. |
+| **Unsupported modality** | The DICOM is recognized but is not supported ophthalmic fundus input. Do not send it to the models. |
+| **AI analysis is not available** | Continue image review and human decisions when appropriate. Ask the operator to check Model API readiness and the workstation connection. |
+| **No PRISM overlays** | Check **Show AI suggestions**, the lesion filter, and whether a result is available. An empty result does not prove lesion absence. |
+| **Draft save failed** | Keep the page open, correct the reviewer or connectivity issue, and choose **Save draft** again. |
+| **Case is not DR-ready** | Check image admission, final grade, reviewer, timestamp, and grade provenance. |
+| **Case is not Lesion-ready** | Check the active annotation set and whether its hash changed after **Confirm Annotation**. |
+| **CVAT is unavailable** | Continue local review where possible. Retry the optional integration after the configured URL, project, credentials, and network are available. |
 
-### Privacy and safety limitations
+## What the workstation records
 
-Use only approved data. Keep tokens, raw PHI, DICOM private headers, model weights, and runtime databases out of screenshots, exports, and source control. The product is a research and clinical-support proof of concept, not an autonomous or regulatory decision system.
+The workstation records source and analysis identity, patient and eye context, image admission state, clinician decisions, reviewer names, timestamps, annotation revisions, confirmation hashes, inference metadata, model provenance, and dataset readiness. The source image remains immutable.
 
-### Quick reference
+## Safety and privacy
 
-| Need | Page / action |
+::: {.callout-warning title="WARNING - clinical use"}
+This is a research and clinical-support proof of concept. Model output is assistive evidence. Human review remains authoritative. The product does not establish autonomous diagnosis, referral, treatment, or disease truth.
+:::
+
+::: {.callout-caution title="CAUTION - data handling"}
+Use only approved public, synthetic, or authorized clinical data. Do not put PHI, private DICOM headers, tokens, passwords, CVAT credentials, model weights, or runtime databases in screenshots, examples, exports, or source control.
+:::
+
+## Glossary
+
+| Term | Meaning |
 | --- | --- |
-| Admit or exclude a case | **Worklist** |
-| Confirm context | **Confirm Image** |
-| Inspect image and optional AI | **Review** |
-| Record final grade | **Clinician Review > Confirm DR Grade** |
-| Correct/remove an AI ROI | **Edit Annotations** |
-| Finalize active annotation set | **Confirm Annotation** |
-| Check output eligibility | **Datasets** |
-| Inspect provenance | **Models & Audit** |
-| Set reviewer name or hints | **Settings** |
+| AI suggestion | A model output shown to support inspection. |
+| DR-ready | The case satisfies the existing dataset rules for the DR-grade task. |
+| Lesion-ready | The case satisfies the existing dataset rules for lesion annotations. |
+| Model score | A value returned by a model. It is not automatically a calibrated probability. |
+| Original AI evidence | The class, score, geometry, identity, model, and provenance returned by inference before human edits. |
+| Reviewer preference | A browser-local default name for new or unattributed review forms. It is not authentication. |

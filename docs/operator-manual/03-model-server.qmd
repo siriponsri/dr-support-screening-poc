@@ -1,0 +1,41 @@
+# Model API setup and startup {#sec-model-server}
+
+## One-time online setup
+
+Run on the supported Linux NVIDIA GPU host:
+
+```bash
+cd /opt/dr-support-screening-poc
+./scripts/model-server/setup.sh
+```
+
+The setup script creates `.venv`, installs `.[models,dicom]`, acquires the pinned RETFound and PRISM-DR sources and checkpoint assets, verifies revisions and SHA-256 values, checks the configured CUDA device, and runs synthetic smoke inference. It prints `READY` only after verification and smoke inference succeed.
+
+Pinned source and asset facts are maintained in [docs/MODEL_SERVER.md](../MODEL_SERVER.md), `dr_support/providers/retfound.py`, `dr_support/providers/prism.py`, and `dr_support/providers/prism_assets.json`.
+
+## Normal startup
+
+```bash
+cd /opt/dr-support-screening-poc
+./scripts/model-server/start.sh
+```
+
+Normal startup sets `APP_PROFILE=model_api`, `MODEL_RUNTIME=local`, `INFERENCE_DEVICE=cuda:0`, `HOST=0.0.0.0`, `PORT=7860`, and `WORKERS=1` unless the operator overrides the documented values. It runs read-only verification with `--verify`; it does not download or silently replace assets.
+
+## Health and model metadata
+
+```bash
+./scripts/model-server/healthcheck.sh
+curl --fail http://127.0.0.1:7860/health
+curl --fail http://127.0.0.1:7860/v1/models
+```
+
+Expected readiness is `/health` with `"status":"PASS"` and verified assets, followed by `/v1/models` containing `retfound-aptos5` and `prism-dr-5fold`.
+
+## Offline-after-setup
+
+After the one-time setup succeeds, disconnect external network access and restart with `start.sh`. Readiness and local inference use only verified local source checkouts and checkpoint files. CVAT Online is optional and excluded from offline acceptance.
+
+::: {.callout-caution title="CAUTION - fail closed"}
+If a source revision, checkpoint hash, CUDA device, or required asset is missing or modified, startup must fail and require operator intervention. Do not bypass verification by switching silently to another model or device.
+:::

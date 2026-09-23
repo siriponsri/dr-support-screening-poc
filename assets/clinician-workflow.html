@@ -4,41 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Retinal Review Workbench - Clinician Workflow</title>
-  <style>
-    * { box-sizing: border-box; }
-    html, body { margin: 0; width: 100%; height: 100%; background: #f7f7f4; color: #202428; font-family: Arial, sans-serif; }
-    body { display: grid; place-items: center; }
-    .frame { width: 1280px; height: 600px; overflow: hidden; }
-    svg { display: block; width: 1280px; height: 600px; }
-    .title { font-family: Georgia, serif; font-size: 34px; fill: #202428; }
-    .eyebrow { font-family: Consolas, monospace; font-size: 11px; letter-spacing: 1.4px; fill: #66706b; }
-    .node { fill: #fff; stroke: #48504c; stroke-width: 1; }
-    .focal { fill: #e8f3e8; stroke: #016301; stroke-width: 1.2; }
-    .optional { fill: #fafaf8; stroke: #9da59f; stroke-width: 1; stroke-dasharray: 4 3; }
-    .num { font-size: 22px; font-weight: 700; fill: #016301; }
-    .name { font-size: 15px; font-weight: 600; fill: #202428; }
-    .sub { font-family: Consolas, monospace; font-size: 10px; fill: #66706b; }
-    .line { fill: none; stroke: #6c756f; stroke-width: 1.4; marker-end: url(#arrow); }
-    .note { font-size: 12px; fill: #66706b; }
-  </style>
+  <style>html,body{margin:0;background:#fff}img{display:block;width:1200px;max-width:100%;height:auto}</style>
 </head>
 <body>
-  <div class="frame">
-    <svg viewBox="0 0 1280 600" role="img" aria-labelledby="wf-title wf-desc">
-      <title id="wf-title">Retinal Review Workbench clinician workflow</title>
-      <desc id="wf-desc">Images enter a workspace, appear in the worklist, are reviewed with optional model overlays, optionally sent to CVAT for dense annotation, then exported with provenance.</desc>
-      <defs><marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#6c756f"/></marker></defs>
-      <text x="56" y="64" class="eyebrow">RETINAL REVIEW WORKBENCH - CLINICIAN JOURNEY</text>
-      <text x="56" y="106" class="title">From retinal image to reviewed dataset</text>
-      <text x="56" y="132" class="note">Model evidence is optional assistance, not a checklist of lesions the clinician must resolve one-by-one.</text>
-      <path d="M252 320 H292" class="line"/><path d="M492 320 H532" class="line"/><path d="M732 320 H772" class="line"/><path d="M972 320 H1012" class="line"/>
-      <rect x="52" y="232" width="200" height="176" rx="8" class="node"/><text x="76" y="270" class="num">01</text><text x="76" y="304" class="name">Add images</text><text x="76" y="330" class="sub">PNG - TIFF - DICOM</text><text x="76" y="356" class="note">Create or select workspace</text><text x="76" y="378" class="note">Scan the input folder</text>
-      <rect x="292" y="232" width="200" height="176" rx="8" class="node"/><text x="316" y="270" class="num">02</text><text x="316" y="304" class="name">Worklist</text><text x="316" y="330" class="sub">PATIENT - EYE - STATUS</text><text x="316" y="356" class="note">Link patient and eye</text><text x="316" y="378" class="note">Open a case for review</text>
-      <rect x="532" y="220" width="200" height="200" rx="8" class="focal"/><text x="556" y="258" class="num">03</text><text x="556" y="292" class="name">Review</text><text x="556" y="318" class="sub">GRADE + OPTIONAL ROI OVERLAY</text><text x="556" y="346" class="note">Inspect the image</text><text x="556" y="368" class="note">Use model evidence as needed</text><text x="556" y="390" class="note">Clinician remains final authority</text>
-      <rect x="772" y="232" width="200" height="176" rx="8" class="optional"/><text x="796" y="270" class="num">04</text><text x="796" y="304" class="name">Advanced annotation</text><text x="796" y="330" class="sub">OPTIONAL CVAT ROUND-TRIP</text><text x="796" y="356" class="note">Only when dense correction</text><text x="796" y="378" class="note">is actually needed</text>
-      <rect x="1012" y="232" width="216" height="176" rx="8" class="node"/><text x="1036" y="270" class="num">05</text><text x="1036" y="304" class="name">Dataset and audit</text><text x="1036" y="330" class="sub">EXPORT + PROVENANCE</text><text x="1036" y="356" class="note">Review status</text><text x="1036" y="378" class="note">Manifest and annotations</text>
-      <line x1="56" y1="484" x2="1224" y2="484" stroke="#d6dbd6" stroke-width="1"/><text x="56" y="520" class="note">Clinical design principle: keep the retinal image primary; detailed model provenance belongs in Models and Audit.</text>
-    </svg>
-  </div>
+  <!-- The SVG is the maintainable source shared with the Quarto manual. -->
+  <img src="../docs/manual/images/clinician-workflow.svg" alt="Retinal Review Workbench clinician workflow">
 </body>
 </html>

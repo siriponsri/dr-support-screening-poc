@@ -1,10 +1,11 @@
-"""Capture final clinician-manual figures from the running local UI.
+"""Capture focused figures from one deterministic synthetic review scenario.
 
-Only public or synthetic data may be used. Start the review workstation before
-running this script; it does not create mock screens or alter clinical state.
+Start the review workstation before running this script. It uses only the
+public/synthetic case returned by the local API and never captures PHI.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -24,26 +25,26 @@ def api_root() -> str:
 
 def open_route(page: Page, route: str) -> None:
     page.goto(f"{BASE_URL}#/{route}", wait_until="networkidle")
-    page.wait_for_timeout(700)
+    page.wait_for_timeout(600)
 
 
-def save(page: Page, name: str, locator: Locator | None = None) -> None:
-    if locator is not None and locator.count():
-        locator.screenshot(path=str(SCREENSHOTS / name))
-    else:
-        page.screenshot(path=str(SCREENSHOTS / name), full_page=True)
+def capture(locator: Locator, name: str) -> None:
+    if locator.count() == 0:
+        raise RuntimeError(f"Cannot capture {name}: locator did not match")
+    locator.first.screenshot(path=str(SCREENSHOTS / name))
 
 
 def demo_case_id(page: Page) -> str:
     response = page.request.get(f"{api_root()}/v1/cases")
-    if response.ok:
-        payload = response.json()
-        cases = payload.get("value", []) if isinstance(payload, dict) else payload
-        for case in cases:
-            if case.get("admission", {}).get("modality_admission") == "FUNDUS_ACCEPTED":
-                return case["image_id"]
-        if cases:
-            return cases[0]["image_id"]
+    if not response.ok:
+        raise RuntimeError(f"Cannot list cases for manual capture: HTTP {response.status}")
+    payload = response.json()
+    cases = payload.get("value", []) if isinstance(payload, dict) else payload
+    for case in cases:
+        if case.get("admission", {}).get("modality_admission") == "FUNDUS_ACCEPTED":
+            return case["image_id"]
+    if cases:
+        return cases[0]["image_id"]
     return "SYNTH_001"
 
 
@@ -56,48 +57,49 @@ def seed_synthetic_evidence(page: Page, case_id: str) -> None:
             headers=headers,
         )
         if not response.ok:
-            raise RuntimeError(f"Could not seed synthetic {route}: HTTP {response.status}")
+            raise RuntimeError(f"Cannot seed {route} evidence: HTTP {response.status}")
 
 
 def capture_final_ui(page: Page, case_id: str) -> None:
     open_route(page, "worklist")
-    save(page, "01-worklist.png")
+    capture(page.locator("main"), "01-worklist.png")
 
     confirm = page.get_by_role("button", name="Confirm Image").first
     if confirm.count():
         confirm.click()
-        page.get_by_role("dialog").wait_for()
-        save(page, "03-confirm-image.png", page.get_by_role("dialog"))
-        page.keyboard.press("Escape")
-    else:
-        save(page, "03-confirm-image.png")
+        dialog = page.get_by_role("dialog")
+        dialog.wait_for()
+        capture(dialog, "02-confirm-image.png")
+        reviewer = dialog.get_by_label("Reviewer name")
+        if reviewer.count() and not reviewer.input_value():
+            reviewer.fill("Synthetic reviewer")
+        save_button = dialog.get_by_role("button", name="Confirm Image")
+        if save_button.count():
+            save_button.click()
+            page.wait_for_timeout(600)
 
     open_route(page, f"review/{case_id}")
-    save(page, "04-review.png")
-    save(page, "05-ai-analysis.png")
+    capture(page.locator("main"), "03-review-overview.png")
     filter_box = page.get_by_label("Filter lesion overlays")
     if filter_box.count():
-        filter_box.select_option("HEMORRHAGE")
-    save(page, "06-prism-filter.png")
+        capture(filter_box.locator(".."), "04-ai-controls.png")
 
     open_route(page, f"clinician-review/{case_id}")
-    grade = page.get_by_label("Final DR grade")
-    if grade.count():
-        grade.select_option("2")
-    save(page, "07-confirm-dr-grade.png")
+    capture(page.locator("main"), "05-confirm-dr-grade.png")
 
     open_route(page, f"edit/{case_id}")
-    save(page, "08-edit-annotations.png")
+    capture(page.locator("main"), "06-annotation-editor.png")
     roi = page.locator("svg [data-ai-detection-id]").first
     if roi.count():
         roi.dispatch_event("click")
-        page.get_by_text("Optional ROI action").wait_for()
-    save(page, "09-ai-roi-popover.png")
+        popover = page.get_by_text("Optional ROI action").locator("..")
+        if popover.count():
+            capture(popover, "07-roi-popover.png")
 
     open_route(page, "datasets")
-    save(page, "17-datasets.png")
+    capture(page.locator("main"), "08-dataset-readiness.png")
     open_route(page, "models")
-    save(page, "20-models-audit.png")
+    capture(page.locator("main"), "09-models-audit.png")
 
 
 def main() -> None:
@@ -109,7 +111,17 @@ def main() -> None:
         seed_synthetic_evidence(page, case_id)
         capture_final_ui(page, case_id)
         browser.close()
-    print(f"Captured final manual figures in {SCREENSHOTS}")
+
+    hashes: dict[str, str] = {}
+    duplicates: list[str] = []
+    for image in sorted(SCREENSHOTS.glob("*.png")):
+        digest = hashlib.sha256(image.read_bytes()).hexdigest()
+        if digest in hashes:
+            duplicates.append(f"{image.name} == {hashes[digest]}")
+        hashes[digest] = image.name
+    if duplicates:
+        raise RuntimeError("Duplicate manual figures: " + ", ".join(duplicates))
+    print(f"Captured {len(hashes)} focused manual figures in {SCREENSHOTS}")
 
 
 if __name__ == "__main__":

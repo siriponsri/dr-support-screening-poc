@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Offline presentation for the Retinal Review Workbench owner demonstration.">
+  <title>Retinal Review Workbench — Demonstration</title>
+  <style>
+    :root {
+      --cream: #fdfae7;
+      --blue: #1e2bfa;
+      --ink: #111111;
+      --muted: #646464;
+      --soft: #9a9a9a;
+      --tint: rgba(30, 43, 250, .06);
+      --tint-strong: rgba(30, 43, 250, .11);
+      --line: rgba(30, 43, 250, .20);
+      --green: #087f5b;
+      --red: #b42318;
+      --shadow: 0 16px 40px rgba(17, 17, 17, .12);
+      --display: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+      --body: Inter, "Avenir Next", "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #171717;
+      color: var(--ink);
+      font-family: var(--body);
+    }
+
+    button { font: inherit; }
+    button:focus-visible, a:focus-visible { outline: 3px solid var(--blue); outline-offset: 4px; }
+
+    .deck-shell {
+      position: relative;
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      margin: auto;
+      overflow: hidden;
+      background: var(--cream);
+      box-shadow: var(--shadow);
+    }
+
+    .slides { position: relative; width: 100%; height: 100%; }
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 5.2% 5.4% 7.3%;
+      overflow: hidden;
+      background: var(--cream);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(2.4%);
+      transition: opacity .28s ease, transform .28s ease;
+    }
+    .slide.is-active { opacity: 1; pointer-events: auto; transform: translateX(0); z-index: 1; }
+    .slide.is-before { transform: translateX(-2.4%); }
+
+    .slide::after {
+      content: attr(data-number);
+      position: absolute;
+      top: 5.3%;
+      right: 5.5%;
+      color: var(--soft);
+      font-family: var(--display);
+      font-size: clamp(10px, 1vw, 14px);
+      letter-spacing: .08em;
+    }
+
+    .topline { display: flex; align-items: center; gap: 14px; margin-bottom: 2.2%; }
+    .eyebrow {
+      color: var(--blue);
+      font-family: var(--display);
+      font-size: clamp(10px, 1.05vw, 15px);
+      font-weight: 700;
+      letter-spacing: .11em;
+      text-transform: uppercase;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: .35em .85em;
+      border-radius: 99px;
+      background: var(--tint-strong);
+      color: var(--blue);
+      font-family: var(--display);
+      font-size: clamp(10px, .9vw, 13px);
+      font-weight: 600;
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3 { font-family: var(--display); letter-spacing: -.035em; }
+    h1 { max-width: 760px; font-size: clamp(34px, 5.9vw, 86px); line-height: .98; }
+    h2 { max-width: 900px; font-size: clamp(26px, 3.35vw, 48px); line-height: 1.04; }
+    h3 { font-size: clamp(16px, 1.55vw, 23px); line-height: 1.1; }
+    .lede { max-width: 740px; color: var(--muted); font-size: clamp(14px, 1.35vw, 20px); line-height: 1.45; }
+    .small { color: var(--muted); font-size: clamp(11px, .95vw, 14px); line-height: 1.45; }
+    .accent-rule { width: 56px; height: 4px; margin: 0 0 2.5%; border-radius: 2px; background: var(--blue); }
+    .content { flex: 1; min-height: 0; margin-top: 3.4%; }
+
+    .cover { justify-content: center; padding-bottom: 12%; }
+    .cover::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 35%;
+      height: 100%;
+      background: var(--tint);
+      clip-path: polygon(35% 0, 100% 0, 100% 100%, 0 100%);
+    }
+    .cover .cover-mark { position: absolute; right: 9%; top: 17%; width: 26%; max-width: 260px; opacity: .94; }
+    .cover .cover-mark img { width: 100%; height: auto; }
+    .cover .kicker { margin-bottom: 2.4%; color: var(--blue); font-family: var(--display); font-size: clamp(12px, 1.2vw, 17px); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    .cover .subtitle { margin-top: 3%; color: var(--muted); font-family: var(--display); font-size: clamp(18px, 2vw, 29px); line-height: 1.2; }
+    .cover .meta { position: absolute; left: 5.4%; bottom: 8%; color: var(--soft); font-family: var(--display); font-size: clamp(10px, 1vw, 14px); letter-spacing: .06em; text-transform: uppercase; }
+    .orbit {
+      position: absolute; right: 8.8%; top: 32%; width: 24%; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 50%;
+    }
+    .orbit::before, .orbit::after { content: ""; position: absolute; inset: 12%; border: 1px solid var(--line); border-radius: 50%; }
+    .orbit::after { inset: 39%; background: var(--blue); border: 0; box-shadow: 0 0 0 9px rgba(30, 43, 250, .10); }
+
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4%; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2%; }
+    .card {
+      min-width: 0;
+      padding: 5% 5.5%;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--tint);
+    }
+    .card strong { display: block; margin-bottom: 5%; font-family: var(--display); font-size: clamp(15px, 1.45vw, 21px); }
+    .card p { color: var(--muted); font-size: clamp(11px, 1.05vw, 15px); line-height: 1.45; }
+    .number { display: block; margin-bottom: 7%; color: var(--blue); font-family: var(--display); font-size: clamp(25px, 2.6vw, 39px); font-weight: 700; line-height: 1; }
+
+    .quote {
+      padding: 3% 4%;
+      border-left: 4px solid var(--blue);
+      border-radius: 0 12px 12px 0;
+      background: var(--tint-strong);
+      font-family: var(--display);
+      font-size: clamp(20px, 2.45vw, 35px);
+      line-height: 1.16;
+    }
+    .quote em { color: var(--blue); font-style: normal; }
+
+    .workflow { display: flex; align-items: stretch; gap: 0; height: 46%; margin-top: 4%; }
+    .workflow .node { position: relative; flex: 1; min-width: 0; }
+    .workflow .node:not(:last-child)::after { content: ""; position: absolute; top: 25px; left: 57%; right: -43%; height: 2px; background: var(--line); }
+    .workflow .circle { position: relative; z-index: 1; display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%; background: var(--blue); color: var(--cream); font-family: var(--display); font-size: 18px; font-weight: 700; }
+    .workflow h3 { margin-top: 17px; font-size: clamp(13px, 1.3vw, 19px); }
+    .workflow p { max-width: 150px; margin-top: 7px; color: var(--muted); font-size: clamp(10px, .9vw, 13px); line-height: 1.35; }
+    .workflow .optional { color: var(--blue); font-family: var(--display); font-weight: 700; }
+
+    .split { display: grid; grid-template-columns: 1.08fr .92fr; gap: 3%; height: 100%; align-items: stretch; }
+    .visual { min-width: 0; min-height: 0; overflow: hidden; border-radius: 12px; border: 1px solid var(--line); background: #fff; }
+    .visual img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+    .visual.contain img { object-fit: contain; }
+    .visual-caption { padding: 2.5% 3.5%; color: var(--muted); font-size: clamp(10px, .9vw, 13px); }
+    .feature-stack { display: grid; align-content: center; gap: 3%; }
+    .feature { padding: 5% 6%; border-top: 2px solid var(--blue); background: var(--tint); }
+    .feature h3 { margin-bottom: 4%; }
+    .feature p { color: var(--muted); font-size: clamp(12px, 1.05vw, 15px); line-height: 1.45; }
+    .model-label { display: inline-block; margin-bottom: 4%; color: var(--blue); font-family: var(--display); font-size: clamp(11px, 1vw, 14px); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2%; align-items: center; height: 100%; }
+    .step { position: relative; padding: 7% 7%; border: 1px solid var(--line); border-radius: 13px; background: var(--tint); }
+    .step::after { content: "→"; position: absolute; top: 43%; right: -18%; color: var(--blue); font-family: var(--display); font-size: 24px; }
+    .step:last-child::after { display: none; }
+    .step .step-num { display: grid; place-items: center; width: 38px; height: 38px; margin-bottom: 15%; border-radius: 50%; background: var(--blue); color: var(--cream); font-family: var(--display); font-weight: 700; }
+    .step p { margin-top: 8%; color: var(--muted); font-size: clamp(11px, 1vw, 14px); line-height: 1.4; }
+    .note { margin-top: 3%; padding: 2.2% 3%; color: var(--muted); border-radius: 10px; background: rgba(5, 150, 105, .08); font-size: clamp(11px, 1vw, 14px); line-height: 1.4; }
+    .note strong { color: var(--green); }
+
+    .two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 2%; height: 100%; align-items: center; }
+    .roi-flow { display: flex; align-items: center; gap: 1.2%; }
+    .roi-flow .roi-arrow { color: var(--blue); font-family: var(--display); font-size: 25px; }
+    .roi-thumb { position: relative; flex: 1; min-width: 0; height: 170px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #101719; }
+    .roi-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+    .roi-thumb .roi-box { position: absolute; left: 44%; top: 36%; width: 22px; height: 26px; border: 2px solid #00b4d8; }
+    .roi-thumb .roi-tag { position: absolute; left: 39%; top: 24%; color: #00d5f5; font-family: var(--display); font-size: 12px; font-weight: 700; }
+    .popover { flex: 1.2; min-width: 0; padding: 4.5%; border: 2px solid #78b5ea; border-radius: 11px; background: #fff; box-shadow: 0 7px 20px rgba(0,0,0,.13); }
+    .popover h3 { margin-bottom: 5%; font-size: clamp(13px, 1.25vw, 18px); }
+    .popover .field { padding: 3.5% 0; border-top: 1px solid #dfe5ea; color: var(--muted); font-size: clamp(10px, .95vw, 13px); }
+    .popover .field strong { color: var(--ink); }
+    .popover .action { display: inline-block; margin-top: 3%; padding: .55em .8em; border-radius: 7px; background: #e8f4e9; color: var(--green); font-family: var(--display); font-size: clamp(10px, .9vw, 13px); font-weight: 700; }
+    .popover .action.remove { margin-left: 2%; background: #fce9e7; color: var(--red); }
+
+    .convenience { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.2%; height: 76%; align-items: stretch; }
+    .convenience .card { padding: 9% 8%; }
+    .convenience .number { font-size: clamp(21px, 2vw, 30px); }
+    .convenience .card strong { font-size: clamp(12px, 1.1vw, 16px); }
+    .convenience .card p { font-size: clamp(10px, .88vw, 13px); }
+
+    .boundaries { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2%; align-items: stretch; height: 66%; margin-top: 4%; }
+    .boundary { position: relative; display: flex; flex-direction: column; justify-content: space-between; padding: 6%; border: 1px solid var(--line); border-radius: 13px; background: var(--tint); }
+    .boundary:nth-child(2) { background: rgba(30, 43, 250, .10); }
+    .boundary .big { color: var(--blue); font-family: var(--display); font-size: clamp(35px, 4vw, 60px); font-weight: 700; line-height: 1; }
+    .boundary strong { display: block; margin-top: 10%; font-family: var(--display); font-size: clamp(16px, 1.5vw, 22px); }
+    .boundary p { margin-top: 5%; color: var(--muted); font-size: clamp(11px, 1vw, 15px); line-height: 1.4; }
+    .boundary small { color: var(--soft); font-size: clamp(10px, .85vw, 12px); }
+
+    .readiness { display: grid; grid-template-columns: 1.05fr .95fr; gap: 3%; height: 100%; }
+    .readiness-visual { overflow: hidden; border-radius: 12px; border: 1px solid var(--line); background: #fff; }
+    .readiness-visual img { width: 100%; height: 100%; object-fit: cover; object-position: left top; }
+    .readiness-copy { display: flex; flex-direction: column; justify-content: center; gap: 3%; }
+    .readiness-row { display: grid; grid-template-columns: 1fr auto; gap: 3%; padding: 5% 0; border-bottom: 1px solid var(--line); }
+    .readiness-row strong { font-family: var(--display); font-size: clamp(14px, 1.35vw, 20px); }
+    .ready { color: var(--green); font-family: var(--display); font-weight: 700; }
+    .readiness-row p { grid-column: 1 / -1; color: var(--muted); font-size: clamp(11px, 1vw, 14px); line-height: 1.4; }
+
+    .audit { display: grid; grid-template-columns: 1.15fr .85fr; gap: 3%; height: 100%; }
+    .audit-visual { overflow: hidden; border-radius: 12px; border: 1px solid var(--line); background: #fff; }
+    .audit-visual img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+    .audit-list { display: grid; align-content: center; gap: 2.4%; }
+    .audit-item { padding: 4.8% 6%; border-left: 3px solid var(--blue); background: var(--tint); }
+    .audit-item strong { display: block; margin-bottom: 3%; font-family: var(--display); font-size: clamp(13px, 1.15vw, 17px); }
+    .audit-item p { color: var(--muted); font-size: clamp(10px, .95vw, 14px); line-height: 1.4; }
+
+    .architecture { position: relative; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5%; align-items: center; height: 62%; margin-top: 5%; }
+    .arch-col { position: relative; display: grid; gap: 12px; }
+    .arch-col::after { content: ""; position: absolute; top: 50%; right: -14%; width: 20%; height: 2px; background: var(--blue); }
+    .arch-col:last-child::after { display: none; }
+    .arch-box { padding: 9% 8%; border: 1px solid var(--line); border-radius: 12px; background: var(--tint); }
+    .arch-box.primary { background: var(--blue); color: var(--cream); border-color: var(--blue); }
+    .arch-box strong { display: block; font-family: var(--display); font-size: clamp(13px, 1.3vw, 19px); }
+    .arch-box p { margin-top: 7%; color: var(--muted); font-size: clamp(10px, .9vw, 13px); line-height: 1.35; }
+    .arch-box.primary p { color: rgba(253, 250, 231, .78); }
+    .arch-label { margin-bottom: 8px; color: var(--blue); font-family: var(--display); font-size: clamp(10px, .9vw, 13px); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .arch-note { margin-top: 5%; padding: 2% 3%; border-radius: 10px; background: var(--tint-strong); color: var(--muted); font-size: clamp(10px, .9vw, 13px); }
+
+    .roadmap { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.5%; height: 55%; margin-top: 5%; }
+    .roadmap .step { padding: 8% 7%; }
+    .roadmap .step p { font-size: clamp(10px, .9vw, 13px); }
+    .presenter-note { margin-top: 4%; color: var(--muted); font-size: clamp(12px, 1vw, 15px); }
+    .presenter-note strong { color: var(--blue); }
+
+    .closing { justify-content: center; }
+    .closing::before, .closing::after { content: ""; position: absolute; right: -7%; top: 5%; width: 62%; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 50%; opacity: .7; }
+    .closing::after { right: 7%; top: 19%; width: 34%; opacity: .5; }
+    .closing .closing-copy { position: relative; z-index: 1; max-width: 760px; }
+    .closing .closing-copy h2 { margin-bottom: 4%; }
+    .closing .closing-copy .lede { max-width: 650px; }
+    .safety-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5%; margin-top: 6%; max-width: 900px; }
+    .safety-list div { padding: 5% 6%; border-top: 3px solid var(--blue); background: var(--tint); }
+    .safety-list strong { display: block; margin-bottom: 6%; font-family: var(--display); font-size: clamp(12px, 1.1vw, 17px); }
+    .safety-list p { color: var(--muted); font-size: clamp(10px, .9vw, 13px); line-height: 1.4; }
+
+    .fragment { opacity: 0; transform: translateY(12px); transition: opacity .32s ease, transform .32s ease; }
+    .slide.is-active .fragment { opacity: 1; transform: translateY(0); }
+    .slide.is-active .fragment:nth-child(2) { transition-delay: .07s; }
+    .slide.is-active .fragment:nth-child(3) { transition-delay: .14s; }
+    .slide.is-active .fragment:nth-child(4) { transition-delay: .21s; }
+    .slide.is-active .fragment:nth-child(5) { transition-delay: .28s; }
+
+    .chrome { position: absolute; right: 4.8%; bottom: 3%; left: 4.8%; z-index: 10; display: flex; align-items: center; justify-content: space-between; pointer-events: none; }
+    .chrome > * { pointer-events: auto; }
+    .counter { color: var(--muted); font-family: var(--display); font-size: clamp(10px, .9vw, 13px); letter-spacing: .06em; }
+    .nav { display: flex; gap: 8px; }
+    .nav button { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; background: var(--cream); color: var(--blue); cursor: pointer; transition: background .18s ease, color .18s ease; }
+    .nav button:hover:not(:disabled) { background: var(--blue); color: var(--cream); }
+    .nav button:disabled { opacity: .35; cursor: not-allowed; }
+    .progress { position: absolute; right: 0; bottom: 0; left: 0; z-index: 11; height: 3px; background: rgba(30, 43, 250, .12); }
+    .progress span { display: block; height: 100%; width: 0; background: var(--blue); transition: width .25s ease; }
+    .hint { position: absolute; right: 5.4%; bottom: 3.4%; color: var(--soft); font-size: clamp(9px, .75vw, 11px); }
+    .click-zone { position: absolute; top: 14%; bottom: 12%; z-index: 5; width: 8%; border: 0; background: transparent; cursor: pointer; }
+    .click-zone.left { left: 0; }
+    .click-zone.right { right: 0; }
+    .click-zone:focus-visible { outline: 2px solid var(--blue); }
+
+    @media (max-width: 760px) {
+      body { overflow: auto; }
+      .deck-shell { width: 100vw; height: 56.25vw; min-height: 100vh; box-shadow: none; }
+      .slide { padding: 8% 7% 15%; }
+      .slide::after { top: 7%; right: 7%; }
+      .grid-3, .grid-2, .split, .two-up, .readiness, .audit, .architecture { grid-template-columns: 1fr; }
+      .grid-3, .grid-2 { gap: 10px; }
+      .split, .readiness, .audit { height: 100%; }
+      .split .visual, .readiness-visual, .audit-visual { max-height: 42%; }
+      .workflow { overflow-x: auto; height: 50%; }
+      .workflow .node { min-width: 125px; }
+      .convenience { grid-template-columns: repeat(3, 1fr); overflow: auto; }
+      .boundaries, .safety-list { grid-template-columns: 1fr; height: auto; overflow: auto; }
+      .architecture { height: auto; margin-top: 3%; }
+      .arch-col::after { top: auto; right: auto; bottom: -18px; left: 50%; width: 2px; height: 12px; }
+      .arch-box { padding: 3%; }
+      .roadmap { grid-template-columns: repeat(3, 1fr); overflow: auto; }
+      .cover .cover-mark { right: 7%; top: 21%; width: 25%; }
+      .hint { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+      .slide, .fragment { transform: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <!--
+    Presentation note: this is an original, dependency-free implementation inspired by
+    the Blue Professional design system and the HyperFrames /slideshow workflow.
+    No upstream runtime code is copied. The deck uses local assets so it can be opened
+    directly from the repository without a network connection.
+  -->
+  <main class="deck-shell" id="deck" aria-label="Retinal Review Workbench demonstration">
+    <div class="slides">
+      <section class="slide cover is-active" data-number="01" data-title="Cover" aria-label="Cover slide">
+        <div class="cover-mark"><img src="../../assets/dr-support-logo.svg" alt="Retinal Review Workbench logo"></div>
+        <div class="orbit" aria-hidden="true"></div>
+        <div class="kicker">Owner demonstration · software version 0.7.0</div>
+        <div class="accent-rule"></div>
+        <h1>Retinal Review<br>Workbench</h1>
+        <p class="subtitle">Clinician-led retinal review and dataset preparation</p>
+        <p class="meta">Research and clinical-support proof of concept · human review remains authoritative</p>
+      </section>
+
+      <section class="slide" data-number="02" data-title="Workflow context">
+        <div class="topline"><span class="eyebrow">Workflow context</span><span class="tag">Controlled review</span></div>
+        <h2>Reviewed retinal data needs a visible chain of responsibility.</h2>
+        <div class="content grid-2">
+          <div class="quote fragment">The product keeps <em>image context</em>, <em>clinical decisions</em>, and <em>dataset readiness</em> separate enough to inspect.</div>
+          <div class="grid-2">
+            <div class="card fragment"><span class="number">01</span><strong>Context</strong><p>Confirm the admitted image, pseudonymous patient key, and eye before using model assistance.</p></div>
+            <div class="card fragment"><span class="number">02</span><strong>Decision</strong><p>Record the final DR grade and annotation confirmation as separate human milestones.</p></div>
+            <div class="card fragment"><span class="number">03</span><strong>Readiness</strong><p>Inspect DR-ready and Lesion-ready status independently before export.</p></div>
+            <div class="card fragment"><span class="number">04</span><strong>Traceability</strong><p>Keep source, model, analysis, reviewer, and annotation provenance available for audit.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-number="03" data-title="User roles">
+        <div class="topline"><span class="eyebrow">People and boundaries</span><span class="tag">Three operating roles</span></div>
+        <h2>Each role has a clear responsibility.</h2>
+        <div class="content grid-3">
+          <div class="card fragment"><span class="number">01</span><strong>Clinician / reviewer</strong><p>Confirms image context, records the final DR grade, and confirms the active annotation set when required.</p></div>
+          <div class="card fragment"><span class="number">02</span><strong>Dataset operator</strong><p>Selects the Workspace, checks task-specific readiness, and exports the provenance-preserving package.</p></div>
+          <div class="card fragment"><span class="number">03</span><strong>Hospital operator</strong><p>Starts the review workstation and the separate Model API. Does not replace clinician review.</p></div>
+        </div>
+        <p class="small" style="margin-top: 3%;">Maintainers verify model provenance, application behavior, and release documentation. CVAT Online is optional for dense geometry work.</p>
+      </section>
+
+      <section class="slide" data-number="04" data-title="End-to-end user story">
+        <div class="topline"><span class="eyebrow">The user story</span><span class="tag">Case-level flow</span></div>
+        <h2>One case moves from admission to an inspectable export.</h2>
+        <div class="content">
+          <div class="workflow">
+            <div class="node fragment"><div class="circle">1</div><h3>Worklist</h3><p>Find an admitted image.</p></div>
+            <div class="node fragment"><div class="circle">2</div><h3>Confirm Image</h3><p>Check context and eye.</p></div>
+            <div class="node fragment"><div class="circle">3</div><h3>Review</h3><p>Keep image primary.</p></div>
+            <div class="node fragment"><div class="circle">4</div><h3 class="optional">Optional AI</h3><p>RETFound + PRISM evidence.</p></div>
+            <div class="node fragment"><div class="circle">5</div><h3>Confirm DR Grade</h3><p>Record human decision.</p></div>
+            <div class="node fragment"><div class="circle">6</div><h3>Edit Annotations</h3><p>Correct only when needed.</p></div>
+            <div class="node fragment"><div class="circle">7</div><h3>Dataset / next</h3><p>Inspect readiness and export.</p></div>
+          </div>
+          <div class="note fragment"><strong>Lightweight by design:</strong> PRISM detections are optional visual assistance. Review completion does not depend on confirming every lesion.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-number="05" data-title="Confirm Image">
+        <div class="topline"><span class="eyebrow">01 · Confirm Image</span><span class="tag">Context first</span></div>
+        <h2>Start with the first confirmation milestone.</h2>
+        <div class="content split">
+          <div class="visual fragment"><img src="../manual/screenshots/01-worklist.png" alt="Worklist showing admitted retinal images and Confirm Image actions"></div>
+          <div class="feature-stack">
+            <div class="feature fragment"><span class="model-label">Procedure</span><h3>Open Worklist → select a case → Confirm Image</h3><p>Check image status, pseudonymous patient key, eye, and reviewer attribution before relying on model evidence.</p></div>
+            <div class="feature fragment"><span class="model-label">Boundary</span><h3>Context is not identity inference.</h3><p>Filename suggestions are evidence only. The reviewer confirms the context explicitly.</p></div>
+            <div class="feature fragment"><span class="model-label">Expected result</span><h3>The case can move into Review.</h3><p>Unsupported or non-fundus DICOM remains clearly excluded from retinal model use.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-number="06" data-title="Review and AI assistance">
+        <div class="topline"><span class="eyebrow">02 · Review</span><span class="tag">Optional assistance</span></div>
+        <h2>The retinal image is primary; model evidence stays in its lane.</h2>
+        <div class="content split">
+          <div class="visual fragment"><img src="../manual/screenshots/02-review-overview.png" alt="Review screen with retinal image, DR assessment, and compact lesion suggestions"></div>
+          <div class="feature-stack">
+            <div class="feature fragment"><span class="model-label">RETFound</span><h3>DR grade suggestion</h3><p>Provides a model-assisted grade and score context. The score is model evidence, not a calibrated clinical probability.</p></div>
+            <div class="feature fragment"><span class="model-label">PRISM-DR</span><h3>Lesion ROI suggestions</h3><p>Provides optional visual overlays with class and score for untouched AI ROIs, such as <strong>HE · 0.90</strong>.</p></div>
+            <div class="feature fragment"><span class="model-label">Clinician</span><h3>Human review remains authoritative.</h3><p>Toggle <strong>Show AI suggestions</strong> or filter classes. No detection-by-detection resolution task is created.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-number="07" data-title="Annotation correction">
+        <div class="topline"><span class="eyebrow">03 · Annotation correction</span><span class="tag">Opportunistic edit</span></div>
+        <h2>Correct one obvious label without rewriting the original evidence.</h2>
+        <div class="content">
+          <div class="roi-flow">
+            <div class="roi-thumb fragment"><img src="../manual/screenshots/03-ai-controls.png" alt="AI lesion overlay on a synthetic retinal workflow fixture"><span class="roi-tag">MA · 0.80</span><span class="roi-box"></span></div>
+            <span class="roi-arrow">→</span>
+            <div class="popover fragment"><h3>Optional ROI action</h3><div class="field">AI suggestion: <strong>Microaneurysm · 0.80</strong></div><div class="field">Change lesion class: <strong>Microaneurysm</strong></div><span class="action">Save class correction</span><span class="action remove">Remove this detection</span></div>
+            <span class="roi-arrow">→</span>
+            <div class="card fragment"><span class="number">Truthful</span><strong>Human correction</strong><p>Show the current class as clinician corrected. Keep the original AI class, score, geometry, model, and detection identity auditable.</p></div>
+          </div>
+          <div class="note fragment"><strong>Score semantics:</strong> if AI predicted Hemorrhage · 0.90 and the reviewer changes the class to Microaneurysm, do not display Microaneurysm · 0.90. The original score belongs to the original AI class.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-number="08" data-title="Workflow convenience">
+        <div class="topline"><span class="eyebrow">Workflow convenience</span><span class="tag">Less repetition</span></div>
+        <h2>Useful shortcuts reduce friction without changing clinical state.</h2>
+        <div class="content convenience">
+          <div class="card fragment"><span class="number">↔</span><strong>Previous / Next</strong><p>Move through available cases. Navigation never silently confirms a milestone.</p></div>
+          <div class="card fragment"><span class="number">→</span><strong>Save &amp; Next</strong><p>Save the current annotation draft, then open the next case.</p></div>
+          <div class="card fragment"><span class="number">⟳</span><strong>Autosave</strong><p>Stable annotation edits persist through the existing draft-save path.</p></div>
+          <div class="card fragment"><span class="number">✓</span><strong>Default reviewer</strong><p>Use a browser-local, editable convenience value on a shared workstation.</p></div>
+          <div class="card fragment"><span class="number">i</span><strong>Next action</strong><p>Quiet guidance only. It does not mutate case state or establish identity.</p></div>
+        </div>
+        <p class="small" style="margin-top: 3%;">Unsaved changes are guarded. Existing recorded reviewers are never rewritten by a later default preference.</p>
+      </section>
+
+      <section class="slide" data-number="09" data-title="Confirmation boundaries">
+        <div class="topline"><span class="eyebrow">Confirmation boundaries</span><span class="tag">Three separate milestones</span></div>
+        <h2>Each confirmation answers a different question.</h2>
+        <div class="boundaries content">
+          <div class="boundary fragment"><span class="big">01</span><div><strong>Confirm Image</strong><p>Is the admitted image context and eye ready for review?</p></div><small>Context milestone</small></div>
+          <div class="boundary fragment"><span class="big">02</span><div><strong>Confirm DR Grade</strong><p>What is the clinician's final DR grade for this case?</p></div><small>Clinical decision milestone</small></div>
+          <div class="boundary fragment"><span class="big">03</span><div><strong>Confirm Annotation</strong><p>Has the current active annotation set been reviewed at this hash?</p></div><small>Lesion readiness milestone</small></div>
+        </div>
+        <p class="small" style="margin-top: 3%;">An ROI correction or removal is an optional edit. It is not a fourth confirmation queue.</p>
+      </section>
+
+      <section class="slide" data-number="10" data-title="Dataset readiness">
+        <div class="topline"><span class="eyebrow">Dataset readiness</span><span class="tag">Separate task outputs</span></div>
+        <h2>DR-ready and Lesion-ready are independent states.</h2>
+        <div class="content readiness">
+          <div class="readiness-visual fragment"><img src="../manual/screenshots/07-dataset-readiness.png" alt="Datasets page showing separate DR-ready and Lesion-ready counts"></div>
+          <div class="readiness-copy">
+            <div class="readiness-row fragment"><strong>DR-ready</strong><span class="ready">Grade confirmed</span><p>Requires valid source provenance, an included fundus image, acceptable image state, and a final clinician grade with reviewer and timestamp.</p></div>
+            <div class="readiness-row fragment"><strong>Lesion-ready</strong><span class="ready">Set confirmed</span><p>Requires valid source provenance, an included fundus image, and a current annotation confirmation whose hash matches the active set.</p></div>
+            <div class="readiness-row fragment"><strong>AI-only evidence</strong><span>Not ground truth</span><p>Displayed AI output does not silently promote itself into a training-ready annotation.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-number="11" data-title="Provenance and audit">
+        <div class="topline"><span class="eyebrow">Models &amp; Audit</span><span class="tag">Read-only inspection</span></div>
+        <h2>Technical provenance is visible without becoming another clinician queue.</h2>
+        <div class="content audit">
+          <div class="audit-visual fragment"><img src="../manual/screenshots/08-models-audit.png" alt="Models and Audit page with model readiness and inference details"></div>
+          <div class="audit-list">
+            <div class="audit-item fragment"><strong>Model identity</strong><p>RETFound and PRISM-DR model IDs, revisions, runtime state, and limitations.</p></div>
+            <div class="audit-item fragment"><strong>Case provenance</strong><p>Inference metadata, source SHA, analysis SHA, detection counts, and annotation provenance.</p></div>
+            <div class="audit-item fragment"><strong>Human relationship</strong><p>Original AI evidence remains separate from human correction, addition, removal, or CVAT import.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-number="12" data-title="Deployment architecture">
+        <div class="topline"><span class="eyebrow">Deployment architecture</span><span class="tag">Provider-neutral Model API</span></div>
+        <h2>Review stays on the workstation; model runtime stays on the hospital GPU host.</h2>
+        <div class="content">
+          <div class="architecture">
+            <div class="arch-col fragment"><div class="arch-label">Clinician workstation</div><div class="arch-box primary"><strong>Review application</strong><p>Local Workspace, SQLite review state, admission, review, and export.</p></div><div class="arch-box"><strong>Optional CVAT Online</strong><p>Dense annotation and geometry correction round trip.</p></div></div>
+            <div class="arch-col fragment"><div class="arch-label">Hospital boundary</div><div class="arch-box primary"><strong>Provider-neutral Model API</strong><p>/health · /v1/models · DR and lesion prediction routes.</p></div><div class="arch-box"><strong>Protected LAN</strong><p>Configured remote connection; no public exposure assumed.</p></div></div>
+            <div class="arch-col fragment"><div class="arch-label">GPU host</div><div class="arch-box primary"><strong>Verified local assets</strong><p>RETFound + PRISM-DR, CUDA runtime, one-worker default.</p></div><div class="arch-box"><strong>Offline after setup</strong><p>Normal startup verifies local assets and does not silently download.</p></div></div>
+          </div>
+          <div class="arch-note fragment">One-time online setup acquires and verifies approved assets. Normal startup uses the local verified assets only.</div>
+        </div>
+      </section>
+
+      <section class="slide" data-number="13" data-title="Live demo roadmap">
+        <div class="topline"><span class="eyebrow">Live-demo roadmap</span><span class="tag">Presenter sequence</span></div>
+        <h2>Show the product in the same order a reviewer experiences it.</h2>
+        <div class="roadmap content">
+          <div class="step fragment"><span class="step-num">1</span><h3>Worklist</h3><p>Open a synthetic admitted case.</p></div>
+          <div class="step fragment"><span class="step-num">2</span><h3>Confirm context</h3><p>Confirm image and eye.</p></div>
+          <div class="step fragment"><span class="step-num">3</span><h3>Review image</h3><p>Run optional assistance; toggle overlays.</p></div>
+          <div class="step fragment"><span class="step-num">4</span><h3>Correct one ROI</h3><p>Open the popover and preserve original evidence.</p></div>
+          <div class="step fragment"><span class="step-num">5</span><h3>Sign off</h3><p>Confirm DR grade, annotation, and inspect Dataset.</p></div>
+        </div>
+        <p class="presenter-note"><strong>Demo cue:</strong> complete the clinical review without processing every PRISM suggestion, then show Models &amp; Audit and the independent readiness states.</p>
+      </section>
+
+      <section class="slide closing" data-number="14" data-title="Safety and closing">
+        <div class="closing-copy">
+          <div class="topline"><span class="eyebrow">Safety and scope</span><span class="tag">Close with the boundary</span></div>
+          <h2>Model-assisted evidence.<br>Clinician-controlled decision.</h2>
+          <p class="lede">Retinal Review Workbench supports research and clinical-support workflows. It does not autonomously establish diagnosis, disease truth, referral, or treatment decisions.</p>
+          <div class="safety-list">
+            <div class="fragment"><strong>Human review</strong><p>Final clinician review remains authoritative.</p></div>
+            <div class="fragment"><strong>Honest scores</strong><p>Model scores are not presented as calibrated probabilities.</p></div>
+            <div class="fragment"><strong>Visible limits</strong><p>Empty lesion output does not prove absence of lesions.</p></div>
+          </div>
+          <p class="small" style="margin-top: 5%;">Retinal Review Workbench · public/synthetic research and clinical-support proof of concept · no autonomous diagnosis or referral.</p>
+        </div>
+      </section>
+    </div>
+
+    <button class="click-zone left" type="button" aria-label="Previous slide"></button>
+    <button class="click-zone right" type="button" aria-label="Next slide"></button>
+    <div class="chrome">
+      <div class="counter" aria-live="polite"><span id="current">01</span> / <span id="total">14</span> · <span id="title">Cover</span></div>
+      <div class="nav" aria-label="Slide navigation">
+        <button id="previous" type="button" aria-label="Previous slide" title="Previous slide">←</button>
+        <button id="next" type="button" aria-label="Next slide" title="Next slide">→</button>
+      </div>
+    </div>
+    <div class="hint">← → / Space navigate · Home / End jump · click the sides</div>
+    <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+  </main>
+
+  <script>
+    (() => {
+      const slides = [...document.querySelectorAll('.slide')];
+      const current = document.getElementById('current');
+      const total = document.getElementById('total');
+      const title = document.getElementById('title');
+      const progress = document.getElementById('progress');
+      const previous = document.getElementById('previous');
+      const next = document.getElementById('next');
+      let index = 0;
+
+      total.textContent = String(slides.length).padStart(2, '0');
+
+      function render(nextIndex) {
+        index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+        slides.forEach((slide, slideIndex) => {
+          slide.classList.toggle('is-active', slideIndex === index);
+          slide.classList.toggle('is-before', slideIndex < index);
+          slide.setAttribute('aria-hidden', slideIndex === index ? 'false' : 'true');
+        });
+        current.textContent = String(index + 1).padStart(2, '0');
+        title.textContent = slides[index].dataset.title || '';
+        progress.style.width = `${((index + 1) / slides.length) * 100}%`;
+        previous.disabled = index === 0;
+        next.disabled = index === slides.length - 1;
+        document.title = `${slides[index].dataset.title} · Retinal Review Workbench`;
+      }
+
+      function move(delta) { render(index + delta); }
+      previous.addEventListener('click', () => move(-1));
+      next.addEventListener('click', () => move(1));
+      document.querySelector('.click-zone.left').addEventListener('click', () => move(-1));
+      document.querySelector('.click-zone.right').addEventListener('click', () => move(1));
+      document.addEventListener('keydown', (event) => {
+        if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+        if (event.key === 'ArrowLeft' || event.key === 'PageUp') { event.preventDefault(); move(-1); }
+        else if (event.key === 'ArrowRight' || event.key === ' ' || event.key === 'PageDown') { event.preventDefault(); move(1); }
+        else if (event.key === 'Home') { event.preventDefault(); render(0); }
+        else if (event.key === 'End') { event.preventDefault(); render(slides.length - 1); }
+      });
+
+      render(0);
+    })();
+  </script>
+</body>
+</html>

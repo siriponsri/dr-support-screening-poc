@@ -61,7 +61,7 @@ from .dataset import install_dataset_routes
 
 
 def create_app(state_path=None, include_samples=True, include_demo_fixtures=True):
-    app = FastAPI(title='Retinal Review Workbench', version='0.6.0')
+    app = FastAPI(title='Retinal Review Workbench', version='0.7.0')
     root = Path(__file__).resolve().parents[2]
 
     demo_folder = (os.environ.get('DR_DEMO_FOLDER') or '').strip()

@@ -111,7 +111,7 @@ def test_reject_wrong_sample_bytes(tmp_path):
     import json
     from dr_support.images import admitted_samples
     (tmp_path/'docs').mkdir(); (tmp_path/'local-state/bridge/samples').mkdir(parents=True)
-    (tmp_path/'docs/SAMPLE_MANIFEST.json').write_text(json.dumps([{
+    (tmp_path/'docs/SAMPLE_SOURCE_MANIFEST.json').write_text(json.dumps([{
         'filename':'01_dr.jpg','image_id':'01_dr','sha256':'0'*64,'source':'test'}]),encoding='utf-8')
     (tmp_path/'local-state/bridge/samples/01_dr.jpg').write_bytes(b'changed bytes')
     with pytest.raises(RuntimeError,match='hash mismatch'):

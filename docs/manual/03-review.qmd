@@ -1,46 +1,36 @@
-## Review workspace {#sec-review}
+# Review {#sec-review}
 
-### Review the retinal image
+## Inspect the image
 
-#### Goal
+**Purpose.** Inspect the original retinal image and decide whether optional model evidence is useful.
 
-Inspect the original retinal image and decide whether optional model evidence is useful.
+**Before you begin.** Confirm the image from **Worklist**. The case must be a supported retinal input.
 
-#### Before you start
+**Procedure.**
 
-The case must be admitted as a supported retinal input. Resolve or confirm the context as required by the Worklist state.
-
-#### Steps
-
-1. Open the case and select **Review**.
-2. Use the image viewer controls for fit, zoom, pan, full-screen inspection, or coordinate inspection as needed.
-3. Read the patient/eye context shown above the image.
-4. If model assistance is needed and available, select **Analyze**.
+1. Open the case in **Review**.
+2. Use the viewer controls to fit, zoom, pan, inspect coordinates, or open a larger view.
+3. Read the patient and eye context above the image.
+4. Choose **Analyze** when model assistance is needed and the Model API is ready.
 5. Use **Show AI suggestions** to show or hide PRISM overlays.
-6. Use the lesion filter to show **All lesion classes**, **MA · Microaneurysm**, **HE · Hemorrhage**, **EX · Hard exudate**, or **SE · Soft exudate**.
+6. Use **Filter lesion overlays** to choose **All lesion classes**, **MA - Microaneurysm**, **HE - Hemorrhage**, **EX - Hard exudate**, or **SE - Soft exudate**.
 
-#### Expected result
+**Expected result.** The retinal image remains the primary review surface. The right side presents a compact DR assessment, lesion suggestion summary, and model/runtime status.
 
-The image remains the largest and primary review surface. The right side shows a compact DR assessment, lesion suggestion counts, and model/runtime status. An untouched ROI may display a class and score such as `HE · 0.90`.
+![Review image and assistance](screenshots/02-review-overview.png){#fig-review fig-cap="Review keeps the retinal image primary and places optional model assistance beside it."}
 
-#### What the system records
+## Read model suggestions
 
-Analysis records the existing model outputs, model identifiers, inference metadata, source hash, and analysis lineage. Toggling or filtering overlays does not alter the model result.
+RETFound presents a suggested DR grade and model score. PRISM-DR presents raw lesion suggestions by class. Untouched overlays may show a class and score such as `HE - 0.90`.
 
-![Review workspace](screenshots/04-review.png){#fig-review fig-cap="Review keeps the retinal image primary and exposes optional model assistance."}
+The lesion summary describes AI suggestions. It is not a queue of unresolved clinician tasks. Review completion does not depend on confirming, rejecting, or reducing an AI detection count to zero.
 
-::: {.callout-note title="NOTE — no evidence queue"}
-PRISM detections are optional visual assistance. Review completion does not depend on confirming, rejecting, or reducing an unresolved detection count to zero.
+![Overlay controls](screenshots/03-ai-controls.png){#fig-ai-controls fig-cap="Use the Show AI suggestions toggle and lesion filter to control optional visual overlays."}
+
+## Models & Audit
+
+Open **Models & Audit** when technical inspection is needed. This read-only page can show model IDs and revisions, runtime state, inference metadata, source and analysis hashes, detection counts, and annotation provenance. It is an audit surface, not another review queue.
+
+::: {.callout-note title="NOTE - score meaning"}
+If a clinician changes an AI lesion class in **Edit Annotations**, the original AI score remains attached to the original class. The corrected human class must not be displayed with that score.
 :::
-
-### RETFound suggestion
-
-RETFound provides a five-class DR grade suggestion and model score. It is not automatically confirmed. Use **Clinician Review** to select the final grade.
-
-### PRISM overlays
-
-PRISM-DR provides bounded visual lesion suggestions. The compact summary describes raw AI suggestions by lesion class; it is not a count of clinician-reviewed annotations. A human correction is shown without reassigning the original AI score to the new class.
-
-### Models & Audit
-
-Open **Models & Audit** for read-only model IDs, revisions, runtime status, inference events, detection counts, source/analysis SHA-256 values, and annotation provenance. This page is for inspection and audit, not another clinical task list.

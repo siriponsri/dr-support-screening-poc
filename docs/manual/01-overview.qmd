@@ -1,41 +1,39 @@
-## Purpose and scope {#sec-overview}
+# Before you begin {#sec-before}
 
-### Intended users
+## Intended users
 
-This manual is for clinicians and reviewers operating the local review workstation, dataset operators preparing research exports, and hospital operators supporting the workstation and Model API.
+This manual is for clinicians and reviewers using the local review workstation. Dataset export and hospital Model API administration are described only at the level needed to understand the clinician workflow; operator commands are documented separately in the repository deployment guides.
 
-### Supported input intent
+## Scope
 
-The workstation supports JPEG, PNG, TIFF, and supported single-frame ophthalmic fundus DICOM. Ophthalmic DICOM uses the existing display and provenance path. MRI, OCT, PACS objects, non-fundus DICOM, unsupported SOP classes, multi-frame objects, and untested transfer syntaxes are outside model support.
+Retinal Review Workbench is a clinician-controlled research and clinical-support workstation. It keeps source identity, patient and eye context, human decisions, annotations, model evidence, and export provenance together for review.
 
-When a recognized DICOM object is not a supported fundus modality, Worklist reports **Unsupported modality**. This is distinct from a generic decoder or image-read failure.
+It does not autonomously establish a diagnosis, disease truth, referral decision, or treatment decision. The final clinician review remains authoritative.
 
-### System overview
+## Supported input intent
 
-The review workstation uses local Workspace state and calls a provider-neutral Model API when analysis is requested. The workstation does not load model weights in the `review` profile.
+The workstation accepts JPEG, PNG, TIFF, and supported single-frame ophthalmic fundus DICOM. Supported ophthalmic DICOM follows the existing display and provenance path.
 
-| Component | Operating role |
+MRI, OCT, PACS objects, non-fundus DICOM, unsupported SOP classes, multi-frame objects, and untested transfer syntaxes are outside model support. A recognized non-fundus DICOM is reported as **Unsupported modality**, not as a generic image-read failure.
+
+## Model-assisted evidence
+
+RETFound provides a five-class DR grade suggestion through `retfound-aptos5`. PRISM-DR provides optional lesion suggestions through `prism-dr-5fold`. These outputs assist inspection; they do not replace clinician review.
+
+A displayed confidence or score is a model score, not a calibrated clinical probability. An empty PRISM result does not prove that lesions are absent.
+
+## Workstation areas
+
+| Area | Use |
 | --- | --- |
-| Review workstation | Worklist, image display, clinician decisions, annotations, audit display, and export. |
-| RETFound | Five-class DR grade suggestion through `retfound-aptos5`. |
-| PRISM-DR | Optional lesion ROI suggestions through `prism-dr-5fold`. |
-| Model API | Remote hospital service for the existing inference contracts. |
-| CVAT Online | Optional dense annotation and geometry workflow. |
+| **Worklist** | Scan cases, review admission status, resolve patient and eye context, and enter a case. |
+| **Review** | Inspect the image and optional model assistance. |
+| **Clinician Review** | Record the final DR grade or escalate an exception. |
+| **Edit Annotations** | Add human annotations or make optional AI ROI class/removal changes. |
+| **Datasets** | Inspect task-specific readiness and export the manifest package. |
+| **Models & Audit** | Read-only model, inference, hash, and annotation provenance. |
+| **Settings** | Select a Workspace, set the default reviewer, and manage next-action hints. |
 
-### Safety and interpretation
-
-::: {.callout-warning title="WARNING — model interpretation"}
-RETFound and PRISM-DR output is model-assisted evidence. A displayed confidence or score is not a calibrated clinical probability. An empty PRISM result does not prove that lesions are absent.
+::: {.callout-warning title="WARNING - human authority"}
+Treat every model output as assistive evidence. Do not use a model score or an empty lesion result as a diagnosis, a referral decision, or proof that disease is absent.
 :::
-
-The final clinician grade, annotation state, and exception decision are human-authored. Original AI evidence remains available in **Models & Audit** and the dataset provenance fields.
-
-### Navigation map
-
-- **Worklist**: admission state, context resolution, exclusions, and case entry.
-- **Review**: image-first inspection, optional analysis, overlays, and compact model summaries.
-- **Clinician Review**: final DR grade and escalation.
-- **Edit Annotations**: human annotation work and optional AI ROI correction/removal.
-- **Datasets**: task-specific readiness and export.
-- **Models & Audit**: read-only technical provenance.
-- **Settings**: Workspace and workstation preferences.

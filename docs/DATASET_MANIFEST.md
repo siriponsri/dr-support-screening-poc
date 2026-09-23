@@ -11,6 +11,8 @@ dataset-export-<timestamp>/
 
 The current schema identifier is `s4.dataset-manifest.v2`. The export keeps the compatibility fields from the earlier manifest and adds explicit workflow milestones and task-specific readiness. It does not rewrite historical exports.
 
+The repository includes a sanitized package-level example generated through the real export endpoint: [`DATASET_MANIFEST_V2_EXAMPLE.json`](DATASET_MANIFEST_V2_EXAMPLE.json). It demonstrates the manifest file only; the companion CSV files are produced beside it in a real export package.
+
 ## Image fields
 
 `images.csv` contains source identity and workflow fields including:

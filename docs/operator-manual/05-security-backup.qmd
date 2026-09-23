@@ -1,0 +1,26 @@
+# Security, privacy, backup, and restore {#sec-security}
+
+## Security and privacy
+
+Use approved public, synthetic, or authorized clinical data. Keep PHI, private DICOM headers, model weights, tokens, passwords, CVAT credentials, runtime SQLite files, and local-state directories out of Git and screenshots. Original source images are immutable.
+
+The product is a research and clinical-support proof of concept. Human review remains authoritative. No product claim establishes regulatory approval, autonomous diagnosis, referral, treatment, or calibrated probability.
+
+## Backup
+
+Back up the active Workspace SQLite database, approved export packages, Workspace configuration, and the exact release/configuration record according to hospital policy. Keep model assets with their verified hashes and preserve the relationship between release, model assets, and exports.
+
+Do not back up or copy secret files into the repository. Store `/etc/dr-support/model-server.env` through the hospital secret-management process.
+
+## Restore
+
+1. Stop the affected service or workstation process.
+2. Restore the Workspace database and approved export package to a controlled path.
+3. Restore the same release or a validated compatible release.
+4. Verify file ownership and permissions.
+5. Run the model asset verification and `/health` checks.
+6. Open the workstation, inspect the Workspace, and confirm source and annotation hashes before resuming review.
+
+## CVAT
+
+CVAT Online is optional. Keep `CVAT_TOKEN` only in secure runtime configuration. Do not paste it into commands, browser JavaScript, screenshots, documentation, or issue reports. Ambiguous remote writes require manual reconciliation; never retry blindly.

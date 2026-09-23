@@ -24,7 +24,7 @@ def fetch_samples():
         with urllib.request.urlopen(row['image']['src'], timeout=45) as response:
             data = response.read()
         path = root / f'{expected}.jpg'
-        pinned_path = ROOT / 'docs/SAMPLE_MANIFEST.json'
+        pinned_path = ROOT / 'docs/SAMPLE_SOURCE_MANIFEST.json'
         if pinned_path.exists():
             pinned = {x['image_id']: x['sha256'] for x in json.loads(pinned_path.read_text(encoding='utf-8'))}
             if hashlib.sha256(data).hexdigest() != pinned.get(expected):

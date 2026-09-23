@@ -1,20 +1,20 @@
 project:
   type: book
-  output-dir: ../../dist/manual/site
+  output-dir: ../../dist/manual/operator-site
 
 book:
   title: "Retinal Review Workbench"
-  subtitle: "Clinician User Manual"
+  subtitle: "Deployment and Operations Manual"
   author: "Retinal Review Workbench"
   date: "2026-09-23"
   chapters:
     - index.qmd
-    - 01-overview.qmd
-    - 02-workflow.qmd
-    - 03-review.qmd
-    - 04-annotations.qmd
-    - 05-datasets-audit.qmd
-    - 06-troubleshooting.qmd
+    - 01-architecture.qmd
+    - 02-installation.qmd
+    - 03-model-server.qmd
+    - 04-operations.qmd
+    - 05-security-backup.qmd
+    - 06-upgrade-troubleshooting.qmd
 
 format:
   html:
@@ -25,9 +25,6 @@ format:
     number-sections: true
     number-depth: 2
     page-layout: article
-    fig-pos: H
-    tbl-pos: H
-    html-math-method: plain
     callout-icon: false
   pdf:
     pdf-engine: xelatex
@@ -47,13 +44,8 @@ format:
       - bottom=18mm
       - left=19mm
       - right=19mm
-    include-in-header: latex-header.tex
+    include-in-header: ../manual/latex-header.tex
     callout-icon: false
-
-crossref:
-  chapters: false
-  fig-title: "Figure"
-  tbl-title: "Table"
 
 execute:
   freeze: auto

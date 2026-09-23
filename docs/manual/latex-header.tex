@@ -1,0 +1,33 @@
+\usepackage{xcolor}
+\definecolor{rrwgreen}{HTML}{205C45}
+\definecolor{rrwink}{HTML}{24312C}
+\usepackage{titlesec}
+\usepackage{titling}
+\pretitle{\begin{center}\includegraphics[width=28mm]{images/dr-support-logo.png}\\[12mm]\Huge\bfseries\color{rrwgreen}}
+\posttitle{\end{center}}
+\preauthor{\begin{center}\large\color{rrwink}}
+\postauthor{\end{center}}
+\predate{\begin{center}\color{rrwgreen}}
+\postdate{\end{center}}
+\titleformat{\chapter}[display]
+  {\normalfont\color{rrwgreen}\Huge\bfseries}
+  {\thechapter}{0.5em}{}
+\titleformat{\section}
+  {\normalfont\color{rrwgreen}\Large\bfseries}
+  {\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\normalfont\color{rrwgreen}\large\bfseries}
+  {\thesubsection}{0.6em}{}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[R]{\color{rrwgreen}\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\usepackage{enumitem}
+\setlist{itemsep=0.2em,topsep=0.35em}
+\usepackage{caption}
+\captionsetup{font=small,labelfont={color=rrwgreen,bf},textfont={color=rrwink}}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}

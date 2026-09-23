@@ -187,7 +187,7 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
         verify_assets('all')
         assets_verified = True
 
-    app = FastAPI(title='Retinal Review Workbench Model API', version='0.6.0')
+    app = FastAPI(title='Retinal Review Workbench Model API', version='0.7.0')
     inference_lock = RLock()
     app.state.providers = _build_providers(allow_cpu_fallback=not device_strict)
     app.state.inference_lock = inference_lock

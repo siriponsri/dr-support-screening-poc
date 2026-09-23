@@ -29,6 +29,6 @@ Runtime acceptance:
 A deterministic task name binds image hash and prediction hash. Successful repeat syncs do
 not duplicate boxes. Existing annotations are preserved. An ambiguous write outcome stops
 that live operation for manual reconciliation; it never blindly repeats a possibly successful
-write. Do not run two independent Bridge servers against the same task/state store.
+write. Do not run two independent application integration processes against the same task/state store.
 
 Live operations require `CVAT_TOKEN` in the secure runtime environment. Without that token, the connector remains available for local review and offline fixture validation but does not attempt remote writes.

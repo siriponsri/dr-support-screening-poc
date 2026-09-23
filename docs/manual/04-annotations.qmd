@@ -1,98 +1,71 @@
-## Clinician review and annotations {#sec-annotations}
+# Clinician decisions and annotations {#sec-annotations}
 
-### Confirm DR Grade
+## Confirm DR Grade
 
-#### Goal
+**Purpose.** Record the clinician's final DR grade.
 
-Record the clinician's final DR grade without requiring a separate “accept” or “mark incorrect” workflow.
-
-#### Before you start
-
-Review the image and the optional RETFound suggestion. The final grade must be selected by the clinician.
-
-#### Steps
+**Procedure.**
 
 1. Open **Clinician Review**.
-2. Review **AI suggestion** when available.
+2. Review the optional **AI suggestion**.
 3. Select a value from **Final DR grade**.
 4. Check or edit **Reviewer name**.
-5. Add an optional **Remark**.
-6. Select **Confirm DR Grade**. Select **Escalate** for an exception path instead.
+5. Add a **Remark** when useful.
+6. Choose **Confirm DR Grade**. Choose **Escalate** for an exception path.
 
-#### Expected result
+**Expected result.** The human grade is saved as the authoritative clinician decision. A matching AI suggestion is recorded as `AI_ACCEPTED`, a different grade as `AI_CORRECTED`, and a grade without an AI result as `MANUAL`.
 
-The final grade is saved as `AI_ACCEPTED` when it matches the AI suggestion, `AI_CORRECTED` when it differs, or `MANUAL` when no AI grade was available. The human grade is authoritative.
+![Grade confirmation](screenshots/04-confirm-dr-grade.png){#fig-grade fig-cap="Clinician Review records the final DR grade explicitly."}
 
-#### What the system records
+## Edit Annotations
 
-The system records grade, review source, reviewer, timestamp, revision, and review history. It does not silently accept a grade merely because the page was opened.
+**Purpose.** Add or correct the active annotation set when the clinician identifies a change that needs to be recorded.
 
-![Clinician grade confirmation](screenshots/07-confirm-dr-grade.png){#fig-confirm-grade fig-cap="Clinician Review records one explicit final grade decision."}
+**Procedure.**
 
-### Edit Annotations
+1. Choose **Edit annotations** from the case review surface.
+2. Keep **AI suggestions** shown when comparing model evidence, or hide them to reduce visual density.
+3. For a human annotation, select a tool, choose the canonical lesion class, and draw on the image.
+4. Use the available selection and geometry controls for human annotations when needed.
+5. Choose **Save draft** to persist work without confirming the set.
+6. Choose **Confirm Annotation** after reviewing the active set.
 
-#### Goal
+**Expected result.** Human annotations remain separate from original AI evidence. A later edit invalidates the previous annotation confirmation until the current active set is confirmed again.
 
-Add or correct the active annotation set when the clinician notices an annotation that needs a human-authored change.
+![Annotation editor](screenshots/05-annotation-editor.png){#fig-editor fig-cap="Edit Annotations is the image-first surface for human annotation work."}
 
-#### Before you start
+## Correct or remove one AI ROI
 
-Open **Edit annotations** from Review. Geometry editing is available for human annotations in original image pixel coordinates. Advanced dense correction may use the optional CVAT workflow.
+AI ROI editing is optional. Use it only when an obvious model class or detection needs correction.
 
-#### Steps
-
-1. Select **Edit annotations**.
-2. Keep **AI suggestions** shown when comparing the model evidence, or hide them to reduce visual density.
-3. Select an annotation tool and choose the canonical lesion class.
-4. Draw, move, resize, lock, or delete a human annotation as needed.
-5. Select **Save draft** to persist a non-final draft, or **Save & Next** to save the same draft and open the next case.
-6. Select **Confirm Annotation** only after reviewing the current active set.
-
-#### Expected result
-
-Human annotations remain separate from original AI evidence. **Confirm Annotation** records the current active set hash, reviewer, and timestamp. Later edits invalidate that confirmation until the set is confirmed again.
-
-#### What the system records
-
-Human shape geometry, canonical class, reviewer, timestamp, revision, active annotation-set hash, and case-level finality are retained. Empty annotations may be confirmed as reviewed; they are not evidence that lesions are absent.
-
-![Annotation editor](screenshots/08-edit-annotations.png){#fig-editor fig-cap="Edit Annotations is the surface for human annotation work and finality."}
-
-### Correct an AI ROI class
-
-#### Goal
-
-Correct an obvious model class without changing the original AI evidence.
-
-#### Steps
-
-1. In **Edit Annotations**, ensure **AI suggestions** are shown.
+1. In **Edit Annotations**, show **AI suggestions**.
 2. Select the AI ROI on the image.
-3. Review **AI suggestion**, including its original class and score.
-4. Choose a different value under **Change lesion class**.
-5. Enter or confirm **Reviewer name** and optionally select **Use as default reviewer on this workstation**.
-6. Select **Save class correction**.
+3. Read the original **AI suggestion**, including its original class and score.
+4. Choose a different value under **Change lesion class**, then choose **Save class correction**, or choose **Remove this detection**.
+5. Enter the actual **Reviewer name** used for the change.
 
-#### Expected result
+The corrected overlay uses the reviewed class and indicates a clinician correction without assigning the AI score to that class. A removed detection is excluded from the active reviewed overlay while its original identity, geometry, score, model, and provenance remain available for audit.
 
-The overlay uses the reviewed class and indicates that it was clinician corrected. It does not display the original score as though it belonged to the corrected class. The detail remains available as `AI suggestion: Hemorrhage · 0.90`.
+![ROI action](screenshots/06-roi-popover.png){#fig-roi fig-cap="The optional ROI action shows the original AI suggestion before a class correction or removal."}
 
-![AI ROI correction popover](screenshots/09-ai-roi-popover.png){#fig-roi-popover fig-cap="The optional ROI action is available in Edit Annotations, not in Review."}
-
-### Remove an AI ROI
-
-Select the ROI, review its original evidence, and choose **Remove this detection**. The detection is excluded from the active reviewed overlay and training annotation set, but its original detection identity, class, score, geometry, model, and provenance remain auditable.
-
-::: {.callout-warning title="WARNING — score meaning"}
-If AI predicted `Hemorrhage · 0.90` and the reviewer changes the class to `Microaneurysm`, do not describe the result as `Microaneurysm · 0.90`. The score belongs to the original AI suggestion only.
+::: {.callout-warning title="WARNING - preserve score meaning"}
+If the AI suggestion is `Hemorrhage - 0.90` and the clinician changes the reviewed class to `Microaneurysm`, the result is **Microaneurysm - Clinician corrected**. It must not be shown as `Microaneurysm - 0.90`.
 :::
 
-### Reviewer preference and draft state
+Geometry-level correction remains available through the existing optional CVAT workflow. This page does not replace CVAT with a second dense geometry editor.
 
-Use **Default reviewer** in **Settings** to set or clear the workstation value. New or unattributed forms prefill it; an existing recorded reviewer remains unchanged.
+## Default reviewer
 
-In Edit Annotations, the quiet status line reports **Saving draft**, **Draft saved**, **Unsaved changes**, or **Save failed — retry**. Autosave uses the existing annotation persistence path and never confirms the set. Leaving while changes are unsaved, in flight, or failed opens a guard.
+**Purpose.** Reduce repeated typing on a shared review workstation.
 
-### Previous, Next, and hints
+1. Open **Settings**.
+2. Enter a name in **Default reviewer**.
+3. Clear or replace the value when the workstation user changes.
 
-Use **Previous** and **Next** on Review, Clinician Review, and Edit Annotations. Navigation does not save or confirm. **Next action** is guidance only and can be disabled from the hint close control or re-enabled in **Settings**.
+New or unattributed review forms are prefilled. The reviewer remains editable and can be cleared. Existing recorded reviewers are never rewritten by a later preference change. The preference is not stored in patient or image metadata and does not prove identity.
+
+## Save and move between cases
+
+Use **Previous** and **Next** to move between cases. Navigation does not save or confirm changes. In **Edit Annotations**, use **Save & Next Case** when the current draft should be saved before opening the next case.
+
+If changes are unsaved, saving, or have failed, the application may show a navigation guard. Follow the prompt and retry **Save draft** when needed. **Next action** is guidance only; it does not change clinical state.

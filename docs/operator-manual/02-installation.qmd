@@ -1,0 +1,29 @@
+# Installation {#sec-installation}
+
+## Review workstation
+
+**Prerequisites:** Windows or Linux host, Python 3.11 or 3.12, Node.js/npm, and optional DICOM extras when DICOM input is required.
+
+```powershell
+git clone https://github.com/siriponsri/dr-support-screening-poc.git
+cd dr-support-screening-poc
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install -e ".[test,dicom]"
+npm ci
+cd frontend
+npm ci
+npm run build
+cd ..
+START.cmd
+```
+
+Open `http://127.0.0.1:8000/app/`. The review launcher uses `APP_PROFILE=review` and `MODEL_RUNTIME=remote`. Set `REMOTE_MODEL_URL` and the optional `REMOTE_MODEL_TOKEN` outside Git before starting when a Model API is available.
+
+## Linux server checkout
+
+Place the release at `/opt/dr-support-screening-poc` when using the included systemd unit. Keep runtime assets in `local-state/` or another private path. Never commit model weights, review databases, or secret environment files.
+
+## Configuration
+
+Copy `.env.example` only as a reference. Use private process environment or an approved secret manager for tokens. The model-server example is [deployment/model-server.env.example](../../deployment/model-server.env.example). See [Configuration](../CONFIGURATION.md) for the complete variable matrix.

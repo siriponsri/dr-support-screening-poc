@@ -1,0 +1,11 @@
+:root { --rrw-green: #205c45; --rrw-dark: #163e31; --rrw-ink: #24312c; --rrw-line: #dce4df; --rrw-tint: #f3f7f4; }
+body { color: var(--rrw-ink); font-family: "Segoe UI", Arial, sans-serif; line-height: 1.55; }
+h1, h2, h3, h4 { color: var(--rrw-dark); font-weight: 650; }
+h1 { border-bottom: 2px solid var(--rrw-green); padding-bottom: .3rem; }
+.callout { border-radius: 3px; box-shadow: none; }
+.callout-warning { border-left-color: #a05a16; background: #fff8ef; }
+.callout-important { border-left-color: var(--rrw-green); background: var(--rrw-tint); }
+.callout-caution { border-left-color: #8a6b14; background: #fffdf1; }
+table { font-size: .94rem; }
+thead { background: var(--rrw-tint); }
+@media print { body { font-size: 10.5pt; } h1,h2,h3 { break-after: avoid; } table,.callout { break-inside: avoid; } a { color: inherit; text-decoration: none; } }

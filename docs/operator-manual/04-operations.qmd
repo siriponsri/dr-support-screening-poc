@@ -1,0 +1,35 @@
+# Routine operations {#sec-operations}
+
+## systemd service
+
+Install the included service only when the release is at `/opt/dr-support-screening-poc`:
+
+```bash
+cd /opt/dr-support-screening-poc
+sudo ./scripts/model-server/install-service.sh
+sudo systemctl start dr-support-model-api
+sudo systemctl status dr-support-model-api
+./scripts/model-server/healthcheck.sh
+```
+
+The service runs as `drsupport`, reads `/etc/dr-support/model-server.env`, uses one worker, and starts `scripts/model-server/start.sh`.
+
+Use the following for lifecycle and logs:
+
+```bash
+sudo systemctl stop dr-support-model-api
+sudo systemctl restart dr-support-model-api
+sudo journalctl -u dr-support-model-api -n 100 --no-pager
+```
+
+## Connect a workstation
+
+Set `REMOTE_MODEL_URL` on the review workstation to the Model API base URL, for example `http://model-host.example:7860`. Use HTTPS across an untrusted segment. Set `REMOTE_MODEL_TOKEN` through a private environment or secret manager when required. The token is not returned to the UI, stored in SQLite, or logged.
+
+## Daily readiness check
+
+1. Confirm the service is active with `systemctl status`.
+2. Run `healthcheck.sh` and confirm `/health` reports `PASS`.
+3. Confirm `/v1/models` returns both expected model IDs and verified status.
+4. Open the review workstation and check **Models & Audit**.
+5. Run a public or synthetic smoke image only when the release acceptance procedure requires it.

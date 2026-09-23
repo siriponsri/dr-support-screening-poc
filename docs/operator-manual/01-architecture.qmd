@@ -1,0 +1,23 @@
+# Architecture and supported scope {#sec-architecture}
+
+## Topology
+
+![Hospital deployment architecture](../../assets/system-architecture.png){#fig-architecture fig-cap="The review workstation uses the provider-neutral Model API; verified model assets remain on the GPU host."}
+
+| Component | Role |
+| --- | --- |
+| Review workstation | React/Vite clinician UI, FastAPI review routes, Workspace catalog, local review state, annotations, and export. |
+| Model API | FastAPI service on a GPU host with `APP_PROFILE=model_api` and `MODEL_RUNTIME=local`. |
+| RETFound | Five-class DR grade suggestion through `retfound-aptos5`. |
+| PRISM-DR | Optional lesion ROI suggestions through `prism-dr-5fold`. |
+| CVAT Online | Optional dense annotation and geometry correction. It is not part of offline acceptance. |
+
+## Boundaries
+
+The review profile does not load model weights. It calls the provider-neutral Model API. The Model API supports the existing fundus image contracts only. MRI, OCT, PACS, DICOMweb, calibration, XAI/Grad-CAM, and autonomous diagnosis are outside this release.
+
+The application retains the `/ui` static surface for compatibility with existing local integrations. Normal users and deployments must use `/app/`; `/ui` is legacy compatibility only.
+
+## Data ownership
+
+The review workstation owns Workspace configuration, case state, annotations, audit events, and export files. The Model API is stateless for clinical records and returns model metadata, inference results, and provenance. Original admitted source images remain immutable.
