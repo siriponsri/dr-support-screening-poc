@@ -182,6 +182,7 @@ def review_evidence_view(case: dict) -> dict:
             'original_rectangle': None,
             'corrected_label': None,
             'corrected_rectangle': None,
+            'source_detection_id': annotation.get('source_detection_id'),
         })
 
     confirmed = sum(item.get('status') == 'CLINICIAN_CONFIRMED' for item in items)

@@ -66,59 +66,73 @@ describe('lightweight AI ROI correction', () => {
     expect(screen.queryByText(/unresolved/i)).not.toBeInTheDocument();
   });
 
-  it('records a class correction while keeping original evidence and score separate', async () => {
+  it('creates a human correction copy while retaining the original AI evidence and score', async () => {
     const user = userEvent.setup();
     let requestBody: Record<string, unknown> | undefined;
+    const humanAnnotation = {
+      shape_id: 'human-derived-1',
+      type: 'rectangle' as const,
+      label: 'HEMORRHAGE' as const,
+      geometry: { x: 10, y: 20, width: 20, height: 20 },
+      locked: false,
+      source_detection_id: lesions[0].detection_id,
+      source: 'HUMAN' as const,
+      reviewer: 'Clinician',
+      created_at: '2026-01-01T00:00:00Z',
+    };
     const corrected = {
       ...item,
       revision: 3,
+      human_annotations: [humanAnnotation],
       review_evidence: {
         ...item.review_evidence!,
-        items: [{ ...item.review_evidence!.items[0], status: 'LABEL_CHANGED' as const, label: 'HEMORRHAGE', corrected_label: 'MICROANEURYSM', reviewer: 'Clinician' }],
+        items: [...item.review_evidence!.items, {
+          annotation_id: humanAnnotation.shape_id,
+          source: 'HUMAN' as const,
+          label: humanAnnotation.label,
+          score: null,
+          original_score: null,
+          status: 'CLINICIAN_ADDED' as const,
+          model_id: null,
+          model_version: null,
+          reviewer: 'Clinician',
+          timestamp: humanAnnotation.created_at,
+          original_label: null,
+          original_rectangle: null,
+          corrected_label: null,
+          corrected_rectangle: null,
+          source_detection_id: lesions[0].detection_id,
+        }],
       },
     };
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      expect(new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname).toBe('/v1/cases/CASE-001/annotations/from-ai');
       requestBody = JSON.parse(String(init?.body));
       return jsonResponse(corrected);
     });
+    const onDerived = vi.fn();
 
     withProviders(
-      <LesionActionPopover item={item} selectedLesionId={lesions[0].detection_id} onSaved={vi.fn()} onClose={vi.fn()} />,
+      <LesionActionPopover item={item} selectedLesionId={lesions[0].detection_id} onSaved={vi.fn()} onDerived={onDerived} onClose={vi.fn()} />,
       '/review/CASE-001',
     );
     await user.click(screen.getByRole('button', { name: /Selected AI suggestion: HE/i }));
-    await user.selectOptions(screen.getByLabelText('Change lesion class'), 'MICROANEURYSM');
+    expect(screen.getByRole('dialog')).toHaveTextContent(/Model score: 0\.90/);
+    expect(screen.getByText(/not a clinical probability/)).toBeInTheDocument();
     await user.type(await screen.findByPlaceholderText('Reviewer name'), 'Clinician');
-    await user.click(screen.getByRole('button', { name: 'Save class correction' }));
+    await user.click(screen.getByRole('button', { name: 'Correct annotation' }));
 
     expect(requestBody).toMatchObject({
       revision: 2,
       detection_id: lesions[0].detection_id,
-      action: 'CORRECT',
-      label: 'MICROANEURYSM',
+      intent: 'CORRECT_AS_HUMAN',
       reviewer: 'Clinician',
     });
-    expect(corrected.review_evidence.items[0]).toMatchObject({
-      original_label: 'HEMORRHAGE',
-      original_score: 0.9,
-      corrected_label: 'MICROANEURYSM',
-    });
+    expect(onDerived).toHaveBeenCalledWith(corrected, humanAnnotation, 'CORRECT_AS_HUMAN');
     expect(corrected.lesion.lesions[0]).toMatchObject({ canonical_label: 'HEMORRHAGE', score: 0.9 });
-
-    const active = displayedLesions(corrected);
-    expect(active[0]).toMatchObject({
-      canonical_label: 'MICROANEURYSM',
-      displayScore: null,
-      originalLabel: 'HEMORRHAGE',
-      originalScore: 0.9,
-      reviewState: 'CLINICIAN_CORRECTED',
-    });
-    expect(active[1]).toMatchObject({
-      detection_id: lesions[1].detection_id,
-      canonical_label: 'MICROANEURYSM',
-      displayScore: 0.82,
-      reviewState: 'AI_SUGGESTION',
-    });
+    expect(corrected.human_annotations[0]).toMatchObject({ source_detection_id: lesions[0].detection_id, label: 'HEMORRHAGE' });
+    expect(corrected.human_annotations[0]).not.toHaveProperty('score');
+    expect(displayedLesions(corrected)[0]).toMatchObject({ canonical_label: 'HEMORRHAGE', displayScore: 0.9 });
   });
 
   it('removes only the selected active overlay while preserving other detections', async () => {
@@ -131,10 +145,10 @@ describe('lightweight AI ROI correction', () => {
     });
     const onSaved = vi.fn();
 
-    withProviders(<LesionActionPopover item={item} selectedLesionId={lesions[0].detection_id} onSaved={onSaved} onClose={vi.fn()} />, '/review/CASE-001');
+    withProviders(<LesionActionPopover item={item} selectedLesionId={lesions[0].detection_id} onSaved={onSaved} onDerived={vi.fn()} onClose={vi.fn()} />, '/review/CASE-001');
     await user.click(screen.getByRole('button', { name: /Selected AI suggestion: HE/i }));
     await user.type(await screen.findByPlaceholderText('Reviewer name'), 'Clinician');
-    await user.click(screen.getByRole('button', { name: 'Remove this detection' }));
+    await user.click(screen.getByRole('button', { name: 'Remove from reviewed result' }));
 
     expect(requestBody).toMatchObject({ action: 'REJECT', detection_id: lesions[0].detection_id });
     expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ revision: 3 }));

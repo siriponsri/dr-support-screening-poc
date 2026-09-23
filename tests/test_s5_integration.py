@@ -165,6 +165,53 @@ def test_uncompressed_dicom_admission_display_and_privacy(tmp_path):
         assert forbidden not in public_json
 
 
+def test_grouped_export_uses_dicom_display_derivative_without_exporting_source_metadata(tmp_path):
+    data = _dicom_bytes()
+    source_sha256 = hashlib.sha256(data).hexdigest()
+    app, client, input_folder = _workspace_client(tmp_path)
+    source = input_folder / "fundus.dcm"
+    source.write_bytes(data)
+    assert client.post("/v1/admissions/scan").status_code == 200
+
+    case = client.get(f"/v1/cases/{source_sha256}").json()
+    accepted = client.post(f"/v1/cases/{source_sha256}/admission", json={
+        "revision": case["revision"],
+        "reviewer": "Synthetic clinician",
+        "action": "ACCEPT_RETINAL",
+    })
+    assert accepted.status_code == 200
+    reviewed = client.post(f"/v1/cases/{source_sha256}/review", json={
+        "revision": accepted.json()["revision"],
+        "reviewer": "Synthetic clinician",
+        "action": "CORRECT_GRADE",
+        "grade": 2,
+    })
+    assert reviewed.status_code == 200
+
+    display = client.get(f"/v1/images/{source_sha256}/display")
+    assert display.status_code == 200
+    result = client.post("/v1/dataset/export/grouped-by-grade", json={})
+    assert result.status_code == 200
+
+    output = tmp_path / "output" / "grouped_by_grade"
+    exported = next((output / "dr_grade_2").glob("*.png"))
+    with Image.open(exported) as decoded:
+        assert decoded.format == "PNG"
+        assert decoded.size == (16, 12)
+    manifest_path = output / "_manifest" / "grouped_export_manifest.json"
+    manifest_text = manifest_path.read_text(encoding="utf-8")
+    manifest = json.loads(manifest_text)
+    item = next(row for row in manifest["items"] if row["image_id"] == source_sha256)
+    assert item["source_was_dicom"] is True
+    assert item["source_sha256"] == source_sha256
+    assert item["rendered_derivative_sha256"] == display.headers["x-derivative-sha256"]
+    assert item["export_sha256"] == hashlib.sha256(exported.read_bytes()).hexdigest()
+    assert "INTEGRATION^MUST_NOT_LEAK" not in manifest_text
+    assert "SYNTHETIC-PHI-MUST-NOT-LEAK" not in manifest_text
+    assert source.read_bytes() == data
+    assert app.state.images[source_sha256].data == data
+
+
 def test_dicom_display_dispatches_compressed_supported_codec_when_available(tmp_path):
     data = _compressed_dicom_bytes()
     result = DicomImageHandler().decode(data)
@@ -233,6 +280,17 @@ def test_non_ophthalmic_dicom_reports_unsupported_modality(tmp_path):
     assert display.status_code == 409
     assert "unsupported" in display.json()["detail"].lower()
     assert "ophthalmic retinal image" in display.json()["detail"].lower()
+
+    grouped = client.post("/v1/dataset/export/grouped-by-grade", json={})
+    assert grouped.status_code == 200
+    grouped_manifest = json.loads(
+        (tmp_path / "output" / "grouped_by_grade" / "_manifest" / "grouped_export_manifest.json")
+        .read_text(encoding="utf-8")
+    )
+    rejected = next(row for row in grouped_manifest["items"] if row["image_id"] == image_id)
+    assert rejected["source_was_dicom"] is True
+    assert rejected["status"] == "SKIPPED_NOT_FUNDUS_ACCEPTED"
+    assert rejected["output_path"] is None
 
 
 def test_corrupt_dicom_is_safe_invalid_admission_and_display_failure(tmp_path):

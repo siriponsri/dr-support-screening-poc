@@ -25,4 +25,4 @@ A case can have a final grade without reviewed annotations. A single *ready* fla
 
 ## More information
 
-`docs/DATASET_MANIFEST.md`, `tests/test_dataset.py`.
+`docs/reference/DATASET_MANIFEST.md`, `tests/test_dataset.py`.

@@ -15,6 +15,7 @@ from uuid import uuid4
 
 from .admission import legacy_admission
 from ..presentation import annotation_set_hash, lesion_detection_id
+from ..imaging import DerivativeError
 from .resolver import normalize_patient_key
 
 
@@ -128,6 +129,49 @@ def _csv_bytes(rows: list[dict], fields: list[str]) -> bytes:
     writer.writeheader()
     writer.writerows({field: "" if row.get(field) is None else row.get(field) for field in fields} for row in rows)
     return stream.getvalue().encode("utf-8")
+
+
+GROUPED_EXPORT_FIELDS = [
+    "image_id", "group", "final_grade", "source_sha256", "source_was_dicom",
+    "rendered_derivative_sha256", "export_format", "export_sha256", "output_path", "status",
+]
+
+
+def _grade_group(case: dict, admission: dict | None) -> tuple[str, int | None]:
+    if (admission or {}).get("quality_state") == "UNGRADABLE":
+        return "ungradable", None
+    review = case.get("clinician_review") or {}
+    if case.get("state") == "ESCALATED" or review.get("review_action") == "ESCALATE":
+        return "senior_review", None
+    grade, source, _ = DatasetManifestService._final_grade(case)
+    if isinstance(grade, int) and not isinstance(grade, bool) and grade in range(5) and source in {
+        "AI_ACCEPTED", "AI_CORRECTED", "MANUAL",
+    }:
+        return f"dr_grade_{grade}", grade
+    return "needs_review", None
+
+
+def _grouped_image_bytes(image, output_format: str, quality: int, derivative_service) -> tuple[bytes, str, bool]:
+    from PIL import Image
+
+    source_was_dicom = image.media_type == "application/dicom" or Path(image.filename).suffix.lower() in {".dcm", ".dicom"}
+    derivative = derivative_service.prepare_display(image)
+    data = derivative.data
+    rendered_sha256 = _sha256(data)
+    if output_format == "PNG" and derivative.lineage.format == "PNG":
+        return data, rendered_sha256, source_was_dicom
+    try:
+        with Image.open(io.BytesIO(data)) as decoded:
+            decoded.load()
+            rgb = decoded.convert("RGB")
+            output = io.BytesIO()
+            if output_format == "PNG":
+                rgb.save(output, format="PNG", optimize=False, compress_level=9)
+            else:
+                rgb.save(output, format="JPEG", quality=quality, subsampling=0, optimize=False, progressive=False)
+            return output.getvalue(), rendered_sha256, source_was_dicom
+    except Exception as error:
+        raise DatasetManifestError("The admitted image could not be rendered for grouped export.") from error
 
 
 def _geometry_json(geometry: object) -> str:
@@ -486,7 +530,7 @@ class DatasetManifestService:
                 "eligibility_reason": "ELIGIBLE" if human_ready else (
                     image_reason if not image_include else "ANNOTATION_NOT_VERIFIED"
                 ),
-                "source_detection_id": None,
+                "source_detection_id": annotation.get("source_detection_id"),
                 "original_label": None,
                 "original_score": None,
                 "original_geometry_json": None,
@@ -625,4 +669,161 @@ class DatasetManifestService:
             "annotation_count": len(annotations),
             "training_ready_count": sum(bool(row["include_in_training"]) for row in images),
             "files": ["manifest.json", "images.csv", "annotations.csv"],
+        }
+
+    def export_grouped(self, *, image_format: str = "PNG", jpeg_quality: int = 90) -> dict:
+        workspace = self._workspace()
+        if workspace is None:
+            raise DatasetManifestError("Open an active Workspace before exporting reviewed images.")
+        if image_format not in {"PNG", "JPEG"}:
+            raise DatasetManifestError("Choose PNG or JPEG for grouped image export.")
+
+        grouped_root = Path(workspace.output_folder) / "grouped_by_grade"
+        manifest_dir = grouped_root / "_manifest"
+        for name in [*(f"dr_grade_{grade}" for grade in range(5)), "ungradable", "needs_review", "senior_review"]:
+            (grouped_root / name).mkdir(parents=True, exist_ok=True)
+        manifest_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = manifest_dir / "grouped_export_manifest.json"
+        csv_path = manifest_dir / "grouped_images.csv"
+
+        prior_items: list[dict] = []
+        if manifest_path.is_file():
+            try:
+                previous = json.loads(manifest_path.read_text(encoding="utf-8"))
+                for entry in previous.get("items", []):
+                    relative = Path(entry.get("output_path", ""))
+                    candidate = (grouped_root / relative).resolve()
+                    if (relative.is_absolute() or ".." in relative.parts
+                            or not candidate.is_relative_to(grouped_root.resolve())
+                            or not candidate.is_file()):
+                        continue
+                    if _sha256(candidate.read_bytes()) == entry.get("export_sha256"):
+                        prior_items.append(entry)
+            except (OSError, ValueError, TypeError, AttributeError):
+                prior_items = []
+
+        run_items: list[dict] = []
+        copied_count = 0
+        identical_count = 0
+        skipped_count = 0
+        store = self.app.state.store
+        with store.lock:
+            snapshots = [
+                (image_id, *self._case_context(image_id, store))
+                for image_id in self._image_ids()
+            ]
+
+        for image_id, case, image, admission in snapshots:
+            group, grade = _grade_group(case, admission)
+            source_sha256 = image.sha256 if image is not None else (admission or {}).get("source_sha256")
+            item = {
+                "image_id": image_id,
+                "group": group,
+                "final_grade": grade,
+                "source_sha256": source_sha256 if _is_sha256(source_sha256) else None,
+                "source_was_dicom": bool(
+                    (image and (image.media_type == "application/dicom"
+                                or Path(image.filename).suffix.lower() in {".dcm", ".dicom"}))
+                    or (admission or {}).get("source_format") == "DICOM"
+                    or (admission or {}).get("source_media_type") == "application/dicom"
+                ),
+                "rendered_derivative_sha256": None,
+                "export_format": image_format,
+                "export_sha256": None,
+                "output_path": None,
+                "status": "SKIPPED_SOURCE_UNAVAILABLE",
+            }
+            if (admission or {}).get("modality_admission") != "FUNDUS_ACCEPTED":
+                item["status"] = "SKIPPED_NOT_FUNDUS_ACCEPTED"
+                skipped_count += 1
+                run_items.append(item)
+                continue
+            if image is None:
+                skipped_count += 1
+                run_items.append(item)
+                continue
+
+            try:
+                image_bytes, rendered_sha256, source_was_dicom = _grouped_image_bytes(
+                    image, image_format, jpeg_quality, self.app.state.derivatives
+                )
+            except DerivativeError as error:
+                item["status"] = f"SKIPPED_UNSUPPORTED_{error.status.value}"
+                skipped_count += 1
+                run_items.append(item)
+                continue
+            except DatasetManifestError:
+                item["status"] = "SKIPPED_DECODE_FAILED"
+                skipped_count += 1
+                run_items.append(item)
+                continue
+
+            export_sha256 = _sha256(image_bytes)
+            item["source_was_dicom"] = source_was_dicom
+            item["rendered_derivative_sha256"] = rendered_sha256
+            item["export_sha256"] = export_sha256
+            extension = "png" if image_format == "PNG" else "jpg"
+            base = f"case_{source_sha256[:24]}__{group}"
+            target_dir = grouped_root / group
+            suffix = 1
+            while True:
+                name = f"{base}.{extension}" if suffix == 1 else f"{base}__{suffix}.{extension}"
+                target = target_dir / name
+                try:
+                    with target.open("xb") as output:
+                        output.write(image_bytes)
+                    item["status"] = "COPIED"
+                    copied_count += 1
+                    break
+                except FileExistsError:
+                    if _sha256(target.read_bytes()) == export_sha256:
+                        item["status"] = "IDENTICAL_EXISTING"
+                        identical_count += 1
+                        break
+                    suffix += 1
+            item["output_path"] = target.relative_to(grouped_root).as_posix()
+            run_items.append(item)
+
+        merged = {entry["output_path"]: entry for entry in prior_items if entry.get("output_path")}
+        skipped = [entry for entry in prior_items if not entry.get("output_path")]
+        for item in run_items:
+            if item["output_path"]:
+                merged[item["output_path"]] = item
+            else:
+                skipped.append(item)
+        items = [*merged.values(), *skipped]
+        items.sort(key=lambda entry: (str(entry.get("group", "")), str(entry.get("image_id", "")), str(entry.get("output_path", ""))))
+        csv_bytes = _csv_bytes(items, GROUPED_EXPORT_FIELDS)
+        file_hashes = {
+            entry["output_path"]: entry["export_sha256"]
+            for entry in items if entry.get("output_path") and entry.get("export_sha256")
+        }
+        manifest = {
+            "schema_version": "s1.grouped-grade-export.v1",
+            "created_at": _utc_now(),
+            "workspace_id": workspace.id,
+            "workspace_name": workspace.name,
+            "grouping_policy": "final clinician grade; unresolved cases are separated without changing source files",
+            "source_immutability": "copy_only",
+            "format": image_format,
+            "jpeg_quality": jpeg_quality if image_format == "JPEG" else None,
+            "item_count": len(items),
+            "copied_count": copied_count,
+            "identical_existing_count": identical_count,
+            "skipped_count": skipped_count,
+            "items": items,
+            "files": {
+                "grouped_images.csv": _sha256(csv_bytes),
+                "images": file_hashes,
+            },
+        }
+        csv_path.write_bytes(csv_bytes)
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+        return {
+            "directory_name": "grouped_by_grade",
+            "image_format": image_format,
+            "copied_count": copied_count,
+            "identical_existing_count": identical_count,
+            "skipped_count": skipped_count,
+            "manifest": "_manifest/grouped_export_manifest.json",
         }

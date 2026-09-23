@@ -1,0 +1,39 @@
+# Documentation as Code {#sec-docs}
+
+All documentation lives in this repository. It is reviewed like code and built by one script, `scripts/docs/build_docs.py`.
+
+| Build target | Document | Output |
+|:-------------|:---------|:-------|
+| `clinician-manual` | Clinician User Manual | `docs/pdfs/CLINICIAN_USER_MANUAL.pdf` |
+| `operator-manual` | Deployment and Operations Manual | `docs/pdfs/DEPLOYMENT_OPERATIONS_MANUAL.pdf` |
+| `sampling` | Team Image Sampling Requirements | `docs/pdfs/IMAGE_SAMPLING_REQUIREMENTS.pdf` |
+| `developer` | Developer Technical Guide | `docs/pdfs/DEVELOPER_TECHNICAL_GUIDE.pdf` |
+| `image-guide` | Clinician Image Selection Guide | `docs/pdfs/CLINICIAN_IMAGE_SELECTION_GUIDE.pdf` |
+| `demo` | Product demo | `docs/presentation/RETINAL_REVIEW_DEMO.html` |
+| `briefing` | Technical briefing | `docs/presentation/TECHNICAL_BRIEFING.html` |
+| `diagrams` | Architecture diagrams | `docs/adr/architecture/rendered/*.png`, `*.svg` |
+
+: Documentation outputs. {#tbl-docs tbl-colwidths="[22,38,40]"}
+
+Sources: `docs/manuals/clinician/`, `docs/manuals/operator/`, `docs/clinician/sampling/` (with `REQUIREMENTS_TRACEABILITY.md`), `docs/manuals/developer/` (Quarto books); `docs/clinician/IMAGE_SELECTION_GUIDE.html`; `docs/presentation/hyperframes/index.html` (HyperFrames slideshow source); `docs/adr/architecture/*.mmd`.
+
+```text
+python scripts/docs/build_docs.py all          # everything
+python scripts/docs/build_docs.py demo briefing
+python scripts/docs/build_docs.py developer --html   # also HTML site under dist/manual/
+python scripts/docs/check_docs.py              # links, IDs, reveal/script sync
+```
+
+**Tools.**
+
+- **Quarto** (1.6 or later) with **XeLaTeX** builds the books. Set `QUARTO_BIN` if Quarto is not on `PATH`. The script runs Quarto inside each book folder, because Quarto reads a `.env.example` in the working directory as a list of required variables.
+- **Mermaid CLI** (`mmdc`) renders the diagrams. Set `PUPPETEER_EXECUTABLE_PATH` to reuse an installed Chromium.
+- **Playwright** prints the image guide. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to reuse an installed Chromium.
+- The demo and briefing builds use only the Python standard library. They inline CSS, JS, and images into one offline HTML file.
+
+**Rules.**
+
+- Keep one source of truth per topic (see `README.md`, *Documentation*).
+- After a rebuild, look at every PDF page and every presentation scene, not just the build log.
+- A presentation reveal change must be mirrored in the Thai script. `check_docs.py` fails when the counts differ.
+- Diagrams use flowchart and sequence syntax with C4 semantics in the labels, because Mermaid's native C4 syntax is still marked experimental.

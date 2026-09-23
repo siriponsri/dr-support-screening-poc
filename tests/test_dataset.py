@@ -129,6 +129,64 @@ def test_manifest_preserves_identity_provenance_geometry_and_export_files(tmp_pa
     assert second.json()["directory_name"] != export_info["directory_name"]
 
 
+def test_grouped_grade_export_copies_images_with_provenance_and_collision_safety(tmp_path):
+    app, client, output_folder = _workspace_client(tmp_path)
+    image_id = "SYNTH_001"
+    case = client.get(f"/v1/cases/{image_id}").json()
+    reviewed = client.post(f"/v1/cases/{image_id}/review", json={
+        "revision": case["revision"],
+        "action": "CORRECT_GRADE",
+        "reviewer": "Dataset clinician",
+        "grade": 3,
+    })
+    assert reviewed.status_code == 200
+
+    source_bytes = app.state.images[image_id].data
+    before_case = app.state.store.get(image_id)
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    first = client.post("/v1/dataset/export/grouped-by-grade", json={})
+    assert first.status_code == 200
+    assert first.json()["copied_count"] == 1
+    assert first.json()["image_format"] == "PNG"
+
+    grouped = output_folder / "grouped_by_grade"
+    exported = grouped / "dr_grade_3" / f"case_{source_sha256[:24]}__dr_grade_3.png"
+    assert exported.is_file()
+    with Image.open(exported) as decoded:
+        assert decoded.format == "PNG"
+        assert decoded.size == app.state.images[image_id].size
+    manifest_path = grouped / "_manifest" / "grouped_export_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entry = next(row for row in manifest["items"] if row["image_id"] == image_id)
+    assert entry == {
+        "image_id": image_id,
+        "group": "dr_grade_3",
+        "final_grade": 3,
+        "source_sha256": source_sha256,
+        "source_was_dicom": False,
+        "rendered_derivative_sha256": source_sha256,
+        "export_format": "PNG",
+        "export_sha256": hashlib.sha256(exported.read_bytes()).hexdigest(),
+        "output_path": "dr_grade_3/" + exported.name,
+        "status": "COPIED",
+    }
+    assert "input" not in manifest_path.read_text(encoding="utf-8").lower()
+    assert app.state.store.get(image_id) == before_case
+    assert app.state.images[image_id].data == source_bytes
+
+    repeated = client.post("/v1/dataset/export/grouped-by-grade", json={})
+    assert repeated.status_code == 200
+    assert repeated.json()["copied_count"] == 0
+    assert repeated.json()["identical_existing_count"] == 1
+    assert len(list((grouped / "dr_grade_3").glob("*.png"))) == 1
+
+    exported.write_bytes(b"unrelated existing output")
+    collision = client.post("/v1/dataset/export/grouped-by-grade", json={})
+    assert collision.status_code == 200
+    assert collision.json()["copied_count"] == 1
+    assert (grouped / "dr_grade_3" / f"case_{source_sha256[:24]}__dr_grade_3__2.png").is_file()
+
+
 def test_manifest_scope_uses_active_workspace_scan_records(tmp_path):
     input_folder = tmp_path / "input"
     output_folder = tmp_path / "output"

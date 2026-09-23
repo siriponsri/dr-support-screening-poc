@@ -53,7 +53,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
         <FormControl><FormLabel htmlFor="confirm-image-eye">Eye</FormLabel><Select id="confirm-image-eye" value={laterality} onChange={(event) => setLaterality(event.target.value as Laterality)}><option value="LEFT">Left</option><option value="RIGHT">Right</option><option value="UNKNOWN">Unknown</option></Select></FormControl>
         <ReviewerField id="confirm-image-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
       </Stack></ModalBody>
-      <ModalFooter><HStack spacing={2}><Button variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button><Button variant="solid" onClick={() => void save()} isLoading={saving}>Confirm Image</Button></HStack></ModalFooter>
+      <ModalFooter><HStack spacing={2}><Button variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button><Button variant="solid" onClick={() => void save()} isLoading={saving}>Confirm image & continue</Button></HStack></ModalFooter>
       </ModalContent>
     </Modal>
   );

@@ -1,0 +1,36 @@
+# Dataset Readiness and Export {#sec-dataset}
+
+![Dataset readiness and provenance. Source: `docs/adr/architecture/06-dataset-provenance-flow.mmd`.](../../adr/architecture/rendered/06-dataset-provenance-flow.png){#fig-dataset width=95%}
+
+`DatasetManifestService` (`dr_support/services/dataset.py`) serves `GET /v1/dataset/manifest` (preview) and `POST /v1/dataset/export`. The schema source of truth is `docs/reference/DATASET_MANIFEST.md` (`s4.dataset-manifest.v2`, eligibility policy `s8.2-task-specific-v1`).
+
+## Task-specific readiness
+
+Both tasks need all of the following:
+
+- valid source provenance (a SHA-256 identity);
+- queue state `INCLUDED`;
+- admission `FUNDUS_ACCEPTED`;
+- quality neither `UNGRADABLE` nor `NEEDS_REVIEW`;
+- a confirmed image (`reviewed_by` and `reviewed_at`, or a legacy-compatible record).
+
+On top of that, each task has one extra requirement:
+
+| Task | Extra requirement | Reason code when missing |
+|:-----|:------------------|:-------------------------|
+| **DR-ready** (`dr_grade_training_ready`) | A final grade with source `AI_ACCEPTED` / `AI_CORRECTED` / `MANUAL`, plus reviewer and timestamp | `NO_FINAL_CLINICIAN_GRADE`, `MISSING_PROVENANCE` |
+| **Lesion-ready** (`lesion_training_ready`) | A current Confirm Annotation whose hash equals the active-set hash, plus reviewer and timestamp | `NO_ANNOTATION_CONFIRMATION` |
+
+: Readiness rules. {#tbl-readiness tbl-colwidths="[28,46,26]"}
+
+AI-only evidence is never promoted to ground truth. Untouched AI, human, corrected, removed, and CVAT-imported annotations stay distinguishable in `annotations.csv` (`annotation_source`, `original_label`, `original_score`, `original_geometry_json`).
+
+## Export package
+
+`export()` writes `<output>/dataset-export-<UTC timestamp>-<8 hex>/`. The directory is created exclusively, and it is removed again on any failure. It contains:
+
+- `manifest.json`: counts, `coordinate_system: original_image_pixels`, lesion taxonomy, `grouping_policy: patient_key_only; no automatic train-validation-test split`, and the SHA-256 of both CSV files;
+- `images.csv`: one row per image, with the fields listed in `IMAGE_FIELDS`;
+- `annotations.csv`: one row per annotation, with the fields listed in `ANNOTATION_FIELDS`.
+
+Source images and case records are never modified by an export. `training_group_key` (`patient:<key>`) is exported so that any future experiment can split by patient. The software itself creates no split.

@@ -364,8 +364,8 @@ export function ReviewPage() {
           <Section title="DR assessment"><Assessment item={item} /></Section>
           <Section title="Lesion suggestions"><LesionSuggestions item={item} /></Section>
           <HStack spacing={2} flexWrap="wrap">
-            <Button as={Link} to={`/edit/${encodeURIComponent(item.image_id)}`} leftIcon={<Pencil size={15} />} variant="secondary">Edit annotations</Button>
-            <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="outline">Clinician review</Button>
+            <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid">Continue to clinician review</Button>
+            <Button as={Link} to={`/edit/${encodeURIComponent(item.image_id)}`} leftIcon={<Pencil size={15} />} variant="outline">Edit annotations</Button>
           </HStack>
         </Stack>
       </Grid>

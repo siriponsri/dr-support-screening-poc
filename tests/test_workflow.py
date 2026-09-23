@@ -110,8 +110,8 @@ def test_public_samples_are_verified_and_mock_rejected(tmp_path):
 def test_reject_wrong_sample_bytes(tmp_path):
     import json
     from dr_support.images import admitted_samples
-    (tmp_path/'docs').mkdir(); (tmp_path/'local-state/bridge/samples').mkdir(parents=True)
-    (tmp_path/'docs/SAMPLE_SOURCE_MANIFEST.json').write_text(json.dumps([{
+    (tmp_path/'docs/reference').mkdir(parents=True); (tmp_path/'local-state/bridge/samples').mkdir(parents=True)
+    (tmp_path/'docs/reference/SAMPLE_SOURCE_MANIFEST.json').write_text(json.dumps([{
         'filename':'01_dr.jpg','image_id':'01_dr','sha256':'0'*64,'source':'test'}]),encoding='utf-8')
     (tmp_path/'local-state/bridge/samples/01_dr.jpg').write_bytes(b'changed bytes')
     with pytest.raises(RuntimeError,match='hash mismatch'):
@@ -229,6 +229,81 @@ def test_review_evidence_keeps_ai_scores_and_human_provenance_separate(tmp_path)
     body = annotation.json()
     assert body['review_evidence']['summary']['added'] == 1
     assert body['human_annotations'][0]['source'] == 'HUMAN'
+
+
+def test_ai_roi_human_copy_preserves_detection_provenance_without_copying_score(tmp_path):
+    client = TestClient(create_app(tmp_path / 'state.sqlite', include_samples=False))
+    base = '/v1/cases/SYNTH_001'
+    assert client.post('/v1/infer/lesion-roi', json={
+        'image_id': 'SYNTH_001', 'model_id': 'mock-lesion',
+    }).status_code == 200
+
+    initial = client.get(base).json()
+    ai_lesion = initial['lesion_review']['lesions'][0]
+    raw_ai_lesion = initial['lesion']['lesions'][0]
+    detection_id = ai_lesion['detection_id']
+    copied = client.post(base + '/annotations/from-ai', json={
+        'revision': initial['revision'],
+        'reviewer': 'Evidence clinician',
+        'detection_id': detection_id,
+        'intent': 'CORRECT_AS_HUMAN',
+    })
+
+    assert copied.status_code == 200
+    body = copied.json()
+    human = body['human_annotations'][0]
+    assert human == {
+        'shape_id': human['shape_id'],
+        'type': 'rectangle',
+        'label': ai_lesion['canonical_label'],
+        'geometry': {
+            'x': ai_lesion['rectangle'][0],
+            'y': ai_lesion['rectangle'][1],
+            'width': ai_lesion['rectangle'][2] - ai_lesion['rectangle'][0],
+            'height': ai_lesion['rectangle'][3] - ai_lesion['rectangle'][1],
+        },
+        'locked': False,
+        'source_detection_id': detection_id,
+        'source': 'HUMAN',
+        'reviewer': 'Evidence clinician',
+        'created_at': human['created_at'],
+    }
+    assert 'score' not in human
+    assert body['lesion']['lesions'][0] == raw_ai_lesion
+    ai_evidence = next(entry for entry in body['review_evidence']['items'] if entry['source'] == 'AI')
+    human_evidence = next(entry for entry in body['review_evidence']['items'] if entry['source'] == 'HUMAN')
+    assert ai_evidence['score'] == ai_lesion['score']
+    assert human_evidence['score'] is None
+    assert human_evidence['source_detection_id'] == detection_id
+
+    legacy_save = client.put(base + '/annotations', json={
+        'revision': body['revision'],
+        'reviewer': 'Legacy annotation client',
+        'annotations': [{
+            'shape_id': human['shape_id'],
+            'type': human['type'],
+            'label': human['label'],
+            'geometry': human['geometry'],
+            'locked': human['locked'],
+        }],
+    })
+    assert legacy_save.status_code == 200
+    assert legacy_save.json()['human_annotations'][0]['source_detection_id'] == detection_id
+
+    repeated = client.post(base + '/annotations/from-ai', json={
+        'revision': initial['revision'],
+        'reviewer': 'Evidence clinician',
+        'detection_id': detection_id,
+        'intent': 'CORRECT_AS_HUMAN',
+    })
+    assert repeated.status_code == 200
+    assert repeated.json()['revision'] == legacy_save.json()['revision']
+    assert len(repeated.json()['human_annotations']) == 1
+
+    manifest = client.get('/v1/dataset/manifest?include_annotations=true').json()
+    human_row = next(row for row in manifest['annotations'] if row['annotation_source'] == 'HUMAN')
+    assert human_row['source_detection_id'] == detection_id
+    assert human_row['score'] is None
 
 
 def test_clinician_signoff_does_not_require_ai_lesion_actions(tmp_path):

@@ -1,0 +1,18 @@
+% Developer Technical Guide: document identity, then the shared manual style.
+\newcommand{\rrwDocTitle}{Developer Technical Guide}
+\newcommand{\rrwDocId}{RRW-DEV-TG-001}
+\newcommand{\rrwFooterNote}{Developers, technical lead, hospital IT}
+\newcommand{\rrwCoverTagline}{Architecture, implementation, and change guide for the current main branch}
+\newcommand{\rrwCoverRows}{%
+  Software version & 0.7.0 \\
+  Guide version & 1.0 (2026-09-23) \\
+  Document ID & RRW-DEV-TG-001 \\
+  Audience & Developers, technical lead, hospital IT \\
+  Verified against & \texttt{main} at \texttt{ec74af8} (code, tests, and scripts traced) \\
+  Companions & DEVELOPER\_HANDOFF.md, FEATURE\_IMPLEMENTATION\_MAP.md, WHERE\_TO\_CHANGE\_WHAT.md, docs/adr/ \\}
+\input{../clinician/latex-style.tex}
+\usepackage{pdflscape}
+\titleformat{\chapter}[hang]
+  {\Needspace{18\baselineskip}\normalfont\color{rrwgreen}\fontsize{18}{22}\selectfont\bfseries}
+  {\thechapter}{0.55em}{}
+  [\vspace{3pt}{\color{rrwline}\titlerule[0.8pt]}]

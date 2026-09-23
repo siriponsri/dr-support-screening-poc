@@ -12,6 +12,8 @@ import {
   Heading,
   HStack,
   Input,
+  Radio,
+  RadioGroup,
   Select,
   SimpleGrid,
   Spinner,
@@ -23,13 +25,14 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { RetinalCanvas } from '@/components/review/RetinalCanvas';
 import { apiJson, type CaseRecord } from '@/lib/api';
-import { ArrowLeft, Flag } from '@/lib/icons';
+import { ArrowLeft } from '@/lib/icons';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 import { ReviewerField } from '@/components/common/ReviewerField';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
 import { NextActionHint } from '@/components/common/NextActionHint';
 
 type ReviewAction = 'ACCEPT' | 'CORRECT_GRADE' | 'ESCALATE';
+type ReviewDecision = 'FINAL_GRADE' | 'SENIOR_REVIEW';
 
 function errorText(err: unknown) {
   return err instanceof Error ? err.message : 'The request could not be completed.';
@@ -50,6 +53,7 @@ export function ClinicianReviewPage() {
   const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
   const [useAsDefault, setUseAsDefault] = useState(() => Boolean(getDefaultReviewer()));
   const [grade, setGrade] = useState('');
+  const [decision, setDecision] = useState<ReviewDecision>('FINAL_GRADE');
   const [remark, setRemark] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingAction, setSavingAction] = useState<ReviewAction | null>(null);
@@ -68,6 +72,9 @@ export function ClinicianReviewPage() {
       if (loaded.clinician_review) {
         setRemark(loaded.clinician_review.remark);
         setGrade(loaded.clinician_review.final_grade === null ? '' : String(loaded.clinician_review.final_grade));
+        setDecision(loaded.clinician_review.review_action === 'ESCALATE' ? 'SENIOR_REVIEW' : 'FINAL_GRADE');
+      } else {
+        setDecision('FINAL_GRADE');
       }
     } catch (err) {
       setError(errorText(err));
@@ -116,6 +123,15 @@ export function ClinicianReviewPage() {
     }
   };
 
+  const submitDecisionAndNext = async (nextId: string | null) => {
+    if (!item) return;
+    const action: ReviewAction = decision === 'SENIOR_REVIEW'
+      ? 'ESCALATE'
+      : item.global?.grade === Number(grade) ? 'ACCEPT' : 'CORRECT_GRADE';
+    const saved = await saveReview(action);
+    if (saved) navigate(nextId ? `/clinician-review/${encodeURIComponent(nextId)}` : '/worklist');
+  };
+
   if (!imageId) return <Center minH="360px"><Text>Select an image from the Worklist.</Text></Center>;
   if (loading && !item) return <Center minH="360px"><Spinner color="action.primary" /></Center>;
   if (error && !item) return <Box as="main" maxW="1440px" mx="auto" px={6} py={6}><Alert status="error"><AlertIcon /><Text>{error}</Text></Alert><Button mt={4} onClick={() => navigate('/worklist')}>Back to Worklist</Button></Box>;
@@ -130,7 +146,13 @@ export function ClinicianReviewPage() {
         actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />}>Back to Review</Button><Button as={Link} to="/worklist">Back to Worklist</Button></HStack>}
       />
       <Stack spacing={3} mb={5}>
-        <CaseNavigation imageId={item.image_id} routePrefix="clinician-review" onSaveAndNext={(nextId) => { void saveReview(item.global?.grade === Number(grade) ? 'ACCEPT' : 'CORRECT_GRADE').then((ok) => { if (ok) navigate(`/clinician-review/${encodeURIComponent(nextId)}`); }); }} saveAndNextLabel="Confirm DR Grade & Next" />
+        <CaseNavigation
+          imageId={item.image_id}
+          routePrefix="clinician-review"
+          onSaveAndNext={(nextId) => { void submitDecisionAndNext(nextId); }}
+          saveAndNextLabel={decision === 'FINAL_GRADE' ? 'Confirm final DR grade & next' : 'Send for senior review & next'}
+          saveAtEndLabel={decision === 'FINAL_GRADE' ? 'Confirm final DR grade' : 'Send for senior review'}
+        />
         <NextActionHint item={item} />
       </Stack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.25fr) minmax(320px, 0.75fr)' }} gap={5} alignItems="start" minW={0}>
@@ -148,26 +170,36 @@ export function ClinicianReviewPage() {
           {item.clinician_review && <Text mt={3} fontSize="sm" color="text.secondary">Last saved by {item.clinician_review.reviewer} - {new Date(item.clinician_review.timestamp).toLocaleString()}</Text>}
         </Section>
         <Stack spacing={5} minW={0}>
-          <Section title="Clinician sign-off" description="Save a human review action with an optional remark.">
+          <Section title="Clinician decision" description="Choose one outcome for this case.">
             <Stack spacing={4}>
               <ReviewerField id="clinician-reviewer-name" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
               <Text fontSize="sm" color="text.secondary">AI suggestion: {item.global?.grade == null ? 'Not available' : `Grade ${item.global.grade}`}</Text>
-              <FormControl>
-                <FormLabel htmlFor="clinician-review-grade">Final DR grade</FormLabel>
-                <Select id="clinician-review-grade" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Select grade 0-4">
-                  {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>Grade {value}</option>)}
-                </Select>
-              </FormControl>
+              <RadioGroup value={decision} onChange={(value) => setDecision(value as ReviewDecision)}>
+                <Stack spacing={3}>
+                  <Box>
+                    <Radio value="FINAL_GRADE">Confirm final DR grade</Radio>
+                    <Text ml={6} fontSize="sm" color="text.secondary">Use when this DR grade is your final decision for this case.</Text>
+                  </Box>
+                  <Box>
+                    <Radio value="SENIOR_REVIEW">Send for senior review</Radio>
+                    <Text ml={6} fontSize="sm" color="text.secondary">Use when another clinician should review the case before final sign-off.</Text>
+                  </Box>
+                </Stack>
+              </RadioGroup>
+              {decision === 'FINAL_GRADE' && (
+                <FormControl>
+                  <FormLabel htmlFor="clinician-review-grade">Final DR grade</FormLabel>
+                  <Select id="clinician-review-grade" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Select grade 0-4">
+                    {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>Grade {value}</option>)}
+                  </Select>
+                </FormControl>
+              )}
               <FormControl>
                 <FormLabel htmlFor="clinician-review-remark">Remark</FormLabel>
                 <Textarea id="clinician-review-remark" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Add a review remark" rows={5} />
               </FormControl>
               {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
               {success && <Alert status="success"><AlertIcon /><Text fontSize="sm">{success}</Text></Alert>}
-              <Stack spacing={2}>
-                <Button variant="solid" onClick={() => void saveReview(item.global?.grade === Number(grade) ? 'ACCEPT' : 'CORRECT_GRADE')} isLoading={Boolean(savingAction)} isDisabled={grade === '' || Boolean(savingAction)}>Confirm DR Grade</Button>
-                <Button leftIcon={<Flag size={15} />} variant="outline" onClick={() => void saveReview('ESCALATE')} isLoading={savingAction === 'ESCALATE'} isDisabled={Boolean(savingAction)}>Escalate</Button>
-              </Stack>
             </Stack>
           </Section>
           <Section title="Review record" description="Persisted in the existing SQLite case store.">

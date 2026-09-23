@@ -71,6 +71,7 @@ export interface ReviewEvidenceItem {
   original_rectangle: [number, number, number, number] | null;
   corrected_label: string | null;
   corrected_rectangle: [number, number, number, number] | null;
+  source_detection_id?: string | null;
 }
 
 export interface ReviewEvidence {
@@ -95,6 +96,13 @@ export interface LesionReviewActionRequest {
   label?: LesionLabel;
   rectangle?: [number, number, number, number];
   note?: string;
+}
+
+export interface HumanAnnotationDeriveRequest {
+  revision: number;
+  reviewer: string;
+  detection_id: string;
+  intent: 'USE_AS_HUMAN' | 'CORRECT_AS_HUMAN';
 }
 
 export interface CoordinateMapping {
@@ -150,6 +158,7 @@ export interface HumanAnnotation {
   geometry: AnnotationGeometry;
   /** Legacy records omit this field; the editor treats those records as locked. */
   locked?: boolean;
+  source_detection_id?: string | null;
   source: 'HUMAN';
   reviewer: string;
   created_at: string;
@@ -489,6 +498,15 @@ export interface DatasetExportResponse {
   files: string[];
 }
 
+export interface GroupedGradeExportResponse {
+  directory_name: string;
+  image_format: 'PNG' | 'JPEG';
+  copied_count: number;
+  identical_existing_count: number;
+  skipped_count: number;
+  manifest: string;
+}
+
 export interface ModelConnectionModel {
   model_id: string;
   ready: boolean;
@@ -586,9 +604,20 @@ export const lesionReviewApi = {
   ),
 };
 
+export const humanAnnotationApi = {
+  deriveFromAi: (imageId: string, request: HumanAnnotationDeriveRequest) => apiJson<CaseRecord>(
+    `/v1/cases/${encodeURIComponent(imageId)}/annotations/from-ai`,
+    jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
+  ),
+};
+
 export const datasetApi = {
   manifest: () => apiJson<DatasetManifestResponse>('/v1/dataset/manifest?include_annotations=false'),
   export: () => apiJson<DatasetExportResponse>('/v1/dataset/export', jsonRequest({ method: 'POST' })),
+  exportGrouped: (imageFormat: 'PNG' | 'JPEG', jpegQuality: number) => apiJson<GroupedGradeExportResponse>(
+    '/v1/dataset/export/grouped-by-grade',
+    jsonRequest({ method: 'POST', body: JSON.stringify({ image_format: imageFormat, jpeg_quality: jpegQuality }) }),
+  ),
 };
 
 export const modelConnectionApi = {

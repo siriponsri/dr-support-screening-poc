@@ -8,7 +8,7 @@
 - **เวลารวม:** ประมาณ 12–14 นาที
 - **สัญลักษณ์:** `[กด Space]` หนึ่งครั้ง เท่ากับ reveal หนึ่งครั้งในไฟล์ HTML
 
-ข้อมูลทุกอย่างในบทนี้อ้างอิงจาก Developer Technical Guide (`docs/developer-manual/`) และ Team Image Sampling Requirements
+ข้อมูลทุกอย่างในบทนี้อ้างอิงจาก Developer Technical Guide (`docs/manuals/developer/`) และ Team Image Sampling Requirements
 
 ---
 

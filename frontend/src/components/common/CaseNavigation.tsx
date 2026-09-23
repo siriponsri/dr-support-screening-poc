@@ -7,12 +7,14 @@ interface CaseNavigationProps {
   imageId: string;
   dirty?: boolean;
   onBeforeNavigate?: () => boolean;
-  onSaveAndNext?: (nextId: string) => void;
+  onSaveAndNext?: (nextId: string | null) => void;
   saveAndNextLabel?: string;
+  saveAtEndLabel?: string;
+  actionDisabled?: boolean;
   routePrefix?: string;
 }
 
-export function CaseNavigation({ imageId, dirty = false, onBeforeNavigate, onSaveAndNext, saveAndNextLabel = 'Save & Next Case', routePrefix = 'review' }: CaseNavigationProps) {
+export function CaseNavigation({ imageId, dirty = false, onBeforeNavigate, onSaveAndNext, saveAndNextLabel = 'Save & Next Case', saveAtEndLabel = 'Complete case', actionDisabled = false, routePrefix = 'review' }: CaseNavigationProps) {
   const navigate = useNavigate();
   const { previousId, nextId, position, total, loading } = useCaseNeighbors(imageId);
 
@@ -37,9 +39,9 @@ export function CaseNavigation({ imageId, dirty = false, onBeforeNavigate, onSav
       <Text fontSize="sm" color="text.secondary" aria-live="polite">
         {loading ? 'Loading cases…' : position && total ? `${position} of ${total}` : 'Case'}
       </Text>
-      {onSaveAndNext && nextId ? (
-        <Button size="sm" variant="secondary" onClick={() => onSaveAndNext(nextId)} isDisabled={loading}>
-          {saveAndNextLabel}
+      {onSaveAndNext ? (
+        <Button size="sm" variant="solid" onClick={() => onSaveAndNext(nextId)} isDisabled={loading || actionDisabled}>
+          {nextId ? saveAndNextLabel : saveAtEndLabel}
         </Button>
       ) : (
         <Button

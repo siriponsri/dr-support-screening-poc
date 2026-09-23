@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Clinician Image Selection Guide</title>
+  <style>
+    @page { size: A4; margin: 16mm 18mm; }
+    body { color: #172018; font: 11pt/1.42 Arial, sans-serif; }
+    h1 { color: #016301; font-size: 22pt; margin: 0 0 4mm; }
+    h2 { color: #016301; font-size: 13pt; margin: 5mm 0 2mm; }
+    p { margin: 0 0 3mm; }
+    ul { margin: 0 0 3mm 5mm; padding-left: 5mm; }
+    li { margin: 1.5mm 0; }
+    .note { border-left: 3px solid #A73B24; background: #F5E9E5; padding: 3mm 4mm; }
+    .footer { border-top: 1px solid #BFCABF; color: #52605A; font-size: 9pt; margin-top: 7mm; padding-top: 3mm; }
+  </style>
+</head>
+<body>
+  <h1>Clinician Image Selection Guide</h1>
+  <p>Select only the image that the hospital or authorized operator has staged for review. The Workbench does not browse or sample directly from hospital storage.</p>
+  <h2>Before opening a case</h2>
+  <ul>
+    <li>Use an approved color fundus photograph or supported single-frame ophthalmic DICOM.</li>
+    <li>Do not include names, hospital numbers, or other patient-identifying information in a public or synthetic workspace.</li>
+    <li>Confirm that the image is the intended eye and belongs to the intended pseudonymous case.</li>
+  </ul>
+  <h2>During Confirm Image</h2>
+  <ul>
+    <li>Review the proposed patient key and laterality.</li>
+    <li>Correct the context when it is known; choose Unknown when it cannot be confirmed.</li>
+    <li>Continue only when the source and case context are suitable for review.</li>
+  </ul>
+  <div class="note"><strong>Clinical boundary:</strong> an unclear or ungradable image is not evidence of a normal eye. Record the appropriate review outcome and follow the local clinical pathway.</div>
+  <h2>Sampling responsibility</h2>
+  <p>The team monitors Refer/Not-refer coverage, sex, and laterality. Clinicians do not manage sampling quotas during routine image selection.</p>
+  <div class="footer">Source of truth: <code>docs/clinician/sampling/</code> and the clinician manual. This guide describes the current research POC and does not replace hospital policy.</div>
+</body>
+</html>

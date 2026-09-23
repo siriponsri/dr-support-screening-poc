@@ -1,7 +1,7 @@
 """Additive provider contracts for Retinal Review Workbench.
 
 Independent of any frozen scientific protocol. Mirrored by the remote model
-API contract (see ``docs/MODEL_SERVER.md``).
+API contract (see ``docs/operations/MODEL_SERVER.md``).
 """
 from ._schema import (
     LABELS,

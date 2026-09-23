@@ -16,7 +16,7 @@ Manuals, guides, diagrams, and presentations must be reproducible from the repos
 
 ## Decision outcome
 
-Quarto books (with XeLaTeX) produce the PDFs. Mermaid sources in `docs/architecture/` are rendered to PNG/SVG. The clinician image guide is one HTML file printed to PDF. Presentation sources inline shared `presenter.css`/`presenter.js` and images into offline HTML. `check_docs.py` verifies links, requirement IDs, and that presentation reveals match the Thai scripts.
+Quarto books (with XeLaTeX) produce the PDFs. Mermaid sources in `docs/adr/architecture/` are rendered to PNG/SVG. The clinician image guide is one HTML file printed to PDF. Presentation sources inline shared `presenter.css`/`presenter.js` and images into offline HTML. `check_docs.py` verifies links, requirement IDs, and that presentation reveals match the Thai scripts.
 
 ### Consequences
 

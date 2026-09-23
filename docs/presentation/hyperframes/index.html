@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="HyperFrames ophthalmologist presentation for Retinal Review Workbench.">
+  <title>DR Screening - Retinal Review Workbench</title>
+  <style>
+    :root { --ink:#172018; --muted:#52605A; --soft:#75817B; --line:#D8DFD9; --canvas:#F7F9F7; --panel:#FFFFFF; --green:#016301; --green-dark:#004D00; --green-soft:#E8F3E8; --soil:#A73B24; --soil-soft:#F5E9E5; --viewer:#0D1110; --blue:#245B9E; --blue-soft:#EAF2FB; --amber:#9A6700; --amber-soft:#FBF2D9; }
+    * { box-sizing:border-box; }
+    html, body { margin:0; background:#111; color:var(--ink); font-family:Arial, Helvetica, sans-serif; }
+    body { min-width:320px; }
+    [data-composition-id] { position:relative; width:100%; height:100%; overflow:hidden; background:var(--canvas); }
+    .scene { width:1920px; height:1080px; }
+    .scene .clip { position:absolute; }
+    .scene::after { content:""; position:absolute; inset:0; pointer-events:none; border:1px solid rgba(1,99,1,.12); }
+    .pad { inset:0; padding:82px 96px; }
+    .eyebrow { color:var(--green); font-size:22px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+    h1, h2, h3, p { margin:0; }
+    h1 { font-size:78px; line-height:1.02; letter-spacing:-.025em; max-width:1260px; }
+    h2 { font-size:62px; line-height:1.06; letter-spacing:-.02em; max-width:1430px; }
+    h3 { font-size:30px; line-height:1.15; }
+    p { font-size:28px; line-height:1.36; color:var(--muted); }
+    .subhead { margin-top:24px; max-width:1030px; }
+    .small { font-size:20px; line-height:1.35; color:var(--soft); }
+    .mono { font-family:Consolas, "Courier New", monospace; }
+    .source { position:absolute; left:96px; bottom:40px; font-size:17px; color:var(--soft); letter-spacing:.02em; }
+    .truth { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; background:rgba(255,255,255,.84); border:1px solid var(--line); border-radius:5px; font-size:16px; font-weight:700; color:var(--muted); }
+    .truth::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--green); }
+    .truth.upstream::before { background:var(--blue); }
+    .truth.ui::before { background:var(--soil); }
+    .truth.concept::before { background:var(--amber); }
+    .hero-image { object-fit:cover; background:#111; }
+    .image-frame { background:#111; border-radius:10px; overflow:hidden; border:1px solid #2E3A35; }
+    .image-frame img { display:block; width:100%; height:100%; object-fit:contain; }
+    .rule { border-top:2px solid var(--green); padding-top:18px; }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:28px; }
+    .grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:30px; }
+    .panel h3 { margin-bottom:12px; }
+    .panel p { font-size:23px; }
+    .panel.green { background:var(--green); border-color:var(--green); color:#fff; }
+    .panel.green p { color:rgba(255,255,255,.86); }
+    .panel.soil { background:var(--soil-soft); border-color:#E2BFB5; }
+    .panel.blue { background:var(--blue-soft); border-color:#C6D8EF; }
+    .panel.amber { background:var(--amber-soft); border-color:#E6D39D; }
+    .pill-row { display:flex; flex-wrap:wrap; gap:12px; }
+    .pill { display:inline-flex; padding:10px 14px; background:var(--green-soft); border:1px solid #C8DDC8; color:var(--green-dark); border-radius:5px; font-size:21px; font-weight:700; }
+    .pill.soil { background:var(--soil-soft); border-color:#E2BFB5; color:var(--soil); }
+    .pill.blue { background:var(--blue-soft); border-color:#C6D8EF; color:var(--blue); }
+    .arrow { color:var(--green); font-size:44px; font-weight:700; }
+    .flow { display:flex; align-items:stretch; gap:14px; }
+    .flow .step { flex:1; min-height:170px; padding:24px; background:#fff; border:1px solid var(--line); border-radius:8px; }
+    .flow .step strong { display:block; color:var(--green); font-size:22px; margin-bottom:12px; }
+    .flow .step span { display:block; font-size:24px; line-height:1.2; font-weight:700; }
+    .flow .arrow { display:flex; align-items:center; }
+    .hero { inset:0; background:var(--viewer); color:#fff; }
+    .hero-copy { left:96px; top:118px; width:760px; color:#fff; }
+    .hero-copy .eyebrow { color:#B9DAB9; }
+    .hero-copy h1 { margin-top:34px; font-size:94px; }
+    .hero-copy p { margin-top:30px; color:rgba(255,255,255,.8); font-size:30px; }
+    .hero-image-wrap { right:0; top:0; width:930px; height:1080px; overflow:hidden; background:#111; }
+    .hero-image-wrap::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,#0D1110 0%,rgba(13,17,16,.05) 42%,rgba(13,17,16,0) 100%); }
+    .hero-image-wrap img { width:100%; height:100%; object-fit:cover; }
+    .hero-meta { left:96px; bottom:76px; color:rgba(255,255,255,.58); font-size:18px; }
+    .split { display:grid; grid-template-columns:1fr 1fr; gap:30px; margin-top:58px; }
+    .split .panel { min-height:480px; }
+    .split .panel h3 { font-size:35px; }
+    .checklist { list-style:none; margin:22px 0 0; padding:0; display:grid; gap:20px; }
+    .checklist li { font-size:27px; line-height:1.2; padding-left:34px; position:relative; }
+    .checklist li::before { content:""; position:absolute; left:0; top:8px; width:16px; height:16px; border-radius:50%; background:var(--green); }
+    .not .checklist li::before { background:var(--soil); }
+    .scope-row { display:flex; align-items:center; justify-content:space-between; margin-top:54px; }
+    .scope-box { width:310px; min-height:230px; padding:28px; border-left:6px solid var(--green); background:#fff; border-top:1px solid var(--line); border-right:1px solid var(--line); border-bottom:1px solid var(--line); border-radius:6px; }
+    .scope-box h3 { font-size:29px; }
+    .scope-box p { margin-top:12px; font-size:22px; }
+    .team-chart { position:absolute; left:96px; top:235px; width:1720px; height:650px; }
+    .team-chart .root { position:absolute; left:710px; top:0; width:300px; padding:24px; background:var(--green); color:#fff; border-radius:8px; text-align:center; }
+    .team-chart .root span, .team-card span { display:block; margin-top:8px; font-size:17px; opacity:.82; }
+    .team-chart .line { position:absolute; background:#98A79B; }
+    .team-chart .hline { left:210px; right:210px; top:164px; height:3px; }
+    .team-chart .vline { left:858px; top:164px; width:3px; height:80px; }
+    .team-chart .role { position:absolute; top:250px; width:280px; min-height:145px; padding:22px; background:#fff; border:1px solid var(--line); border-radius:8px; text-align:center; }
+    .team-chart .role::before { content:""; position:absolute; left:50%; top:-78px; width:3px; height:78px; background:#98A79B; }
+    .team-chart .role b { display:block; font-size:20px; }
+    .team-chart .role span { display:block; margin-top:10px; font-size:17px; color:var(--muted); }
+    .team-chart .r1 { left:0; } .team-chart .r2 { left:288px; } .team-chart .r3 { left:576px; } .team-chart .r4 { left:864px; } .team-chart .r5 { left:1152px; } .team-chart .r6 { left:1440px; }
+    .member-grid { position:absolute; left:96px; top:220px; right:96px; display:grid; grid-template-columns:repeat(7,1fr); gap:14px; }
+    .member-card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px; }
+    .member-card img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:6px; display:block; background:#E8ECE8; }
+    .member-card h3 { font-size:19px; line-height:1.15; margin-top:16px; }
+    .member-card p { font-size:17px; margin-top:6px; }
+    .member-card.initial { display:flex; flex-direction:column; justify-content:center; min-height:360px; }
+    .avatar { display:grid; place-items:center; width:100%; aspect-ratio:1; border-radius:6px; background:var(--green-soft); color:var(--green); font-size:62px; font-weight:800; }
+    .architecture { margin-top:56px; display:grid; grid-template-columns:1.1fr .9fr; gap:36px; align-items:center; }
+    .architecture .retina { height:520px; }
+    .architecture .branches { display:grid; gap:20px; }
+    .branch { position:relative; padding:28px 28px 28px 94px; border-radius:8px; background:#fff; border:1px solid var(--line); }
+    .branch::before { position:absolute; left:28px; top:27px; display:grid; place-items:center; width:40px; height:40px; border-radius:50%; background:var(--green); color:#fff; font-weight:800; }
+    .branch.rf::before { content:"R"; } .branch.pr::before { content:"P"; background:var(--soil); }
+    .branch h3 { font-size:29px; } .branch p { margin-top:8px; font-size:22px; }
+    .decision { margin-top:64px; display:grid; grid-template-columns:1fr 90px 1fr; align-items:center; gap:22px; }
+    .decision .choice { min-height:230px; display:flex; flex-direction:column; justify-content:center; padding:30px; border:2px solid var(--green); background:#fff; border-radius:8px; }
+    .decision .choice.review { border-color:var(--soil); background:var(--soil-soft); }
+    .decision h3 { font-size:33px; } .decision p { margin-top:12px; font-size:23px; }
+    .decision .or { text-align:center; color:var(--muted); font-size:22px; font-weight:700; }
+    .annotation-layout { margin-top:44px; display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:start; }
+    .annotation-layout .image-frame { height:520px; }
+    .annotation-actions { display:grid; gap:16px; }
+    .annotation-actions .action { display:grid; grid-template-columns:64px 1fr; align-items:center; gap:18px; padding:20px; border-radius:8px; background:#fff; border:1px solid var(--line); }
+    .annotation-actions .number { display:grid; place-items:center; width:52px; height:52px; border-radius:50%; background:var(--green-soft); color:var(--green); font-size:24px; font-weight:800; }
+    .annotation-actions strong { font-size:25px; } .annotation-actions p { font-size:20px; margin-top:5px; }
+    .dicom { margin-top:62px; display:flex; align-items:center; gap:16px; }
+    .dicom .node { flex:1; min-height:180px; padding:26px; border-radius:8px; background:#fff; border:1px solid var(--line); }
+    .dicom .node h3 { font-size:26px; } .dicom .node p { font-size:20px; margin-top:10px; }
+    .folder { margin-top:58px; display:grid; grid-template-columns:1fr 1.1fr; gap:50px; align-items:center; }
+    .folder-tree { background:var(--viewer); border-radius:8px; padding:34px 46px; color:#D7E6D7; font:24px/1.7 Consolas, monospace; }
+    .folder-tree .accent { color:#B9DAB9; } .folder-tree .soil { color:#F1C4B8; }
+    .folder-copy { display:grid; gap:20px; }
+    .privacy { margin-top:58px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+    .privacy .panel { min-height:230px; }
+    .privacy strong { display:block; color:var(--green); font-size:25px; margin-bottom:10px; }
+    .question { margin-top:62px; display:grid; grid-template-columns:1fr 1fr; gap:28px; }
+    .question .panel { min-height:260px; }
+    .closing { inset:0; background:var(--green-dark); color:#fff; padding:115px 96px; }
+    .closing h2 { font-size:88px; max-width:1320px; }
+    .closing p { color:rgba(255,255,255,.84); margin-top:30px; max-width:980px; }
+    .closing .next { margin-top:70px; display:flex; gap:14px; flex-wrap:wrap; }
+    .closing .tag { padding:14px 18px; border:1px solid rgba(255,255,255,.4); border-radius:5px; color:#fff; font-size:22px; }
+    .hotspot { position:absolute; right:96px; bottom:48px; padding:12px 16px; border:1px solid var(--green); background:var(--green-soft); color:var(--green-dark); border-radius:5px; font-size:18px; font-weight:700; }
+    .clip[data-start] { transition:none; }
+  </style>
+</head>
+<body>
+  <script type="application/hyperframes-slideshow+json">
+  {
+    "slides": [
+      {"sceneId":"title","notes":"เปิดด้วยภาพจริงและกรอบการใช้งาน: assistive, clinician-controlled, research POC."},
+      {"sceneId":"why","notes":"พูดถึงภาระการคัดกรองและเวลาของจักษุแพทย์ โดยไม่อ้างตัวเลขที่ยังไม่ได้ตรวจสอบ.","fragments":[8,10.5]},
+      {"sceneId":"is-not","notes":"เน้นสิ่งที่ระบบเป็นและไม่เป็น ก่อนพูดถึงความสามารถทางเทคนิค."},
+      {"sceneId":"scope","notes":"แยกขอบเขตที่มีวันนี้ออกจากสิ่งที่ยังเป็นข้อเสนอ."},
+      {"sceneId":"org-chart","notes":"แนะนำทีมตามผังที่ได้รับจากเจ้าของงาน; ไม่เพิ่มความสัมพันธ์นอกแหล่งอ้างอิง."},
+      {"sceneId":"team","notes":"แสดงสมาชิกและบทบาทที่ให้มา โดยใช้ภาพจากไฟล์ต้นทาง."},
+      {"sceneId":"ai-architecture","notes":"อธิบายว่างาน global grading และ lesion ROI เป็นคนละ evidence pathway.","hotspots":[{"id":"clinical-questions","label":"เปิดคำถามสำหรับ clinical validation","target":"clinical-questions","region":{"x":62,"y":71,"w":28,"h":11}}]},
+      {"sceneId":"retfound","notes":"RETFound เป็น foundation-model research context; local product head คือ retfound-aptos5."},
+      {"sceneId":"prism","notes":"PRISM-DR เป็น lesion ROI assistance สำหรับสี่คลาส; upstream result ไม่ใช่ product validation."},
+      {"sceneId":"uncertainty","notes":"ภาพอ่านไม่ได้ไม่เท่ากับปกติ และไม่มี detection ไม่เท่ากับไม่มี lesion."},
+      {"sceneId":"boundary","notes":"ย้ำ image selection boundary: hospital-controlled storage -> authorized staging -> Workbench."},
+      {"sceneId":"workflow","notes":"เดิน workflow ปัจจุบันแบบสั้น: Confirm Image, Review, decision, annotation only when needed, next case.","fragments":[88,92]},
+      {"sceneId":"worklist","notes":"ภาพนี้เป็น UI screenshot using public/synthetic fixture; อธิบายการเลือก case และ Confirm Image."},
+      {"sceneId":"review","notes":"แสดง real public retinal photograph และแยก model evidence ออกจาก human decision."},
+      {"sceneId":"decision","notes":"ย้ำ mutual-exclusive decision: Confirm final DR grade หรือ Send for senior review."},
+      {"sceneId":"annotation","notes":"ใช้ annotation เมื่อจำเป็น; AI evidence เดิมยังถูกเก็บเมื่อมนุษย์แก้ไข."},
+      {"sceneId":"dicom-export","notes":"DICOM derivative path และ grouped export; original remains immutable."},
+      {"sceneId":"deployment","notes":"แยก review workstation จาก protected GPU Model API และอธิบาย privacy boundary."},
+      {"sceneId":"close","notes":"ปิดด้วยสิ่งที่ต้องการจาก ophthalmologists: workflow fit, uncertainty, and validation questions."}
+    ],
+    "slideSequences": [
+      {"id":"clinical-questions","label":"Clinical validation questions","slides":[{"sceneId":"clinical-questions-1","notes":"ถามว่า evidence แบบใดช่วยการตัดสินใจจริง และควรแสดง uncertainty อย่างไร."},{"sceneId":"clinical-questions-2","notes":"ถามเรื่อง ungradable, referral context, และเกณฑ์สำหรับ human-AI team evaluation."}]}
+    ]
+  }
+  </script>
+
+  <section class="scene" data-composition-id="title" data-start="0" data-duration="8" data-label="Title" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip hero" data-start="0" data-duration="8" data-track-index="1"></div>
+    <div class="clip hero-image-wrap" data-start="0" data-duration="8" data-track-index="2"><img class="hero-image" src="assets/clinical/retina-upstream-roi.png" alt="Real retinal photograph with upstream ROI overlays"></div>
+    <div class="clip hero-copy" data-start="0" data-duration="8" data-track-index="3"><div class="eyebrow">DR Screening</div><h1>Retinal Review Workbench</h1><p>AI-assisted retinal review and dataset workflow</p><p class="small" style="color:#B9DAB9;margin-top:42px">Clinician-controlled · on-premise oriented · research POC</p></div>
+    <div class="clip hero-meta" data-start="0" data-duration="8" data-track-index="4">Real retinal photograph · upstream ROI example · source ledger in PRESENTATION_SOURCE_MAP.md</div>
+  </section>
+
+  <section class="scene" data-composition-id="why" data-start="8" data-duration="8" data-label="Why this matters" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="8" data-duration="8" data-track-index="1"><div class="eyebrow">The clinical problem</div><h2 style="margin-top:24px">Screening volume grows faster than specialist attention.</h2><p class="subhead">The Workbench is designed to make review more structured, traceable, and focused on the cases that need human attention.</p><div class="grid-3" style="margin-top:66px"><div class="panel"><h3>Many images</h3><p>Routine fundus photographs arrive with different quality, context, and clinical urgency.</p></div><div class="panel soil"><h3>Limited time</h3><p>Ophthalmologist attention is the scarce resource. The interface should reduce avoidable navigation and re-entry work.</p></div><div class="panel green"><h3>Human judgment</h3><p>The product supports a clinician's decision; it does not make an autonomous referral or treatment decision.</p></div></div><div class="clip truth upstream" data-start="10.5" data-duration="5.5" data-track-index="2" style="left:0;top:790px">Conceptual framing · not a local outcome claim</div></div>
+    <div class="source">Clinical problem framing adapted from owner-provided ophthalmologist deck; claims are intentionally non-quantitative.</div>
+  </section>
+
+  <section class="scene" data-composition-id="is-not" data-start="16" data-duration="8" data-label="Is and is not" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="16" data-duration="8" data-track-index="1"><div class="eyebrow">Positioning</div><h2 style="margin-top:24px">The system is an assistive review layer above the image.</h2><div class="split"><div class="panel green"><h3>It is</h3><ul class="checklist"><li>review support</li><li>AI evidence with visible provenance</li><li>human final decision</li><li>dataset and audit workflow</li></ul></div><div class="panel not"><h3>It is not</h3><ul class="checklist"><li>autonomous diagnosis</li><li>automatic treatment decision</li><li>automatic patient notification</li><li>a replacement for ophthalmologist judgment</li></ul></div></div></div>
+  </section>
+
+  <section class="scene" data-composition-id="scope" data-start="24" data-duration="8" data-label="Current scope" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="24" data-duration="8" data-track-index="1"><div class="eyebrow">Version 1 scope</div><h2 style="margin-top:24px">The first release is deliberately narrow.</h2><div class="scope-row"><div class="scope-box"><h3>Input</h3><p>Color fundus photography and supported single-frame ophthalmic DICOM.</p></div><div class="arrow">→</div><div class="scope-box"><h3>Evidence</h3><p>RETFound DR grade suggestion and PRISM-DR lesion ROI suggestions.</p></div><div class="arrow">→</div><div class="scope-box"><h3>Review</h3><p>Clinician grade, senior-review path, annotation correction, and confirmation.</p></div><div class="arrow">→</div><div class="scope-box"><h3>Output</h3><p>Provenance-preserving dataset export and audit record.</p></div></div><div class="pill-row" style="margin-top:62px"><span class="pill">Today: retinal photography</span><span class="pill soil">Future / proposed: broader modalities</span><span class="pill blue">Not claimed: PACS integration</span></div></div>
+  </section>
+
+  <section class="scene" data-composition-id="org-chart" data-start="32" data-duration="8" data-label="Organization chart" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="32" data-duration="8" data-track-index="1"><div class="eyebrow">The people behind the workflow</div><h2 style="margin-top:24px">The system boundary is also a team boundary.</h2><div class="team-chart"><div class="root"><b>Watcharin Buason</b><span>Managing Director</span></div><div class="line hline"></div><div class="line vline"></div><div class="role r1"><b>Benjamaporn Jeankor</b><span>Business Solution Lead</span></div><div class="role r2"><b>Dependa</b><span>Project Manager</span></div><div class="role r3"><b>Thiphornphan Uthaithat</b><span>Head of Administration</span></div><div class="role r4"><b>Siripon Srihangpiboon</b><span>AI / Computer Vision Lead</span></div><div class="role r5"><b>Patthadon Changate</b><span>AI / Data Engineer Lead</span></div><div class="role r6"><b>Sansern Makcharoen</b><span>Full-stack &amp; DevOps Lead</span></div></div></div><div class="source">Organization chart source: DR_Screening_OrgChart.pptx · roles preserved exactly</div>
+  </section>
+
+  <section class="scene" data-composition-id="team" data-start="40" data-duration="8" data-label="Meet the team" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="40" data-duration="8" data-track-index="1"><div class="eyebrow">Meet the team</div><h2 style="margin-top:24px">Product, clinical context, models, and operations meet in one loop.</h2><div class="member-grid"><div class="member-card"><img src="assets/team/portrait-1.png" alt="Watcharin Buason portrait"><h3>Watcharin Buason</h3><p>Managing Director</p></div><div class="member-card"><img src="assets/team/portrait-2.png" alt="Benjamaporn Jeankor portrait"><h3>Benjamaporn Jeankor</h3><p>Business Solution Lead</p></div><div class="member-card initial"><div class="avatar">PM</div><h3>Dependa</h3><p>Project Manager</p></div><div class="member-card initial"><div class="avatar">HA</div><h3>Thiphornphan Uthaithat</h3><p>Head of Administration</p></div><div class="member-card"><img src="assets/team/portrait-3.png" alt="Siripon Srihangpiboon portrait"><h3>Siripon Srihangpiboon</h3><p>AI / Computer Vision Lead</p></div><div class="member-card"><img src="assets/team/portrait-4.png" alt="Patthadon Changate portrait"><h3>Patthadon Changate</h3><p>AI / Data Engineer Lead</p></div><div class="member-card"><img src="assets/team/portrait-5.png" alt="Sansern Makcharoen portrait"><h3>Sansern Makcharoen</h3><p>Full-stack &amp; DevOps Lead</p></div></div><div class="truth ui" style="position:absolute;left:0;top:748px">Five portraits from the owner-provided organization deck; initials mark roles without supplied portraits.</div></div>
+  </section>
+
+  <section class="scene" data-composition-id="ai-architecture" data-start="48" data-duration="8" data-label="AI architecture" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="48" data-duration="8" data-track-index="1"><div class="eyebrow">Two tasks, two evidence types</div><h2 style="margin-top:24px">AI evidence stays below the human review decision.</h2><div class="architecture"><div class="image-frame retina"><img src="assets/clinical/retina-upstream-roi.png" alt="Real retinal photograph with colored ROI boxes"></div><div class="branches"><div class="branch rf"><h3>RETFound → DR grade suggestion</h3><p>Global classification evidence for a five-class DR suggestion. The model score is not a calibrated clinical probability.</p></div><div class="branch pr"><h3>PRISM-DR → lesion ROI suggestions</h3><p>Object-level evidence for Microaneurysm, Hemorrhage, Hard exudate, and Soft exudate.</p></div><div class="panel green"><h3>Clinician review remains authoritative.</h3><p>Evidence can inform inspection, correction, or escalation. It cannot confirm a case by itself.</p></div></div></div><div class="hotspot">Open clinical validation questions →</div></div><div class="source">Real retinal photograph with upstream-style ROI example · conceptual product architecture</div>
+  </section>
+
+  <section class="scene" data-composition-id="retfound" data-start="56" data-duration="8" data-label="RETFound" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="56" data-duration="8" data-track-index="1"><div class="eyebrow">Model 01 · RETFound</div><h2 style="margin-top:24px">RETFound contributes retinal representation research; this product adds a local task head.</h2><div class="grid-2" style="margin-top:64px"><div class="panel blue"><h3>Research context</h3><p>RETFound is a retinal foundation-model project built around self-supervised representation learning across retinal imaging research tasks.</p><div class="truth upstream" style="margin-top:28px">Upstream repository and Nature paper</div></div><div class="panel"><h3>Product boundary</h3><p>The current product identity is <span class="mono">retfound-aptos5</span>, a five-class DR suggestion path. Upstream benchmark results are not local product validation.</p><div class="pill-row" style="margin-top:28px"><span class="pill">Model evidence</span><span class="pill soil">Human grade is authoritative</span></div></div></div></div><div class="source">Sources: github.com/rmaphoh/RETFound · Nature s41586-023-06555-x · local provider identity in repository</div>
+  </section>
+
+  <section class="scene" data-composition-id="prism" data-start="64" data-duration="8" data-label="PRISM-DR" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="64" data-duration="8" data-track-index="1"><div class="eyebrow">Model 02 · PRISM-DR</div><h2 style="margin-top:24px">PRISM-DR proposes where a lesion may be; it does not make the diagnosis.</h2><div class="grid-2" style="margin-top:54px;align-items:center"><div class="image-frame" style="height:510px"><img src="assets/clinical/retina-upstream-detail.png" alt="Real retinal photograph with colored upstream ROI boxes"></div><div><div class="truth upstream">Upstream example / attribution required</div><div class="pill-row" style="margin-top:28px"><span class="pill">Microaneurysm</span><span class="pill soil">Hemorrhage</span><span class="pill blue">Hard exudate</span><span class="pill">Soft exudate</span></div><p style="margin-top:30px">The Workbench presents lesion ROI suggestions as inspectable evidence. A clinician can use, correct, or remove a suggestion while preserving the original AI provenance.</p></div></div></div><div class="source">Source: github.com/zubeyrozeren/PRISM-DR and upstream paper · upstream reported output is not product validation</div>
+  </section>
+
+  <section class="scene" data-composition-id="uncertainty" data-start="72" data-duration="8" data-label="Uncertainty" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="72" data-duration="8" data-track-index="1"><div class="eyebrow">Uncertainty is part of the workflow</div><h2 style="margin-top:24px">Unclear image ≠ normal image. No detection ≠ no lesion.</h2><div class="grid-2" style="margin-top:62px"><div class="panel amber"><h3>Image quality</h3><p>When assessment is inadequate, the correct action is to recognize that limitation and follow the local clinical pathway. The product does not silently convert uncertainty into normality.</p></div><div class="panel"><h3>Model output</h3><p>An empty PRISM-DR result is an empty suggestion set, not proof that a lesion is absent. Human review remains the authority.</p></div></div><div class="rule" style="margin-top:54px"><p style="color:var(--ink);font-weight:700">The UI should make uncertainty legible without pretending to calibrate it.</p></div></div><div class="source">Terminology informed by ICO Guidelines for Diabetic Eye Care (2017) and human-AI transparency guidance</div>
+  </section>
+
+  <section class="scene" data-composition-id="boundary" data-start="80" data-duration="8" data-label="Image selection boundary" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="80" data-duration="8" data-track-index="1"><div class="eyebrow">Image selection boundary</div><h2 style="margin-top:24px">The Workbench receives a selected, approved image; it does not browse hospital storage.</h2><div class="flow" style="margin-top:72px"><div class="step"><strong>1 · Hospital-controlled</strong><span>Candidate images remain under hospital control.</span></div><div class="arrow">→</div><div class="step"><strong>2 · Authorized user</strong><span>Clinician or authorized hospital user selects the candidate.</span></div><div class="arrow">→</div><div class="step"><strong>3 · Approved staging</strong><span>The original file is staged into the Workspace input folder.</span></div><div class="arrow">→</div><div class="step" style="border-color:var(--green);background:var(--green-soft)"><strong>4 · Workbench</strong><span>Review, provenance, annotations, and export begin here.</span></div></div><div class="panel soil" style="margin-top:58px"><p style="color:var(--ink);font-weight:700">The project team monitors coverage outside the Workbench. Clinicians do not manage sampling quotas during routine selection.</p></div></div><div class="source">Canonical boundary: ADR-0006 and Team Image Sampling Requirements</div>
+  </section>
+
+  <section class="scene" data-composition-id="workflow" data-start="88" data-duration="8" data-label="Product workflow" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="88" data-duration="8" data-track-index="1"><div class="eyebrow">The current clinician path</div><h2 style="margin-top:24px">One case moves forward through a small number of explicit decisions.</h2><div class="flow" style="margin-top:82px"><div class="step"><strong>Confirm Image</strong><span>Confirm pseudonymous context and eye.</span></div><div class="arrow">→</div><div class="step"><strong>Review</strong><span>Inspect the image and optional AI evidence.</span></div><div class="arrow">→</div><div class="step"><strong>Clinician Review</strong><span>Confirm final DR grade or send for senior review.</span></div><div class="arrow">→</div><div class="step"><strong>Annotations only when needed</strong><span>Correct, remove, or add human evidence.</span></div><div class="arrow">→</div><div class="step" style="background:var(--green);border-color:var(--green);color:#fff"><strong style="color:#B9DAB9">Next case</strong><span>Advance without losing confirmation state.</span></div></div><div class="clip pill-row" data-start="92" data-duration="4" data-track-index="2" style="margin-top:68px"><span class="pill">AI optional</span><span class="pill">Human confirmation explicit</span><span class="pill soil">Senior review is a first-class outcome</span></div></div><div class="source">Current workflow after Phase 1 clinician-flow redesign</div>
+  </section>
+
+  <section class="scene" data-composition-id="worklist" data-start="96" data-duration="8" data-label="Worklist and Confirm Image" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="96" data-duration="8" data-track-index="1"><div class="eyebrow">Product walkthrough 01</div><h2 style="margin-top:24px">Worklist makes the next safe action visible.</h2><div class="grid-2" style="margin-top:48px;align-items:center"><div class="image-frame" style="height:540px;background:#fff"><img src="assets/ui-worklist.png" alt="Retinal Review Workbench Worklist screenshot"></div><div><div class="panel"><h3>Select a case</h3><p>Choose the staged case from the Worklist, then open Confirm Image.</p></div><div class="panel soil" style="margin-top:18px"><h3>Confirm context</h3><p>Review pseudonymous patient key and laterality. Filename hints are evidence only.</p></div><div class="truth ui" style="margin-top:22px">UI screenshot using public/synthetic fixture</div></div></div></div><div class="source">Current UI screenshot · no PHI · clinician manual source</div>
+  </section>
+
+  <section class="scene" data-composition-id="review" data-start="104" data-duration="8" data-label="Review with AI evidence" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="104" data-duration="8" data-track-index="1"><div class="eyebrow">Product walkthrough 02</div><h2 style="margin-top:24px">Review puts the retinal image first and evidence beside it.</h2><div class="grid-2" style="margin-top:48px;align-items:center"><div class="image-frame" style="height:540px"><img src="assets/clinical/retina-upstream-roi.png" alt="Real retinal photograph with ROI boxes"></div><div><div class="panel blue"><h3>RETFound</h3><p>Optional DR grade suggestion. The score is model evidence, not calibrated probability.</p></div><div class="panel soil" style="margin-top:18px"><h3>PRISM-DR</h3><p>Optional lesion ROI suggestions. Empty output does not prove absence.</p></div><div class="truth upstream" style="margin-top:22px">Real retinal photograph · upstream ROI example</div></div></div></div><div class="source">Real public retinal photograph from owner-provided source deck; displayed output is explicitly labeled upstream example</div>
+  </section>
+
+  <section class="scene" data-composition-id="decision" data-start="112" data-duration="8" data-label="One clinical decision" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="112" data-duration="8" data-track-index="1"><div class="eyebrow">Product walkthrough 03</div><h2 style="margin-top:24px">The primary action is one explicit human decision.</h2><div class="decision"><div class="choice"><h3>Confirm final DR grade</h3><p>Record the clinician's authoritative grade and continue to the next case.</p></div><div class="or">OR</div><div class="choice review"><h3>Send for senior review</h3><p>Escalate when the case needs a second level of clinical attention.</p></div></div><div class="panel green" style="margin-top:44px"><h3>Mutual exclusion is deliberate.</h3><p>The workflow does not leave a grade and a senior-review decision active at the same time.</p></div></div><div class="source">Current Clinician Review behavior after Phase 1</div>
+  </section>
+
+  <section class="scene" data-composition-id="annotation" data-start="120" data-duration="8" data-label="Annotation when needed" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="120" data-duration="8" data-track-index="1"><div class="eyebrow">Product walkthrough 04</div><h2 style="margin-top:24px">Annotation is a focused correction loop, not a second queue.</h2><div class="annotation-layout"><div class="image-frame"><img src="assets/ui-roi-corrected.png" alt="Annotation Editor screenshot showing corrected ROI"></div><div class="annotation-actions"><div class="action"><div class="number">1</div><div><strong>Click the AI ROI</strong><p>Open the action popover for the selected suggestion.</p></div></div><div class="action"><div class="number">2</div><div><strong>Correct, use, or remove</strong><p>Make the smallest human change needed for the active annotation set.</p></div></div><div class="action"><div class="number">3</div><div><strong>Preserve original evidence</strong><p>AI class, score, geometry, and source detection remain auditable.</p></div></div><div class="truth ui">UI screenshot using public/synthetic fixture</div></div></div></div><div class="source">Current annotation editor behavior after Phase 1 · human review remains authoritative</div>
+  </section>
+
+  <section class="scene" data-composition-id="dicom-export" data-start="128" data-duration="8" data-label="DICOM and export" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="128" data-duration="8" data-track-index="1"><div class="eyebrow">Input derivatives and output</div><h2 style="margin-top:24px">The source stays immutable while review uses an explicit analysis derivative.</h2><div class="dicom"><div class="node"><h3>Original ophthalmic DICOM</h3><p>Preserved source identity and provenance.</p></div><div class="arrow">→</div><div class="node"><h3>Decoded/rendered derivative</h3><p>Used for zoom, pan, model envelope, and annotation coordinates.</p></div><div class="arrow">→</div><div class="node"><h3>Human review</h3><p>Grade, senior-review outcome, or corrected annotation.</p></div><div class="arrow">→</div><div class="node" style="border-color:var(--green);background:var(--green-soft)"><h3>Grouped export</h3><p>PNG/JPEG derivatives, manifests, hashes, and DICOM provenance.</p></div></div><div class="panel amber" style="margin-top:54px"><p style="color:var(--ink);font-weight:700">Unsupported modality, multi-frame, codec, and decode failures retain their specific status. They are not silently treated as normal retinal input.</p></div></div><div class="source">Current admission, derivative, annotation, and export contracts</div>
+  </section>
+
+  <section class="scene" data-composition-id="deployment" data-start="136" data-duration="8" data-label="Deployment boundary" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="136" data-duration="8" data-track-index="1"><div class="eyebrow">On-premise oriented deployment</div><h2 style="margin-top:24px">The workstation and GPU Model API have different trust and runtime roles.</h2><div class="privacy"><div class="panel"><strong>Windows review workstation</strong><p>Browser UI, local review state, `APP_PROFILE=review`, `MODEL_RUNTIME=remote`, no model weights.</p></div><div class="panel green"><strong style="color:#B9DAB9">Protected hospital LAN</strong><p>Only the approved network boundary connects the workstation to the service.</p></div><div class="panel blue"><strong>Linux GPU Model API</strong><p>`APP_PROFILE=model_api`, verified local assets, CUDA device, one worker, controlled service.</p></div></div><div class="rule" style="margin-top:54px"><p style="color:var(--ink);font-weight:700">The workstation can keep operating locally when remote model assistance is unavailable; model evidence is optional.</p></div></div><div class="source">Architecture sources: docs/adr/architecture/ · operations/model-server guide</div>
+  </section>
+
+  <section class="scene" data-composition-id="close" data-start="144" data-duration="8" data-label="Close" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip closing" data-start="144" data-duration="8" data-track-index="1"><div class="eyebrow" style="color:#B9DAB9">What we need from ophthalmologists</div><h2 style="margin-top:28px">Help us make the human-AI team clinically useful.</h2><p>We are looking for feedback on workflow fit, evidence presentation, ungradable-image handling, senior-review triggers, and what should count as useful validation.</p><div class="next"><span class="tag">Review the real image</span><span class="tag">Challenge the uncertainty</span><span class="tag">Keep the clinician in control</span></div></div>
+  </section>
+
+  <section class="scene" data-composition-id="clinical-questions-1" data-start="152" data-duration="8" data-label="Clinical questions 1" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="152" data-duration="8" data-track-index="1"><div class="eyebrow">Branch · clinical validation</div><h2 style="margin-top:24px">Which evidence actually changes the next clinical action?</h2><div class="question"><div class="panel green"><h3>Global evidence</h3><p>When does a DR grade suggestion help a specialist review faster, and when does it add noise?</p></div><div class="panel blue"><h3>Lesion evidence</h3><p>Which ROI types and visual cues are useful for inspection, correction, or escalation?</p></div></div><p class="small" style="margin-top:54px">Return to the main deck with the presenter Back action.</p></div>
+  </section>
+
+  <section class="scene" data-composition-id="clinical-questions-2" data-start="160" data-duration="8" data-label="Clinical questions 2" data-width="1920" data-height="1080" data-no-timeline>
+    <div class="clip pad" data-start="160" data-duration="8" data-track-index="1"><div class="eyebrow">Branch · clinical validation</div><h2 style="margin-top:24px">Where should the workflow draw the line?</h2><div class="question"><div class="panel amber"><h3>Ungradable</h3><p>What wording and local pathway make inadequate assessment explicit without implying normality?</p></div><div class="panel soil"><h3>Human-AI team</h3><p>Which study design best evaluates the combined team rather than a model score in isolation?</p></div></div><p class="small" style="margin-top:54px">Return to the main deck with the presenter Back action.</p></div>
+  </section>
+</body>
+</html>

@@ -470,6 +470,43 @@ export function AnnotationEditorPage() {
     ? draftRef.current.find((entry) => entry.shape_id === selectedShapeId) ?? null
     : null;
   const selectedIsLocked = selectedAnnotation ? annotationLocked(selectedAnnotation) : false;
+  const reviewSummary = item?.review_evidence?.summary;
+  const hasReviewedAiEvidence = Boolean(reviewSummary && Object.values(reviewSummary).some((count) => count > 0));
+  const annotationNeedsConfirmation = draftStatus !== 'saved' || (
+    item?.annotation_confirmation_status !== 'CONFIRMED'
+    && (draft.length > 0 || hasReviewedAiEvidence)
+  );
+
+  const changeSelectedLabel = (nextLabel: LesionLabel) => {
+    if (!selectedAnnotation || annotationLocked(selectedAnnotation) || selectedAnnotation.label === nextLabel) return;
+    commit(draftRef.current.map((entry) => entry.shape_id === selectedShapeId
+      ? { ...entry, label: nextLabel }
+      : entry), selectedShapeId);
+  };
+
+  const onHumanAnnotationDerived = (savedCase: CaseRecord, derived: HumanAnnotation) => {
+    const nextDraft = savedCase.human_annotations ?? [];
+    setItem(savedCase);
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
+    setHistory([]);
+    setSelectedShapeId(derived.shape_id);
+    setSelectedLesionId(null);
+    setShowHuman(true);
+    setTool('select');
+    setSaved(true);
+    setDraftStatus('saved');
+  };
+
+  const advanceAfterAnnotation = async (nextId: string | null) => {
+    const advance = () => navigate(nextId ? `/edit/${encodeURIComponent(nextId)}` : '/worklist');
+    if (annotationNeedsConfirmation) {
+      if (await confirmAnnotations()) advance();
+      return;
+    }
+    if (draftStatus !== 'saved' && !(await persistDraft())) return;
+    advance();
+  };
 
   const annotationControls = (
     <Stack spacing={3}>
@@ -495,11 +532,19 @@ export function AnnotationEditorPage() {
       </HStack>
       <HStack spacing={4} align="end" flexWrap="wrap">
         <FormControl maxW={{ base: '100%', laptop: '250px' }}>
-          <FormLabel fontSize="sm">Lesion class</FormLabel>
-          <Select value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)}>
+          <FormLabel htmlFor="new-annotation-class" fontSize="sm">New annotation class</FormLabel>
+          <Select id="new-annotation-class" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)}>
             {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </Select>
         </FormControl>
+        {selectedAnnotation && (
+          <FormControl maxW={{ base: '100%', laptop: '250px' }}>
+            <FormLabel htmlFor="selected-annotation-class" fontSize="sm">Selected annotation class</FormLabel>
+            <Select id="selected-annotation-class" value={selectedAnnotation.label} onChange={(event) => changeSelectedLabel(event.target.value as LesionLabel)} isDisabled={selectedIsLocked}>
+              {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </Select>
+          </FormControl>
+        )}
         <HStack spacing={3} flexWrap="wrap" fontSize="sm">
           <HStack spacing={2}>
             <Text>AI suggestions</Text>
@@ -544,9 +589,13 @@ export function AnnotationEditorPage() {
     </HStack>
   );
 
-  const persistDraft = async () => {
-    if (!item || saving) return false;
-    if (!reviewer.trim()) return false;
+  const persistDraft = async (): Promise<CaseRecord | null> => {
+    if (!item || saving) return null;
+    if (draftStatus === 'saved') return item;
+    if (!reviewer.trim()) {
+      setSaveError('Reviewer name is required to save annotation changes.');
+      return null;
+    }
     setSaving(true);
     setDraftStatus('saving');
     setSaveError(null);
@@ -557,12 +606,13 @@ export function AnnotationEditorPage() {
         body: JSON.stringify({
           revision: item.revision,
           reviewer: reviewer.trim(),
-          annotations: draftRef.current.map(({ shape_id, type, label: entryLabel, geometry, locked }) => ({
+          annotations: draftRef.current.map(({ shape_id, type, label: entryLabel, geometry, locked, source_detection_id }) => ({
             shape_id,
             type,
             label: entryLabel,
             geometry,
             locked: locked !== false,
+            source_detection_id,
           })),
         }),
       });
@@ -573,32 +623,36 @@ export function AnnotationEditorPage() {
       setSaved(true);
       setDraftStatus('saved');
       setDefaultReviewer(useAsDefault ? reviewer : '');
-      return true;
+      return savedCase;
     } catch (err) {
       setSaveError(errorText(err));
       setDraftStatus('failed');
-      return false;
+      return null;
     } finally {
       setSaving(false);
     }
   };
 
-  const confirmAnnotations = async () => {
+  const confirmAnnotations = async (): Promise<boolean> => {
+    if (!item) return false;
+    const imageId = item.image_id;
     const persisted = await persistDraft();
-    if (!persisted || !item) return;
+    if (!persisted) return false;
     setSaving(true);
     try {
-      const confirmed = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(item.image_id)}/review`, {
+      const confirmed = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ revision: item.revision + 1, action: 'CONFIRM_ANNOTATIONS', reviewer: reviewer.trim(), grade: null, comment: '' }),
+        body: JSON.stringify({ revision: persisted.revision, action: 'CONFIRM_ANNOTATIONS', reviewer: reviewer.trim(), grade: null, comment: '' }),
       });
       setItem(confirmed);
       setSaved(true);
       setDraftStatus('saved');
+      return true;
     } catch (err) {
       setSaveError(errorText(err));
       setDraftStatus('failed');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -652,7 +706,10 @@ export function AnnotationEditorPage() {
           routePrefix="edit"
           dirty={draftStatus !== 'saved'}
           onBeforeNavigate={confirmNavigation}
-          onSaveAndNext={(nextId) => { void persistDraft().then((ok) => { if (ok) navigate(`/edit/${encodeURIComponent(nextId)}`); }); }}
+          onSaveAndNext={(nextId) => { void advanceAfterAnnotation(nextId); }}
+          saveAndNextLabel={annotationNeedsConfirmation ? 'Confirm annotations & next' : 'Skip annotation & next'}
+          saveAtEndLabel={annotationNeedsConfirmation ? 'Confirm annotations' : 'Skip annotation'}
+          actionDisabled={saving}
         />
         <NextActionHint item={item} />
       </Stack>
@@ -666,7 +723,7 @@ export function AnnotationEditorPage() {
             selectedShapeId={selectedShapeId}
             selectedLesionId={selectedLesionId}
             onSelectLesion={setSelectedLesionId}
-            onSelectHuman={setSelectedShapeId}
+            onSelectHuman={(shapeId) => { setSelectedShapeId(shapeId); setSelectedLesionId(null); }}
             onHumanPointerDown={onHumanPointerDown}
             onHumanResizeStart={onHumanResizeStart}
             onCoordinateInspectorChange={onCoordinateInspectorChange}
@@ -681,25 +738,25 @@ export function AnnotationEditorPage() {
             {polygonPoints.length > 0 && <polyline points={polygonPoints.map((point) => point.join(',')).join(' ')} fill="var(--chakra-colors-text-primary)" fillOpacity={0.1} stroke="var(--chakra-colors-text-primary)" strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />}
             {previewShape(preview)}
           </RetinalCanvas>
-          <LesionActionPopover item={item} selectedLesionId={selectedLesionId} onSaved={setItem} onClose={() => setSelectedLesionId(null)} />
+          <LesionActionPopover item={item} selectedLesionId={selectedLesionId} onSaved={setItem} onDerived={onHumanAnnotationDerived} onClose={() => setSelectedLesionId(null)} />
           <HStack mt={4} spacing={3} flexWrap="wrap" fontSize="sm">
             <Text fontWeight="semibold">{draft.length} human annotation{draft.length === 1 ? '' : 's'}</Text>
             <Text color="text.secondary">AI suggestions are optional visual evidence; human annotations remain separate.</Text>
             <Text aria-live="polite" color="text.secondary">{draftStatus === 'saving' ? 'Saving draft…' : draftStatus === 'failed' ? 'Save failed — retry' : draftStatus === 'unsaved' ? 'Unsaved changes' : 'Draft saved'}</Text>
           </HStack>
+          {draft.length === 0 && !annotationNeedsConfirmation && <Text mt={2} fontSize="sm" color="text.secondary">No annotation changes for this case.</Text>}
         </Section>
         <Stack spacing={5}>
           <Section title="Editor tools" description="Select a tool, choose a lesion class, then draw on the image.">
             {annotationControls}
           </Section>
-          <Section title="Save human annotations" description="Saving writes only explicit HUMAN annotations to the case record.">
+          <Section title="Annotation draft" description="Changes save automatically as you work.">
             <Stack spacing={3}>
               <ReviewerField id="annotation-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
               {saveError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
               {saved && <Alert status="success"><AlertIcon /><Text fontSize="sm">Human annotations saved.</Text></Alert>}
               <HStack spacing={2} flexWrap="wrap">
-                <Button variant="solid" leftIcon={<Save size={15} />} onClick={() => void persistDraft()} isLoading={saving} isDisabled={saving}>Save draft</Button>
-                <Button variant="outline" onClick={() => void confirmAnnotations()} isLoading={saving} isDisabled={saving}>Confirm Annotation</Button>
+                <Button variant="ghost" leftIcon={<Save size={15} />} onClick={() => void persistDraft()} isLoading={saving} isDisabled={saving}>Save draft only</Button>
               </HStack>
             </Stack>
           </Section>

@@ -1,5 +1,6 @@
 import { ChakraProvider } from '@chakra-ui/react';
-import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AnnotationEditorPage } from '@/pages/AnnotationEditorPage';
 import type { CaseRecord } from '@/lib/api';
@@ -39,10 +40,10 @@ function dispatchPointer(target: Element, eventName: 'pointerDown' | 'pointerMov
   fireEvent(target, event);
 }
 
-function renderEditor(currentItem: CaseRecord = item, onRequest?: (input: RequestInfo | URL, init?: RequestInit) => void) {
+function renderEditor(currentItem: CaseRecord = item, onRequest?: (input: RequestInfo | URL, init?: RequestInit) => unknown) {
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-    onRequest?.(input, init);
-    return { ok: true, json: async () => currentItem } as Response;
+    const body = onRequest?.(input, init) ?? currentItem;
+    return { ok: true, json: async () => body } as Response;
   });
   render(
     <ChakraProvider theme={theme}>
@@ -67,7 +68,7 @@ async function setupStage() {
 }
 
 describe('AnnotationEditorPage human movement', () => {
-  it('displays Soft exudate while saving the canonical SOFT_EXUDATE value', async () => {
+  it('updates the selected human annotation class and persists its canonical value', async () => {
     let annotationBody: Record<string, unknown> | undefined;
     const softExudateItem = {
       ...item,
@@ -76,13 +77,141 @@ describe('AnnotationEditorPage human movement', () => {
     renderEditor(softExudateItem, (_input, init) => {
       if (init?.body) annotationBody = JSON.parse(String(init.body));
     });
-    await setupStage();
+    const { svg } = await setupStage();
+    fireEvent.click(svg.querySelector('[data-human-shape-id="human-1"] rect'));
 
-    expect(screen.getByRole('option', { name: 'Soft exudate' })).toHaveValue('SOFT_EXUDATE');
+    expect(screen.getByLabelText('Selected annotation class')).toHaveValue('SOFT_EXUDATE');
+    fireEvent.change(screen.getByLabelText('Selected annotation class'), { target: { value: 'HEMORRHAGE' } });
     fireEvent.change(screen.getByPlaceholderText('Reviewer name'), { target: { value: 'Clinician' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft only' }));
     await waitFor(() => expect(annotationBody).toBeDefined());
-    expect(annotationBody).toMatchObject({ annotations: [{ label: 'SOFT_EXUDATE' }] });
+    expect(annotationBody).toMatchObject({ annotations: [{ label: 'HEMORRHAGE' }] });
+  });
+
+  it('opens the AI ROI action panel without starting a pan and supports keyboard selection', async () => {
+    const detectionId = 'ai-aaaaaaaaaaaaaaaaaaaa';
+    const aiCase: CaseRecord = {
+      ...item,
+      lesion: {
+        model_id: 'prism-dr-5fold', model_version: 'fixture', modality: 'CFP', state: 'AI_SUGGESTION', width: 800, height: 600,
+        lesions: [{ detection_id: detectionId, source_label: 'MA', canonical_label: 'MICROANEURYSM', rectangle: [300, 200, 360, 260], score: 0.9, state: 'AI_SUGGESTION' }], warnings: [],
+      },
+      lesion_review: {
+        raw_count: 1, suggestion_count: 1, filtered_count: 0,
+        lesions: [{ detection_id: detectionId, source_label: 'MA', canonical_label: 'MICROANEURYSM', rectangle: [300, 200, 360, 260], score: 0.9, state: 'AI_SUGGESTION' }],
+        policy: { thresholds: {}, max_per_class: 10, max_total: 10 },
+      },
+    };
+    renderEditor(aiCase);
+    const { svg } = await setupStage();
+    const setPointerCapture = vi.fn();
+    svg.setPointerCapture = setPointerCapture;
+    const group = svg.querySelector(`[data-ai-detection-id="${detectionId}"]`)!;
+    const hitTarget = group.querySelector('rect')!;
+
+    dispatchPointer(hitTarget, 'pointerDown', { button: 0, pointerId: 11, clientX: 330, clientY: 230 });
+    expect(setPointerCapture).not.toHaveBeenCalled();
+    fireEvent.click(hitTarget);
+    expect(await screen.findByRole('button', { name: 'Correct annotation' })).toBeInTheDocument();
+
+    await userEvent.setup().click(within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Close' })[0]);
+    fireEvent.keyDown(group, { key: 'Enter' });
+    expect(await screen.findByRole('button', { name: 'Use as human annotation' })).toBeInTheDocument();
+    expect(group).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('creates an editable human copy from an AI ROI and autosaves a class correction without its score', async () => {
+    const detectionId = 'ai-aaaaaaaaaaaaaaaaaaaa';
+    const initial: CaseRecord = {
+      ...item,
+      annotation_confirmation_status: 'DRAFT',
+      lesion: {
+        model_id: 'prism-dr-5fold', model_version: 'fixture', modality: 'CFP', state: 'AI_SUGGESTION', width: 800, height: 600,
+        lesions: [{ detection_id: detectionId, source_label: 'MA', canonical_label: 'MICROANEURYSM', rectangle: [300, 200, 360, 260], score: 0.9, state: 'AI_SUGGESTION' }], warnings: [],
+      },
+      lesion_review: {
+        raw_count: 1, suggestion_count: 1, filtered_count: 0,
+        lesions: [{ detection_id: detectionId, source_label: 'MA', canonical_label: 'MICROANEURYSM', rectangle: [300, 200, 360, 260], score: 0.9, state: 'AI_SUGGESTION' }],
+        policy: { thresholds: {}, max_per_class: 10, max_total: 10 },
+      },
+    };
+    const derived: CaseRecord['human_annotations'][number] = {
+      shape_id: 'human-derived-1', type: 'rectangle', label: 'MICROANEURYSM', geometry: { x: 300, y: 200, width: 60, height: 60 },
+      locked: false, source_detection_id: detectionId, source: 'HUMAN', reviewer: 'Clinician', created_at: '2026-01-01T00:00:00Z',
+    };
+    let current = initial;
+    let annotationRequest: Record<string, unknown> | undefined;
+    let confirmationRequest: Record<string, unknown> | undefined;
+    window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'Clinician');
+    renderEditor(initial, (input, init) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
+      if (path.endsWith('/annotations/from-ai')) {
+        current = { ...current, revision: 1, human_annotations: [...current.human_annotations, derived] };
+        return current;
+      }
+      if (path.endsWith('/annotations') && init?.method === 'PUT') {
+        annotationRequest = JSON.parse(String(init.body));
+        const request = annotationRequest as { annotations: Array<Record<string, unknown>> };
+        current = {
+          ...current,
+          revision: 2,
+          human_annotations: request.annotations.map((annotation) => ({
+            ...derived,
+            ...annotation,
+            geometry: annotation.geometry as typeof derived.geometry,
+          })) as CaseRecord['human_annotations'],
+        };
+        return current;
+      }
+      if (path.endsWith('/review') && init?.method === 'POST') {
+        confirmationRequest = JSON.parse(String(init.body));
+        current = { ...current, revision: 3, annotation_confirmation_status: 'CONFIRMED' };
+        return current;
+      }
+      if (path === '/v1/cases') return [];
+      return current;
+    });
+    const user = userEvent.setup();
+    const { svg } = await setupStage();
+    const aiHitTarget = svg.querySelector(`[data-ai-detection-id="${detectionId}"] rect`)!;
+    fireEvent.click(aiHitTarget);
+    await user.click(screen.getByRole('button', { name: 'Correct annotation' }));
+
+    const humanGroup = await waitFor(() => {
+      const group = svg.querySelector('[data-human-shape-id="human-derived-1"]');
+      expect(group).toBeInTheDocument();
+      return group;
+    });
+    expect(humanGroup).toBeInTheDocument();
+    expect(screen.getByLabelText('Selected annotation class')).toHaveValue('MICROANEURYSM');
+    await user.selectOptions(screen.getByLabelText('Selected annotation class'), 'HEMORRHAGE');
+
+    await waitFor(() => expect(annotationRequest).toBeDefined(), { timeout: 4000 });
+    const derivedRequest = (annotationRequest?.annotations as Array<Record<string, unknown>>)
+      .find((entry) => entry.source_detection_id === detectionId);
+    expect(derivedRequest).toMatchObject({ source_detection_id: detectionId, label: 'HEMORRHAGE' });
+    expect(derivedRequest).not.toHaveProperty('score');
+    expect(current.lesion?.lesions[0]).toMatchObject({ canonical_label: 'MICROANEURYSM', score: 0.9 });
+    expect(await screen.findByText('Draft saved')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Confirm annotations' }));
+    await waitFor(() => expect(confirmationRequest).toMatchObject({ revision: 2, action: 'CONFIRM_ANNOTATIONS' }));
+  });
+
+  it('skips annotation confirmation when the case has no annotation changes', async () => {
+    const unchanged = { ...item, human_annotations: [], annotation_confirmation_status: 'DRAFT' as const };
+    const requests: string[] = [];
+    renderEditor(unchanged, (input) => {
+      requests.push(new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname);
+      if (requests.at(-1) === '/v1/cases') return [];
+      return unchanged;
+    });
+    await waitFor(() => expect(screen.getByText('0 human annotations')).toBeInTheDocument());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Skip annotation' }));
+
+    expect(requests).not.toContain('/v1/cases/CASE-001/annotations');
+    expect(requests).not.toContain('/v1/cases/CASE-001/review');
   });
 
   it('moves editable human geometry, records undo, and respects lock state', async () => {

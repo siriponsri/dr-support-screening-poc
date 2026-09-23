@@ -26,4 +26,4 @@ The Workbench admits only what appears in the configured Workspace input folder 
 
 ## More information
 
-`docs/image-sampling-requirements/REQUIREMENTS_TRACEABILITY.md`, `docs/IMAGE_SAMPLING_REQUIREMENTS.pdf`.
+`docs/clinician/sampling/REQUIREMENTS_TRACEABILITY.md`, `docs/pdfs/IMAGE_SAMPLING_REQUIREMENTS.pdf`.

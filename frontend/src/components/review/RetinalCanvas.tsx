@@ -142,7 +142,17 @@ function AiShape({
     <g
       pointerEvents="auto"
       data-ai-detection-id={detectionId}
+      role={onSelect ? 'button' : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      aria-label={onSelect ? `AI suggestion: ${label}, model score ${(lesion.originalScore ?? lesion.score).toFixed(2)}` : undefined}
+      aria-pressed={onSelect ? selected : undefined}
       onClick={(event) => {
+        event.stopPropagation();
+        onSelect?.(detectionId);
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
         event.stopPropagation();
         onSelect?.(detectionId);
       }}
@@ -151,6 +161,18 @@ function AiShape({
       <title>{corrected
         ? `Clinician corrected: ${label}. Original AI suggestion: ${prettyLabel(lesion.originalLabel ?? lesion.canonical_label)} - detection confidence ${(lesion.originalScore ?? lesion.score).toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`
         : `AI suggestion: ${label} - detection confidence ${lesion.score.toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`}</title>
+      <rect
+        x={x1}
+        y={y1}
+        width={x2 - x1}
+        height={y2 - y1}
+        fill="transparent"
+        stroke="transparent"
+        strokeWidth={18}
+        vectorEffect="non-scaling-stroke"
+        pointerEvents="all"
+        aria-hidden="true"
+      />
       <rect
         x={x1}
         y={y1}
@@ -452,6 +474,10 @@ export function RetinalCanvas({
       event.preventDefault();
       return;
     }
+    const aiTarget = event.target instanceof Element
+      ? event.target.closest<SVGGElement>('[data-ai-detection-id]')
+      : null;
+    if (aiTarget && onSelectLesion && isLeftButton && !isTemporaryPan && !isRightButton) return;
     const resizeTarget = event.target instanceof Element
       ? event.target.closest<SVGRectElement>('[data-human-resize-handle]')
       : null;
@@ -495,7 +521,7 @@ export function RetinalCanvas({
     setIsPanning(true);
     event.currentTarget.setPointerCapture?.(event.pointerId);
     event.preventDefault();
-  }, [displayView, isCoordinateInspector, item, onHumanPointerDown, onHumanResizeStart, onPointerDown, onSelectHuman]);
+  }, [displayView, isCoordinateInspector, item, onHumanPointerDown, onHumanResizeStart, onPointerDown, onSelectHuman, onSelectLesion]);
 
   const handlePointerMove = useCallback((event: ReactPointerEvent<SVGSVGElement>) => {
     if (isCoordinateInspector) setPointerCoordinate(originalPointFromEvent(event, item));
@@ -711,7 +737,7 @@ export function RetinalCanvas({
           height={`${item.height}px`}
           viewBox={`0 0 ${item.width} ${item.height}`}
           preserveAspectRatio="none"
-          role="img"
+          role="group"
           aria-label="Retinal image annotation canvas"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

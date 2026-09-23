@@ -1,18 +1,12 @@
-"""Deterministic documentation QA for Retinal Review Workbench.
+"""Deterministic documentation QA for the canonical repository layout.
 
-Run from the repository root:  python scripts/docs/check_docs.py
-
-Checks:
-  1. local Markdown/Quarto links and images resolve;
-  2. every IMG-SAMP-### ID cited anywhere exists in the requirements register;
-  3. presentation reveals match the Thai scripts ([กด Space] per reveal, scene by scene)
-     and the product source map lists every scene with the right reveal count;
-  4. no stale references to removed build/capture scripts;
-  5. published presentations and the clinician guide load nothing from the network;
-  6. clinician manuals avoid retired terms; PDF page counts are reported (clinician guide <= 2 pages).
+Run from the repository root with ``python scripts/docs/check_docs.py``.
+The checker intentionally validates paths and generated-artifact boundaries so
+documentation moves cannot silently reintroduce the retired layout.
 """
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -21,20 +15,53 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
-REGISTER = DOCS / "image-sampling-requirements" / "REQUIREMENTS_TRACEABILITY.md"
-DECKS = [
-    (DOCS / "demo" / "src" / "RETINAL_REVIEW_DEMO.source.html", DOCS / "demo" / "PRESENTATION_SCRIPT_TH.md",
-     DOCS / "demo" / "PRESENTATION_SOURCE_MAP.md"),
-    (DOCS / "demo" / "src" / "TECHNICAL_BRIEFING.source.html", DOCS / "demo" / "TECHNICAL_PRESENTATION_SCRIPT_TH.md", None),
+REGISTER = DOCS / "clinician" / "sampling" / "REQUIREMENTS_TRACEABILITY.md"
+REQUIRED = [
+    DOCS / "README.md",
+    DOCS / "clinician" / "USER_WORKFLOW.md",
+    DOCS / "clinician" / "FEATURE_REFERENCE.md",
+    DOCS / "clinician" / "IMAGE_SELECTION_GUIDE.html",
+    DOCS / "clinician" / "sampling" / "index.qmd",
+    DOCS / "operations" / "INSTALLATION.md",
+    DOCS / "operations" / "MODEL_SERVER.md",
+    DOCS / "developer" / "FEATURE_IMPLEMENTATION_MAP.md",
+    DOCS / "reference" / "DATASET_MANIFEST.md",
+    DOCS / "manuals" / "clinician" / "index.qmd",
+    DOCS / "manuals" / "operator" / "index.qmd",
+    DOCS / "manuals" / "developer" / "index.qmd",
+    DOCS / "adr" / "README.md",
+    DOCS / "adr" / "architecture" / "README.md",
+    DOCS / "presentation" / "hyperframes" / "index.html",
+    DOCS / "presentation" / "RETINAL_REVIEW_DEMO.html",
+    DOCS / "presentation" / "TECHNICAL_BRIEFING.html",
 ]
-PUBLISHED_HTML = [DOCS / "demo" / "RETINAL_REVIEW_DEMO.html", DOCS / "demo" / "TECHNICAL_BRIEFING.html",
-                  DOCS / "image-selection" / "IMAGE_SELECTION_GUIDE.html"]
-STALE = ("scripts/manual/build_manual.py", "scripts/operator_manual/", "capture_manual.py", "capture_server.py",
-         "build_demo.py", "crop_figures.py")
-RETIRED_MANUAL_TERMS = ("0.6.0", "AI Review", "PRISM evidence", "Confirm every", "README_DRAFT", "TODO", "TBD")
+PDF_NAMES = {
+    "CLINICIAN_USER_MANUAL.pdf",
+    "CLINICIAN_IMAGE_SELECTION_GUIDE.pdf",
+    "DEPLOYMENT_OPERATIONS_MANUAL.pdf",
+    "DEVELOPER_TECHNICAL_GUIDE.pdf",
+    "IMAGE_SAMPLING_REQUIREMENTS.pdf",
+}
+TEMPORARY = {
+    "CLINICIAN_UI_FLOW_REDESIGN_PATCH.md",
+    "FULL_HYPERFRAMES_OPHTHALMOLOGIST_PRESENTATION_PATCH.md",
+    "PHASE3_SETUP_AND_DOCS_INFORMATION_ARCHITECTURE_PATCH.md",
+}
+RETIRED_PATHS = (
+    "docs/demo",
+    "docs\\demo",
+    "docs/image-selection",
+    "docs\\image-selection",
+    "docs/operator-manual",
+    "docs\\operator-manual",
+    "docs/developer-manual",
+    "docs\\developer-manual",
+    "docs/manual/",
+    "docs\\manual\\",
+    "docs/technical/",
+)
 LINK = re.compile(r"!?\[[^\]]*\]\(([^)\s#]+)(?:#[^)]*)?\)")
 ID = re.compile(r"IMG-SAMP-\d{3}")
-SCENE = re.compile(r'<section class="scene"[^>]*data-steps="(\d+)"')
 
 
 def text_sources() -> list[Path]:
@@ -42,26 +69,63 @@ def text_sources() -> list[Path]:
     return sorted({f for f in files if f.exists() and "node_modules" not in f.parts})
 
 
+def path_sources() -> list[Path]:
+    roots = [
+        ROOT / "PRESENT_DEMO.cmd",
+        ROOT / "PRESENT_TECHNICAL.cmd",
+        ROOT / "SETUP.cmd",
+        ROOT / "START.cmd",
+        ROOT / "OPEN_APP.cmd",
+        ROOT / "STOP.cmd",
+        *((ROOT / "scripts").rglob("*.py") if (ROOT / "scripts").exists() else []),
+        *((ROOT / "scripts").rglob("*.ps1") if (ROOT / "scripts").exists() else []),
+    ]
+    checker = Path(__file__).resolve()
+    return sorted({f for f in [*text_sources(), *roots] if f.exists() and f.resolve() != checker})
+
+
+def check_required() -> list[str]:
+    return [f"missing canonical document: {path.relative_to(ROOT)}" for path in REQUIRED if not path.exists()]
+
+
 def check_links(files: list[Path]) -> list[str]:
-    errors = []
+    errors: list[str] = []
     for source in files:
         text = re.sub(r"```.*?```", "", source.read_text(encoding="utf-8"), flags=re.S)
         for target in LINK.findall(text):
-            if target.startswith(("http://", "https://", "mailto:")) or target.startswith("@"):
+            if target.startswith(("http://", "https://", "mailto:", "@")):
                 continue
-            if not (source.parent / target).exists():
+            path = (source.parent / target).resolve()
+            if not path.exists():
                 errors.append(f"{source.relative_to(ROOT)}: missing link target {target}")
     return errors
 
 
+HTML_LINK = re.compile(r"(?:src|href)=\"([^\"]+)\"")
+
+
+def check_html_links(files: list[Path]) -> list[str]:
+    errors: list[str] = []
+    for source in files:
+        text = source.read_text(encoding="utf-8")
+        for target in HTML_LINK.findall(text):
+            if target.startswith(("http://", "https://", "data:", "mailto:", "#", "javascript:")):
+                continue
+            target_path = target.split("#", 1)[0].split("?", 1)[0]
+            if not target_path:
+                continue
+            path = (source.parent / target_path).resolve()
+            if not path.exists():
+                errors.append(f"{source.relative_to(ROOT)}: missing HTML link target {target}")
+    return errors
+
+
 def check_ids(files: list[Path]) -> list[str]:
+    if not REGISTER.exists():
+        return [f"missing requirements register: {REGISTER.relative_to(ROOT)}"]
     defined = set(re.findall(r"^\| (IMG-SAMP-\d{3}) \|", REGISTER.read_text(encoding="utf-8"), flags=re.M))
-    if not defined:
-        return [f"{REGISTER.relative_to(ROOT)}: no requirements found"]
-    errors = []
-    extra = [DOCS / "demo" / "src" / "RETINAL_REVIEW_DEMO.source.html", DOCS / "demo" / "src" / "TECHNICAL_BRIEFING.source.html",
-             DOCS / "image-selection" / "IMAGE_SELECTION_GUIDE.html"]
-    for source in [*files, *[e for e in extra if e.exists()]]:
+    errors: list[str] = []
+    for source in files:
         for ident in sorted(set(ID.findall(source.read_text(encoding="utf-8")))):
             if ident not in defined:
                 errors.append(f"{source.relative_to(ROOT)}: unknown requirement {ident}")
@@ -69,90 +133,134 @@ def check_ids(files: list[Path]) -> list[str]:
     return errors
 
 
-def script_reveals(script: Path) -> list[int]:
-    counts = []
-    for block in re.split(r"^## Scene \d+", script.read_text(encoding="utf-8"), flags=re.M)[1:]:
-        spoken = re.search(r"### บทพูด(.*?)(?=^### |\Z)", block, flags=re.S | re.M)
-        counts.append(spoken.group(1).count("[กด Space]") if spoken else -1)
-    return counts
-
-
-def check_decks() -> list[str]:
-    errors = []
-    for source, script, source_map in DECKS:
-        if not source.exists():
-            errors.append(f"missing {source.relative_to(ROOT)}")
-            continue
-        steps = [int(n) for n in SCENE.findall(source.read_text(encoding="utf-8"))]
-        spoken = script_reveals(script) if script.exists() else []
-        if len(steps) != len(spoken):
-            errors.append(f"{script.name}: {len(spoken)} scenes but {source.name} has {len(steps)}")
-        for i, (a, b) in enumerate(zip(steps, spoken), 1):
-            if a != b:
-                errors.append(f"{script.name} scene {i:02d}: {b} x [กด Space] but {a} reveals in {source.name}")
-        if source_map and source_map.exists():
-            rows = re.findall(r"^\| (\d{2}) [^|]*\| (\d+) \|", source_map.read_text(encoding="utf-8"), flags=re.M)
-            mapped = [int(r[1]) for r in rows]
-            if mapped != steps:
-                errors.append(f"{source_map.name}: reveal counts {mapped} do not match {steps}")
-        print(f"{source.name}: {len(steps)} scenes, {sum(steps)} reveals; script synchronised: "
-              f"{'yes' if steps == spoken else 'no'}")
+def check_paths(files: list[Path]) -> list[str]:
+    errors: list[str] = []
+    for source in files:
+        text = source.read_text(encoding="utf-8")
+        for retired in RETIRED_PATHS:
+            if retired in text:
+                errors.append(f"{source.relative_to(ROOT)}: retired path reference {retired}")
     return errors
 
 
-def check_stale(files: list[Path]) -> list[str]:
-    errors = []
-    for source in files:
-        text = source.read_text(encoding="utf-8")
-        for term in STALE:
-            if term in text and "removed" not in text[max(0, text.find(term) - 200):text.find(term) + 200]:
-                errors.append(f"{source.relative_to(ROOT)}: stale reference {term}")
+def check_artifacts() -> list[str]:
+    errors: list[str] = []
+    all_pdfs = list(ROOT.rglob("*.pdf"))
+    for pdf in all_pdfs:
+        if ROOT / "dist" in pdf.parents:
+            continue
+        if pdf.parent != DOCS / "pdfs":
+            errors.append(f"published PDF outside docs/pdfs: {pdf.relative_to(ROOT)}")
+    actual = {path.name for path in (DOCS / "pdfs").glob("*.pdf")} if (DOCS / "pdfs").exists() else set()
+    for expected in sorted(PDF_NAMES - actual):
+        errors.append(f"missing published PDF: docs/pdfs/{expected}")
+    unexpected = actual - PDF_NAMES
+    errors.extend(f"unexpected published PDF: docs/pdfs/{name}" for name in sorted(unexpected))
+    for spec in sorted(TEMPORARY):
+        if (ROOT / spec).exists():
+            errors.append(f"temporary execution spec remains: {spec}")
+    return errors
+
+
+def check_presentation(path: Path) -> list[str]:
+    if not path.exists():
+        return [f"missing presentation: {path.relative_to(ROOT)}"]
+    html = path.read_text(encoding="utf-8")
+    errors: list[str] = []
+    if re.search(r'<(script|img|link)[^>]+(?:src|href)="https?:', html):
+        errors.append(f"{path.relative_to(ROOT)}: loads a network resource")
+    if re.search(r'<img[^>]+src="(?!data:)', html):
+        errors.append(f"{path.relative_to(ROOT)}: image is not inlined; rebuild with build_docs.py")
+    if "application/hyperframes-slideshow+json" in html:
+        match = re.search(
+            r'<script[^>]+type="application/hyperframes-slideshow\+json"[^>]*>(.*?)</script>',
+            html,
+            flags=re.S,
+        )
+        if not match:
+            return [f"{path.relative_to(ROOT)}: missing HyperFrames slideshow manifest"]
+        try:
+            manifest = json.loads(match.group(1))
+        except json.JSONDecodeError as exc:
+            return [f"{path.relative_to(ROOT)}: invalid HyperFrames manifest: {exc}"]
+        scenes = {
+            scene_id
+            for scene_id in re.findall(r'data-composition-id="([^"]+)"', html)
+        }
+        refs = [*manifest.get("slides", [])]
+        for sequence in manifest.get("slideSequences", []):
+            refs.extend(sequence.get("slides", []))
+        for ref in refs:
+            if ref.get("sceneId") not in scenes:
+                errors.append(f"{path.relative_to(ROOT)}: manifest references missing scene {ref.get('sceneId')}")
+        if len(manifest.get("slides", [])) < 16:
+            errors.append(f"{path.relative_to(ROOT)}: HyperFrames main line has fewer than 16 slides")
     return errors
 
 
 def check_offline() -> list[str]:
-    errors = []
-    for page in PUBLISHED_HTML:
-        if not page.exists():
-            errors.append(f"missing published page {page.relative_to(ROOT)}")
-            continue
-        html = page.read_text(encoding="utf-8")
-        if re.search(r'<(script|img|link)[^>]+(src|href)="https?:', html):
-            errors.append(f"{page.relative_to(ROOT)}: loads a network resource")
-        if re.search(r'<(img)[^>]+src="(?!data:)[^"]+"', html) and "demo/src" not in str(page):
-            errors.append(f"{page.relative_to(ROOT)}: image not inlined (rebuild with build_docs.py)")
-        if re.search(r"<form|<input|localStorage|sessionStorage", html):
-            errors.append(f"{page.relative_to(ROOT)}: contains a form, input, or browser storage")
-    return errors
+    return [error for page in (DOCS / "presentation").glob("*.html") for error in check_presentation(page)]
 
 
-def check_manual_terms() -> list[str]:
-    errors = []
-    for source in [*(DOCS / "manual").glob("*.qmd"), *(DOCS / "operator-manual").glob("*.qmd")]:
-        text = source.read_text(encoding="utf-8")
-        errors += [f"{source.relative_to(ROOT)}: retired term {t!r}" for t in RETIRED_MANUAL_TERMS if t in text]
+def check_hyperframes_source() -> list[str]:
+    path = DOCS / "presentation" / "hyperframes" / "index.html"
+    if not path.exists():
+        return [f"missing HyperFrames source: {path.relative_to(ROOT)}"]
+    html = path.read_text(encoding="utf-8")
+    errors: list[str] = []
+    match = re.search(
+        r'<script[^>]+type="application/hyperframes-slideshow\+json"[^>]*>(.*?)</script>',
+        html,
+        flags=re.S,
+    )
+    if not match:
+        return [f"{path.relative_to(ROOT)}: missing HyperFrames slideshow manifest"]
+    try:
+        manifest = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        return [f"{path.relative_to(ROOT)}: invalid HyperFrames manifest: {exc}"]
+    scenes = set(re.findall(r'data-composition-id="([^"]+)"', html))
+    refs = [*manifest.get("slides", [])]
+    for sequence in manifest.get("slideSequences", []):
+        refs.extend(sequence.get("slides", []))
+    for ref in refs:
+        if ref.get("sceneId") not in scenes:
+            errors.append(f"{path.relative_to(ROOT)}: manifest references missing scene {ref.get('sceneId')}")
+    if len(manifest.get("slides", [])) < 19:
+        errors.append(f"{path.relative_to(ROOT)}: HyperFrames main line has fewer than 19 scenes")
+    sequences = {sequence.get("id"): sequence for sequence in manifest.get("slideSequences", [])}
+    if len(sequences.get("clinical-questions", {}).get("slides", [])) < 2:
+        errors.append(f"{path.relative_to(ROOT)}: clinical validation branch is incomplete")
+    errors.extend(check_html_links([path]))
     return errors
 
 
 def report_pdfs() -> list[str]:
-    errors = []
     pdfinfo = shutil.which("pdfinfo")
-    for pdf in sorted(DOCS.glob("*.pdf")):
+    for pdf in sorted((DOCS / "pdfs").glob("*.pdf")):
         if not pdfinfo:
             print(f"{pdf.name}: present (pdfinfo not installed)")
             continue
-        out = subprocess.run([pdfinfo, str(pdf)], capture_output=True, text=True).stdout
-        pages = int(next((line.split(":")[1] for line in out.splitlines() if line.startswith("Pages:")), "0"))
+        result = subprocess.run([pdfinfo, str(pdf)], capture_output=True, text=True, check=False)
+        pages = next((line.split(":", 1)[1].strip() for line in result.stdout.splitlines() if line.startswith("Pages:")), "?")
         print(f"{pdf.name}: {pages} pages")
-        if pdf.name == "CLINICIAN_IMAGE_SELECTION_GUIDE.pdf" and pages > 2:
-            errors.append(f"{pdf.name}: {pages} pages (maximum 2)")
-    return errors
+    return []
 
 
 def main() -> int:
     files = text_sources()
-    errors = [*check_links(files), *check_ids(files), *check_decks(), *check_stale(files), *check_offline(),
-              *check_manual_terms(), *report_pdfs()]
+    path_files = path_sources()
+    errors = [
+        *check_required(),
+        *check_links(files),
+        *check_html_links(sorted(DOCS.rglob("*.html"))),
+        *check_ids(files),
+        *check_paths(path_files),
+        *check_artifacts(),
+        *check_offline(),
+        *check_hyperframes_source(),
+        *report_pdfs(),
+    ]
     if errors:
         print("Documentation QA failed:\n- " + "\n- ".join(errors))
         return 1

@@ -8,15 +8,17 @@ One entry point for every generated document. Run it from the repository root:
 
 Targets and outputs:
 
-    clinician-manual  docs/manual/**                    -> docs/CLINICIAN_USER_MANUAL.pdf
-    operator-manual   docs/operator-manual/**           -> docs/DEPLOYMENT_OPERATIONS_MANUAL.pdf
-    sampling          docs/image-sampling-requirements/ -> docs/IMAGE_SAMPLING_REQUIREMENTS.pdf
-    developer         docs/developer-manual/**          -> docs/DEVELOPER_TECHNICAL_GUIDE.pdf
-    image-guide       docs/image-selection/IMAGE_SELECTION_GUIDE.html
-                                                        -> docs/CLINICIAN_IMAGE_SELECTION_GUIDE.pdf
-    demo              docs/demo/src/RETINAL_REVIEW_DEMO.source.html -> docs/demo/RETINAL_REVIEW_DEMO.html
-    briefing          docs/demo/src/TECHNICAL_BRIEFING.source.html  -> docs/demo/TECHNICAL_BRIEFING.html
-    diagrams          docs/architecture/*.mmd           -> docs/architecture/rendered/*.png|svg
+    clinician-manual  docs/manuals/clinician/**          -> docs/pdfs/CLINICIAN_USER_MANUAL.pdf
+    operator-manual   docs/manuals/operator/**           -> docs/pdfs/DEPLOYMENT_OPERATIONS_MANUAL.pdf
+    sampling          docs/clinician/sampling/**         -> docs/pdfs/IMAGE_SAMPLING_REQUIREMENTS.pdf
+    developer         docs/manuals/developer/**          -> docs/pdfs/DEVELOPER_TECHNICAL_GUIDE.pdf
+    image-guide       docs/clinician/IMAGE_SELECTION_GUIDE.html
+                                                         -> docs/pdfs/CLINICIAN_IMAGE_SELECTION_GUIDE.pdf
+    demo              docs/presentation/hyperframes/index.html
+                                                         -> docs/presentation/RETINAL_REVIEW_DEMO.html
+    briefing          docs/presentation/src/TECHNICAL_BRIEFING.source.html
+                                                         -> docs/presentation/TECHNICAL_BRIEFING.html
+    diagrams          docs/adr/architecture/*.mmd        -> docs/adr/architecture/rendered/*.png|svg
 
 Tool requirements (only for the targets that use them):
 
@@ -45,21 +47,24 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 
 BOOKS = {
-    "clinician-manual": (DOCS / "manual", "site", "Retinal-Review-Workbench.pdf", DOCS / "CLINICIAN_USER_MANUAL.pdf"),
-    "operator-manual": (DOCS / "operator-manual", "operator-site", "Retinal-Review-Workbench.pdf",
-                        DOCS / "DEPLOYMENT_OPERATIONS_MANUAL.pdf"),
-    "sampling": (DOCS / "image-sampling-requirements", "sampling-site", "Image-Sampling-Requirements.pdf",
-                 DOCS / "IMAGE_SAMPLING_REQUIREMENTS.pdf"),
-    "developer": (DOCS / "developer-manual", "developer-site", "Developer-Technical-Guide.pdf",
-                  DOCS / "DEVELOPER_TECHNICAL_GUIDE.pdf"),
+    "clinician-manual": (DOCS / "manuals" / "clinician", "site", "Retinal-Review-Workbench.pdf",
+                          DOCS / "pdfs" / "CLINICIAN_USER_MANUAL.pdf"),
+    "operator-manual": (DOCS / "manuals" / "operator", "operator-site", "Retinal-Review-Workbench.pdf",
+                        DOCS / "pdfs" / "DEPLOYMENT_OPERATIONS_MANUAL.pdf"),
+    "sampling": (DOCS / "clinician" / "sampling", "sampling-site", "Image-Sampling-Requirements.pdf",
+                 DOCS / "pdfs" / "IMAGE_SAMPLING_REQUIREMENTS.pdf"),
+    "developer": (DOCS / "manuals" / "developer", "developer-site", "Developer-Technical-Guide.pdf",
+                  DOCS / "pdfs" / "DEVELOPER_TECHNICAL_GUIDE.pdf"),
 }
 PRESENTATIONS = {
-    "demo": (DOCS / "demo" / "src" / "RETINAL_REVIEW_DEMO.source.html", DOCS / "demo" / "RETINAL_REVIEW_DEMO.html"),
-    "briefing": (DOCS / "demo" / "src" / "TECHNICAL_BRIEFING.source.html", DOCS / "demo" / "TECHNICAL_BRIEFING.html"),
+    "demo": (DOCS / "presentation" / "hyperframes" / "index.html",
+              DOCS / "presentation" / "RETINAL_REVIEW_DEMO.html"),
+    "briefing": (DOCS / "presentation" / "src" / "TECHNICAL_BRIEFING.source.html",
+                  DOCS / "presentation" / "TECHNICAL_BRIEFING.html"),
 }
-GUIDE_HTML = DOCS / "image-selection" / "IMAGE_SELECTION_GUIDE.html"
-GUIDE_PDF = DOCS / "CLINICIAN_IMAGE_SELECTION_GUIDE.pdf"
-ARCH = DOCS / "architecture"
+GUIDE_HTML = DOCS / "clinician" / "IMAGE_SELECTION_GUIDE.html"
+GUIDE_PDF = DOCS / "pdfs" / "CLINICIAN_IMAGE_SELECTION_GUIDE.pdf"
+ARCH = DOCS / "adr" / "architecture"
 ORDER = ["diagrams", "clinician-manual", "operator-manual", "sampling", "developer", "image-guide", "demo", "briefing"]
 
 
@@ -140,7 +145,7 @@ def build_presentation(name: str) -> None:
         return f'{match.group(1)}="{_data_uri(path)}"'
 
     html = _ASSET.sub(inline, html)
-    hotspots = DOCS / "demo" / "assets" / "hotspots.json"
+    hotspots = DOCS / "presentation" / "assets" / "hotspots.json"
     if hotspots.exists():
         data = json.dumps(json.loads(hotspots.read_text(encoding="utf-8")), separators=(",", ":"))
         html = html.replace('<script id="hotspot-data" type="application/json">{}</script>',

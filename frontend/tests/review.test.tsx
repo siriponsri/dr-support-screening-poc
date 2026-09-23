@@ -89,20 +89,23 @@ function requestPath(input: RequestInfo | URL) {
   return new URL(input.url, window.location.origin).pathname;
 }
 
-function mockReviewApi() {
+function mockReviewApi(onReview?: (request: Record<string, unknown>) => void) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const path = requestPath(input);
     if (path === '/v1/cases/ready') return jsonResponse(readyCase);
+    if (path === '/v1/cases') return jsonResponse([readyCase]);
     if (path === '/v1/cases/ready/review') {
       expect(init?.method).toBe('POST');
+      const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      onReview?.(request);
       return jsonResponse({
         ...readyCase,
         revision: 1,
-        state: 'REVIEWED',
+        state: request.action === 'ESCALATE' ? 'ESCALATED' : 'REVIEWED',
         clinician_review: {
           reviewer: 'Review clinician',
-          final_grade: 2,
-          review_action: 'ACCEPT',
+          final_grade: request.action === 'ESCALATE' ? null : 2,
+          review_action: request.action,
           remark: '',
           timestamp: '2026-01-01T00:00:00+00:00',
           revision: 1,
@@ -117,7 +120,8 @@ function mockReviewApi() {
 describe('Review responsibility boundary', () => {
   it('keeps eligible analysis available while showing compact read-only context and downstream actions', async () => {
     const user = userEvent.setup();
-    mockReviewApi();
+    let reviewRequest: Record<string, unknown> | undefined;
+    mockReviewApi((request) => { reviewRequest = request; });
     renderAppAt('/review/ready');
 
     expect(await screen.findByText('IMG13 · Left')).toBeInTheDocument();
@@ -126,18 +130,34 @@ describe('Review responsibility boundary', () => {
     expect(screen.queryByRole('heading', { name: 'Image admission' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Accept as retinal fundus image/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit annotations' })).toHaveAttribute('href', '/edit/ready');
-    expect(screen.getByRole('link', { name: 'Clinician review' })).toHaveAttribute('href', '/clinician-review/ready');
+    expect(screen.getByRole('link', { name: 'Continue to clinician review' })).toHaveAttribute('href', '/clinician-review/ready');
 
-    await user.click(screen.getByRole('link', { name: 'Clinician review' }));
-    expect(await screen.findByRole('heading', { name: 'Clinician sign-off' })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Continue to clinician review' }));
+    expect(await screen.findByRole('heading', { name: 'Clinician decision' })).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText('Reviewer name'), 'Review clinician');
     await user.selectOptions(screen.getByLabelText('Final DR grade'), '2');
-    expect(screen.queryByRole('button', { name: 'Accept AI grade' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Confirm DR Grade' }));
-    expect(await screen.findByText(/DR grade confirmed from the AI suggestion for IMG13/)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Confirm final DR grade' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Send for senior review' })).not.toBeChecked();
+    expect(screen.queryByRole('button', { name: 'Escalate' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Confirm final DR grade' }));
+    expect(reviewRequest).toMatchObject({ action: 'ACCEPT', grade: null, reviewer: 'Review clinician' });
+    expect(await screen.findByRole('button', { name: 'Scan input folder' })).toBeInTheDocument();
+  });
 
-    await user.click(screen.getByRole('link', { name: 'Back to Review' }));
-    await user.click(await screen.findByRole('link', { name: 'Edit annotations' }));
-    expect(await screen.findByRole('heading', { name: 'Editor tools' })).toBeInTheDocument();
+  it('sends a mutually exclusive senior-review decision without recording a final grade', async () => {
+    const user = userEvent.setup();
+    let reviewRequest: Record<string, unknown> | undefined;
+    mockReviewApi((request) => { reviewRequest = request; });
+    renderAppAt('/clinician-review/ready');
+
+    expect(await screen.findByRole('heading', { name: 'Clinician decision' })).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('Reviewer name'), 'Review clinician');
+    await user.click(screen.getByRole('radio', { name: 'Send for senior review' }));
+    expect(screen.getByRole('radio', { name: 'Send for senior review' })).toBeChecked();
+    expect(screen.queryByLabelText('Final DR grade')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Send for senior review' }));
+
+    expect(reviewRequest).toMatchObject({ action: 'ESCALATE', grade: null, reviewer: 'Review clinician' });
+    expect(await screen.findByRole('button', { name: 'Scan input folder' })).toBeInTheDocument();
   });
 });

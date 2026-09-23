@@ -7,7 +7,10 @@ import {
   Button,
   Center,
   Code,
+  FormControl,
+  FormLabel,
   HStack,
+  Input,
   Spinner,
   Stack,
   Tab,
@@ -81,6 +84,9 @@ export function DatasetsPage() {
   const [filter, setFilter] = useState<DatasetFilter>('all');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingGrouped, setExportingGrouped] = useState(false);
+  const [groupedFormat, setGroupedFormat] = useState<'PNG' | 'JPEG'>('PNG');
+  const [jpegQuality, setJpegQuality] = useState('90');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -115,6 +121,22 @@ export function DatasetsPage() {
       setError('The dataset export could not be created. Check the active Workspace and try again.');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const createGroupedExport = async () => {
+    const quality = Number(jpegQuality);
+    if (!manifest?.can_export || exportingGrouped || !Number.isInteger(quality) || quality < 1 || quality > 100) return;
+    setExportingGrouped(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await datasetApi.exportGrouped(groupedFormat, quality);
+      setNotice(`Grouped export created in ${result.directory_name}: ${result.copied_count} copied, ${result.identical_existing_count} already present, ${result.skipped_count} skipped.`);
+    } catch {
+      setError('The grouped image export could not be created. Check the active Workspace and try again.');
+    } finally {
+      setExportingGrouped(false);
     }
   };
 
@@ -154,6 +176,28 @@ export function DatasetsPage() {
             </Stack>
           </Section>
         ) : null}
+        <Section title="Export reviewed images by final DR grade" description="Create pseudonymous image copies grouped by the clinician's saved review state.">
+          <Stack spacing={3} align="flex-start">
+            <Text fontSize="sm" color="text.secondary">Source images and case records are never moved or changed. Cases without a final grade are kept separate for review.</Text>
+            <HStack role="group" aria-label="Grouped export image format" spacing={1}>
+              {(['PNG', 'JPEG'] as const).map((format) => (
+                <Button key={format} size="sm" variant={groupedFormat === format ? 'solid' : 'outline'} aria-pressed={groupedFormat === format} onClick={() => setGroupedFormat(format)}>
+                  {format}
+                </Button>
+              ))}
+            </HStack>
+            {groupedFormat === 'JPEG' && (
+              <FormControl maxW="180px">
+                <FormLabel htmlFor="grouped-jpeg-quality" fontSize="sm">JPEG quality</FormLabel>
+                <Input id="grouped-jpeg-quality" type="number" min={1} max={100} step={1} value={jpegQuality} onChange={(event) => setJpegQuality(event.target.value)} />
+              </FormControl>
+            )}
+            <Button leftIcon={<Download size={15} />} onClick={() => void createGroupedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export || exportingGrouped || (groupedFormat === 'JPEG' && (!Number.isInteger(Number(jpegQuality)) || Number(jpegQuality) < 1 || Number(jpegQuality) > 100))}>
+              Export grouped images
+            </Button>
+            {!manifest?.can_export && <Text fontSize="sm" color="status.warning">Open an active Workspace to export reviewed images.</Text>}
+          </Stack>
+        </Section>
       </Stack>
     </Box>
   );

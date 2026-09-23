@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, AlertIcon, Box, Button, Center, HStack, Spinner, Stack, Text, VStack } from '@chakra-ui/react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { admissionApi, apiJson, queueApi, type CaseRecord } from '@/lib/api';
@@ -14,6 +14,7 @@ import { WorklistToolbar } from '@/components/worklist/WorklistToolbar';
 
 export function WorklistPage() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -85,7 +86,7 @@ export function WorklistPage() {
       <HStack mt={4} spacing={2} color="text.muted" fontSize="xs"><Text>AI suggestions are optional visual evidence; clinician review remains authoritative.</Text></HStack>
       <ResolverDialog item={resolverCase} onClose={() => setResolverCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
       <ReadinessDialog item={readinessCase} onClose={() => setReadinessCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
-      <ConfirmImageDialog item={confirmImageCase} onClose={() => setConfirmImageCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
+      <ConfirmImageDialog item={confirmImageCase} onClose={() => setConfirmImageCase(null)} onSaved={(saved) => { setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry)); navigate(`/review/${encodeURIComponent(saved.image_id)}`); }} />
     </Box>
   );
 }

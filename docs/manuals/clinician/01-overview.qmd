@@ -1,0 +1,40 @@
+# Before You Begin {#sec-before}
+
+## Intended users and scope
+
+This manual is for clinicians and reviewers using the review workstation. Workstation installation, the hospital Model API, and backups are covered in the separate *Deployment and Operations Manual*.
+
+Retinal Review Workbench is a clinician-controlled research and clinical-support workstation. It keeps source identity, patient and eye context, human decisions, annotations, model evidence, and export provenance together for review. It does not establish a diagnosis, disease truth, referral decision, or treatment decision. The final clinician review remains authoritative.
+
+## Where the images come from
+
+You, or another authorized hospital user, choose each image from hospital-controlled storage, and the approved hospital process stages it into the Workspace input folder. The project team does not browse hospital storage or pre-select images. It monitors overall Refer/Not-refer, sex, and left/right coverage, so you do not manage dataset quotas yourself. What to choose, what to avoid, and what to do when unsure are covered in the one-page *Clinician Image Selection Guide* (`docs/pdfs/CLINICIAN_IMAGE_SELECTION_GUIDE.pdf`).
+
+## Supported images
+
+The workstation accepts JPEG, PNG, TIFF, and supported single-frame ophthalmic fundus DICOM. MRI, OCT, PACS objects, non-fundus DICOM, unsupported SOP classes, multi-frame objects, and untested transfer syntaxes are outside model support. A recognized non-fundus DICOM is shown as **Unsupported modality**, not as a generic read failure.
+
+## Model-assisted evidence
+
+- **RETFound** (`retfound-aptos5`) provides a five-class DR grade suggestion.
+- **PRISM-DR** (`prism-dr-5fold`) provides optional lesion ROI suggestions.
+
+A displayed confidence or score is a model score, not a calibrated clinical probability. An empty PRISM result does not prove that lesions are absent.
+
+## Workstation areas
+
+| Area | What you do there |
+|:-----|:------------------|
+| **Worklist** | Find admitted cases, see their status, and start **Confirm Image**. |
+| **Review** | Inspect the image and optional model assistance (read-only). |
+| **Clinician Review** | Record the final DR grade, or escalate an exception. |
+| **Edit annotations** | Draw human annotations; correct or remove an AI ROI when needed. |
+| **Datasets** | Check DR-ready and Lesion-ready status and export the manifest. |
+| **Models & Audit** | Read model, inference, hash, and annotation provenance. |
+| **Settings** | Select a Workspace, set the default reviewer, and manage hints. |
+
+: {tbl-colwidths="[24,76]"}
+
+::: {.callout-warning title="Safety -- human authority"}
+Treat every model output as assistive evidence. Do not use a model score or an empty lesion result as a diagnosis, a referral decision, or proof that disease is absent.
+:::

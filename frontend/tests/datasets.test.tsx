@@ -51,12 +51,17 @@ describe('Datasets page', () => {
   it('shows active workspace scope, status views, and export action', async () => {
     const user = userEvent.setup();
     let exportMethod = '';
+    let groupedRequest: Record<string, unknown> | undefined;
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
       if (path === '/v1/dataset/manifest') return response(manifest);
       if (path === '/v1/dataset/export') {
         exportMethod = init?.method ?? '';
         return response({ ...manifest, export_id: 'export-1', directory_name: 'dataset-export-export-1', files: ['manifest.json', 'images.csv', 'annotations.csv'] });
+      }
+      if (path === '/v1/dataset/export/grouped-by-grade') {
+        groupedRequest = JSON.parse(String(init?.body));
+        return response({ directory_name: 'grouped_by_grade', image_format: 'JPEG', copied_count: 1, identical_existing_count: 0, skipped_count: 1, manifest: '_manifest/grouped_export_manifest.json' });
       }
       return response({ detail: `Unexpected request ${path}` }, 404);
     });
@@ -73,6 +78,13 @@ describe('Datasets page', () => {
     await user.click(screen.getByRole('button', { name: 'Export manifest' }));
     expect(exportMethod).toBe('POST');
     expect(await screen.findByText('Export created: 2 images and 2 annotations.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'JPEG' }));
+    await user.clear(screen.getByLabelText('JPEG quality'));
+    await user.type(screen.getByLabelText('JPEG quality'), '85');
+    await user.click(screen.getByRole('button', { name: 'Export grouped images' }));
+    expect(groupedRequest).toEqual({ image_format: 'JPEG', jpeg_quality: 85 });
+    expect(await screen.findByText(/1 copied, 0 already present, 1 skipped/)).toBeInTheDocument();
   });
 
   it('shows the no-workspace recovery state and keeps export disabled', async () => {
