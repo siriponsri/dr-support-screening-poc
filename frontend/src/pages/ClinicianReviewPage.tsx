@@ -93,6 +93,11 @@ export function ClinicianReviewPage() {
     navigate('/worklist');
   };
 
+  const leaveToReview = async () => {
+    if (guarded && !(await confirm(LEAVE_CASE_DIALOG))) return;
+    navigate(`/review/${encodeURIComponent(item!.image_id)}`);
+  };
+
   // One warning per case/edit session: accepting keeps the grade form open
   // until the page reloads the case or the clinician confirms again.
   const beginGradeEdit = async () => {
@@ -113,7 +118,7 @@ export function ClinicianReviewPage() {
     setSaving(true);
     setError(null);
     try {
-      const action: ReviewAction = !confirmed && item.global?.grade === Number(grade) ? 'ACCEPT' : 'CORRECT_GRADE';
+      const action: ReviewAction = item.global?.grade != null && item.global.grade === Number(grade) ? 'ACCEPT' : 'CORRECT_GRADE';
       const saved = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(item.image_id)}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,7 +160,7 @@ export function ClinicianReviewPage() {
         pathname={pathname}
         title="Clinician Review"
         subtitle={`${item.display_name} - final DR grade for this image`}
-        actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />} variant="ghost">Back to Review</Button><Button onClick={() => void leaveToWorklist()}>Back to Worklist</Button></HStack>}
+        actions={<HStack><Button onClick={() => void leaveToReview()} leftIcon={<ArrowLeft size={15} />} variant="ghost">Back to Review</Button><Button onClick={() => void leaveToWorklist()}>Back to Worklist</Button></HStack>}
       />
       <Stack spacing={3} mb={5}>
         <CaseNavigation imageId={item.image_id} guarded={guarded} confirm={confirm} />

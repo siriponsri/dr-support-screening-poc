@@ -27,7 +27,7 @@ import { AiRoiPopover } from '@/components/review/AiRoiPopover';
 import { displayedLesions } from '@/components/review/lesionPresentation';
 import { RetinalCanvas, LESION_COLORS, LESION_SHORT_LABELS, type RectangleResizeHandle } from '@/components/review/RetinalCanvas';
 import { EDIT_CONFIRMED_ANNOTATIONS_DIALOG, LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
-import { annotationsConfirmed, caseComplete, formatTimestamp, gradeConfirmed } from '@/lib/caseProgress';
+import { annotationsConfirmed, caseComplete, formatTimestamp, gradeConfirmed, imageContextConfirmed } from '@/lib/caseProgress';
 import { loadCaseList, nextIncompleteCaseId } from '@/lib/caseNavigation';
 import {
   apiJson,
@@ -339,7 +339,7 @@ export function AnnotationEditorPage() {
 
   const annotationConfirmed = annotationsConfirmed(item);
   const hasConfirmedGrade = gradeConfirmed(item);
-  const readOnly = Boolean(annotationConfirmed && !editingConfirmed);
+  const readOnly = !hasConfirmedGrade || Boolean(annotationConfirmed && !editingConfirmed);
 
   const commit = (next: HumanAnnotation[], nextSelection: string | null = null) => {
     if (readOnly) return;
@@ -652,6 +652,7 @@ export function AnnotationEditorPage() {
   };
 
   const beginAnnotationEdit = async (): Promise<boolean> => {
+    if (!hasConfirmedGrade) return false;
     if (!annotationConfirmed || editingConfirmed) return true;
     if (!(await confirm(EDIT_CONFIRMED_ANNOTATIONS_DIALOG))) return false;
     setEditingConfirmed(true);
@@ -660,7 +661,7 @@ export function AnnotationEditorPage() {
   };
 
   const selectLesion = async (detectionId: string) => {
-    if (!item) return;
+    if (!item || !hasConfirmedGrade) return;
     if (readOnly && !(await beginAnnotationEdit())) return;
     const lesion = displayedLesions(item).find((entry) => entry.detection_id === detectionId);
     if (!lesion) return;
@@ -688,7 +689,7 @@ export function AnnotationEditorPage() {
   };
 
   const confirmRoi = async () => {
-    if (!item || !roiEdit || !rawSelectedLesion || roiSaving) return;
+    if (!item || readOnly || !roiEdit || !rawSelectedLesion || roiSaving) return;
     const reviewerName = roiReviewer();
     if (!reviewerName) { setRoiError('Enter a reviewer name before confirming.'); return; }
     const [x1, y1, x2, y2] = roiEdit.rect;
@@ -740,7 +741,7 @@ export function AnnotationEditorPage() {
   };
 
   const removeRoi = async () => {
-    if (!item || !roiEdit || roiSaving) return;
+    if (!item || readOnly || !roiEdit || roiSaving) return;
     const reviewerName = roiReviewer();
     if (!reviewerName) { setRoiError('Enter a reviewer name before removing.'); return; }
     setRoiSaving(true);
@@ -853,6 +854,7 @@ export function AnnotationEditorPage() {
   const persistDraft = async (): Promise<CaseRecord | null> => {
     if (!item || saving) return null;
     if (draftStatus === 'saved') return item;
+    if (!hasConfirmedGrade) return null;
     if (!reviewer.trim()) {
       setSaveError('Reviewer name is required to save annotation changes.');
       return null;
@@ -930,16 +932,23 @@ export function AnnotationEditorPage() {
 
   const guarded = Boolean(item && (!caseComplete(item) || draftStatus !== 'saved' || editingConfirmed));
 
-  const leaveToWorklist = async () => {
+  const saveBeforeLeaving = async (): Promise<boolean> => {
+    if (draftStatus === 'saved') return true;
+    return Boolean(await persistDraft());
+  };
+
+  const leaveTo = async (destination: string) => {
     if (guarded && !(await confirm(LEAVE_CASE_DIALOG))) return;
-    if (draftStatus !== 'saved') await persistDraft();
-    navigate('/worklist');
+    if (!(await saveBeforeLeaving())) return;
+    navigate(destination);
   };
 
   const openNextImage = async (completedId: string) => {
-    const nextId = nextIncompleteCaseId(await loadCaseList(), completedId);
-    navigate('/worklist', { state: { caseComplete: completedId, openConfirmImage: nextId } });
-    return nextId;
+    const cases = await loadCaseList();
+    const nextId = nextIncompleteCaseId(cases, completedId);
+    const next = cases.find((entry) => entry.image_id === nextId);
+    if (next && imageContextConfirmed(next)) navigate(`/review/${encodeURIComponent(next.image_id)}`);
+    else navigate('/worklist', { state: { caseComplete: completedId, openConfirmImage: nextId } });
   };
 
   /** Confirm Annotation finishes this image and opens the next Worklist image. */
@@ -949,7 +958,9 @@ export function AnnotationEditorPage() {
     try {
       if (!(await confirmAnnotations())) return;
       clearRoiSelection();
-      const nextId = nextIncompleteCaseId(await loadCaseList(), item.image_id);
+      const cases = await loadCaseList();
+      const nextId = nextIncompleteCaseId(cases, item.image_id);
+      const next = cases.find((entry) => entry.image_id === nextId);
       toast({
         id: 'case-complete',
         status: 'success',
@@ -958,7 +969,8 @@ export function AnnotationEditorPage() {
         position: 'top',
         isClosable: true,
       });
-      navigate('/worklist', { state: { caseComplete: item.image_id, openConfirmImage: nextId } });
+      if (next && imageContextConfirmed(next)) navigate(`/review/${encodeURIComponent(next.image_id)}`);
+      else navigate('/worklist', { state: { caseComplete: item.image_id, openConfirmImage: nextId } });
     } finally {
       setCompleting(false);
     }
@@ -997,7 +1009,7 @@ export function AnnotationEditorPage() {
         pathname={pathname}
         title="Annotation Editor"
         subtitle={`${item.display_name} - human annotations are separate from AI suggestions`}
-        actions={<HStack><Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} leftIcon={<ArrowLeft size={15} />} variant="ghost">Back to Review</Button><Button onClick={() => void leaveToWorklist()}>Back to Worklist</Button></HStack>}
+        actions={<HStack><Button onClick={() => void leaveTo(`/review/${encodeURIComponent(item.image_id)}`)} leftIcon={<ArrowLeft size={15} />} variant="ghost">Back to Review</Button><Button onClick={() => void leaveTo('/worklist')}>Back to Worklist</Button></HStack>}
       />
       <HStack mb={3} spacing={2} fontSize="sm" aria-label="DR grade status" color={hasConfirmedGrade ? 'text.secondary' : 'status.warning'}>
         {hasConfirmedGrade ? <CheckCircle2 size={16} color="var(--chakra-colors-status-success)" /> : null}
@@ -1030,7 +1042,7 @@ export function AnnotationEditorPage() {
           imageId={item.image_id}
           guarded={guarded}
           confirm={confirm}
-          onBeforeSwitch={async () => { if (draftStatus !== 'saved') await persistDraft(); }}
+          onBeforeSwitch={saveBeforeLeaving}
         />
         <NextActionHint item={item} />
       </Stack>
@@ -1041,10 +1053,10 @@ export function AnnotationEditorPage() {
             showAi={showAi}
             showHuman={showHuman}
             humanAnnotations={draft}
-            selectedShapeId={selectedShapeId}
+            selectedShapeId={hasConfirmedGrade ? selectedShapeId : null}
             selectedLesionId={selectedLesionId}
-            onSelectLesion={(detectionId) => { void selectLesion(detectionId); }}
-            onSelectHuman={(shapeId) => { setSelectedShapeId(shapeId); clearRoiSelection(); }}
+            onSelectLesion={hasConfirmedGrade ? (detectionId) => { void selectLesion(detectionId); } : undefined}
+            onSelectHuman={hasConfirmedGrade ? (shapeId) => { setSelectedShapeId(shapeId); clearRoiSelection(); } : undefined}
             renderOverlay={(context) => (selectedLesion && roiEdit && !readOnly ? (
               <AiRoiPopover
                 item={item}
@@ -1092,7 +1104,7 @@ export function AnnotationEditorPage() {
               </Stack>
               <ReviewerField id="annotation-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
               {saveError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
-              {readOnly ? (
+              {readOnly && hasConfirmedGrade ? (
                 <HStack spacing={2} flexWrap="wrap">
                   <Button variant="solid" onClick={() => void openNextImage(item.image_id)}>Open next image</Button>
                   <Button variant="outline" onClick={() => void beginAnnotationEdit()}>Edit confirmed annotations</Button>

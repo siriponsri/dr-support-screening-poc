@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { CaseRecord } from './api';
-import { caseComplete } from './caseProgress';
+import { caseComplete, imageContextConfirmed } from './caseProgress';
 
 export interface CaseNeighbors {
   previousId: string | null;
   nextId: string | null;
+  previousImageConfirmed: boolean;
+  nextImageConfirmed: boolean;
   /** Next Worklist image after the current one that is not yet complete. */
   nextIncompleteId: string | null;
   position: number | null;
@@ -62,6 +64,8 @@ export function useCaseNeighbors(currentId: string | undefined): CaseNeighbors {
   return {
     previousId: index > 0 ? ordered[index - 1].image_id : null,
     nextId: index >= 0 && index < ordered.length - 1 ? ordered[index + 1].image_id : null,
+    previousImageConfirmed: index > 0 && imageContextConfirmed(ordered[index - 1]),
+    nextImageConfirmed: index >= 0 && index < ordered.length - 1 && imageContextConfirmed(ordered[index + 1]),
     nextIncompleteId: currentId ? nextIncompleteCaseId(cases, currentId) : null,
     position: index >= 0 ? index + 1 : null,
     total: ordered.length,
