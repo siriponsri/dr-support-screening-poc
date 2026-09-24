@@ -14,25 +14,26 @@ interface CaseNavigationProps {
   /** Shared page dialog; required when `guarded` can be true. */
   confirm?: (options: ConfirmDialogOptions) => Promise<boolean>;
   /** Called after the clinician accepts a guarded switch, before navigation. */
-  onBeforeSwitch?: () => Promise<void> | void;
+  onBeforeSwitch?: () => Promise<boolean> | boolean;
 }
 
 /**
  * Previous/Next between Worklist images. Switching always opens the other
- * case at Review, the start of the per-image flow after Confirm Image.
+ * case at Review after its persisted Confirm Image milestone.
  */
 export function CaseNavigation({ imageId, guarded = false, confirm, onBeforeSwitch }: CaseNavigationProps) {
   const navigate = useNavigate();
-  const { previousId, nextId, position, total, loading } = useCaseNeighbors(imageId);
+  const { previousId, nextId, previousImageConfirmed, nextImageConfirmed, position, total, loading } = useCaseNeighbors(imageId);
 
-  const move = async (target: string | null) => {
+  const move = async (target: string | null, imageConfirmed: boolean) => {
     if (!target) return;
     if (guarded && confirm) {
       const accepted = await confirm(SWITCH_IMAGE_DIALOG);
       if (!accepted) return;
-      await onBeforeSwitch?.();
     }
-    navigate(`/review/${encodeURIComponent(target)}`);
+    if (onBeforeSwitch && !(await onBeforeSwitch())) return;
+    if (imageConfirmed) navigate(`/review/${encodeURIComponent(target)}`);
+    else navigate('/worklist', { state: { openConfirmImage: target } });
   };
 
   return (
@@ -41,7 +42,7 @@ export function CaseNavigation({ imageId, guarded = false, confirm, onBeforeSwit
         size="sm"
         variant="ghost"
         leftIcon={<ArrowLeft size={14} />}
-        onClick={() => void move(previousId)}
+        onClick={() => void move(previousId, previousImageConfirmed)}
         isDisabled={loading || !previousId}
         aria-label="Previous case"
       >
@@ -54,7 +55,7 @@ export function CaseNavigation({ imageId, guarded = false, confirm, onBeforeSwit
         size="sm"
         variant="ghost"
         rightIcon={<ArrowRight size={14} />}
-        onClick={() => void move(nextId)}
+        onClick={() => void move(nextId, nextImageConfirmed)}
         isDisabled={loading || !nextId}
         aria-label="Next case"
       >

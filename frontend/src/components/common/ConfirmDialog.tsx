@@ -70,7 +70,7 @@ export const SWITCH_IMAGE_DIALOG: ConfirmDialogOptions = {
   body: [
     'You are still working on this image.',
     'Switching will open a different Worklist case.',
-    'Your autosaved draft will be kept, but this case is not complete.',
+    'Your autosaved draft will be kept. Unconfirmed work will still need your attention.',
   ],
   cancelLabel: 'Stay on this image',
   confirmLabel: 'Switch image',
@@ -80,7 +80,7 @@ export const LEAVE_CASE_DIALOG: ConfirmDialogOptions = {
   title: 'Leave this image?',
   body: [
     'You are still working on this image.',
-    'Your autosaved draft will be kept, but this case is not complete.',
+    'Your autosaved draft will be kept. Unconfirmed work will still need your attention.',
   ],
   cancelLabel: 'Stay on this image',
   confirmLabel: 'Leave image',

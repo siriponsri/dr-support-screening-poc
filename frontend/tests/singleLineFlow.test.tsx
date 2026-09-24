@@ -51,7 +51,7 @@ function json(body: unknown, status = 200) {
 
 interface FakeLog { method: string; path: string; body?: Record<string, unknown> }
 
-function fakeBackend(initial: CaseRecord[]) {
+function fakeBackend(initial: CaseRecord[], options: { failAnnotationSave?: boolean } = {}) {
   const cases = new Map(initial.map((entry) => [entry.image_id, structuredClone(entry)]));
   const log: FakeLog[] = [];
   const hash = (entry: CaseRecord) => JSON.stringify([entry.human_annotations, entry.review_evidence?.items.map((i) => [i.status, i.corrected_label, i.corrected_rectangle])]);
@@ -74,6 +74,7 @@ function fakeBackend(initial: CaseRecord[]) {
     if (!entry) return json({ detail: 'not found' }, 404);
     const action = match[2];
     if (!action) return json(refresh(entry));
+    if (action === 'annotations' && options.failAnnotationSave) return json({ detail: 'save failed' }, 500);
     entry.revision += 1;
     if (action === 'review') {
       if (body?.action === 'CONFIRM_ANNOTATIONS') {
@@ -139,6 +140,7 @@ describe('Review page', () => {
     expect(screen.queryByRole('link', { name: /edit annotation/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /edit annotation/i })).not.toBeInTheDocument();
   });
+
 });
 
 describe('Clinician Review grade decision', () => {
@@ -174,6 +176,42 @@ describe('Clinician Review grade decision', () => {
     await user.selectOptions(screen.getByLabelText('Final DR grade'), '1');
     await user.type(screen.getByLabelText('Remark (optional)'), 'revised');
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['2', 'ACCEPT'],
+    ['3', 'CORRECT_GRADE'],
+  ])('reconfirms a reopened grade %s with %s provenance action', async (selectedGrade, action) => {
+    const user = userEvent.setup();
+    const backend = fakeBackend([baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade })]);
+    renderAppAt('/clinician-review/case-1');
+    await user.click(await screen.findByRole('button', { name: 'Edit confirmed grade' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Continue editing' }));
+    await user.selectOptions(screen.getByLabelText('Final DR grade'), selectedGrade);
+    await user.click(screen.getByRole('button', { name: 'Confirm DR Grade' }));
+    await waitFor(() => expect(backend.log.find((entry) => entry.path.endsWith('/review') && entry.body?.grade === Number(selectedGrade))?.body).toMatchObject({ action }));
+  });
+
+  it('sends a no-AI grade through the manual-compatible correction path', async () => {
+    const user = userEvent.setup();
+    const backend = fakeBackend([baseCase('case-1', 'a.jpg', { global: null })]);
+    renderAppAt('/clinician-review/case-1');
+    await user.selectOptions(await screen.findByLabelText('Final DR grade'), '1');
+    await user.click(screen.getByRole('button', { name: 'Confirm DR Grade' }));
+    await waitFor(() => expect(backend.log.find((entry) => entry.path.endsWith('/review'))?.body).toMatchObject({ action: 'CORRECT_GRADE', grade: 1 }));
+  });
+
+  it('guards Back to Review while a confirmed grade is reopened', async () => {
+    const user = userEvent.setup();
+    fakeBackend([baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade, annotation_confirmation_status: 'CONFIRMED' })]);
+    renderAppAt('/clinician-review/case-1');
+    await user.click(await screen.findByRole('button', { name: 'Edit confirmed grade' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Continue editing' }));
+    await user.selectOptions(screen.getByLabelText('Final DR grade'), '1');
+    await user.click(screen.getByRole('button', { name: 'Back to Review' }));
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Leave this image?');
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Stay on this image' }));
+    expect(screen.getByLabelText('Final DR grade')).toHaveValue('1');
   });
 
   it('loads a legacy escalated record read-only without restoring the retired action', async () => {
@@ -227,11 +265,11 @@ describe('Annotation Editor single-line completion', () => {
     expect(await screen.findByText('Annotation confirmed')).toBeInTheDocument();
   });
 
-  it('removes a suggestion, confirms the case without per-ROI review, and opens the next Worklist image', async () => {
+  it('removes a suggestion, confirms the case without per-ROI review, and opens Confirm Image for an unconfirmed next case', async () => {
     const user = userEvent.setup();
     const backend = fakeBackend([
       baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade }),
-      baseCase('case-2', 'b.jpg'),
+      baseCase('case-2', 'b.jpg', { admission_history: [] }),
     ]);
     renderAppAt('/edit/case-1');
     const svg = await stageSvg();
@@ -247,6 +285,68 @@ describe('Annotation Editor single-line completion', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Confirm Image' });
     expect(dialog).toHaveTextContent('b.jpg');
     expect(backend.log.some((entry) => entry.body?.action === 'CONFIRM_ANNOTATIONS')).toBe(true);
+  });
+
+  it('opens Review directly when the next incomplete case already confirmed its image', async () => {
+    const user = userEvent.setup();
+    const backend = fakeBackend([
+      baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade }),
+      baseCase('case-2', 'b.jpg'),
+    ]);
+    renderAppAt('/edit/case-1');
+    await user.click(await screen.findByRole('button', { name: 'Confirm Annotation' }));
+    expect(await screen.findByRole('link', { name: 'Continue to clinician review' })).toHaveAttribute('href', '/clinician-review/case-2');
+    expect(screen.queryByRole('dialog', { name: 'Confirm Image' })).not.toBeInTheDocument();
+    expect(backend.log.some((entry) => entry.body?.action === 'CONFIRM_ANNOTATIONS')).toBe(true);
+  });
+
+  it('guards Back to Review while confirmed annotations are reopened and leaves a clean complete case without warning', async () => {
+    const user = userEvent.setup();
+    fakeBackend([baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade })]);
+    await fetch('/v1/cases/case-1/review', { method: 'POST', body: JSON.stringify({ action: 'CONFIRM_ANNOTATIONS', reviewer: 'Dr. Example' }) });
+    renderAppAt('/edit/case-1');
+    await user.click(await screen.findByRole('button', { name: 'Edit confirmed annotations' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Continue editing' }));
+    await user.click(screen.getByRole('button', { name: 'Back to Review' }));
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent('Leave this image?');
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Stay on this image' }));
+    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeInTheDocument();
+  });
+
+  it('keeps a pre-grade deep link read-only without deleting a saved annotation draft', async () => {
+    const user = userEvent.setup();
+    const draft: HumanAnnotation = { shape_id: 'existing', type: 'rectangle', label: 'HEMORRHAGE', geometry: { x: 40, y: 40, width: 20, height: 20 }, locked: false, source: 'HUMAN', reviewer: 'Dr. Example', created_at: '2026-01-01T00:00:00Z' };
+    const backend = fakeBackend([baseCase('case-1', 'a.jpg', { human_annotations: [draft] })]);
+    renderAppAt('/edit/case-1');
+    expect(await screen.findByText(/Confirm the DR grade first/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Clinician Review' })).toHaveAttribute('href', '/clinician-review/case-1');
+    expect(screen.getByRole('button', { name: 'Box', exact: true })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Delete selected' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeDisabled();
+    const svg = await stageSvg();
+    fireEvent.click(svg.querySelector(`[data-ai-detection-id="${DET_A}"] rect`)!);
+    expect(screen.queryByRole('dialog', { name: 'AI suggestion' })).not.toBeInTheDocument();
+    expect(screen.getByText('1 human annotation')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back to Review' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave image' }));
+    expect(backend.cases.get('case-1')!.human_annotations).toEqual([draft]);
+    expect(backend.log.some((entry) => entry.method !== 'GET')).toBe(false);
+  });
+
+  it('keeps the editor and unsaved annotation when a leave-time save fails', async () => {
+    const user = userEvent.setup();
+    const backend = fakeBackend([baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade })], { failAnnotationSave: true });
+    renderAppAt('/edit/case-1');
+    await user.click(await screen.findByRole('button', { name: 'Point', exact: true }));
+    const svg = await stageSvg();
+    pointer(svg, 'pointerDown', 100, 100);
+    expect(screen.getByText('1 human annotation')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Back to Review' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave image' }));
+    expect(await screen.findByText('Save failed')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: 'Annotation Editor' }).length).toBeGreaterThan(0);
+    expect(screen.getByText('1 human annotation')).toBeInTheDocument();
+    expect(backend.log.some((entry) => entry.method === 'PUT' && entry.path.endsWith('/annotations'))).toBe(true);
   });
 
   it('keeps confirmed annotations read-only and warns once before reopening', async () => {
@@ -280,7 +380,7 @@ describe('Previous / Next guard', () => {
     await user.click(next);
     const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveTextContent('Switch to another image?');
-    expect(dialog).toHaveTextContent('Your autosaved draft will be kept, but this case is not complete.');
+    expect(dialog).toHaveTextContent('Your autosaved draft will be kept. Unconfirmed work will still need your attention.');
     await user.click(within(dialog).getByRole('button', { name: 'Stay on this image' }));
     expect(screen.getAllByRole('heading', { name: 'Annotation Editor' }).length).toBeGreaterThan(0);
     await user.click(next);
@@ -301,5 +401,44 @@ describe('Previous / Next guard', () => {
     await user.click(next);
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     await waitFor(() => expect(backend.log.some((entry) => entry.path === '/v1/cases/case-2')).toBe(true));
+  });
+
+  it.each([
+    ['Next', 'case-1', 'case-2', 'b.jpg'],
+    ['Previous', 'case-2', 'case-1', 'a.jpg'],
+  ])('routes %s through Confirm Image when the target has no confirmation history', async (direction, currentId, targetId, filename) => {
+    const user = userEvent.setup();
+    fakeBackend([
+      baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade, admission_history: targetId === 'case-1' ? [] : [{ action: 'CONFIRM_IMAGE' }] }),
+      baseCase('case-2', 'b.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade, admission_history: targetId === 'case-2' ? [] : [{ action: 'CONFIRM_IMAGE' }] }),
+    ]);
+    renderAppAt(`/review/${currentId}`);
+    const target = await screen.findByRole('button', { name: `${direction} case` });
+    await waitFor(() => expect(target).toBeEnabled());
+    await user.click(target);
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Switch image' }));
+    expect(await screen.findByRole('dialog', { name: 'Confirm Image' })).toHaveTextContent(filename);
+  });
+
+  it('leaves a clean complete annotation case through Back to Review without warning', async () => {
+    const user = userEvent.setup();
+    fakeBackend([baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade })]);
+    await fetch('/v1/cases/case-1/review', { method: 'POST', body: JSON.stringify({ action: 'CONFIRM_ANNOTATIONS', reviewer: 'Dr. Example' }) });
+    renderAppAt('/edit/case-1');
+    await user.click(await screen.findByRole('button', { name: 'Back to Review' }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Continue to clinician review' })).toBeInTheDocument();
+  });
+});
+
+describe('Worklist admission gate', () => {
+  it('offers Confirm Image but no Review bypass for an unconfirmed image', async () => {
+    const user = userEvent.setup();
+    fakeBackend([baseCase('case-1', 'a.jpg', { admission_history: [] })]);
+    renderAppAt('/worklist');
+    expect(await screen.findByRole('button', { name: 'Confirm Image' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /More actions for/ }));
+    expect(screen.queryByText('Open Review without confirming')).not.toBeInTheDocument();
+    expect(document.querySelector('a[href="/review/case-1"]')).not.toBeInTheDocument();
   });
 });

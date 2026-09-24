@@ -20,7 +20,6 @@ export function ReviewActionCell({ item, onResolve, onReadiness, onConfirmImage,
       <MenuButton as={IconButton} aria-label={`More actions for ${filename}`} icon={excluded ? <RotateCcw size={16} /> : <MoreHorizontal size={16} />} size="sm" variant="ghost" title={excluded ? 'Restore to queue' : 'More queue actions'} ml={1} />
       <MenuList>
         {!excluded && imageContextConfirmed(item) && <MenuItem onClick={onConfirmImage}>Confirm Image again</MenuItem>}
-        {!excluded && !imageContextConfirmed(item) && <MenuItem as={Link} to={`/review/${encodeURIComponent(item.image_id)}`}>Open Review without confirming</MenuItem>}
         {!excluded && imageNeedsAction(item) && <MenuItem onClick={onReadiness}>Resolve image readiness</MenuItem>}
         {!excluded && <MenuItem onClick={onResolve}>Edit patient / eye</MenuItem>}
         {excluded ? <MenuItem icon={<RotateCcw size={15} />} onClick={() => onQueueAction('RESTORE')}>Restore to queue</MenuItem> : <MenuItem onClick={() => onQueueAction('EXCLUDE')}>Exclude from queue</MenuItem>}

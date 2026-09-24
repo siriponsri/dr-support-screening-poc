@@ -34,7 +34,7 @@ import {
   type ModelDescriptor,
 } from '@/lib/api';
 import { ArrowLeft, Play, UserRound } from '@/lib/icons';
-import { useConfirmDialog } from '@/components/common/ConfirmDialog';
+import { LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
 import { caseComplete } from '@/lib/caseProgress';
 
 function errorText(err: unknown): string {
@@ -226,6 +226,11 @@ export function ReviewPage() {
     void loadModels();
   }, [loadCase, loadModels]);
 
+  const leaveToWorklist = async () => {
+    if (item && !caseComplete(item) && !(await confirm(LEAVE_CASE_DIALOG))) return;
+    navigate('/worklist');
+  };
+
   const analyze = async () => {
     if (!item || analyzing) return;
     setAnalyzing(true);
@@ -292,7 +297,7 @@ export function ReviewPage() {
         pathname={pathname}
         title="Review"
         subtitle={`${item.display_name} - optional model evidence for clinician inspection`}
-        actions={<Button as={Link} to="/worklist" leftIcon={<ArrowLeft size={15} />}>Back to Worklist</Button>}
+        actions={<Button onClick={() => void leaveToWorklist()} leftIcon={<ArrowLeft size={15} />}>Back to Worklist</Button>}
       />
       <HStack mb={5} spacing={2} aria-label="Patient and eye context">
         <Text fontSize="xs" color="text.secondary" textTransform="uppercase" letterSpacing="0.04em">Patient/Eye</Text>

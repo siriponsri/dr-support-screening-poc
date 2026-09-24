@@ -11,6 +11,7 @@ import { ConfirmImageDialog } from '@/components/worklist/ConfirmImageDialog';
 import { WorklistTable } from '@/components/worklist/WorklistTable';
 import { DEFAULT_FILTERS, caseNeedsAttention, filterCases, groupCases, sortCases, type SortOption, type ViewMode, type WorklistFilters } from '@/components/worklist/worklistModel';
 import { WorklistToolbar } from '@/components/worklist/WorklistToolbar';
+import { imageContextConfirmed } from '@/lib/caseProgress';
 
 export function WorklistPage() {
   const location = useLocation();
@@ -67,13 +68,17 @@ export function WorklistPage() {
 
   useEffect(() => { void loadCases(); }, []);
 
-  // Single-line flow: after Case complete, open Confirm Image for the next
-  // incomplete Worklist image so the clinician continues on the same line.
+  // Use persisted admission history even if a stale navigation state requests
+  // confirmation for an image that has already completed Confirm Image.
   useEffect(() => {
     if (!pendingConfirmId || loading) return;
     const next = cases.find((entry) => entry.image_id === pendingConfirmId);
-    if (next) setConfirmImageCase(next);
     setPendingConfirmId(null);
+    if (next && imageContextConfirmed(next)) {
+      navigate(`/review/${encodeURIComponent(next.image_id)}`);
+      return;
+    }
+    if (next) setConfirmImageCase(next);
     if (flowState) navigate(pathname, { replace: true, state: null });
   }, [cases, loading, pendingConfirmId]);
 
