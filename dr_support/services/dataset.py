@@ -680,8 +680,6 @@ class DatasetManifestService:
 
         grouped_root = Path(workspace.output_folder) / "grouped_by_grade"
         manifest_dir = grouped_root / "_manifest"
-        for name in [*(f"dr_grade_{grade}" for grade in range(5)), "ungradable", "needs_review", "senior_review"]:
-            (grouped_root / name).mkdir(parents=True, exist_ok=True)
         manifest_dir.mkdir(parents=True, exist_ok=True)
         manifest_path = manifest_dir / "grouped_export_manifest.json"
         csv_path = manifest_dir / "grouped_images.csv"
@@ -765,6 +763,7 @@ class DatasetManifestService:
             extension = "png" if image_format == "PNG" else "jpg"
             base = f"case_{source_sha256[:24]}__{group}"
             target_dir = grouped_root / group
+            target_dir.mkdir(parents=True, exist_ok=True)
             suffix = 1
             while True:
                 name = f"{base}.{extension}" if suffix == 1 else f"{base}__{suffix}.{extension}"

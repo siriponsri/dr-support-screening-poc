@@ -3,11 +3,13 @@ import hashlib
 import io
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
 from dr_support.api import create_app
 from dr_support.contracts import LABELS
+from dr_support.services.admission import legacy_admission
 
 
 def _workspace_client(tmp_path):
@@ -152,6 +154,8 @@ def test_grouped_grade_export_copies_images_with_provenance_and_collision_safety
     grouped = output_folder / "grouped_by_grade"
     exported = grouped / "dr_grade_3" / f"case_{source_sha256[:24]}__dr_grade_3.png"
     assert exported.is_file()
+    assert {path.name for path in grouped.iterdir()} == {"_manifest", "dr_grade_3"}
+    assert len(list((grouped / "dr_grade_3").iterdir())) == 1
     with Image.open(exported) as decoded:
         assert decoded.format == "PNG"
         assert decoded.size == app.state.images[image_id].size
@@ -185,6 +189,63 @@ def test_grouped_grade_export_copies_images_with_provenance_and_collision_safety
     assert collision.status_code == 200
     assert collision.json()["copied_count"] == 1
     assert (grouped / "dr_grade_3" / f"case_{source_sha256[:24]}__dr_grade_3__2.png").is_file()
+    assert {path.name for path in grouped.iterdir()} == {"_manifest", "dr_grade_3"}
+
+
+@pytest.mark.parametrize(("case_state", "quality_state", "group"), [
+    ("PENDING", None, "needs_review"),
+    ("ESCALATED", None, "senior_review"),
+    ("PENDING", "UNGRADABLE", "ungradable"),
+])
+def test_grouped_export_creates_only_the_used_special_group(tmp_path, case_state, quality_state, group):
+    app, client, output_folder = _workspace_client(tmp_path)
+    case = app.state.store.get("SYNTH_001")
+    case["state"] = case_state
+    if quality_state:
+        case["admission"] = {**legacy_admission(app.state.images["SYNTH_001"]), "quality_state": quality_state}
+    app.state.store.put(case)
+    before_case = app.state.store.get("SYNTH_001")
+    source_bytes = app.state.images["SYNTH_001"].data
+
+    response = client.post("/v1/dataset/export/grouped-by-grade", json={})
+    assert response.status_code == 200
+    assert response.json()["copied_count"] == 1
+    grouped = output_folder / "grouped_by_grade"
+    assert {path.name for path in grouped.iterdir()} == {"_manifest", group}
+    assert len(list((grouped / group).glob("*.png"))) == 1
+    assert (grouped / "_manifest" / "grouped_images.csv").is_file()
+    manifest = json.loads((grouped / "_manifest" / "grouped_export_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["items"][0]["group"] == group
+    assert app.state.store.get("SYNTH_001") == before_case
+    assert app.state.images["SYNTH_001"].data == source_bytes
+
+
+def test_grouped_export_skipped_case_creates_only_manifest_directory(tmp_path):
+    app, client, output_folder = _workspace_client(tmp_path)
+    case = app.state.store.get("SYNTH_001")
+    case["admission"] = {**legacy_admission(app.state.images["SYNTH_001"]), "modality_admission": "NEEDS_REVIEW"}
+    app.state.store.put(case)
+    before_case = app.state.store.get("SYNTH_001")
+    source_bytes = app.state.images["SYNTH_001"].data
+
+    response = client.post("/v1/dataset/export/grouped-by-grade", json={})
+    assert response.status_code == 200
+    assert response.json()["copied_count"] == 0
+    assert response.json()["skipped_count"] == 1
+    grouped = output_folder / "grouped_by_grade"
+    assert {path.name for path in grouped.iterdir()} == {"_manifest"}
+    assert (grouped / "_manifest" / "grouped_images.csv").is_file()
+    manifest = json.loads((grouped / "_manifest" / "grouped_export_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["items"][0]["group"] == "needs_review"
+    assert manifest["items"][0]["status"] == "SKIPPED_NOT_FUNDUS_ACCEPTED"
+    legacy_folder = grouped / "dr_grade_0"
+    legacy_folder.mkdir()
+    (legacy_folder / "existing.txt").write_text("keep", encoding="utf-8")
+    assert client.post("/v1/dataset/export/grouped-by-grade", json={}).status_code == 200
+    assert (legacy_folder / "existing.txt").read_text(encoding="utf-8") == "keep"
+    assert {path.name for path in grouped.iterdir()} == {"_manifest", "dr_grade_0"}
+    assert app.state.store.get("SYNTH_001") == before_case
+    assert app.state.images["SYNTH_001"].data == source_bytes
 
 
 def test_manifest_scope_uses_active_workspace_scan_records(tmp_path):
