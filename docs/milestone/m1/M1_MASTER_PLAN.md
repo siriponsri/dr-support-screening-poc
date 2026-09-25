@@ -591,14 +591,14 @@ Create the durable data foundation for physician review, model evidence, workspa
 
 ## Phase 1 status tracker
 
-**Status:** `NOT_STARTED`  
-**Start date:**  
+**Status:** `IN_PROGRESS`
+**Start date:** 2026-09-25
 **Completion date:**  
 **Reviewed by:**  
-**Evidence / commit(s):**  
+**Evidence / commit(s):** P1-F foundation integrated at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; detailed execution evidence is in `docs/milestone/m1/M1_PHASE1_POSTGRES.md`.
 **Migration evidence:**  
 **Restore evidence:**  
-**Open blockers:**  
+**Open blockers:** P1-A, P1-B, migration verification, backup/restore smoke, and final main validation remain.
 **Owner decisions:**  
 
 ---
@@ -997,7 +997,7 @@ Update this table after each phase review.
 | Phase | Name | Status | Integrated commit / evidence | Main blockers / notes |
 |---|---|---|---|---|
 | 0 | Baseline & Scope Freeze | `NOT_STARTED` |  |  |
-| 1 | Data Foundation & PostgreSQL | `NOT_STARTED` |  |  |
+| 1 | Data Foundation & PostgreSQL | `IN_PROGRESS` | P1-F foundation integrated at `b63126ae989109e380ef9bdeb6d425c49eb96cec` | P1-A/P1-B, migration, recovery, and final validation remain |
 | 2 | UWF Labeling Workflow | `NOT_STARTED` |  |  |
 | 3 | AI Models & Model API Integration | `NOT_STARTED` |  | Native UWF work may use explicit CFP fallback temporarily |
 | 4 | Dataset & Review Tools | `NOT_STARTED` |  |  |

@@ -807,7 +807,7 @@ Update this section during execution. Do not mark an item `DONE` without evidenc
 
 | Work item | Status | Branch / commit | Evidence / notes |
 |---|---|---|---|
-| P1-F PostgreSQL foundation | TODO | — | — |
+| P1-F PostgreSQL foundation | DONE | `siriponsri/feat-m1-p1-postgres-foundation` / `b63126ae989109e380ef9bdeb6d425c49eb96cec` | Integrated into `main`; focused tests 5 passed/3 skipped, full backend 178 passed/5 skipped, Ruff and lock checks passed. PostgreSQL integration remains opt-in pending a designated test service. |
 | P1-A Review/case persistence | TODO | — | — |
 | P1-B Workspace persistence | TODO | — | — |
 | Legacy SQLite dry-run/import verification | TODO | — | — |
