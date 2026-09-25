@@ -908,7 +908,27 @@ DONE
 
 ---
 
-## 20. Suggested `/goal` for the main Luna Max orchestrator
+## 20. P1-F worker execution evidence
+
+This entry records the execution context for the bounded P1-F foundation worker.
+It is not a Phase 1 completion claim; the main orchestrator owns integrated
+completion evidence and status updates.
+
+```text
+Model: gpt-5.6-luna / GPT-5.6 Luna
+Reasoning effort: max
+Profile/launcher: C:\Users\Siripon Sri\bin\maxplus-codex.cmd, native profile maxplus
+Mode: --dangerously-bypass-approvals-and-sandbox (native equivalent of requested --yolo)
+Worktree: C:\Users\Siripon Sri\orca\workspaces\dr-support-screening-poc\feat-m1-p1-postgres-foundation
+Branch: siriponsri/feat/m1-p1-postgres-foundation
+Starting commit: 5e21e5873ea7adc0423a56e3576fdd8325067754
+Phase 1 run: run_a080438ce350
+Existing task: task_4ff565a8f804
+```
+
+---
+
+## 21. Suggested `/goal` for the main Luna Max orchestrator
 
 Use a short goal; this specification contains the detail.
 
@@ -940,7 +960,7 @@ Stop for owner decision on any frozen-contract or destructive-data conflict.
 
 ---
 
-## 21. Phase closeout rule
+## 22. Phase closeout rule
 
 When Phase 1 is approved as `DONE`:
 

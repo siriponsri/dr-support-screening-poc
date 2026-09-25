@@ -14,6 +14,7 @@
 | `dr_support/contracts/` | Pydantic contracts: admission, resolver, workspace, model gateway, inference results. |
 | `dr_support/presentation.py` | Bounded lesion-review view, detection IDs, review evidence, annotation-set hash. |
 | `dr_support/store.py` | SQLite case store with additive JSON migration defaults. |
+| `dr_support/persistence/` | M1 PostgreSQL settings, connection/transaction boundary, schema conventions, and deterministic forward migrations. It is not wired into the legacy stores until P1-A/P1-B. |
 | `dr_support/cvat.py`, `sync.py` | Optional CVAT Online transport and round-trip sync. |
 | `dr_support/setup_models.py`, `model_assets.py` | One-time asset acquisition (`--model all`) and read-only verification (`--verify`). |
 | `frontend/src/` | React UI: `pages/`, `components/{shell,worklist,review,workspace,settings,common}`, `lib/` (API client, preferences, navigation), `theme/`. |
@@ -35,7 +36,7 @@ Versions are taken from `pyproject.toml` (exact pins) and `frontend/package-lock
 | Layer | Component | Version / constraint |
 |:------|:----------|:---------------------|
 | Runtime | Python | `>=3.11,<3.13` (3.12 recommended by `START.cmd`) |
-| Backend | FastAPI / Uvicorn / Pydantic / httpx / Pillow | 0.141.1 / 0.53.0 / 2.13.5 / 0.28.1 / 12.3.0 |
+| Backend | FastAPI / Uvicorn / Pydantic / httpx / Pillow / Psycopg | 0.141.1 / 0.53.0 / 2.13.5 / 0.28.1 / 12.3.0 / 3.2.10 |
 | DICOM (extra `dicom`) | pydicom, pylibjpeg, -libjpeg, -openjpeg | 3.0.1, 2.1.0, 2.3.0, 2.5.0 |
 | Models (extra `models`, GPU host) | torch / torchvision / timm / ultralytics / sahi / ensemble-boxes / gdown | 2.5.1 / 0.20.1 / 0.9.2 / 8.4.8 / 0.12.6 / 1.0.9 / 6.4.0 |
 | Tests (extra `test`) | pytest / ruff | 8.4.2 / 0.13.0 (Ruff rules `E9`, `F`; line length 110) |
@@ -49,5 +50,18 @@ Versions are taken from `pyproject.toml` (exact pins) and `frontend/package-lock
 | Documentation | Quarto + XeLaTeX; Mermaid CLI; Playwright (guide PDF) | See @sec-docs |
 
 : Verified stack. {#tbl-stack tbl-colwidths="[22,44,34]"}
+
+## PostgreSQL foundation conventions
+
+`dr_support.persistence.SchemaMigrator` owns an immutable, forward-only migration sequence. Applied versions, names, and SHA-256 checksums are recorded in `<schema>.schema_migrations`; an unknown, changed, or gapped history fails instead of being rewritten. Re-running the same release is idempotent.
+
+The shared P1-F tables deliberately define only cross-stage persistence contracts:
+
+- `<schema>.workspaces` uses stable text `workspace_id` as its primary key and a non-negative `BIGINT` revision beginning at `0`.
+- `<schema>.review_cases` is scoped by `workspace_id`, uses `(workspace_id, case_id)` as its primary key, and follows the same revision convention.
+- The case payload remains `JSONB` so P1-A can preserve current review/provenance semantics without prematurely normalizing unresolved clinical taxonomy.
+- The workspace foreign key uses `ON DELETE RESTRICT`; profile removal or later catalog behavior must not cascade-delete authoritative review data.
+
+P1-F provides this schema and connection boundary only. P1-A owns the review/case repository migration, and P1-B owns Workspace Manager/catalog migration.
 
 Frontend build facts (`frontend/vite.config.ts`): `base: '/app/'`, output `frontend/dist` (gitignored), `sourcemap: true`, `target: es2020`, and alias `@` → `src`. In development, the Vite server on 5173 proxies `/v1`, `/ui`, and `/health` to `127.0.0.1:8000` with `changeOrigin: false`, which keeps the same-origin guard meaningful.

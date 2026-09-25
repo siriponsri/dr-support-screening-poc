@@ -13,6 +13,9 @@ Copy `.env.example` into a private environment file or configure variables throu
 | `REMOTE_MODEL_TOKEN` | review | empty; optional bearer token | yes |
 | `DR_SUPPORT_STATE` | review | local runtime default when empty | no |
 | `DR_SUPPORT_WORKSPACE_CATALOG` | review | local workspace catalog default when empty | no |
+| `DR_SUPPORT_DATABASE_URL` | PostgreSQL foundation | `postgresql://dr_support_app:change-me@127.0.0.1:5432/dr_support` | **yes** |
+| `DR_SUPPORT_DATABASE_SCHEMA` | PostgreSQL foundation | `dr_support` | no |
+| `DR_SUPPORT_DATABASE_CONNECT_TIMEOUT` | PostgreSQL foundation | `5` seconds | no |
 | `INFERENCE_DEVICE` | Model API | `cuda:0` | no |
 | `MODEL_CPU_THREADS` | local runtime | `4` | no |
 | `MODEL_REQUIRE_VERIFIED_ASSETS` | Model API | `1` in `start.sh`; `0` in example for tests | no |
@@ -41,3 +44,11 @@ The review profile requires `MODEL_RUNTIME=remote` and never loads local weights
 The application rejects incompatible profile/runtime combinations. The review profile may start without a configured Model API; model actions remain unavailable until the connection is healthy.
 
 `REVIEW_THRESHOLDS`, `REVIEW_MAX_PER_CLASS`, and `REVIEW_MAX_TOTAL` bound the visual/pre-label subset only. They do not alter raw PRISM output or model confidence values. Changing environment configuration requires a process restart.
+
+## PostgreSQL foundation configuration
+
+`DR_SUPPORT_DATABASE_URL` is a server-side PostgreSQL connection URL. Store the real value in a private `.env`, service environment, or approved secret manager. Do not expose it through React, browser storage, API responses, or logs. The committed `.env.example` value is a placeholder only.
+
+The Phase P1-F foundation does not yet switch the existing case store or Workspace Manager to PostgreSQL; those changes belong to P1-A and P1-B. Code that explicitly selects PostgreSQL calls `PostgresSettings.from_env()` and fails when `DR_SUPPORT_DATABASE_URL` is missing, invalid, or unavailable. It never chooses SQLite as an implicit fallback.
+
+PostgreSQL integration tests are opt-in and require both `DR_SUPPORT_TEST_DATABASE_URL` and `DR_SUPPORT_TEST_DATABASE_NAME`. The configured URL's database name must exactly match the explicit name, which must contain a distinct `test` token such as `dr_support_test`. Tests create and remove only uniquely named `dr_support_test_*` schemas; they never drop, truncate, or recreate the configured database.
