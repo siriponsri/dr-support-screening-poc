@@ -920,7 +920,7 @@ Reasoning effort: max
 Profile/launcher: C:\Users\Siripon Sri\bin\maxplus-codex.cmd, native profile maxplus
 Mode: --dangerously-bypass-approvals-and-sandbox (native equivalent of requested --yolo)
 Worktree: C:\Users\Siripon Sri\orca\workspaces\dr-support-screening-poc\feat-m1-p1-postgres-foundation
-Branch: siriponsri/feat/m1-p1-postgres-foundation
+Branch: siriponsri/feat-m1-p1-postgres-foundation
 Starting commit: 5e21e5873ea7adc0423a56e3576fdd8325067754
 Phase 1 run: run_a080438ce350
 Existing task: task_4ff565a8f804
