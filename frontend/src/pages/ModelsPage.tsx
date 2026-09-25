@@ -49,7 +49,8 @@ function eventValue(event: Record<string, unknown>, key: string) {
 
 function CaseLineage({ item }: { item: CaseRecord }) {
   const sourceSha = item.source_sha256 ?? item.review_evidence?.source_sha256 ?? null;
-  const analysisSha = item.analysis_derivative?.analysis_sha256 ?? item.review_evidence?.analysis_sha256 ?? null;
+  const analysisAudit = item.analysis_preparation?.derivative ?? item.analysis_derivative;
+  const analysisSha = analysisAudit?.analysis_sha256 ?? item.review_evidence?.analysis_sha256 ?? null;
   const inferenceEvents = (item.events ?? []).filter((event) => event.action === 'INFERENCE');
   const aiCount = item.lesion?.lesions.length ?? item.review_evidence?.items.filter((entry) => entry.source === 'AI').length ?? 0;
   const cvatCount = item.annotations?.length ?? 0;
@@ -94,10 +95,16 @@ function CaseLineage({ item }: { item: CaseRecord }) {
             );
           }) : <Text fontSize="sm" color="text.secondary">No inference events recorded for this case.</Text>}
         </Stack>
-        {item.analysis_derivative && <Stack spacing={1} minW={0}>
+        {item.analysis_preparation && item.modality === 'UWF' && <Stack spacing={1} minW={0}>
+          <Text fontSize="sm" color="text.secondary">Retinal analysis area</Text>
+          <Text fontSize="sm">{item.analysis_preparation.status === 'READY' ? 'Prepared for inspection' : 'Not safely prepared'} · No UWF AI analysis</Text>
+          {analysisAudit?.valid_retina_mask_sha256 && <Code fontSize="xs" whiteSpace="normal" wordBreak="break-all">Mask SHA-256: {analysisAudit.valid_retina_mask_sha256}</Code>}
+          {analysisAudit?.valid_retina_fraction != null && <Text fontSize="xs">Valid area: {(analysisAudit.valid_retina_fraction * 100).toFixed(1)}% · {analysisAudit.coordinate_mapping.kind.toLowerCase()} coordinates · {analysisAudit.analysis_dimensions.width} x {analysisAudit.analysis_dimensions.height}px</Text>}
+        </Stack>}
+        {analysisAudit && <Stack spacing={1} minW={0}>
           <Text fontSize="sm" color="text.secondary">Analysis transform</Text>
-          <Text fontSize="sm">{item.analysis_derivative.transform_id} - {item.analysis_derivative.lineage.coordinate_space}</Text>
-          <Text fontSize="xs" color="text.muted">{item.analysis_derivative.transform_description}</Text>
+          <Text fontSize="sm">{analysisAudit.transform_id} - {analysisAudit.lineage.coordinate_space}</Text>
+          <Text fontSize="xs" color="text.muted">{analysisAudit.transform_description}</Text>
         </Stack>}
       </Stack>
     </Section>

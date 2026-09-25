@@ -403,7 +403,7 @@ class DatasetManifestService:
                     "image_sha256": image_sha256 if _is_sha256(image_sha256) else None,
                     "width": (admission or {}).get("width"),
                     "height": (admission or {}).get("height"),
-                    "modality": image.modality if image is not None else None,
+                    "modality": (admission or {}).get("retinal_modality", "UNKNOWN") if image is not None else None,
                     "source_type": image.source_type if image is not None else None,
                     "patient_key": _pseudonymous_patient_key(case.get("patient_key")),
                     "laterality": case.get("laterality", "UNKNOWN"),

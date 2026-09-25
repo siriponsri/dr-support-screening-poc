@@ -101,7 +101,7 @@ def test_public_samples_are_verified_and_mock_rejected(tmp_path):
     from dr_support.images import BridgeImage, synthetic_image
     app=create_app(tmp_path/'state.sqlite',include_samples=False)
     fixture=synthetic_image()
-    app.state.images['PUBLIC_FIXTURE']=BridgeImage('PUBLIC_FIXTURE',fixture.data,'PUBLIC','test source')
+    app.state.images['PUBLIC_FIXTURE']=BridgeImage('PUBLIC_FIXTURE',fixture.data,'PUBLIC','test source',modality='CFP')
     client=TestClient(app)
     assert client.post('/v1/infer/global',json={'image_id':'PUBLIC_FIXTURE','model_id':'mock-global'}).status_code==422
     assert client.get('/v1/cases/PUBLIC_FIXTURE').json()['global'] is None

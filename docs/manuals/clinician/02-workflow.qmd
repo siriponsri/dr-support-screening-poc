@@ -30,8 +30,9 @@
 2. Check the filename and the note above the fields.
 3. Enter the **Pseudonymous patient key**, for example `PAT0001`. Leave it empty when the case should stay unlinked.
 4. Set **Eye** to **Left**, **Right**, or **Unknown**.
-5. Enter your **Reviewer name**. Select **Use as default reviewer on this workstation** to prefill it next time.
-6. Choose **Confirm image & continue**.
+5. Set **Image type** to **Conventional fundus photograph**, **Ultra-widefield**, or **Not sure yet**. If uncertain, leave **Not sure yet**; the clinician can still review the image, but AI analysis stays unavailable.
+6. Enter your **Reviewer name**. Select **Use as default reviewer on this workstation** to prefill it next time.
+7. Choose **Confirm image & continue**.
 
 **Expected result.** The patient and eye context, reviewer, and timestamp are saved and **Review** opens for this image.
 ::::

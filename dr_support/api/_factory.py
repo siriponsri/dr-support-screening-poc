@@ -178,6 +178,14 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
                     case['admission'] = preserved
                     store.put(case)
                 continue
+            if saved and saved.get('retinal_modality_method') == 'MANUAL':
+                record = {**record, **{
+                    key: saved[key] for key in (
+                        'retinal_modality', 'retinal_modality_state',
+                        'retinal_modality_method', 'retinal_modality_candidate',
+                    ) if key in saved
+                }}
+                record = AdmissionMetadata.model_validate(record).model_dump(mode='json')
             app.state.admissions[image_id] = record
             app.state.workspace_admission_ids.add(image_id)
             case['admission'] = record
@@ -359,9 +367,9 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
             # decision before it can reach either provider path.
             admission = legacy_admission(image)
             app.state.admissions[request.image_id] = admission
-        if not is_inference_eligible(admission):
-            raise HTTPException(409, 'Image needs review before analysis.')
-        if request.modality != image.modality:
+        if not is_inference_eligible(admission, require_cfp_source=True):
+            raise HTTPException(409, 'Image needs review or its image type is not supported for AI analysis.')
+        if request.modality != admission['retinal_modality']:
             raise HTTPException(422, 'Modality does not match admitted image')
         if request.model_id == 'mock-' + ('global' if task == 'global' else 'lesion'):
             if image.source_type != 'SYNTHETIC':
@@ -373,7 +381,9 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
         if provider is None or provider.task != task:
             raise HTTPException(404, 'Unknown model for this task')
         try:
-            analysis_image, analysis_derivative = app.state.derivatives.analysis_image(image)
+            analysis_image, analysis_derivative = app.state.derivatives.analysis_image(
+                image, source_modality=admission['retinal_modality'],
+            )
             with inference_lock:
                 result = provider.infer(request, analysis_image)
             if task == 'lesion-roi':

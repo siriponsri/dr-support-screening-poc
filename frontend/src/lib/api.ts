@@ -137,6 +137,10 @@ export interface AnalysisDerivativeAudit {
   purpose: 'DISPLAY' | 'ANALYSIS' | 'MASTER';
   transform_id: string;
   transform_description: string;
+  transform_version?: number;
+  valid_retina_mask_sha256?: string | null;
+  valid_retina_fraction?: number | null;
+  retinal_field_status?: 'READY' | 'NEEDS_REVIEW' | 'FAILED' | 'NOT_APPLICABLE';
   source_dimensions: { width: number; height: number; bit_depth: number | null; channels?: number | null };
   analysis_dimensions: { width: number; height: number; bit_depth: number | null; channels?: number | null };
   coordinate_mapping: CoordinateMapping;
@@ -179,13 +183,19 @@ export interface CaseRecord {
   filename: string | null;
   source_type: string;
   source: string;
-  modality: string;
+  modality: RetinalModality;
   width: number;
   height: number;
   image_url: string | null;
   source_image_url?: string | null;
   source_sha256?: string | null;
   analysis_derivative?: AnalysisDerivativeAudit | null;
+  analysis_preparation?: {
+    status: 'READY' | 'NEEDS_REVIEW' | 'FAILED' | 'NOT_APPLICABLE';
+    reason_code?: string;
+    source_sha256?: string;
+    derivative?: AnalysisDerivativeAudit;
+  } | null;
   state: string;
   revision: number;
   global: GlobalResult | null;
@@ -261,6 +271,7 @@ export interface ResolverReviewRequest {
 }
 
 export type ModalityAdmission = 'FUNDUS_ACCEPTED' | 'NEEDS_REVIEW' | 'REJECTED_NON_FUNDUS' | 'REJECTED_INVALID';
+export type RetinalModality = 'CFP' | 'UWF' | 'UNKNOWN';
 export type QualityState = 'GRADABLE' | 'UNGRADABLE' | 'NEEDS_REVIEW' | 'NOT_EVALUATED';
 
 export interface AdmissionMetadata {
@@ -274,6 +285,10 @@ export interface AdmissionMetadata {
   channels_or_mode: string | null;
   modality_admission: ModalityAdmission;
   quality_state: QualityState;
+  retinal_modality?: RetinalModality;
+  retinal_modality_state?: 'RESOLVED' | 'NEEDS_CONFIRMATION';
+  retinal_modality_method?: 'NONE' | 'MANUAL' | 'LEGACY_COMPAT' | 'DICOM_METADATA';
+  retinal_modality_candidate?: RetinalModality | null;
   admission_method: 'AUTOMATIC' | 'MANUAL' | 'LEGACY_COMPAT' | 'DATASET_IMPORT';
   admission_reason_code: string;
   quality_reason_code: string | null;
@@ -310,6 +325,7 @@ export interface ConfirmImageRequest {
   reviewer: string;
   patient_key?: string | null;
   laterality: Laterality;
+  retinal_modality?: RetinalModality;
   note?: string;
 }
 

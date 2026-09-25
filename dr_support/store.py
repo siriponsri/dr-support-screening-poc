@@ -24,6 +24,8 @@ class Store:
                 case.setdefault('admission', None)
                 case.setdefault('admission_history', [])
                 case.setdefault('analysis_derivative', None)
+                case.setdefault('analysis_preparation', None)
+                case.setdefault('superseded_model_results', [])
                 case.setdefault('ai_annotation_reviews', [])
                 case.setdefault('annotation_confirmation', None)
                 case.setdefault('queue_state', 'INCLUDED')
@@ -37,6 +39,7 @@ class Store:
                     'human_annotations': [], 'clinician_review': None,
                     'review_history': [], 'admission': None, 'admission_history': [],
                     'analysis_derivative': None,
+                    'analysis_preparation': None, 'superseded_model_results': [],
                     'ai_annotation_reviews': [],
                     'annotation_confirmation': None,
                     'queue_state': 'INCLUDED', 'queue_history': []}
@@ -53,6 +56,8 @@ class Store:
                 case.setdefault('admission', None)
                 case.setdefault('admission_history', [])
                 case.setdefault('analysis_derivative', None)
+                case.setdefault('analysis_preparation', None)
+                case.setdefault('superseded_model_results', [])
                 case.setdefault('ai_annotation_reviews', [])
                 case.setdefault('annotation_confirmation', None)
                 case.setdefault('queue_state', 'INCLUDED')

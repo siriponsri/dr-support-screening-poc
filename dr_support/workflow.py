@@ -19,6 +19,7 @@ from .services.resolver import (
     resolver_clinician_view,
 )
 from .imaging import DerivativeError
+from .imaging.retinal_field import RetinalFieldNeedsReview
 
 
 class Review(Contract):
@@ -34,6 +35,7 @@ class ConfirmImage(Contract):
     reviewer: str = Field(min_length=1, max_length=80)
     patient_key: str | None = Field(default=None, max_length=80)
     laterality: Literal['LEFT', 'RIGHT', 'UNKNOWN'] = 'UNKNOWN'
+    retinal_modality: Literal['CFP', 'UWF', 'UNKNOWN'] | None = None
     note: str = Field(default='', max_length=1000)
 
 
@@ -160,7 +162,14 @@ def install_workflow(app, store):
             and case.get('confirmed_annotation_hash') == current_annotation_hash
             and case.get('lesion_review_state') == 'REVIEWED'
         )
-        return {**case, 'source_type': image.source_type if image is not None else 'PUBLIC',
+        source_modality = (record or {}).get('retinal_modality', 'UNKNOWN')
+        # CFP evidence from a legacy case is not current evidence for UWF.
+        visible_ai = source_modality == 'CFP'
+        evidence_case = case if visible_ai else {**case, 'global': None, 'lesion': None,
+                                                'ai_annotation_reviews': []}
+        return {**case, 'global': case.get('global') if visible_ai else None,
+                'lesion': case.get('lesion') if visible_ai else None,
+                'source_type': image.source_type if image is not None else 'PUBLIC',
                 'source': image.source if image is not None else 'WORKSPACE_INPUT',
                 'filename': filename or None,
                 'display_name': Path(filename).stem if filename else image_id,
@@ -170,17 +179,18 @@ def install_workflow(app, store):
                 'image_url': f'/v1/images/{image_id}/display' if image is not None else None,
                 'source_image_url': f'/v1/images/{image_id}' if image is not None else None,
                 'analysis_derivative': case.get('analysis_derivative'),
-                'modality': image.modality if image is not None else 'CFP',
+                'analysis_preparation': case.get('analysis_preparation'),
+                'modality': source_modality,
                 'admission': record,
                 'admission_ui': clinician_view(record) if record is not None else None,
                 'admission_history': case.get('admission_history', []),
                 'resolver_ui': resolver_clinician_view(case),
                 'resolution_history': case.get('resolution_history', []),
-                'lesion_review': lesion_review_view(case.get('lesion')),
+                'lesion_review': lesion_review_view(evidence_case.get('lesion')),
                 'human_annotations': case.get('human_annotations', []),
                 'clinician_review': case.get('clinician_review'),
                 'review_history': case.get('review_history', []),
-                'review_evidence': review_evidence_view(case),
+                'review_evidence': review_evidence_view(evidence_case),
                 'annotation_hash': current_annotation_hash,
                 'annotation_set_hash': current_annotation_hash,
                 'annotation_confirmation_status': 'CONFIRMED' if annotation_confirmed else 'DRAFT',
@@ -190,7 +200,7 @@ def install_workflow(app, store):
                     'timestamp': (case.get('annotation_confirmation') or {}).get('timestamp'),
                     'annotation_set_hash': case.get('confirmed_annotation_hash') if annotation_confirmed else None,
                 },
-                'ai_annotation_reviews': case.get('ai_annotation_reviews', []),
+                'ai_annotation_reviews': evidence_case.get('ai_annotation_reviews', []),
                 'queue_state': case.get('queue_state', 'INCLUDED'),
                 'queue_history': case.get('queue_history', [])}
 
@@ -306,36 +316,63 @@ def install_workflow(app, store):
             },
         )
 
+    @app.get('/v1/images/{image_id}/analysis-area')
+    def analysis_area_bytes(image_id: str):
+        """Inspect a confirmed UWF mask; never fall back to full source bytes."""
+        image = get_image(image_id)
+        record = admission_record(image_id) or {}
+        preparation = current_store().get(image_id).get('analysis_preparation') or {}
+        if record.get('retinal_modality') != 'UWF' or preparation.get('status') != 'READY':
+            raise HTTPException(409, 'Analysis area is not available for this image.')
+        try:
+            derivative = app.state.derivatives.prepare_analysis(image, source_modality='UWF')
+        except (DerivativeError, RetinalFieldNeedsReview):
+            raise HTTPException(409, 'Analysis area could not be prepared.') from None
+        expected = preparation.get('derivative') or {}
+        audit = derivative.audit_record()
+        if (expected.get('source_sha256') != audit['source_sha256']
+                or expected.get('analysis_sha256') != audit['analysis_sha256']
+                or expected.get('valid_retina_mask_sha256') != audit['valid_retina_mask_sha256']):
+            raise HTTPException(409, 'Analysis area no longer matches its recorded source.')
+        return Response(derivative.data, media_type=derivative.media_type,
+                        headers={'Cache-Control': 'private, no-store',
+                                 'X-Source-SHA256': image.sha256,
+                                 'X-Analysis-SHA256': audit['analysis_sha256']})
+
     @app.post('/v1/cases/{image_id}/review')
     def review(image_id: str, request: Review):
         get_image(image_id)
         store = current_store()
         with store.lock:
             case = store.get(image_id)
+            # Historical CFP evidence cannot authorize AI provenance on a
+            # source whose image type is now UWF or still unknown.
+            current_ai = (case.get('global') if (admission_record(image_id) or {}).get('retinal_modality') == 'CFP'
+                          else None)
             if request.revision != case['revision']:
                 raise HTTPException(409, 'Case changed; reload before reviewing')
             if not request.reviewer.strip():
                 raise HTTPException(422, 'Reviewer name required')
             if request.action == 'ACCEPT':
-                if not case['global'] or case['global']['grade'] is None:
+                if not current_ai or current_ai['grade'] is None:
                     raise HTTPException(409, 'No grade suggestion to accept')
-                case['reviewed_grade'] = case['global']['grade']
+                case['reviewed_grade'] = current_ai['grade']
                 case['grade_review_source'] = 'AI_ACCEPTED'
                 case['state'] = 'REVIEWED'
             elif request.action == 'CORRECT_GRADE':
                 if request.grade is None:
                     raise HTTPException(422, 'Corrected/manual grade required')
                 case['reviewed_grade'] = request.grade
-                case['grade_review_source'] = ('AI_CORRECTED' if case.get('global') and
-                                               case['global'].get('grade') is not None else 'MANUAL')
+                case['grade_review_source'] = ('AI_CORRECTED' if current_ai and
+                                               current_ai.get('grade') is not None else 'MANUAL')
                 case['state'] = 'REVIEWED'
             elif request.action == 'CONFIRM_ANNOTATIONS':
                 case['annotation_hash'] = annotation_set_hash(case)
                 case['lesion_review_state'] = 'REVIEWED'
                 case['confirmed_annotation_hash'] = case['annotation_hash']
             else:
-                if request.action == 'MARK_INCORRECT' and (not case.get('global') or
-                                                            case['global'].get('grade') is None):
+                if request.action == 'MARK_INCORRECT' and (not current_ai or
+                                                            current_ai.get('grade') is None):
                     raise HTTPException(409, 'No AI grade suggestion to mark incorrect')
                 case['state'] = 'NEEDS_CORRECTION' if request.action == 'MARK_INCORRECT' else 'ESCALATED'
                 case['reviewed_grade'] = None
@@ -633,6 +670,15 @@ def install_workflow(app, store):
                 current = legacy_admission(image)
             timestamp = datetime.now(timezone.utc).isoformat()
             admission = dict(current)
+            prior_modality = admission.get('retinal_modality', 'UNKNOWN')
+            chosen_modality = request.retinal_modality or prior_modality
+            admission['retinal_modality'] = chosen_modality
+            admission['retinal_modality_state'] = (
+                'RESOLVED' if chosen_modality != 'UNKNOWN' else 'NEEDS_CONFIRMATION'
+            )
+            admission['retinal_modality_method'] = (
+                'MANUAL' if request.retinal_modality is not None else admission.get('retinal_modality_method', 'NONE')
+            )
             if admission.get('modality_admission') == 'NEEDS_REVIEW':
                 admission['modality_admission'] = 'FUNDUS_ACCEPTED'
                 admission['admission_reason_code'] = 'MANUAL_CONFIRM_IMAGE'
@@ -648,6 +694,39 @@ def install_workflow(app, store):
             admission = AdmissionMetadata.model_validate(admission).model_dump(mode='json')
             case['admission'] = admission
             app.state.admissions[image_id] = admission
+            if chosen_modality != prior_modality:
+                if case.get('global') or case.get('lesion'):
+                    case.setdefault('superseded_model_results', []).append({
+                        'timestamp': timestamp, 'previous_modality': prior_modality,
+                        'global': case.get('global'), 'lesion': case.get('lesion'),
+                    })
+                    case['global'] = None
+                    case['lesion'] = None
+                    case['ai_annotation_reviews'] = []
+                case['analysis_derivative'] = None
+                if case.get('grade_review_source') == 'AI_ACCEPTED':
+                    case['state'] = 'PENDING'
+                    case['reviewed_grade'] = None
+                    case['grade_review_source'] = None
+                    case['clinician_review'] = None
+            if chosen_modality == 'UWF':
+                try:
+                    prepared = app.state.derivatives.prepare_analysis(image, source_modality='UWF')
+                    case['analysis_preparation'] = {
+                        'status': 'READY', 'derivative': prepared.audit_record(),
+                    }
+                except RetinalFieldNeedsReview as exc:
+                    case['analysis_preparation'] = {
+                        'status': 'NEEDS_REVIEW', 'reason_code': str(exc),
+                        'source_sha256': image.sha256,
+                    }
+                except DerivativeError:
+                    case['analysis_preparation'] = {
+                        'status': 'FAILED', 'reason_code': 'PREPARATION_FAILED',
+                        'source_sha256': image.sha256,
+                    }
+            else:
+                case['analysis_preparation'] = {'status': 'NOT_APPLICABLE', 'source_sha256': image.sha256}
 
             patient_key = request.patient_key.strip() if request.patient_key else ''
             if patient_key:
@@ -682,6 +761,7 @@ def install_workflow(app, store):
                 'new': {
                     'modality_admission': admission['modality_admission'],
                     'quality_state': admission['quality_state'],
+                    'retinal_modality': chosen_modality,
                 },
             })
             case.setdefault('resolution_history', []).append({
@@ -700,6 +780,7 @@ def install_workflow(app, store):
                 'timestamp': timestamp,
                 'note': request.note.strip(),
                 'identity_assurance': 'LOCAL_POC_SELF_DECLARED',
+                'retinal_modality': chosen_modality,
             })
             case['revision'] += 1
             store.put(case)

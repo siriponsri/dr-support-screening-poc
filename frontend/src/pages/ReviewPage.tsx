@@ -190,6 +190,7 @@ export function ReviewPage() {
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
   const [showAi, setShowAi] = useState(true);
+  const [imageView, setImageView] = useState<'original' | 'analysis'>('original');
   const [lesionFilter, setLesionFilter] = useState<LesionLabel | 'ALL'>('ALL');
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -224,6 +225,7 @@ export function ReviewPage() {
   useEffect(() => {
     void loadCase();
     void loadModels();
+    setImageView('original');
   }, [loadCase, loadModels]);
 
   const leaveToWorklist = async () => {
@@ -266,7 +268,7 @@ export function ReviewPage() {
       && model.status === 'REMOTE_NOT_CONFIGURED'
   ));
   const admissionReady = admissionAllowsAnalysis(item);
-  const analysisAllowed = admissionReady && !remoteNotConfigured;
+  const analysisAllowed = admissionReady && item?.modality === 'CFP' && !remoteNotConfigured;
 
   if (!imageId) {
     return (
@@ -308,8 +310,18 @@ export function ReviewPage() {
         <NextActionHint item={item} models={models} />
       </Stack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start" minW={0}>
-        <Section title="Retinal preview" description={`${item.width} x ${item.height}px - ${item.modality}`}>
-          {item.image_url ? <RetinalCanvas item={item} showAi={showAi} visibleLesionLabels={lesionFilter === 'ALL' ? undefined : [lesionFilter]} showHuman={false} /> : (
+        <Section title="Retinal preview" description={`${item.width} x ${item.height}px · ${item.modality === 'UWF' ? 'Ultra-widefield' : item.modality === 'CFP' ? 'Conventional fundus photograph' : 'Image type needs confirmation'}`}>
+          {item.modality === 'UWF' && (
+            <Stack spacing={2} mb={3}>
+              <Text fontSize="sm" color={item.analysis_preparation?.status === 'READY' ? 'status.success' : 'status.warning'}>
+                {item.analysis_preparation?.status === 'READY' ? 'Analysis area prepared' : item.analysis_preparation?.status === 'NEEDS_REVIEW' ? 'Analysis area needs review' : 'Analysis area unavailable'}
+              </Text>
+              {item.analysis_preparation?.status === 'READY' && (
+                <HStack><Button size="sm" variant={imageView === 'original' ? 'solid' : 'outline'} aria-pressed={imageView === 'original'} onClick={() => setImageView('original')}>Original</Button><Button size="sm" variant={imageView === 'analysis' ? 'solid' : 'outline'} aria-pressed={imageView === 'analysis'} onClick={() => setImageView('analysis')}>Analysis area</Button></HStack>
+              )}
+            </Stack>
+          )}
+          {item.image_url ? <RetinalCanvas item={imageView === 'analysis' && item.modality === 'UWF' && item.analysis_preparation?.status === 'READY' ? { ...item, image_url: `/v1/images/${encodeURIComponent(item.image_id)}/analysis-area` } : item} showAi={showAi} visibleLesionLabels={lesionFilter === 'ALL' ? undefined : [lesionFilter]} showHuman={false} /> : (
             <Alert status="error"><AlertIcon /><Text>{item.admission_ui?.note ?? 'This file has no readable image preview.'}</Text></Alert>
           )}
           <Stack spacing={3} mt={4} minW={0}>
@@ -351,7 +363,13 @@ export function ReviewPage() {
           >
             {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
             {analysisError && <Alert status="error"><AlertIcon /><Stack spacing={2}><Text>{analysisError}</Text><Button size="sm" variant="outline" onClick={() => void analyze()}>Retry</Button></Stack></Alert>}
-            {!analysisError && !analyzing && !admissionReady && (
+            {item.modality === 'UWF' && (
+              <Alert status="info"><AlertIcon /><Text>AI evidence unavailable for this image type. Clinical review can continue.</Text></Alert>
+            )}
+            {item.modality === 'UNKNOWN' && (
+              <Alert status="warning"><AlertIcon /><Text>Confirm the image type in Worklist before AI analysis. Clinical review can continue.</Text></Alert>
+            )}
+            {!analysisError && !analyzing && item.modality === 'CFP' && !admissionReady && (
               <Alert status="warning">
                 <AlertIcon />
                 <Stack spacing={2}>
@@ -361,7 +379,7 @@ export function ReviewPage() {
                 </Stack>
               </Alert>
             )}
-            {!analysisError && !analyzing && admissionReady && (
+            {!analysisError && !analyzing && item.modality === 'CFP' && admissionReady && (
               remoteNotConfigured ? <Text fontSize="sm" color="text.secondary">AI analysis is not available.</Text> : item.global || item.lesion ? <Text fontSize="sm" color="text.secondary">Actual returned results are shown below.</Text> : (
                 <HStack spacing={2}>
                   <StatusBadge tone="success">Ready for analysis</StatusBadge>

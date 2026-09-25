@@ -35,6 +35,7 @@ def _image(data: bytes, filename: str, source_type: str = "PUBLIC") -> BridgeIma
         data=data,
         source_type=source_type,
         source="WORKSPACE_INPUT",
+        modality="CFP",
         filename=filename,
         media_type={".jpg": "image/jpeg", ".png": "image/png", ".tiff": "image/tiff"}[Path(filename).suffix],
     )

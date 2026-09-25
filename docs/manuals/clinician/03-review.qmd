@@ -14,6 +14,8 @@
 4. Choose **Analyze** only when model assistance is wanted and the Model API is available. If it is not available, continue with manual review.
 5. Choose **Continue to clinician review**. This is the only forward action on Review.
 
+For an **Ultra-widefield** image, the current RETFound and PRISM-DR models are unavailable. Review remains available. If the conservative analysis area was prepared, use **Original** and **Analysis area** to inspect the source image and the same-size masked representation. **Analysis area needs review** or **Analysis area unavailable** means the workstation did not establish a safe automated boundary; keep using the original image for human review. The mask is an engineering aid, not a diagnosis or a validated lesion segmentation.
+
 **Expected result.** The retinal image stays the main surface. The right column shows **Analysis**, **DR assessment**, and **Lesion suggestions**. Annotation work is not started from Review; it follows the grade decision (@sec-annotations).
 
 ## Read the model suggestions

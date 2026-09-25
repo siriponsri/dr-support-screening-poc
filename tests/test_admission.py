@@ -65,7 +65,8 @@ def test_scan_handles_valid_ambiguous_invalid_and_quality_cases(tmp_path, monkey
     assert cases["small.png"]["admission"]["quality_state"] == "NEEDS_REVIEW"
     assert cases["wide.png"]["admission"]["modality_admission"] == "NEEDS_REVIEW"
     assert cases["corrupt.jpg"]["admission"]["modality_admission"] == "REJECTED_INVALID"
-    assert cases["fundus.png"]["admission_ui"]["label"] == "Ready for analysis"
+    assert cases["fundus.png"]["admission_ui"]["label"] == "Image type needs confirmation"
+    assert cases["fundus.png"]["modality"] == "UNKNOWN"
     assert cases["ambiguous.png"]["admission_ui"]["label"] == "Needs review"
     assert "notes.txt" not in cases
     assert "notes.txt" not in [record["filename"] for record in response.json()["records"]]

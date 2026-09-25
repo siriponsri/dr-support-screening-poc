@@ -4,7 +4,7 @@ import type { CaseRecord } from '@/lib/api';
 import { StatusBadge, type StatusTone } from '@/components/common/StatusBadge';
 
 function admissionStatus(item: CaseRecord): { label: string; tone: StatusTone; note: string } | null {
-  if (!item.admission_ui || item.admission_ui.label === 'Ready for analysis') return null;
+  if (!item.admission_ui || ['Ready for analysis', 'Image type needs confirmation'].includes(item.admission_ui.label)) return null;
   return item.admission_ui;
 }
 
@@ -25,6 +25,7 @@ export function ImageCell({ item }: { item: CaseRecord }) {
         <Text fontWeight="semibold" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" title={filename} tabIndex={0} _focusVisible={{ boxShadow: 'focus', borderRadius: 'sm', outline: 'none' }}>
           {filename}
         </Text>
+        <StatusBadge tone={item.modality === 'UNKNOWN' ? 'warning' : 'neutral'}>{item.modality === 'CFP' ? 'CFP' : item.modality === 'UWF' ? 'UWF' : 'Image type needs confirmation'}</StatusBadge>
         {status && <Stack spacing={0} minW={0} title={status.note}><StatusBadge tone={status.tone}>{status.label}</StatusBadge><Text fontSize="xxs" color="text.secondary" noOfLines={1}>{status.note}</Text></Stack>}
       </Stack>
     </HStack>

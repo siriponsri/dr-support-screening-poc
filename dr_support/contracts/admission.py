@@ -16,6 +16,7 @@ ModalityAdmission = Literal[
     "REJECTED_INVALID",
 ]
 QualityState = Literal["GRADABLE", "UNGRADABLE", "NEEDS_REVIEW", "NOT_EVALUATED"]
+RetinalModality = Literal["CFP", "UWF", "UNKNOWN"]
 AdmissionMethod = Literal["AUTOMATIC", "MANUAL", "LEGACY_COMPAT", "DATASET_IMPORT"]
 AdmissionReviewAction = Literal[
     "ACCEPT_RETINAL",
@@ -39,6 +40,12 @@ class AdmissionMetadata(Contract):
     channels_or_mode: str | None = Field(default=None, max_length=40)
     modality_admission: ModalityAdmission
     quality_state: QualityState
+    # Source type is independent of the fundus admission/quality decisions.
+    # Missing fields on existing workspace records migrate to UNKNOWN.
+    retinal_modality: RetinalModality = "UNKNOWN"
+    retinal_modality_state: Literal["RESOLVED", "NEEDS_CONFIRMATION"] = "NEEDS_CONFIRMATION"
+    retinal_modality_method: Literal["NONE", "MANUAL", "LEGACY_COMPAT", "DICOM_METADATA"] = "NONE"
+    retinal_modality_candidate: RetinalModality | None = None
     admission_method: AdmissionMethod
     admission_reason_code: str = Field(min_length=1, max_length=80)
     quality_reason_code: str | None = Field(default=None, max_length=80)

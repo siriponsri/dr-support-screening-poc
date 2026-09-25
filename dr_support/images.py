@@ -19,7 +19,8 @@ class BridgeImage:
     data: bytes
     source_type: str
     source: str
-    modality: str = 'CFP'
+    # Source image type is unknown until supported evidence or a reviewer resolves it.
+    modality: str = 'UNKNOWN'
     filename: str = ''
     media_type: str = 'image/jpeg'
     dimensions: tuple[int, int] | None = None
@@ -47,7 +48,8 @@ def synthetic_image():
     out = io.BytesIO()
     image.save(out, format='PNG')
     return BridgeImage('SYNTH_001', out.getvalue(), 'SYNTHETIC',
-                       'Generated workflow fixture', filename='SYNTH_001.png', media_type='image/png')
+                       'Generated workflow fixture', modality='CFP',
+                       filename='SYNTH_001.png', media_type='image/png')
 
 
 def admitted_demo_images(folder):
@@ -103,6 +105,8 @@ def admitted_samples(root):
         if hashlib.sha256(data).hexdigest() != item['sha256']:
             raise RuntimeError('Public sample hash mismatch; admission rejected')
         registry[item['image_id']] = BridgeImage(
-            item['image_id'], data, 'PUBLIC', item['source'], filename=item['filename'],
+            item['image_id'], data, 'PUBLIC', item['source'],
+            modality=item.get('modality') if item.get('modality') in {'CFP', 'UWF'} else 'UNKNOWN',
+            filename=item['filename'],
         )
     return registry

@@ -26,6 +26,7 @@ from .contracts import (
     lineage_for_bytes,
 )
 from .registry import default_dicom_image_handler_registry
+from .retinal_field import RetinalFieldNeedsReview, prepare_retinal_field
 
 
 DISPLAY_SOURCE_TRANSFORM = "display-source-v1"
@@ -34,6 +35,7 @@ DISPLAY_DICOM_PNG_TRANSFORM = "display-dicom-png-rgb-v1"
 ANALYSIS_SOURCE_TRANSFORM = "analysis-source-v1"
 ANALYSIS_TIFF_PNG_TRANSFORM = "analysis-tiff-png-rgb-v1"
 ANALYSIS_DICOM_PNG_TRANSFORM = "analysis-dicom-png-rgb-v1"
+ANALYSIS_UWF_MASK_TRANSFORM = "analysis-uwf-retinal-mask-v1"
 REMOTE_IMAGE_B64_LIMIT = 20_000_000
 
 
@@ -106,6 +108,9 @@ class PreparedDerivative:
     source: SourceMetadata
     lineage: DerivativeLineage
     coordinate_mapping: CoordinateMapping
+    valid_retina_mask_sha256: str | None = None
+    valid_retina_fraction: float | None = None
+    retinal_field_status: str = "NOT_APPLICABLE"
 
     @property
     def analysis_dimensions(self) -> SourceDimensions:
@@ -131,6 +136,10 @@ class PreparedDerivative:
         }
         if self.lineage.purpose is DerivativePurpose.ANALYSIS:
             record["analysis_sha256"] = self.lineage.derivative_sha256
+            record["transform_version"] = 1
+            record["valid_retina_mask_sha256"] = self.valid_retina_mask_sha256
+            record["valid_retina_fraction"] = self.valid_retina_fraction
+            record["retinal_field_status"] = self.retinal_field_status
         return record
 
 
@@ -156,32 +165,36 @@ class DerivativeService:
     """Cache deterministic representations by source identity and transform."""
 
     def __init__(self) -> None:
-        self._cache: dict[tuple[str, DerivativePurpose], PreparedDerivative] = {}
+        self._cache: dict[tuple[str, DerivativePurpose, str], PreparedDerivative] = {}
 
     def prepare_display(self, image: BridgeImage) -> PreparedDerivative:
         return self._prepare(image, DerivativePurpose.DISPLAY)
 
-    def prepare_analysis(self, image: BridgeImage) -> PreparedDerivative:
-        return self._prepare(image, DerivativePurpose.ANALYSIS)
+    def prepare_analysis(self, image: BridgeImage, *, source_modality: str | None = None) -> PreparedDerivative:
+        return self._prepare(image, DerivativePurpose.ANALYSIS, source_modality=source_modality)
 
-    def analysis_image(self, image: BridgeImage) -> tuple[BridgeImage, PreparedDerivative]:
-        prepared = self.prepare_analysis(image)
+    def analysis_image(self, image: BridgeImage, *, source_modality: str | None = None) -> tuple[BridgeImage, PreparedDerivative]:
+        modality = source_modality or image.modality
+        prepared = self.prepare_analysis(image, source_modality=modality)
         return (
             BridgeImage(
                 image_id=image.image_id,
                 data=prepared.data,
                 source_type=image.source_type,
                 source=image.source,
-                modality=image.modality,
+                modality=modality,
                 filename=image.filename,
                 media_type=prepared.media_type,
             ),
             prepared,
         )
 
-    def _prepare(self, image: BridgeImage, purpose: DerivativePurpose) -> PreparedDerivative:
+    def _prepare(self, image: BridgeImage, purpose: DerivativePurpose, *, source_modality: str | None = None) -> PreparedDerivative:
         source_sha256 = image.sha256
-        key = (source_sha256, purpose)
+        modality = source_modality or image.modality
+        if purpose is DerivativePurpose.ANALYSIS and modality == "UNKNOWN":
+            raise DerivativeError("Image type must be confirmed before analysis preparation")
+        key = (source_sha256, purpose, modality)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -195,7 +208,36 @@ class DerivativeService:
         except Exception as exc:
             raise DerivativeError("The admitted image could not be inspected for delivery") from exc
 
-        if source.source_format in {"JPEG", "PNG"}:
+        mask_sha = None
+        valid_fraction = None
+        field_status = "NOT_APPLICABLE"
+        if purpose is DerivativePurpose.ANALYSIS and modality == "UWF":
+            try:
+                # Decode a display-safe representation first, without touching source bytes.
+                display = self.prepare_display(image)
+                with Image.open(io.BytesIO(display.data)) as decoded:
+                    decoded.load()
+                    rgb = decoded.convert("RGB")
+                field = prepare_retinal_field(rgb)
+                output = io.BytesIO()
+                Image.composite(rgb, Image.new("RGB", rgb.size, (0, 0, 0)), field.mask).save(
+                    output, format="PNG", optimize=False, compress_level=9,
+                )
+                data = output.getvalue()
+                mask_sha = field.mask_sha256
+                valid_fraction = field.valid_fraction
+                field_status = "READY"
+            except RetinalFieldNeedsReview as exc:
+                raise RetinalFieldNeedsReview(str(exc)) from exc
+            except DerivativeError:
+                raise
+            except Exception as exc:
+                raise DerivativeError("UWF retinal-field preparation failed") from exc
+            media_type = "image/png"
+            output_format = "PNG"
+            transform_id = ANALYSIS_UWF_MASK_TRANSFORM
+            description = "Deterministic bounded retinal-field mask; same canvas, outside mask black; not clinically validated"
+        elif source.source_format in {"JPEG", "PNG"}:
             data = image.data
             media_type = source.source_media_type
             output_format = source.source_format
@@ -251,6 +293,9 @@ class DerivativeService:
             source=source,
             lineage=lineage,
             coordinate_mapping=mapping,
+            valid_retina_mask_sha256=mask_sha,
+            valid_retina_fraction=valid_fraction,
+            retinal_field_status=field_status,
         )
         self._cache[key] = prepared
         return prepared
@@ -332,6 +377,7 @@ def _dicom_to_png(data: bytes) -> bytes:
 
 __all__ = [
     "ANALYSIS_SOURCE_TRANSFORM",
+    "ANALYSIS_UWF_MASK_TRANSFORM",
     "ANALYSIS_TIFF_PNG_TRANSFORM",
     "CoordinateMapping",
     "DerivativeError",

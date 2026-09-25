@@ -25,6 +25,7 @@
 - `modality_admission` is one of {`FUNDUS_ACCEPTED`, `NEEDS_REVIEW`, `REJECTED_NON_FUNDUS`, `REJECTED_INVALID`}
 - `quality_state` is one of {`GRADABLE`, `UNGRADABLE`, `NEEDS_REVIEW`, `NOT_EVALUATED`}
 - `is_inference_eligible` requires `FUNDUS_ACCEPTED` and quality `GRADABLE` or `NOT_EVALUATED`.
+- The independent source `retinal_modality` is `CFP`, `UWF`, or `UNKNOWN`. New workspace rasters and DICOM enter as `UNKNOWN`; image geometry or filename never silently supplies CFP. Synthetic fixtures and verified public samples can retain the explicit type from their fixture/manifest. Current inference also requires clinician-confirmed or explicitly legacy-compatible `CFP`. Existing admission JSON without an image type migrates conservatively to `UNKNOWN` without changing source bytes or rewriting SQLite tables.
 - `clinician_view` maps these states to the plain-language labels in the UI.
 
 **Manual overrides.** `POST /v1/cases/{id}/admission` accepts `ACCEPT_RETINAL`, `MARK_NON_FUNDUS`, `QUALITY_ACCEPTABLE`, `QUALITY_INADEQUATE`, and `LEAVE_UNRESOLVED`. It records `ADMISSION_OVERRIDE` history with the previous and new states.
@@ -38,11 +39,14 @@
 
 ## Confirm Image (`POST /v1/cases/{id}/confirm-image`)
 
-This is the first confirmation milestone. It is one request containing `revision`, `reviewer`, optional `patient_key`, `laterality` is one of {`LEFT`, `RIGHT`, `UNKNOWN`}, and a note. The endpoint:
+This is the first confirmation milestone. It is one request containing `revision`, `reviewer`, optional `patient_key`, `laterality` is one of {`LEFT`, `RIGHT`, `UNKNOWN`}, optional `retinal_modality` (`CFP`, `UWF`, `UNKNOWN`), and a note. Older clients can omit image type, but a new workspace case remains `UNKNOWN` and AI remains unavailable until it is explicitly confirmed. The endpoint:
 
 - sets admission `NEEDS_REVIEW` → `FUNDUS_ACCEPTED` (`MANUAL_CONFIRM_IMAGE`), and quality `NEEDS_REVIEW` → `GRADABLE`;
 - records `reviewed_by` and `reviewed_at`;
 - sets the patient key (or `UNLINKED`) and the laterality with method `MANUAL`;
 - appends history and increments `revision`.
+- records image type and its manual provenance in admission history. A rescan preserves this choice. Changing image type archives incompatible AI results as superseded evidence, clears current AI suggestions, and invalidates an AI-accepted grade for renewed human review.
+
+For confirmed UWF, the server prepares a same-size RGB PNG with pixels outside a conservative deterministic retinal-field mask set to black. The source SHA and bytes stay unchanged. Preparation records a mask SHA (dimension-prefixed raw mask bytes), valid fraction, transform `analysis-uwf-retinal-mask-v1`, analysis SHA, dimensions, and identity coordinate mapping in `analysis_preparation`. Only a single centered, bounded, predominantly red connected field passes; uncertainty returns `NEEDS_REVIEW`, and decode/derivative errors return `FAILED`. Neither state yields an analysis-area image or reaches the CFP-only models. `GET /v1/images/{id}/analysis-area` serves an auditable representation for human inspection only when it matches the persisted READY hashes; it does not authorize UWF inference. This heuristic is not a clinically validated retinal segmentation.
 
 The export treats the confirmed value as authoritative (`laterality_resolution_method = MANUAL`).

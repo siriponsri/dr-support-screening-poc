@@ -142,6 +142,8 @@ def _metadata(
     mode: str | None,
     modality_admission: str,
     quality_state: str,
+    retinal_modality: str = "UNKNOWN",
+    retinal_modality_method: str = "NONE",
     admission_reason_code: str,
     quality_reason_code: str | None,
     method: str = "AUTOMATIC",
@@ -167,6 +169,9 @@ def _metadata(
         channels_or_mode=mode,
         modality_admission=modality_admission,
         quality_state=quality_state,
+        retinal_modality=retinal_modality,
+        retinal_modality_state="RESOLVED" if retinal_modality != "UNKNOWN" else "NEEDS_CONFIRMATION",
+        retinal_modality_method=retinal_modality_method,
         admission_method=method,
         admission_reason_code=admission_reason_code,
         quality_reason_code=quality_reason_code,
@@ -643,6 +648,8 @@ def legacy_admission(image: BridgeImage) -> dict:
         admission_reason_code="LEGACY_ADMITTED",
         quality_reason_code=None,
         method="LEGACY_COMPAT",
+        retinal_modality=image.modality,
+        retinal_modality_method="LEGACY_COMPAT" if image.modality != "UNKNOWN" else "NONE",
         source_sha256=sha256_bytes(image.data),
         source_metadata=source_metadata,
         integrity=SourceIntegrity(
@@ -652,10 +659,14 @@ def legacy_admission(image: BridgeImage) -> dict:
     )
 
 
-def is_inference_eligible(record: dict) -> bool:
+def is_inference_eligible(record: dict, *, require_cfp_source: bool = False) -> bool:
+    # The standalone Model API inspects supplied bytes and handles its own
+    # explicit CFP/UWF request gate. Only the review workstation has a
+    # persisted clinician-confirmed source type to require here.
     return (
         record.get("modality_admission") == "FUNDUS_ACCEPTED"
         and record.get("quality_state") in {"GRADABLE", "NOT_EVALUATED"}
+        and (not require_cfp_source or record.get("retinal_modality") == "CFP")
     )
 
 
@@ -701,6 +712,20 @@ def clinician_view(record: dict) -> dict:
         return {
             "label": "Needs review",
             "note": "Please confirm this image before analysis.",
+            "tone": "warning",
+            "action_required": True,
+        }
+    if record.get("retinal_modality") == "UWF":
+        return {
+            "label": "AI unavailable",
+            "note": "Current AI models support conventional fundus images only. Clinical review can continue.",
+            "tone": "neutral",
+            "action_required": False,
+        }
+    if record.get("retinal_modality") != "CFP":
+        return {
+            "label": "Image type needs confirmation",
+            "note": "Confirm the image type before AI analysis. Clinical review can continue.",
             "tone": "warning",
             "action_required": True,
         }
