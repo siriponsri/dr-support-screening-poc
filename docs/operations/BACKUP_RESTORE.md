@@ -26,3 +26,32 @@ Stop writes to the review workstation, then take a file-consistent PostgreSQL ba
 ## Restore validation
 
 Open one synthetic/public case in Worklist and Review, confirm the original image displays, inspect Models & Audit provenance, and perform a test export to a separate output folder. Never use PHI for a restore demonstration unless the hospital has approved it.
+
+## PostgreSQL backup and restore after cutover
+
+Backup files are runtime artifacts. Keep them in an approved private location;
+do not commit them, put them under `local-state/`, or include credentials in a
+command transcript. After PostgreSQL becomes authoritative, its backup and
+restore path is the supported recovery mechanism. Legacy SQLite files are not
+a synchronized rollback target after PostgreSQL-only edits.
+
+Run these commands from an environment that already has PostgreSQL client
+authentication configured. Replace the placeholders with approved isolated
+targets:
+
+```bash
+BACKUP_FILE="<runtime-private-path>/dr-support-<timestamp>.dump"
+SOURCE_DATABASE_URL="postgresql://<user>:<password>@<host>:<port>/<database>"
+RESTORE_DATABASE_URL="postgresql://<user>:<password>@<host>:<port>/<isolated-restore-database>"
+
+pg_dump --format=custom --file="$BACKUP_FILE" --dbname="$SOURCE_DATABASE_URL"
+pg_restore --dbname="$RESTORE_DATABASE_URL" "$BACKUP_FILE"
+```
+
+For a clean smoke target, create the isolated restore database according to
+the approved PostgreSQL administration procedure before `pg_restore`; never
+drop or recreate an operator-supplied database merely to make a test pass.
+Start the application against `RESTORE_DATABASE_URL`, verify the workspace and
+case counts, current revisions, audit/provenance receipt, and a representative
+synthetic/public case, then record the commands, target identities, and result
+without recording passwords or patient-identifying paths.

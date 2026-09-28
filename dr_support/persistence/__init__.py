@@ -17,6 +17,21 @@ from .config import (
     PostgresSettings,
 )
 from .database import DatabaseUnavailableError, PostgresDatabase
+from .legacy_migration import (
+    ConsistencyBoundary,
+    LegacyInventory,
+    LegacyMigrationError,
+    LegacySQLiteMigrationService,
+    LegacySourceConflictError,
+    LegacyWorkspace,
+    MigrationConsistencyError,
+    MigrationNotSafeError,
+    MigrationPlan,
+    MigrationReport,
+    MigrationResult as LegacyMigrationResult,
+    SourceIdentity,
+    SourceSetConflictError,
+)
 from .migrations import LATEST_SCHEMA_VERSION, MigrationError, MigrationResult, SchemaMigrator
 from .workspaces import MANAGED_STORAGE_LABEL, PostgresWorkspaceCatalog
 from .schema import (
@@ -46,6 +61,17 @@ __all__ = [
     "LATEST_SCHEMA_VERSION",
     "MigrationError",
     "MigrationResult",
+    "LegacyMigrationResult",
+    "ConsistencyBoundary",
+    "LegacyInventory",
+    "LegacyMigrationError",
+    "LegacySQLiteMigrationService",
+    "LegacySourceConflictError",
+    "LegacyWorkspace",
+    "MigrationConsistencyError",
+    "MigrationNotSafeError",
+    "MigrationPlan",
+    "MigrationReport",
     "MANAGED_STORAGE_LABEL",
     "PostgresDatabase",
     "PostgresCaseStore",
@@ -54,6 +80,8 @@ __all__ = [
     "PostgresStore",
     "REVISION_COLUMN",
     "SchemaMigrator",
+    "SourceIdentity",
+    "SourceSetConflictError",
     "WORKSPACES_TABLE",
     "WORKSPACE_ID_COLUMN",
     "WORKSPACE_ID_ENV",

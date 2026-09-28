@@ -19,6 +19,10 @@ from fastapi.testclient import TestClient
 from dr_support.persistence import (
     CaseConflictError,
     CaseImportConflictError,
+    ConsistencyBoundary,
+    LegacySQLiteMigrationService,
+    LegacySourceConflictError,
+    MigrationConsistencyError,
     PostgresCaseStore,
     DatabaseConfigurationError,
     DatabaseUnavailableError,
@@ -426,9 +430,44 @@ def _write_legacy_case_database(path: Path, case: dict) -> None:
     connection = sqlite3.connect(path)
     try:
         connection.execute("CREATE TABLE cases (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
-        connection.execute(
+        cases = case if isinstance(case, list) else [case]
+        connection.executemany(
             "INSERT INTO cases (id, data) VALUES (?, ?)",
-            (case["image_id"], json.dumps(case, sort_keys=True)),
+            [(item["image_id"], json.dumps(item, sort_keys=True)) for item in cases],
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _write_legacy_catalog(path: Path, profiles: list[dict]) -> None:
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute(
+            "CREATE TABLE workspaces ("
+            "id TEXT PRIMARY KEY, name TEXT NOT NULL, input_folder TEXT NOT NULL, "
+            "output_folder TEXT NOT NULL, database_path TEXT NOT NULL, note TEXT, "
+            "created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_opened TEXT"
+            ")"
+        )
+        connection.executemany(
+            "INSERT INTO workspaces "
+            "(id, name, input_folder, output_folder, database_path, note, "
+            "created_at, updated_at, last_opened) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    profile["id"],
+                    profile["name"],
+                    profile["input_folder"],
+                    profile["output_folder"],
+                    profile["database_path"],
+                    profile.get("note"),
+                    profile["created_at"],
+                    profile["updated_at"],
+                    profile.get("last_opened"),
+                )
+                for profile in profiles
+            ],
         )
         connection.commit()
     finally:
@@ -754,3 +793,278 @@ def test_postgres_workspace_catalog_is_not_used_when_postgres_is_unavailable(
 
     assert not (tmp_path / "workspaces.sqlite").exists()
     assert not (tmp_path / "reviews.sqlite").exists()
+
+
+def _legacy_profile(workspace_id: str, database_path: Path) -> dict:
+    return {
+        "id": workspace_id,
+        "name": f"Synthetic {workspace_id}",
+        "input_folder": str(database_path.parent / f"input-{workspace_id}"),
+        "output_folder": str(database_path.parent / f"output-{workspace_id}"),
+        "database_path": str(database_path),
+        "note": "synthetic migration fixture",
+        "created_at": "2026-09-28T00:00:00+00:00",
+        "updated_at": "2026-09-28T00:01:00+00:00",
+        "last_opened": "2026-09-28T00:02:00+00:00",
+    }
+
+
+def test_legacy_inventory_reports_missing_duplicate_and_orphan_without_mutation(
+    postgres_database: PostgresDatabase,
+    tmp_path: Path,
+):
+    SchemaMigrator(postgres_database).migrate()
+    referenced = tmp_path / "referenced.sqlite"
+    missing = tmp_path / "missing.sqlite"
+    orphan = tmp_path / "orphan.sqlite"
+    _write_legacy_case_database(
+        referenced,
+        {"image_id": "synthetic-inventory", "revision": 1, "events": []},
+    )
+    orphan.write_bytes(b"synthetic orphan")
+    catalog = tmp_path / "catalog.sqlite"
+    profiles = [
+        _legacy_profile("ws_inventory_a", referenced),
+        _legacy_profile("ws_inventory_b", referenced),
+        _legacy_profile("ws_inventory_missing", missing),
+    ]
+    _write_legacy_catalog(catalog, profiles)
+    catalog_before = catalog.read_bytes()
+    referenced_before = referenced.read_bytes()
+
+    service = LegacySQLiteMigrationService(
+        postgres_database, catalog, orphan_roots=(tmp_path,)
+    )
+    report = service.dry_run(ConsistencyBoundary.writer_quiesced("synthetic-window-1"))
+
+    assert report.safe_to_proceed is False
+    assert report.inventory.workspace_count == 3
+    assert report.inventory.case_counts["ws_inventory_a"] == 1
+    assert report.inventory.case_counts["ws_inventory_missing"] == 0
+    assert any("missing" in conflict for conflict in report.conflicts)
+    assert any("multiple workspaces" in conflict for conflict in report.conflicts)
+    assert [item.path for item in report.inventory.orphan_files] == [str(orphan.resolve())]
+    assert "Safe to proceed: NO" in report.render()
+    assert catalog.read_bytes() == catalog_before
+    assert referenced.read_bytes() == referenced_before
+
+
+def test_legacy_import_preserves_profiles_cases_receipt_and_is_idempotent(
+    postgres_database: PostgresDatabase,
+    tmp_path: Path,
+):
+    SchemaMigrator(postgres_database).migrate()
+    workspace_db = tmp_path / "workspace.sqlite"
+    cases = [
+        {
+            "image_id": "synthetic-case-a",
+            "revision": 2,
+            "state": "REVIEWED",
+            "events": [{"action": "REVIEW", "source": "synthetic"}],
+            "review_history": [{"reviewer": "Synthetic reviewer", "grade": 2}],
+        },
+        {
+            "image_id": "synthetic-case-b",
+            "revision": 0,
+            "admission": {"source_reference": "synthetic/case-b.png"},
+            "global": {"model_id": "retfound-aptos5", "grade": 1},
+        },
+    ]
+    _write_legacy_case_database(workspace_db, cases)
+    catalog = tmp_path / "catalog.sqlite"
+    _write_legacy_catalog(catalog, [_legacy_profile("ws_imported", workspace_db)])
+    catalog_before = catalog.read_bytes()
+    workspace_before = workspace_db.read_bytes()
+    service = LegacySQLiteMigrationService(postgres_database, catalog)
+    boundary = ConsistencyBoundary.snapshot("synthetic-snapshot-1")
+    plan = service.plan(boundary)
+
+    assert plan.report.safe_to_proceed is True
+    first = service.import_legacy(boundary, plan=plan)
+    assert first.imported_workspaces == 1
+    assert first.imported_cases == 2
+    assert first.idempotent is False
+    assert first.receipt_recorded is True
+
+    schema = sql.Identifier(postgres_database.settings.schema)
+    with postgres_database.session() as connection:
+        profile = connection.execute(
+            sql.SQL(
+                "SELECT workspace_id, name, input_folder, output_folder, database_path, note "
+                "FROM {}.workspaces WHERE workspace_id = %s"
+            ).format(schema),
+            ("ws_imported",),
+        ).fetchone()
+        imported_cases = connection.execute(
+            sql.SQL(
+                "SELECT case_id, revision, payload FROM {}.review_cases "
+                "WHERE workspace_id = %s ORDER BY case_id"
+            ).format(schema),
+            ("ws_imported",),
+        ).fetchall()
+        receipt = connection.execute(
+            sql.SQL(
+                "SELECT source_set_sha256, catalog_sha256, consistency_kind, consistency_id, "
+                "workspace_count, case_count FROM {}.legacy_migration_receipts"
+            ).format(schema)
+        ).fetchone()
+
+    assert profile == (
+        "ws_imported",
+        "Synthetic ws_imported",
+        str(tmp_path / "input-ws_imported"),
+        str(tmp_path / "output-ws_imported"),
+        str(workspace_db),
+        "synthetic migration fixture",
+    )
+    assert [(row[0], row[1]) for row in imported_cases] == [
+        ("synthetic-case-a", 2),
+        ("synthetic-case-b", 0),
+    ]
+    assert imported_cases[0][2]["review_history"] == [
+        {"reviewer": "Synthetic reviewer", "grade": 2}
+    ]
+    assert imported_cases[0][2]["state"] == "REVIEWED"
+    assert imported_cases[0][2]["events"] == [{"action": "REVIEW", "source": "synthetic"}]
+    assert imported_cases[1][2]["admission"] == {
+        "source_reference": "synthetic/case-b.png"
+    }
+    assert imported_cases[1][2]["global"] == {"model_id": "retfound-aptos5", "grade": 1}
+    assert receipt == (
+        plan.inventory.source_set_sha256,
+        plan.inventory.catalog.sha256,
+        "snapshot",
+        "synthetic-snapshot-1",
+        1,
+        2,
+    )
+
+    repeated = service.import_legacy(boundary)
+    assert repeated.idempotent is True
+    assert repeated.imported_workspaces == 0
+    assert repeated.imported_cases == 0
+    assert catalog.read_bytes() == catalog_before
+    assert workspace_db.read_bytes() == workspace_before
+
+
+def test_legacy_import_requires_boundary_and_rejects_changed_source(
+    postgres_database: PostgresDatabase,
+    tmp_path: Path,
+):
+    SchemaMigrator(postgres_database).migrate()
+    workspace_db = tmp_path / "workspace.sqlite"
+    _write_legacy_case_database(
+        workspace_db,
+        {"image_id": "synthetic-conflict", "revision": 0, "events": [{"source": "one"}]},
+    )
+    catalog = tmp_path / "catalog.sqlite"
+    _write_legacy_catalog(catalog, [_legacy_profile("ws_conflict", workspace_db)])
+    service = LegacySQLiteMigrationService(postgres_database, catalog)
+
+    with pytest.raises(MigrationConsistencyError):
+        service.import_legacy()
+
+    boundary = ConsistencyBoundary.writer_quiesced("synthetic-window-2")
+    service.import_legacy(boundary)
+    connection = sqlite3.connect(workspace_db)
+    try:
+        connection.execute(
+            "UPDATE cases SET data = ? WHERE id = ?",
+            (
+                json.dumps(
+                    {
+                        "image_id": "synthetic-conflict",
+                        "revision": 1,
+                        "events": [{"source": "two"}],
+                    },
+                    sort_keys=True,
+                ),
+                "synthetic-conflict",
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    with pytest.raises(LegacySourceConflictError, match="source set"):
+        service.import_legacy(boundary)
+
+    schema = sql.Identifier(postgres_database.settings.schema)
+    with postgres_database.session() as connection:
+        stored = connection.execute(
+            sql.SQL(
+                "SELECT revision, payload FROM {}.review_cases "
+                "WHERE workspace_id = %s AND case_id = %s"
+            ).format(schema),
+            ("ws_conflict", "synthetic-conflict"),
+        ).fetchone()
+    assert stored[0] == 0
+    assert stored[1]["events"] == [{"source": "one"}]
+
+
+def test_legacy_import_rolls_back_when_source_changes_during_import(
+    postgres_database: PostgresDatabase,
+    tmp_path: Path,
+    monkeypatch,
+):
+    SchemaMigrator(postgres_database).migrate()
+    workspace_db = tmp_path / "workspace.sqlite"
+    _write_legacy_case_database(
+        workspace_db,
+        {"image_id": "synthetic-atomic", "revision": 0, "events": [{"source": "one"}]},
+    )
+    catalog = tmp_path / "catalog.sqlite"
+    _write_legacy_catalog(catalog, [_legacy_profile("ws_atomic", workspace_db)])
+    service = LegacySQLiteMigrationService(postgres_database, catalog)
+    original_inventory = service.inventory
+    inventory_calls = 0
+
+    def inventory_with_source_change():
+        nonlocal inventory_calls
+        inventory_calls += 1
+        if inventory_calls == 3:
+            connection = sqlite3.connect(workspace_db)
+            try:
+                connection.execute(
+                    "UPDATE cases SET data = ? WHERE id = ?",
+                    (
+                        json.dumps(
+                            {
+                                "image_id": "synthetic-atomic",
+                                "revision": 1,
+                                "events": [{"source": "two"}],
+                            },
+                            sort_keys=True,
+                        ),
+                        "synthetic-atomic",
+                    ),
+                )
+                connection.commit()
+            finally:
+                connection.close()
+        return original_inventory()
+
+    monkeypatch.setattr(service, "inventory", inventory_with_source_change)
+    boundary = ConsistencyBoundary.writer_quiesced("synthetic-window-atomic")
+
+    with pytest.raises(LegacySourceConflictError, match="changed during import"):
+        service.import_legacy(boundary)
+
+    schema = sql.Identifier(postgres_database.settings.schema)
+    with postgres_database.session() as connection:
+        workspace_count = connection.execute(
+            sql.SQL("SELECT count(*) FROM {}.workspaces WHERE workspace_id = %s").format(schema),
+            ("ws_atomic",),
+        ).fetchone()[0]
+        case_count = connection.execute(
+            sql.SQL("SELECT count(*) FROM {}.review_cases WHERE workspace_id = %s").format(schema),
+            ("ws_atomic",),
+        ).fetchone()[0]
+        receipt_count = connection.execute(
+            sql.SQL("SELECT count(*) FROM {}.legacy_migration_receipts WHERE catalog_path = %s").format(schema),
+            (str(catalog.resolve()),),
+        ).fetchone()[0]
+
+    assert workspace_count == 0
+    assert case_count == 0
+    assert receipt_count == 0

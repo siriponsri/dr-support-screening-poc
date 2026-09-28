@@ -119,6 +119,34 @@ MIGRATIONS = (
             """,
         ),
     ),
+    Migration(
+        version=4,
+        name="legacy_migration_receipts",
+        statements=(
+            """
+            CREATE TABLE {schema}.legacy_migration_receipts (
+                source_set_sha256 TEXT PRIMARY KEY,
+                catalog_path TEXT NOT NULL,
+                catalog_sha256 TEXT NOT NULL,
+                consistency_kind TEXT NOT NULL,
+                consistency_id TEXT NOT NULL,
+                source_files JSONB NOT NULL,
+                workspace_mappings JSONB NOT NULL,
+                workspace_count INTEGER NOT NULL CHECK (workspace_count >= 0),
+                case_count INTEGER NOT NULL CHECK (case_count >= 0),
+                imported_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                CHECK (source_set_sha256 ~ '^[0-9a-f]{{64}}$'),
+                CHECK (catalog_sha256 ~ '^[0-9a-f]{{64}}$'),
+                CHECK (consistency_kind IN ('writer_quiesced', 'snapshot')),
+                CHECK (length(btrim(consistency_id)) > 0)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS legacy_migration_receipts_catalog_idx
+                ON {schema}.legacy_migration_receipts (catalog_path, imported_at DESC)
+            """,
+        ),
+    ),
 )
 LATEST_SCHEMA_VERSION = MIGRATIONS[-1].version
 
