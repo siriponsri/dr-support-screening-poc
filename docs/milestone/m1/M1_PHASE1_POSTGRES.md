@@ -3,9 +3,17 @@
 **Document path:** `docs/milestone/m1/M1_PHASE1_POSTGRES.md`  
 **Milestone:** M1  
 **Phase:** 1 — Data Foundation & PostgreSQL  
-**Status:** READY_FOR_EXECUTION  
-**Owner decision date:** 2026-09-25  
+**Document revision:** Candidate r2.2, preserving 2026-09-25 Phase 1 specification  
+**Prepared:** 2026-09-28  
+**Document status:** `CANDIDATE_FOR_OWNER_REVIEW`  
+**Implementation status:** `IN_PROGRESS` (P1-F integrated; P1-A/P1-B/P1-I open)  
+**Source baseline commit:** `0f41bb9774c2da455d477d1634ce8888e9265732`  
+**Research evidence:** package `DR_M1_DELIVERY_20260928_r1/ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md` (package paths, not repository links)  
+**Owner decisions pending:** Phase 0 reconciliation, clinical completeness extension, schema/contract changes beyond frozen Phase 1 scope  
+**Original owner decision date:** 2026-09-25  
 **Parent plan:** `docs/milestone/m1/M1_MASTER_PLAN.md`
+
+**Current reading guide (r2.2):** P1-F integrated implementation is historically `DONE` at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; the live-PostgreSQL foundation gate is separately `PENDING_EVIDENCE` (§14/§18), and P1-A/B/I remain open. §§20–21 preserve a past worker transcript and suggested prompt for audit, not current launch instructions. §13 defines roles without prescribing provider/account; repository `AGENTS.md` and currently configured FORGE Orchestrator (`fo`) determine actual execution settings. No PostgreSQL or migration test was run to prepare r2.
 
 ---
 
@@ -177,6 +185,8 @@ Deliver a PostgreSQL persistence foundation that satisfies all of the following:
 - Processing Details UI;
 - Workspace Data query/export UI;
 - new dataset manifest semantics beyond persistence compatibility;
+- Explainability Panel UI or model-attention generation;
+- hospital-label model retraining/fine-tuning or online learning;
 - new patient/eye/visit autofill behavior;
 - clinical referral logic;
 - DME inference;
@@ -249,6 +259,7 @@ The persistence design must nevertheless avoid blocking later first-class suppor
 - visit/capture identity and acquisition evidence;
 - immutable source-image identity/hash;
 - model predictions and model provenance;
+- versioned model explanation-evidence references/payloads where later phases require them;
 - physician review revisions;
 - per-annotation origin and confirmation state;
 - annotation group completeness such as not reviewed versus reviewed-none-found;
@@ -351,7 +362,9 @@ Migration tooling must identify:
 
 Orphans are reported, not imported automatically.
 
-### 9.2 Source integrity
+### 9.2 Source integrity and consistency boundary
+
+Before dry-run/import, MAIN and the migration operator must record an approved **single logical source state** for the catalog and all referenced workspace databases. Options to propose to the owner/operator: quiesce all legacy writers for inventory through verification/cutover, or use an operator-approved consistent snapshot with a documented snapshot identity. Source files remain read-only to the importer. Do not assume read-only importer means no other process writes. Record the writer-quiescence/snapshot procedure, window, source-set identity and pre/post hashes/counts/revisions; recheck for changes before switching authority. If the boundary cannot be established or changes mid-run, stop, invalidate the import receipt and restart from a newly approved consistent source set. Do not choose a SQLite mechanism by assumption in this document.
 
 Before import, record sufficient source identity such as:
 
@@ -423,7 +436,7 @@ There must be a clear operator-visible distinction between:
 
 Do not automatically switch a real workspace to PostgreSQL merely because a dry run completed.
 
-For M1 development, cutover may be an explicit configuration/startup step after verification.
+For M1 development, cutover may be an explicit configuration/startup step **only after verification against the same consistent source set**. Record which legacy writers were stopped or which snapshot was used, source-set hashes before/after, PostgreSQL counts/revisions and the operator-visible moment of authority switch. Do not allow concurrent authoritative SQLite and PostgreSQL writes or silently fall back. Once PostgreSQL-only edits begin, use PostgreSQL backup/restore rather than treating the legacy files as synchronized rollback.
 
 ### 9.8 Legacy rollback expectation
 
@@ -548,9 +561,9 @@ This file is the Phase 1 working specification and completion ledger.
 
 ---
 
-## 13. Orca execution model
+## 13. Execution model (current role-neutral responsibilities)
 
-Phase 1 uses a simple orchestrator pattern.
+Phase 1 uses a bounded MAIN / IMPLEMENT / REVIEW pattern. The configured FORGE Orchestrator (`fo`) and current repository instructions determine role/account/permissions at execution time; historical Luna/Orca notes in §§20–21 are not current launch commands. No account or model is hardcoded here.
 
 ### 13.1 Roles
 
@@ -559,7 +572,7 @@ Phase 1 uses a simple orchestrator pattern.
 - approves product/architecture decisions;
 - resolves unexpected destructive or clinical-contract changes.
 
-**Main Luna Max orchestrator**
+**MAIN integration/orchestration role**
 
 - runs from the authoritative main worktree;
 - reads this specification and `AGENTS.md` fully;
@@ -572,13 +585,18 @@ Phase 1 uses a simple orchestrator pattern.
 - updates Phase 1 evidence/status;
 - stops for owner/auditor review.
 
-**Worker Luna Max agent(s)**
+**IMPLEMENT bounded-work role(s)**
 
 - work only in assigned bounded worktrees;
 - follow file-ownership/scope boundaries;
 - run focused tests while iterating;
 - commit coherent implementation checkpoints;
 - report exact tests, limitations, and commit SHA.
+
+**REVIEW role**
+
+- examines contract changes, test receipts and integration diff independently from implementation when assigned;
+- cannot replace owner/auditor approval or clinical validation.
 
 ### 13.2 Parallelism rule
 
@@ -595,7 +613,7 @@ If these conditions are not true, work sequentially.
 
 Maximum recommended concurrent implementation workers for Phase 1: **2**.
 
-Do not create additional workers merely because Orca supports them.
+Do not create additional workers merely because tooling supports them.
 
 ---
 
@@ -621,13 +639,11 @@ Purpose:
 
 This stage is sequential and must stabilize before fan-out.
 
-**Foundation gate:**
+**Foundation gate (two separate states):**
 
-- focused tests pass;
-- configuration is documented;
-- migration framework works against a clean test database;
-- no application feature semantics were changed;
-- shared contract is sufficiently stable for child branches.
+- P1-F code integration and its historical focused/full non-live receipts remain `DONE` in §18; do not repeat implementation merely to change the label.
+- Live PostgreSQL qualification is **`PENDING_EVIDENCE`**, not included in historical skipped tests. The operator/owner supplies an isolated designated test service and configuration; MAIN records endpoint identity without credentials, server/schema version, clean migration up/down or equivalent supported migration receipt, connection/transaction/revision behavior, and cleanup boundary. IMPLEMENT/REVIEW validate focused tests against that service; no arbitrary database drop.
+- The shared schema/configuration and no-semantics-change checks remain. Before dependent P1-A/P1-B integration or parallel fan-out is called ready, REVIEW examines the live receipt and contract; bounded read-only analysis and preparatory branches may proceed without claiming this gate passed. Integration/Phase 1 `DONE` also needs §16 migration, restore and full validation evidence. See the separate gate ledger in §18.
 
 ### Stage P1-A — Review/case persistence
 
@@ -817,7 +833,18 @@ Update this section during execution. Do not mark an item `DONE` without evidenc
 | Main smoke and synchronization | TODO | — | — |
 | Owner/auditor review | TODO | — | — |
 
-Allowed statuses:
+**Current prerequisite/evidence gate ledger (r2; separate from historical P1-F implementation row):**
+
+| Gate | Historical evidence | Current state | Required receipt and accountable role | Prerequisite / permitted work |
+|---|---|---|---|---|
+| P1-F integrated implementation | `b63126ae989109e380ef9bdeb6d425c49eb96cec`, 5 passed/3 skipped focused; 178 passed/5 skipped backend, Ruff/lock | `DONE` as code integration only | Retain §18 row; MAIN does not re-create it | Source for P1-A/B bounded analysis |
+| P1-F live foundation qualification | PostgreSQL opt-in, designated test service unavailable in historical run | `PENDING_EVIDENCE` | Operator/owner designates isolated DB; IMPLEMENT runs clean migration/config/session/revision checks; REVIEW signs off on receipt, skips explained | Before shared-foundation fan-out/integration readiness; does not block read-only analysis |
+| P1-A/P1-B PostgreSQL case/catalog integration | No integrated receipt | `TODO` | Exact branches/commits, scoped tests including concurrent revisions/workspace isolation | Qualified shared foundation and contract review |
+| P1-I source consistency, migration, cutover, restore | No dry-run/import/restore receipt | `TODO` | MAIN + operator source snapshot/writer quiescence, counts/hashes, explicit cutover, backup/restore | After A/B; required before Phase 1 closeout |
+
+The list below applies to **work-item implementation statuses** in the historical §18 ledger. The adjacent **evidence gate** has its own `PENDING_EVIDENCE` state and is not a new implementation status or a P1-F rollback.
+
+Allowed work-item statuses:
 
 - `TODO`
 - `IN_PROGRESS`
@@ -910,6 +937,8 @@ DONE
 
 ## 20. P1-F worker execution evidence
 
+**Historical audit only. Do not reuse the account, model, launcher, Windows path or permission mode below as a current instruction.**
+
 This entry records the execution context for the bounded P1-F foundation worker.
 It is not a Phase 1 completion claim; the main orchestrator owns integrated
 completion evidence and status updates.
@@ -928,7 +957,9 @@ Existing task: task_4ff565a8f804
 
 ---
 
-## 21. Suggested `/goal` for the main Luna Max orchestrator
+## 21. Historical suggested `/goal` — DO NOT EXECUTE AS CURRENT INSTRUCTION
+
+**Historical audit only: the code block below is preserved verbatim from the earlier plan.** Use §13 and current `AGENTS.md`/configured `fo` roles for any future execution; do not copy its model/account/worktree instructions.
 
 Use a short goal; this specification contains the detail.
 
@@ -967,5 +998,31 @@ When Phase 1 is approved as `DONE`:
 1. update `docs/milestone/m1/M1_MASTER_PLAN.md` with Phase 1 completion status, final main commit, evidence summary, and remaining blockers;
 2. keep this file as the detailed Phase 1 audit trail;
 3. do not start Phase 2 implementation until its scope is reviewed against the actual post-Phase-1 repository state;
-4. create only the Phase 2 working specification needed at that time.
+4. revalidate and refine the **existing Phase 2 candidate** against the actual approved Phase 1 evidence, then freeze an owner-reviewed execution revision before Phase 2 implementation; do not recreate a new specification merely because Phase 1 closed.
 
+
+---
+
+## 23. Candidate rebaseline: current foundation and Phase 2–4 minimum contract
+
+The historical Phase 0 audit at `7af3ef1a11fc9de12b871d82c73d8be53d2ffa84` in §4 is retained as an earlier audit. The source baseline for this candidate is `0f41bb9774c2da455d477d1634ce8888e9265732`. §18 P1-F `DONE` records the integrated `b63126ae989109e380ef9bdeb6d425c49eb96cec` foundation and historical focused/full test counts. It does not prove that a PostgreSQL service, migration, restore or complete Phase 1 has been validated. P1-A and P1-B remain `TODO`; P1-I is the already-defined §14 integration/migration/recovery stage and the separate §18 TODO rows remain intact. The old §21 suggested orchestrator prompt is historical; it does not set current account, provider or authority. Historical §22 originally called for a later Phase 2 specification; this r2.1 closeout rule now directs revalidation/refinement of the already-authored candidate after Phase 1 evidence. The owner’s 2026-09-28 instruction requested candidates before closeout; execution timing remains gated. Their implementation entry gates, and the Phase 1 closeout rule, remain pending review.
+
+| Downstream data/contract need | Current verified source at pinned commit | P1 responsibility / proof gate |
+|---|---|---|
+| Stable workspace, image/case identity, revision | P1-F `dr_support/persistence/{schema,database,migrations}.py` has foundation workspaces/review cases; `dr_support/store.py` and `dr_support/services/workspaces.py` remain SQLite runtime. | P1-A/P1-B migrate existing IDs and revisions, P1-I verify isolation and restart against designated PostgreSQL. |
+| Patient/eye/visit/acquisition evidence | `dr_support/services/resolver.py`, `docs/adr/0006-human-selected-image-intake-boundary.md`; existing pseudonymous patient and laterality evidence, not a complete approved acquisition-date source. | Preserve fields and provenance, allow additive extension after resolver/clinical contract review; no invented capture date from visit ordinal. |
+| Immutable source/derivative/transform and prediction evidence | `dr_support/imaging/derivatives.py`, `docs/adr/0003-immutable-source-and-separate-analysis-derivative.md`, existing `dr_support/workflow.py`; current workspace `BridgeImage` origin is `PUBLIC` in admission and remote Bridge provenance only permits `PUBLIC`/`SYNTHETIC`. | P1-A preserves original SHA and versioned review/model/processing payload, documents actual source-origin fields and the gap for authorized hospital identity/permission; missing mask or hospital fields are proposed reviewed extensions, not asserted schema. Phase 2/3/4 own approved later semantic/wire/export migration. Never silently reclassify a hospital source as `PUBLIC` to fit the current contract. |
+| Human grade, findings, review milestones, audit | `docs/adr/0004-three-human-confirmation-milestones.md`, `docs/reference/DATASET_MANIFEST.md`; case-level confirmation/hash already defined. | P1-A preserves distinct milestones, annotation source/correction/removal, reviewer/time, revision and conflict behavior; proposed per-group completeness requires approved clinical semantics and migration review. |
+| Task-specific export state | `docs/adr/0005-task-specific-dataset-readiness.md`, `s4.dataset-manifest.v2`, `s8.2-task-specific-v1`. | P1-A/P1-I ensure enough persisted review/provenance for Phase 4 recomputation; do not equate AI or empty box set with negative. |
+
+The Master's §7 logical entities describe M1 target. Phase 1 may initially persist clinically neutral versioned payloads where the taxonomy is unresolved. This is not evidence of a first-class table for every target entity. P1-A must document what is represented, what is absent and which additive schema change awaits owner approval. **Ownership after Phase 1:** P1-A/I delivers migration machinery and a clinically neutral compatibility baseline; an approved Phase 2 clinical completeness or processing field extension is owned by P2-6/P2-3 (including its payload/schema-version migration, tests and rollback using that machinery). A later approved Phase 4 export/audit extension is owned by P4-3/P4-4. Neither returns to a closed Phase 1 for an unplanned schema rewrite. The producing phase documents versions/compatibility and obtains contract review before deploying migrations. Do not add an unreviewed migration in this planning step. P1-A/P1-B implementation may proceed in bounded work once its entry conditions and worktree gate are met; L4/grade inference is not their prerequisite.
+
+## 24. Execution handoff and candidate review addendum
+
+**Entry:** clean bounded implementation worktree under `AGENTS.md`, foundation diff and schema reviewed, designated test PostgreSQL available for integration validation, eligible SQLite authority inventory; owner resolution before protected behavior changes. **Consumed:** existing SQLite catalog/case stores, workflow/admission/resolver/derivative contracts. **Produced:** PostgreSQL-authoritative scoped records, migration receipts and documented restore path, no long-lived dual write. **Invariant:** immutable source and no PHI/credentials in logs or plan; workspace-profile removal never purges source/review state. §14 already bounds P1-F/A/B/I; §§7–11 and 16 already supply affected areas, preserve/proof/exclusions. No separate work-item IDs replace them.
+
+**Recovery:** dry-run inventories and hashes before import; idempotent retry, transaction boundaries and count/content/revision comparison; stop on ambiguous catalog mapping; preserve SQLite read-only; use a designated test DB for restore smoke; rollback/cutover decision and backup evidence before authority switch. Never drop an arbitrary database to make a test pass. **Failure gates:** unexplained source mismatch, cross-workspace read/write, lost revision, destructive deletion or missing restore evidence blocks P1 closeout; model runtime unavailability does not.
+
+**Acceptance/evidence:** execute §16 checklist and §19 template on the actual integrated revision. Existing commands in `AGENTS.md`: `python -m pytest -q`, `python -m ruff check dr_support tests`; frontend from `frontend/`: `npm test`, `npm run typecheck`, `npm run build` when affected. Focused existing `tests/test_postgres_foundation.py`, `tests/test_workflow.py`, `tests/test_workspaces.py`, `tests/test_dataset.py`, `tests/test_resolver.py`; live designated-PostgreSQL, migration idempotency and restore cases may require PROPOSED new integration fixtures/tests. Historical 178 passed/5 skipped does not substitute for these results. Reviewer records exact commit, commands, skip reasons, schema, migration counts/hash and restore receipt without patient identifiers.
+
+**Dependencies/blockers:** P1-A and P1-B depend on P1-F interfaces; P1-I follows integrated A/B, though analysis of Phase 2 manual workflow can proceed. Clinical owner must approve any new group completeness taxonomy before persistence semantics/export eligibility change. A proposed change to existing milestone or dataset policy requires contract review, not an implicit Phase 1 amendment. **Gate:** after integrated tests and restore, report `READY_FOR_REVIEW`; owner/auditor approval is required for `DONE`. This document revision itself awaits owner review. **Ledger:** §18 remains authoritative and unchanged by this planning pass. **Change log:** 2026-09-28 candidate r1 adds pinned baseline, current/target data matrix and handoff constraints without modifying historical ledger. Candidate r2 clarifies current roles, live P1-F evidence gate, source consistency/cutover and later-phase migration ownership; the P1-F historical row and test counts remain unchanged. Candidate r2.1 (E01/B01) refines §22 closeout wording, labels §18 status namespaces and records the source-origin persistence gap; it does not change historical evidence. Candidate r2.2 records only downstream compatibility expectations for explanation evidence and explicitly keeps Explainability UI and model retraining out of Phase 1; no Phase 1 implementation scope, historical receipt or gate status changed. **Next:** hand the proven persisted fields/versions and explicit gaps to [Phase 2](M1_PHASE2_UWF_LABELING.md), [Phase 3](M1_PHASE3_MODELS_MODEL_API.md) and [Phase 4](M1_PHASE4_DATASET_REVIEW_EXPORT.md); update Master gate only after review.

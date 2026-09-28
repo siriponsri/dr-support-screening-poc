@@ -1,10 +1,16 @@
 # DR Screening — Milestone 1 Master Plan
 
-**Document path in repository:** `docs/milestone/M1_MASTER_PLAN.md`  
-**Version:** 1.0 working master  
-**Date:** 2026-09-25  
-**Status:** Owner-directed working plan; update at the end of each phase  
+**Document path in repository:** `docs/milestone/m1/M1_MASTER_PLAN.md`  
+**Document revision:** Candidate r2.2 (owner-directed refinement of r2.1; preserves the 2026-09-25 working master)  
+**Prepared:** 2026-09-28  
+**Document status:** `CANDIDATE_FOR_OWNER_REVIEW`  
+**Implementation status:** Phase 1 `IN_PROGRESS`; see the phase tracker, which is independent of document approval.  
+**Source baseline commit:** `0f41bb9774c2da455d477d1634ce8888e9265732`  
+**Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.  
+**Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; see §24.  
 **Primary repository:** `siriponsri/dr-support-screening-poc`  
+
+**Current reading guide (r2.2):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and the original §15 status rows record the 2026-09-25 planning baseline; the adjacent r2.2 current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. This candidate does not authorize implementation or deployment.
 
 ---
 
@@ -25,9 +31,9 @@ After the owner approves and commits this file, it becomes the M1 planning sourc
 
 ## 2. M1 product objective
 
-M1 is an **AI-assisted UWF retinal labeling and review workstation** that helps ophthalmologists review the hospital's existing diabetic-retinopathy image collection and produce high-quality, traceable labels for later model development.
+M1 is an **AI-assisted UWF retinal labeling and review workstation** that helps ophthalmologists review the hospital's existing diabetic-retinopathy image collection and produce high-quality, traceable labels for later model development. **M1 is a Labeling System, not the final Clinical Screening System.** The same clinician UI, provenance contracts and model boundary should be designed so they can be extended in M2, where hospital-domain models and separately approved screening/referral behavior may be introduced without rebuilding the workstation from scratch.
 
-The primary product value of M1 is not merely to display model predictions. It is to convert an existing, incompletely labeled hospital image collection into a structured, physician-reviewed dataset while making the physician's limited labeling time as productive as possible.
+The primary product value of M1 is not merely to display model predictions. It is to convert an existing, incompletely labeled hospital image collection into a structured, physician-reviewed dataset while making the physician's limited labeling time as productive as possible. M1 must not present an AI grade, lesion proposal, attention map or longitudinal comparison as an autonomous screening decision.
 
 The intended M1 workflow is:
 
@@ -35,9 +41,9 @@ The intended M1 workflow is:
 Workspace
 → ingest retinal images
 → resolve patient / eye / visit evidence
-→ prepare an analysis representation without changing the source image
-→ obtain available AI suggestions
-→ physician reviews the original image and AI evidence
+→ prepare a versioned masked/analysis representation without changing the source image
+→ obtain available AI suggestions and explanation evidence
+→ physician reviews the original image, masked analysis image, AI overlay and explainability evidence
 → physician confirms, corrects, rejects, or adds labels
 → save all provenance and review decisions in PostgreSQL
 → reopen and continue work later
@@ -54,7 +60,8 @@ M1 is also the data foundation for later hospital-domain models. The system ther
 - rejected AI suggestion;
 - unreviewed AI suggestion;
 - review completeness;
-- model/preprocessing provenance.
+- model/preprocessing provenance;
+- model explanation evidence and its interpretation limits.
 
 An AI suggestion must never silently become ground truth merely because it was displayed on screen.
 
@@ -149,7 +156,7 @@ The product should capture or resolve, with physician confirmation where needed:
 - image quality/reviewability;
 - same-patient/same-eye pairing evidence.
 
-The UI may provide side-by-side comparison and physician change labeling when useful.
+The UI may provide side-by-side comparison and physician change labeling when useful. **Three distinct levels require separate evidence:** same-eye images may be displayed side by side with date/order `UNKNOWN` and no before/after or improvement/worsening claim; chronological comparison requires supported acquisition ordering; learned change/risk requires a separately qualified model and clinical protocol. The owner/clinical reviewer must approve the allowed label and action at each level (`PENDING_OWNER`); a visit ordinal does not establish chronology.
 
 A learned longitudinal AI model is desirable but is not allowed to block the primary M1 labeling workflow. If the model is unavailable, longitudinal AI must remain optional/off while the system still captures the data required to develop it later.
 
@@ -212,14 +219,16 @@ If M1 creates a valid-retina mask or analysis representation, store enough prove
 
 ---
 
-## 5. UWF preprocessing and artifact handling
+## 5. UWF preprocessing, masked analysis representation and artifact handling
 
 Hospital UWF images may contain machine borders, eyelashes/lids, glare, reflection, or other non-retinal structures. Existing CFP-oriented models may incorrectly treat these as image evidence.
 
 M1 should therefore maintain two distinct concepts:
 
 1. **Original image** — the immutable source shown to the physician.
-2. **Analysis representation** — a derived image that may mask regions considered invalid for AI analysis.
+2. **Masked analysis representation** — a derived, versioned image that may mask regions considered invalid for AI analysis and that can be inspected by the physician when AI is used.
+
+The masked analysis representation is a **shared representation contract** for model adapters, not a lesion-only preprocessing trick. Grading and lesion providers may apply different model-specific transforms after this shared stage, but neither may silently create an additional incompatible mask or double-mask the image without a versioned, reviewed contract and regression evidence.
 
 ### 5.1 Analysis-mask requirements
 
@@ -243,9 +252,19 @@ When a safe analysis representation cannot be produced:
 - the UI must explain the unavailable state without exposing raw internal exceptions;
 - the source image must remain accessible.
 
-### 5.3 Processing Details surface
+### 5.3 Explainability Panel
 
-M1 should include a secondary, non-primary-flow surface named **Processing details**.
+M1 should provide a clinician-facing **Explainability Panel** that is distinct from Processing details. Its purpose is to show what AI evidence contributed to a suggestion, not to expose implementation logs. Where the selected provider supports it, the panel may show:
+
+- grading class scores and a patch/attention overlay from the preferred UWF grader;
+- lesion proposals, class, score/fold-agreement or uncertainty evidence and `review_boxes`;
+- model/domain limitations and unavailable/error states.
+
+A grading attention map must be labeled as **model attention/evidence, not validated lesion localization**. Explanation evidence remains AI provenance and must never become a physician annotation or gold lesion label automatically. The panel must degrade safely when a provider does not expose explanation evidence.
+
+### 5.4 Processing Details surface
+
+M1 should include a secondary, non-primary-flow surface named **Processing details**. Phase 2 owns a case-level inspection sufficient to see source, selected processing stages, mask/fallback, transform and model/domain warning during review; Phase 4 owns a read-only workspace-level filtered/detail/JSON and export inspection using those recorded versions. Approved clinical group semantics introduced after Phase 1 are owned by the introducing phase, including any additive payload/schema migration; Phase 1 owns the reusable migration infrastructure and compatibility baseline.
 
 It should be able to show, where available:
 
@@ -265,20 +284,31 @@ It is not necessary to store every debug screenshot or transient visualization. 
 
 M1 uses two model strategies in parallel:
 
-1. **Preferred path:** develop or integrate models that are actually appropriate for UWF.
-2. **Temporary fallback path:** when native UWF models are not ready in time, allow existing CFP-based RETFound and PRISM-DR assistance with explicit clinician-facing limitations.
+1. **Preferred UWF path:** qualify and integrate the current UWF research candidates, with **NB01/USPEC grading as the preferred M1 grading candidate** and UWF-compatible localization pursued separately.
+2. **Temporary fallback/comparator path:** when the preferred capability is not ready, retain existing CFP-based RETFound and PRISM-DR assistance only under explicit clinician-facing limitations and the existing approval gates.
 
-The fallback exists to keep physician labeling productive. It must not be reported as a UWF-validated model.
+RETFound is therefore retained as a historical comparator/temporary fallback, not as a co-primary UWF grader. Selecting NB01/USPEC as the preferred direction does **not** itself prove checkpoint integrity, runtime compatibility, clinical performance, rights or production readiness. The fallback exists to keep physician labeling productive and must not be reported as UWF validation.
 
 ### 6.1 Preferred UWF model work
 
 Model experimentation/training may proceed in parallel with repository development.
 
-Current research direction may include:
+The current preferred grading research path is **NB01: USPEC encoder + RGB 7×7 patch/MIL grading head**, using the versioned masked analysis representation. The selected inference artifact is the trained `grading_state.pt` bundle after qualification. `USPEC_weights.pth` is the pretrained/base encoder asset used for training or future retraining, not the normal inference artifact; an optimizer-bearing `latest.pt`, when present in the training workspace, is a same-run resume checkpoint rather than the deployed model identity. DINOv3 RGB remains a controlled research comparator unless a later owner decision changes the preferred candidate.
 
-- UWF DR grading using a UWF-specific fine-tuned approach such as DINOv3 features + patch/MIL + DR grading head;
-- UWF lesion localization trained or adapted using eligible spatial labels;
-- optional longitudinal comparison when eligible same-patient/same-eye pair labels exist.
+The lesion path remains separately qualified. The current PRISM bundle is CFP-domain (`NOT_VALIDATED_FOR_UWF`) and may only be used under its assistive limitation until a UWF-capable localization model is established. NB03 remains a longitudinal review/comparison scaffold; it does not establish a learned progression model.
+
+The model-development direction from M1 to M2 is:
+
+```text
+qualified model version
+→ AI-assisted physician labeling in M1
+→ physician-confirmed, versioned dataset snapshot
+→ separately authorized new training/fine-tuning run
+→ new model version with parent checkpoint + dataset/split + metrics + artifact hash
+→ evaluation/promotion decision
+```
+
+M1 must create the data and provenance needed for that loop, but it must not perform automatic/online learning from newly saved hospital labels or overwrite an enabled model in place. Hospital-domain fine-tuning is a separately authorized training activity and is expected to become a principal M2 model-development path.
 
 Any selected UWF model must preserve:
 
@@ -309,7 +339,7 @@ validation_status = NOT_VALIDATED_FOR_UWF
 usage_mode = TEMPORARY_ASSISTIVE_FALLBACK
 ```
 
-The system must not silently change RETFound/PRISM metadata from CFP to UWF merely to enable the route.
+The system must not silently change RETFound/PRISM metadata from CFP to UWF merely to enable the route. At the pinned commit, `dr_support/services/model_api.py` currently returns `UNSUPPORTED` for UWF input on the CFP providers; the owner-directed temporary assistive fallback is a **required target**, not evidence that the current route already enables it. Phase 3 P3-4 must propose/review any guarded contract change.
 
 ### 6.3 Mandatory physician-facing fallback notice
 
@@ -317,11 +347,13 @@ When a CFP-based model is shown on a UWF case, the primary review page must show
 
 Recommended English UI copy:
 
-> **CFP-based AI — limited UWF validation.** This model was trained for conventional color fundus photographs, not ultra-widefield images. UWF field-of-view, peripheral findings, image artifacts, and lesion appearance may reduce accuracy. Review the full image and confirm, correct, or reject all AI suggestions.
+> **CFP-trained AI — this bundle is not validated for UWF.** This bundle was trained for conventional color fundus photographs. Review the full UWF image and confirm, correct, or reject each suggestion.
 
 A shorter badge may be used in dense UI:
 
-> **CFP-based AI · UWF limitation**
+> **CFP-trained AI · Not validated for UWF**
+
+The primary notice and the Processing details domain/validation metadata must agree with the selected bundle manifest. For the prepared PRISM bundle, show `model_domain=CFP` and `validation_status=NOT_VALIDATED_FOR_UWF`; this wording is bundle-specific, not a claim about every historical PRISM release. Phase 2 P2-7, Phase 3 P3-4/6 and Phase 5 P5-4 verify visibility in both surfaces. Final clinician-facing copy remains subject to clinical-owner review, without weakening the manifest meaning.
 
 A Processing details/help surface may additionally state:
 
@@ -613,7 +645,7 @@ Make the clinician workflow efficient for repeated UWF labeling while maximizing
 
 1. Preserve the established viewer and general visual direction.
 2. Improve UWF intake/review behavior without treating UWF as CFP.
-3. Implement or harden valid-retina/analysis masking and safe failure states.
+3. Implement or harden the shared valid-retina/masked-analysis representation, safe failure states, and clinician inspection of the masked image used for AI.
 4. Improve patient/eye/visit evidence extraction and confirmation.
 5. Provide efficient DR grade confirmation/editing.
 6. Provide **Core findings** annotation workflow.
@@ -623,7 +655,7 @@ Make the clinician workflow efficient for repeated UWF labeling while maximizing
 10. Support reject/correct/add/confirm actions.
 11. Ensure original-image coordinates remain authoritative for stored findings.
 12. Ensure manual labeling remains available when AI is unavailable.
-13. Add concise clinician-facing CFP-fallback notice when fallback models are used on UWF.
+13. Add a distinct **Explainability Panel** for available model evidence and a concise clinician-facing CFP-fallback notice when fallback models are used on UWF.
 
 ## Acceptance criteria
 
@@ -632,7 +664,8 @@ A physician can:
 - open a UWF image;
 - confirm patient/eye/visit context;
 - see the original image without destructive modification;
-- see available AI evidence with correct model-domain warning;
+- inspect the selected masked/analysis representation when AI processing is used;
+- see available AI evidence and Explainability Panel with correct model-domain warning;
 - set or correct DR grade;
 - accept/correct/reject suggested core findings;
 - add new core findings;
@@ -666,11 +699,11 @@ Provide the best available AI assistance without blocking the labeling workflow 
 
 Preferred outcome:
 
-- a UWF-capable grading model with explicit grade output and reproducible local inference bundle.
+- qualify and integrate the **NB01/USPEC UWF grading bundle** as the preferred M1 grading candidate, with explicit grade output, reproducible local inference identity and optional patch-attention explanation evidence.
 
-Temporary fallback when preferred model is not ready:
+Temporary fallback when the preferred candidate is not ready:
 
-- RETFound may be shown as CFP-based assistive evidence with the mandatory UWF limitation notice.
+- RETFound may be retained as a CFP-based comparator/assistive fallback with the mandatory UWF limitation notice; it is not the preferred UWF grading path.
 
 ### Phase 3L — Lesion/finding localization
 
@@ -705,7 +738,8 @@ Every provider must expose enough metadata to determine:
 - preprocessing version;
 - readiness;
 - limitations/warnings;
-- artifact/checkpoint identity where applicable.
+- artifact/checkpoint identity where applicable;
+- explanation-evidence type/version and interpretation warning where applicable.
 
 The application should route based on declared capability rather than by pretending that a CFP model is UWF-native.
 
@@ -759,7 +793,7 @@ Turn reviewed PostgreSQL data into transparent, queryable, exportable, training-
 7. Enforce explicit review-completeness rules.
 8. Prevent untouched AI suggestions from entering default gold exports.
 9. Preserve patient grouping key for patient-disjoint later model splitting.
-10. Add **Processing details** surface for source/mask/transform/model provenance.
+10. Add distinct **Processing details** and **Explainability evidence** surfaces: provenance/debug chain in Processing details; model attention/scores/localized AI evidence in Explainability, never silently converted to gold labels.
 11. Provide longitudinal pair/history visibility where available.
 12. Ensure exported records carry schema/taxonomy versions and snapshot identity.
 
@@ -800,9 +834,10 @@ create/open Workspace
 → scan/import UWF images
 → confirm image context
 → inspect original image
-→ generate or skip analysis representation
+→ generate or skip the selected masked/analysis representation
+→ inspect masked image used for AI
 → run available AI assistance
-→ display correct native/fallback model status
+→ display correct native/fallback model status and explanation evidence when supported
 → physician grades case
 → physician reviews/corrects/rejects/adds findings
 → save to PostgreSQL
@@ -1007,12 +1042,23 @@ Update this table after each phase review.
 
 ## 15. Model capability tracker
 
+The original rows below are **2026-09-25 target/integration planning statuses**, retained for traceability. `NOT_STARTED` there does not mean research assets do not exist and does not assert that a fallback is deployed. Use the current-evidence table immediately after those rows to plan next work.
+
 | Capability | Preferred target | Current deployment mode | Status | Limitation / evidence |
 |---|---|---|---|---|
-| DR grading | Native UWF model | TBD | `NOT_STARTED` | CFP RETFound fallback allowed only with explicit UWF warning |
+| DR grading | NB01/USPEC UWF grading candidate | TBD | `NOT_STARTED` | Preferred direction selected; RETFound retained only as comparator/temporary CFP fallback with explicit UWF warning |
 | Core lesion localization | Native UWF model | TBD | `NOT_STARTED` | CFP PRISM-DR fallback allowed only with explicit UWF warning |
 | Advanced finding localization | Per-class UWF capability where feasible | Manual + future AI | `NOT_STARTED` | Never claim unsupported classes are automatically detected |
 | Longitudinal change | Optional learned same-eye model | Disabled until ready | `NOT_STARTED` | Comparison/data capture may proceed without model |
+
+**Current evidence at pinned commit and Step 2 package (r2; not deployment approval):**
+
+| Capability | Research evidence | Asset/byte state | Repository integration | Target runtime / clinical / rights |
+|---|---|---|---|---|
+| NB01/USPEC UWF grading | Aggregate internal research test only | Drive/package metadata identify `grading_state.pt` as the trained inference bundle and `USPEC_weights.pth` as a retraining/base asset; implementation environment still must independently verify selected bytes/hash | Exported bundle not shown integrated into Bridge v1; current adapter computes MIL attention but the API does not yet expose it as a versioned explanation field | Load/L4/offline/clinical untested; production rights `UNVERIFIED`; preferred direction is not readiness approval |
+| PRISM CFP lesion | `custom_provisional_v3`, not official PRISM evaluation | 21/21 checkpoints and 3/3 adapter/config byte-verified; current adapter loads 20 specialists, not ROI cropper | Exported bundle not shown integrated into Bridge v1 | Load/L4/offline untested; `NOT_VALIDATED_FOR_UWF` |
+| Existing repository CFP providers | ADR-0002 Bridge v1 paths/profiles in source | No Step 2 runtime receipt for deployed provider | Current code exists; current UWF route behavior must be checked, not inferred from fallback policy | Deployment/clinical status not established; preserve explicit limitation and manual workflow |
+| Longitudinal learned model | No qualified candidate in package | None claimed | No selected learned integration | `DISABLED` pending identity/date, model and clinical gate |
 
 ---
 
@@ -1028,6 +1074,10 @@ Do not edit past decisions silently. Add new rows when the owner changes scope.
 | 2026-09-25 | M1 should capture findings beyond the initial four, using a separate Advanced findings workflow. | Maximize the value of each physician labeling session without overloading the core workflow. | Owner-directed |
 | 2026-09-25 | RETFound and PRISM-DR may be used temporarily on UWF when native UWF models are not ready. | Maintain schedule flexibility and AI-assisted review, but disclose that these are CFP-based models with limited/unvalidated UWF performance. | Owner-directed |
 | 2026-09-25 | Native UWF capability status must remain separate from fallback availability. | Avoid reporting CFP fallback as proof of UWF model completion. | Owner-directed |
+| 2026-09-28 | M1 is the physician Labeling System; M2 is the later Clinical Screening System. | Preserve the current UI/data/model boundary for extension into M2 without treating M1 AI output as autonomous screening/referral. | Owner-confirmed |
+| 2026-09-28 | NB01/USPEC is the preferred M1 UWF grading direction; RETFound remains comparator/temporary fallback only until NB01 passes its gates. | Align grading with the UWF research path and allow future hospital-domain fine-tuning without discarding the M1 workstation. | Owner-confirmed |
+| 2026-09-28 | Masked analysis image and Explainability Panel are first-class review surfaces, separate from Processing details. | Let physicians inspect what image the model saw and what evidence it used while preserving the distinction between attention, lesion localization and provenance. | Owner-confirmed |
+| 2026-09-28 | Physician-confirmed M1 snapshots may seed later NB01 fine-tuning only through separately authorized, versioned training runs. | Prevent online/self-training contamination and in-place model mutation; preserve parent checkpoint, dataset/split, metrics and artifact identity for M2. | Owner-confirmed |
 
 ---
 
@@ -1121,6 +1171,8 @@ Minimum product completion conditions:
 - Workspace data can expose stored structured data without database administration access;
 - authorized CSV/JSON and training manifests can be exported;
 - untouched AI suggestions are excluded from default gold exports;
+- the physician can inspect the masked/analysis image used for AI;
+- an Explainability Panel can show supported model evidence with clear interpretation limits and explicit unavailable state;
 - Processing details can show the relevant preprocessing/model provenance;
 - integrated regression/build/smoke validation passes for the accepted scope;
 - all remaining model/clinical limitations are explicitly recorded.
@@ -1145,5 +1197,54 @@ This plan was prepared from the project's current owner instructions and the sup
 Where clinical taxonomy, acceptance thresholds, model rights, or local-hospital performance remain uncertain, the project must record the uncertainty and obtain the appropriate owner/clinical decision rather than inventing one.
 
 ---
+
+## 22. Candidate rebaseline and current versus target (2026-09-28)
+
+This candidate preserves §§1–21, including the historical Phase 0 and Phase 1 trackers and decision log. The two baseline documents were read at the pinned commit; package research is separately dated evidence, not a repository revision or clinical authorization. These candidate files have no implementation authority before owner review. Historical test counts and the Phase 1 worker transcript are historical evidence, not tests run during this planning session. The historical Phase 1 suggested `/goal` is preserved as an audit record, not a current provider/account instruction.
+
+| Area | Current implementation or evidence at pinned commit | Required target / accountable work |
+|---|---|---|
+| Persistence | `dr_support/persistence/{config,database,migrations,schema}.py` provides P1-F opt-in foundation; `dr_support/store.py` and `dr_support/services/workspaces.py` remain SQLite authoritative. | P1-A, P1-B, P1-I migrate review and catalog safely, exercise designated PostgreSQL service, restore, restart and isolation. Phase 1 stays `IN_PROGRESS`. |
+| Intake/review | Existing admission, resolver, workflow and UI milestones; image, grade and annotation confirmations are separate (`docs/adr/0004-three-human-confirmation-milestones.md`). | Phase 2 adds efficient UWF manual workflow and clinically approved per-group completeness without converting case-level annotation confirmation into individual AI ROI confirmation. |
+| Source origin / permission (B01) | `dr_support/services/admission.py` currently creates workspace `BridgeImage` with `source_type="PUBLIC"`; `workflow.py` has a `PUBLIC` fallback. Bridge v1 `contracts/_schema.py`/`services/model_api.py` accept only `PUBLIC`/`SYNTHETIC`; `providers/remote.py` forwards the image value. These are pinned-source observations, not a hospital runtime test. | Owner/data steward approves a truthful authorized-hospital provenance/permission contract and migration/Bridge compatibility. P2-1 owns intake identity, P1-A durable baseline, P3-4 wire/result mapping, P4-3 export lineage and P5-1/3/5 integrated authorization checks. Do not classify hospital images as public/synthetic solely to satisfy the current schema. |
+| Dataset | Existing `s4.dataset-manifest.v2` and `s8.2-task-specific-v1` grade/lesion readiness in `docs/reference/DATASET_MANIFEST.md`. | Phase 4 preserves compatibility and adds read-only inspection, snapshot reproducibility and approved completeness semantics. |
+| Model API | ADR-0002 Bridge v1: `/health`, `/v1/models`, `/v1/predict/dr`, `/v1/predict/lesions`; review/remote and CUDA model_api/local profiles. | Phase 3 qualifies bundles and negotiates any explicit, reviewed contract changes. The deployment prototype's `/predict:8000` does not override current routes/port (`PORT=7860` in repository profile). |
+| Research | 21/21 PRISM checkpoints and 3/3 adapter/config entries byte-verified. NB01 `grading_state.pt` remains external to the delivery package; the Drive object has been located at the expected size, but implementation has not independently verified its bytes/hash or loaded it. | Phase 3 separately establishes observed hash, runtime, integration, hardware, domain, rights and clinical gates. Drive/package metadata alone supplies none of these later gates. |
+
+Phase 0 tracker remains `NOT_STARTED` in the historical master. Source gate, package preparation, source inspection and this candidate reconciliation supply evidence toward its inventory; they do **not** prove the owner scope freeze or close Phase 0. Owner to reconcile tracker after reviewing this candidate. No later phase is automatically authorized by drafting its specification.
+
+## 23. Shared cross-phase contracts and gates
+
+This section is the cross-phase reference for [Phase 1](M1_PHASE1_POSTGRES.md), [Phase 2](M1_PHASE2_UWF_LABELING.md), [Phase 3](M1_PHASE3_MODELS_MODEL_API.md), [Phase 4](M1_PHASE4_DATASET_REVIEW_EXPORT.md), and [Phase 5](M1_PHASE5_E2E_VALIDATION.md). §§2–9, accepted ADRs, `AGENTS.md`, `DESIGN.md` and approved clinical contracts remain in force. A proposal below cannot silently amend them.
+
+1. **Identity and source:** human-selected approved top-level workspace input, immutable original bytes and SHA-256, confirmed pseudonymous patient/eye/visit evidence, acquisition date distinct from visit ordinal; do not infer source authority from orphaned SQLite or hospital folder names. Source origin, permission/authorization and retinal modality are separate dimensions. Current Bridge v1 represents `source_type` only as `PUBLIC`/`SYNTHETIC`; deidentification or pseudonymization does not make hospital data public. The hospital contract and allowed path are `PENDING_OWNER`/data-steward review before hospital inference or export; synthetic/public engineering can proceed. Provenance must remain truthful across admission, remote request/result, persistence and export. `docs/adr/0003-immutable-source-and-separate-analysis-derivative.md`, `docs/adr/0006-human-selected-image-intake-boundary.md`; P1-A/P1-B, P2-1/P2-2, P3-4, P4-1/P4-3, P5-1/P5-3.
+2. **Coordinates and representations:** original-image pixels are authoritative for geometry; display and analysis derivatives carry transform identity, source and derivative hashes, mask/preprocessing version and reversible mapping. Overlay must be checked against original pixels. Phase 2 owns the representation contract; Phase 3 tests adapter compatibility and maps outputs; Phase 5 verifies round trips. Neither mask coverage nor an all-true fallback is clinical gradability. `docs/adr/0003-immutable-source-and-separate-analysis-derivative.md`; P2-3/P2-4, P3-2/P3-4, P5-2.
+3. **Human authority:** distinct Confirm Image, Confirm DR Grade and Confirm Annotation milestones; case-level annotation confirmation and set hash do not individually confirm AI ROIs. An untouched, rejected or unreviewed AI suggestion is never a gold label. The grade and lesion readiness policies are independent; empty confirmed active set is reviewed but not proof of no lesion. Future group/class states `NOT_REVIEWED`, `PARTIALLY_REVIEWED`, `REVIEWED_NONE_FOUND`, `REVIEWED_FINDINGS_RECORDED` require an approved rubric and additive migration; they must not be inferred from box count. `docs/adr/0004-three-human-confirmation-milestones.md`, `docs/adr/0005-task-specific-dataset-readiness.md`, `docs/reference/DATASET_MANIFEST.md`; P1-A, P2-5/P2-6, P4-2/P4-3, P5-3.
+4. **Clinical/model domain:** UWF is the target image domain; grade 0–4 with separate Ungradable/Unknown, DR-vs-NO_DR derivation preserves grade; DME/referral are independent and need clinical approval. Core MA/HE/EX/SE and Advanced candidate taxonomy are §3 scope, not a frozen clinical ontology. NB01/USPEC is the preferred UWF grading candidate but production rights remain `UNVERIFIED`; RETFound is comparator/temporary fallback rather than the preferred UWF path. PRISM remains CFP, `NOT_VALIDATED_FOR_UWF`, and `custom_provisional_v3` is not official PRISM evaluation. MIL attention is explanation evidence, not validated lesion localization. CFP assistive fallback on UWF requires explicit domain notice and review; it is not UWF validation. P2-4/P2-5, P3-1/P3-3/P3-4/P3-5, P5-2/P5-4.
+5. **Failure and privacy:** model unavailable/error/unsupported is explicit and does not synthesize grade 0 or empty findings. Manual review and audited save continue without inference. Access, least privilege, export minimization, no patient-level package evidence; source files and credentials do not enter repository planning overlay. P1-I, P2-7, P3-4, P4-4, P5-5.
+6. **Provenance and export:** persist model/bundle/checkpoint and processing identities, raw suggestion versus human action, reviewer/time, revision/audit and taxonomy/schema/policy versions. Read-only Workspace data and reproducible exports must agree with PostgreSQL; keep patient grouping key but do not create automatic split. P1-A/P1-I, P2-6, P3-4, P4-1/P4-3, P5-3.
+
+**Dependency order:** P1-F → P1-A/P1-B → P1-I and persistence gate; Phase 2 manual intake/review can be specified and fixture-tested without a real GPU but its integrated persistence acceptance needs Phase 1. Phase 3 research qualification proceeds independently, while bundle integration depends on the Phase 2 representation/coordinate contract. Phase 4 export depends on confirmed Phase 1 persistence and Phase 2 human semantics, not Phase 3 model availability. Phase 5 exercises one integrated build after the relevant gates; no demo-specific substitute. Phase 2 and Phase 3 agree on the preprocessing contract before production behavior changes. Later gate outcomes remain provisional.
+
+**Phase entry/exit:** Phase 0 owner reconciles scope/decisions; Phase 1 exit requires PostgreSQL migration/restore and ledger approval; Phase 2 exit requires manual save/reopen, reviewed finding semantics and overlay evidence; Phase 3 exit is reported per capability and may leave models disabled; Phase 4 exit requires DB/UI/export and contamination evidence; Phase 5 review requires integrated commit, product/persistence/export/operational results and separate model/clinical conclusions. An engineering E2E pass does not authorize clinical use or production deployment.
+
+## 24. Decisions and limitations pending owner review
+
+| Decision / evidence | Affected work and blocked claim | Work possible now / closure |
+|---|---|---|
+| Phase 0 tracker `NOT_STARTED`; inventory/package evidence does not freeze scope | Phase 0 closure and new plan approval | Review candidate and record owner scope decision; bounded research/manual design can be evaluated. |
+| Advanced taxonomy, group-level reviewed-negative rubric, visit date provenance, referral/DME definitions (§§3, 17; ADR-0004/0006) | P2-2/P2-5, P4-2, clinical labels/export rule | Preserve existing three milestones and `s8.2-task-specific-v1`; clinician owner approves additive definitions before schema/export change. |
+| NB04 `border_component_v1` then adapter v4, untested coordinate/input equivalence (package report) | P2-3/P2-4 and P3-2 acceptance | Compare both paths with consented/synthetic fixtures; owner approves any behavior-changing selection. |
+| NB01 grading checkpoint is external to the delivery package; Drive object located but independent observed hash/load receipt still absent. USPEC rights `UNVERIFIED`; PRISM CFP `NOT_VALIDATED_FOR_UWF` despite 21/21 byte checks | Grading load/promotion and production rights; UWF PRISM clinical claims | Manual labeling and planning proceed. Independently verify/hash/load the selected NB01 bundle, obtain rights proof and separate runtime/clinical evidence. |
+| Version mismatch and no L4/offline receipt; NB03 review-only, NB04 latest executed receipt absent | P3-1/P3-3/P3-5 and deployment decisions | Inventory and test isolated target environments, then decide pins/service topology; no fabricated thresholds. |
+| Prototype route `/predict:8000` conflicts with current ADR-0002 Bridge v1 | P3-4 interface adoption | Current API remains; any migration requires owner-reviewed compatibility and tests. |
+| Hospital-origin contract absent from `PUBLIC`/`SYNTHETIC` Bridge v1 (B01) | Hospital Model API and export authorization; synthetic/public fixture work proceeds | Data steward/owner approves origin/permission representation and Bridge/persistence/export contract; P2-1/P3-4/P4-3/P5-3/5 prove lineage. No false relabeling. |
+| Selected checkpoint loader/runtime security applicability (B02) not qualified | Initial deserialization/model-enabled readiness; manual work proceeds | P3-1/3 security owner checks selected build, artifact source and loader path against primary advisory before load, then compatibility after remediation if needed; P5-4 checks receipt. |
+
+The supplied `07-physical-deployment.png` image's **whole-diagram approval status is UNKNOWN**. Its physical QA/PRD host, VLAN, NVIDIA L4, `/data/models` and promotion details are component-level proposals/requirements to reconcile with the owner; the extracted deployment **code** is marked prototype and its `/predict:8000` interface does not replace ADR-0002 Bridge v1. Phase 1's owner-approved local-development/AWS RDS UAT PostgreSQL decision remains intact; it can coexist with a hospital-local model host. Record separate approval provenance for DB, application host, model host/network and promotion before release (Phase 3 P3-5, Phase 5 P5-5; `PENDING_OWNER`). Meeting transcription is unverified discussion, not an approved clinical rubric. No patient data, model runtime, clinical validation, deployment or application tests were used to author this candidate.
+
+## 25. Candidate change log and next handoff
+
+2026-09-28 r1: preserved the baseline sections, work-item history and status tracker; corrected document path and added candidate status, pinned provenance, current/target matrix, shared contracts, dependencies, owner decisions and links to the detailed Phase 2–5 candidates. See the corresponding candidate report in the working package (`candidate-r2.1/M1_PLAN_RECONCILIATION_REPORT.md`) for r2.1 changes/hashes; r1 and r2 remain untouched. 2026-09-28 r2: resolved static reviewer comments in §§3.6, 5, 6.1, 6.3, 15 and deployment authority in §24; clinical/deployment decisions remain pending. The attached ChatGPT static document review is separate from an O2/runtime review and owner approval. Candidate r2.1 (2026-09-28) adds B01 source-origin and B02 loader-security gates to §§22–24 without changing prior research/clinical statuses. Candidate r2.2 records the owner's clarified product direction: M1 is the Labeling System that is extended in M2 into a Clinical Screening System; NB01/USPEC is the preferred UWF grading candidate, RETFound becomes comparator/temporary fallback, the masked analysis image and a distinct Explainability Panel are first-class review surfaces, and later hospital-domain fine-tuning must use versioned physician-confirmed snapshots in separately authorized runs rather than online/in-place learning. No model runtime, clinical validation or hospital-data training was performed to make this documentation change. On review, reconcile Phase 0 and Phase 1 ledger against a fresh implementation baseline before authorizing bounded work; do not treat this candidate as automatic execution approval.
 
 # End of M1 Master Plan
