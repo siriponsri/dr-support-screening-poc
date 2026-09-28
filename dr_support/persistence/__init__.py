@@ -1,6 +1,13 @@
 """Shared PostgreSQL foundation for M1 persistence implementations."""
 
-from .cases import CaseConflictError, PostgresCaseStore, PostgresStore
+from .cases import (
+    CaseConflictError,
+    CaseImportConflictError,
+    CaseImportError,
+    CaseImportResult,
+    PostgresCaseStore,
+    PostgresStore,
+)
 from .config import (
     CASE_STORE_MODE_ENV,
     DATABASE_URL_ENV,
@@ -18,6 +25,9 @@ __all__ = [
     "CASES_TABLE",
     "CASE_ID_COLUMN",
     "CaseConflictError",
+    "CaseImportConflictError",
+    "CaseImportError",
+    "CaseImportResult",
     "CASE_STORE_MODE_ENV",
     "DATABASE_URL_ENV",
     "DatabaseConfigurationError",

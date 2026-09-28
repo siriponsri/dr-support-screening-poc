@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import re
+import json
+import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
@@ -15,6 +17,7 @@ from psycopg.errors import CheckViolation, ForeignKeyViolation, UniqueViolation
 
 from dr_support.persistence import (
     CaseConflictError,
+    CaseImportConflictError,
     PostgresCaseStore,
     DatabaseConfigurationError,
     DatabaseUnavailableError,
@@ -351,6 +354,99 @@ def test_case_store_isolates_same_case_id_by_workspace(
     assert workspace_b.get("case_shared")["events"] == [{"workspace": "b"}]
     assert [case["image_id"] for case in workspace_a.all_cases()] == ["case_shared"]
     assert [case["image_id"] for case in workspace_b.all_cases()] == ["case_shared"]
+
+
+def test_all_cases_records_observation_for_same_revision_updates(
+    postgres_database: PostgresDatabase,
+):
+    SchemaMigrator(postgres_database).migrate()
+    writer = PostgresCaseStore(postgres_database, "ws_all_cases")
+    seed = writer.get("case_all")
+    writer.put(seed)
+
+    reconciler = PostgresCaseStore(postgres_database, "ws_all_cases")
+    cases = reconciler.all_cases()
+    cases[0]["events"].append({"action": "RECONCILED"})
+    reconciler.put(cases[0])
+
+    assert PostgresCaseStore(postgres_database, "ws_all_cases").get("case_all")["events"] == [
+        {"action": "RECONCILED"}
+    ]
+
+
+def _write_legacy_case_database(path: Path, case: dict) -> None:
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("CREATE TABLE cases (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
+        connection.execute(
+            "INSERT INTO cases (id, data) VALUES (?, ?)",
+            (case["image_id"], json.dumps(case, sort_keys=True)),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def test_case_import_is_read_only_dry_run_and_idempotent(
+    postgres_database: PostgresDatabase,
+    tmp_path: Path,
+):
+    SchemaMigrator(postgres_database).migrate()
+    source = tmp_path / "legacy-reviews.sqlite"
+    case = {
+        "image_id": "legacy-case",
+        "revision": 2,
+        "state": "REVIEWED",
+        "events": [{"action": "REVIEW", "source": "synthetic"}],
+        "review_history": [{"reviewer": "Synthetic reviewer"}],
+    }
+    _write_legacy_case_database(source, case)
+    before = source.read_bytes()
+    store = PostgresCaseStore(postgres_database, "ws_import")
+
+    dry_run = store.import_sqlite_cases(source, dry_run=True)
+    assert dry_run.discovered_cases == 1
+    assert dry_run.imported_cases == 0
+    assert dry_run.dry_run is True
+    assert source.read_bytes() == before
+    assert store.all_cases() == []
+
+    imported = store.import_sqlite_cases(source)
+    assert imported.imported_cases == 1
+    assert imported.unchanged_cases == 0
+    assert store.get("legacy-case")["revision"] == 2
+    assert store.get("legacy-case")["review_history"] == case["review_history"]
+    assert source.read_bytes() == before
+
+    repeated = store.import_sqlite_cases(source)
+    assert repeated.imported_cases == 0
+    assert repeated.unchanged_cases == 1
+
+
+def test_case_import_rejects_changed_source_without_merging(
+    postgres_database: PostgresDatabase,
+    tmp_path: Path,
+):
+    SchemaMigrator(postgres_database).migrate()
+    source = tmp_path / "legacy-reviews.sqlite"
+    _write_legacy_case_database(
+        source,
+        {"image_id": "legacy-conflict", "revision": 0, "events": [{"source": "one"}]},
+    )
+    store = PostgresCaseStore(postgres_database, "ws_import_conflict")
+    store.import_sqlite_cases(source)
+
+    source.unlink()
+    _write_legacy_case_database(
+        source,
+        {"image_id": "legacy-conflict", "revision": 1, "events": [{"source": "two"}]},
+    )
+    with pytest.raises(CaseImportConflictError):
+        store.import_sqlite_cases(source)
+
+    current = store.get("legacy-conflict")
+    assert current["revision"] == 0
+    assert current["events"] == [{"source": "one"}]
 
 
 def test_case_store_preserves_audit_and_provenance_payloads(
