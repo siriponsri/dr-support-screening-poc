@@ -14,7 +14,7 @@ Copy `.env.example` into a private environment file or configure variables throu
 | `DR_SUPPORT_STATE` | review | local runtime default when empty | no |
 | `DR_SUPPORT_WORKSPACE_CATALOG` | review | local workspace catalog default when empty | no |
 | `DR_SUPPORT_CASE_STORE` | review | `sqlite` or explicit `postgres` | no |
-| `DR_SUPPORT_WORKSPACE_ID` | PostgreSQL case store | required stable workspace identifier | no |
+| `DR_SUPPORT_WORKSPACE_ID` | PostgreSQL case store | optional bootstrap workspace identifier | no |
 | `DR_SUPPORT_DATABASE_URL` | PostgreSQL foundation | `postgresql://dr_support_app:change-me@127.0.0.1:5432/dr_support` | **yes** |
 | `DR_SUPPORT_DATABASE_SCHEMA` | PostgreSQL foundation | `dr_support` | no |
 | `DR_SUPPORT_DATABASE_CONNECT_TIMEOUT` | PostgreSQL foundation | `5` seconds | no |
