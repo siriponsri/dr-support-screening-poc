@@ -336,6 +336,31 @@ def test_independent_postgres_connections_reject_stale_case_update(
     assert current["events"] == [{"action": "FIRST_COMMIT"}]
 
 
+def test_revision_change_rejects_payload_changed_after_observation(
+    postgres_database: PostgresDatabase,
+):
+    SchemaMigrator(postgres_database).migrate()
+    first = PostgresCaseStore(postgres_database, "ws_payload_conflict")
+    second = PostgresCaseStore(postgres_database, "ws_payload_conflict")
+    first.put(first.get("case_payload_conflict"))
+    first_view = first.get("case_payload_conflict")
+    stale_view = second.get("case_payload_conflict")
+
+    first_view["events"].append({"action": "AUTOMATIC_ENRICHMENT"})
+    first.put(first_view)
+    stale_view["revision"] += 1
+    stale_view["events"].append({"action": "STALE_REVIEW"})
+
+    with pytest.raises(CaseConflictError, match="Case changed; reload"):
+        second.put(stale_view)
+
+    current = PostgresCaseStore(postgres_database, "ws_payload_conflict").get(
+        "case_payload_conflict"
+    )
+    assert current["revision"] == 0
+    assert current["events"] == [{"action": "AUTOMATIC_ENRICHMENT"}]
+
+
 def test_case_store_isolates_same_case_id_by_workspace(
     postgres_database: PostgresDatabase,
 ):

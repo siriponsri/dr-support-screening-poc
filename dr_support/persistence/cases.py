@@ -162,6 +162,8 @@ class PostgresCaseStore:
 
         if not dry_run and plan:
             with self.database.transaction() as connection:
+                if _sha256_file(path) != source_sha256:
+                    raise CaseImportError("Legacy case source changed during import")
                 connection.execute(
                     sql.SQL(
                         "INSERT INTO {}.workspaces (workspace_id) VALUES (%s) "
@@ -183,8 +185,8 @@ class PostgresCaseStore:
                             Jsonb(json.loads(_serialized_payload(case))),
                         ),
                     )
-        if _sha256_file(path) != source_sha256:
-            raise CaseImportError("Legacy case source changed during import")
+                if _sha256_file(path) != source_sha256:
+                    raise CaseImportError("Legacy case source changed during import")
         return CaseImportResult(
             source_sha256=source_sha256,
             discovered_cases=len(source_cases),
@@ -242,6 +244,8 @@ class PostgresCaseStore:
                         if updated != 1:
                             raise CaseConflictError("Case changed; reload")
                 else:
+                    if observed is None:
+                        raise CaseConflictError("Case changed; reload")
                     connection.execute(
                         sql.SQL(
                             "INSERT INTO {}.review_cases "
@@ -254,10 +258,17 @@ class PostgresCaseStore:
                     updated = connection.execute(
                         sql.SQL(
                             "UPDATE {}.review_cases SET revision = %s, payload = %s, "
-                            "updated_at = CURRENT_TIMESTAMP "
-                            "WHERE workspace_id = %s AND case_id = %s AND revision = %s"
+                            "updated_at = CURRENT_TIMESTAMP WHERE workspace_id = %s "
+                            "AND case_id = %s AND revision = %s AND payload = %s"
                         ).format(self._schema),
-                        (revision, payload, self.workspace_id, image_id, revision - 1),
+                        (
+                            revision,
+                            payload,
+                            self.workspace_id,
+                            image_id,
+                            revision - 1,
+                            Jsonb(json.loads(observed)),
+                        ),
                     ).rowcount
                     if updated != 1:
                         raise CaseConflictError("Case changed; reload")
