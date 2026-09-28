@@ -119,7 +119,12 @@ def _device_strict_for_profile(resolved_profile: str) -> bool:
     return True
 
 
-def create_app(profile: str | None = None) -> FastAPI:
+def create_app(
+    profile: str | None = None,
+    *,
+    case_store_mode: str | None = None,
+    workspace_id: str | None = None,
+) -> FastAPI:
     """Build the FastAPI app for the configured profile.
 
     Parameters
@@ -133,7 +138,12 @@ def create_app(profile: str | None = None) -> FastAPI:
     _enforce_invariants(resolved_profile, runtime)
 
     if resolved_profile == 'review':
-        app = create_review_app(include_samples=False, include_demo_fixtures=False)
+        app = create_review_app(
+            include_samples=False,
+            include_demo_fixtures=False,
+            case_store_mode=case_store_mode,
+            workspace_id=workspace_id,
+        )
         app.state.profile = resolved_profile
         app.state.runtime = runtime
         return app
@@ -143,7 +153,12 @@ def create_app(profile: str | None = None) -> FastAPI:
         app.state.runtime = runtime
         return app
     # full
-    review = create_review_app(include_samples=True, include_demo_fixtures=True)
+    review = create_review_app(
+        include_samples=True,
+        include_demo_fixtures=True,
+        case_store_mode=case_store_mode,
+        workspace_id=workspace_id,
+    )
     model_api = create_model_api_app(device_strict=_device_strict_for_profile('full'))
     return _merge_apps(review, model_api, resolved_profile)
 

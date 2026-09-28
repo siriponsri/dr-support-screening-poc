@@ -55,14 +55,66 @@ from ..services.model_gateway import (
     probe_model_connection,
     response_payload,
 )
+from ..persistence import (
+    CASE_STORE_MODE_ENV,
+    DEFAULT_CASE_STORE_MODE,
+    WORKSPACE_ID_ENV,
+    CaseConflictError,
+    PostgresCaseStore,
+    PostgresDatabase,
+    PostgresSettings,
+    SchemaMigrator,
+)
 from ..workflow import install_workflow
 from .workspaces import install_workspace_routes
 from .dataset import install_dataset_routes
 
 
-def create_app(state_path=None, include_samples=True, include_demo_fixtures=True):
+def _resolve_case_store_mode(case_store_mode: str | None) -> str:
+    mode = (case_store_mode or os.environ.get(CASE_STORE_MODE_ENV) or DEFAULT_CASE_STORE_MODE)
+    mode = mode.strip().lower()
+    if mode not in {"sqlite", "postgres"}:
+        raise ValueError(
+            f"Unknown {CASE_STORE_MODE_ENV}={mode!r}; expected 'sqlite' or 'postgres'"
+        )
+    return mode
+
+
+def _build_case_store(case_store_mode: str, state_path, workspace_id: str | None):
+    if case_store_mode == "sqlite":
+        return None, None, None
+    if state_path is not None:
+        raise ValueError("state_path cannot be used with PostgreSQL case storage")
+    selected_workspace_id = (
+        workspace_id or os.environ.get(WORKSPACE_ID_ENV) or ""
+    ).strip()
+    if not selected_workspace_id:
+        raise ValueError(
+            f"{WORKSPACE_ID_ENV} is required when {CASE_STORE_MODE_ENV}=postgres"
+        )
+    settings = PostgresSettings.from_env()
+    database = PostgresDatabase(settings)
+    SchemaMigrator(database).migrate()
+    store = PostgresCaseStore(database, selected_workspace_id)
+    store.ensure_workspace()
+    return store, selected_workspace_id, settings
+
+
+def create_app(
+    state_path=None,
+    include_samples=True,
+    include_demo_fixtures=True,
+    *,
+    case_store_mode: str | None = None,
+    workspace_id: str | None = None,
+):
     app = FastAPI(title='Retinal Review Workbench', version='0.7.0')
     root = Path(__file__).resolve().parents[2]
+
+    resolved_case_store_mode = _resolve_case_store_mode(case_store_mode)
+    selected_store, selected_workspace_id, postgres_settings = _build_case_store(
+        resolved_case_store_mode, state_path, workspace_id
+    )
 
     demo_folder = (os.environ.get('DR_DEMO_FOLDER') or '').strip()
     if demo_folder and include_demo_fixtures:
@@ -81,11 +133,25 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
     app.state.workspace_admission_ids = set()
     app.state.resolver = ResolverService()
     app.state.derivatives = DerivativeService()
-    workspace_manager = WorkspaceManager(root, state_path=state_path)
+    if selected_store is None:
+        workspace_manager = WorkspaceManager(root, state_path=state_path)
+    else:
+        workspace_manager = WorkspaceManager(
+            root,
+            store=selected_store,
+            database_status="postgres",
+            database_path=postgres_settings.safe_target,
+        )
     install_workflow(app, workspace_manager.store)
     workspace_manager.attach(app)
+    app.state.case_store_mode = resolved_case_store_mode
+    app.state.workspace_id = selected_workspace_id
     install_workspace_routes(app, workspace_manager)
     install_dataset_routes(app)
+
+    @app.exception_handler(CaseConflictError)
+    async def case_conflict(_request, _exc):
+        return JSONResponse({"detail": "Case changed; reload"}, status_code=409)
 
     def previous_source_records():
         """Index persisted workspace references without changing case identity."""

@@ -33,7 +33,14 @@ from ._factory import create_app as _create_review_app
 __all__ = ['create_app', 'app']
 
 
-def create_app(state_path=None, include_samples=True, include_demo_fixtures=True):
+def create_app(
+    state_path=None,
+    include_samples=True,
+    include_demo_fixtures=True,
+    *,
+    case_store_mode=None,
+    workspace_id=None,
+):
     """Legacy review-API factory used by tests and the JS UI smoke.
 
     Delegates to ``dr_support.api._factory.create_app`` and preserves the
@@ -47,6 +54,8 @@ def create_app(state_path=None, include_samples=True, include_demo_fixtures=True
         state_path=state_path,
         include_samples=include_samples,
         include_demo_fixtures=include_demo_fixtures,
+        case_store_mode=case_store_mode,
+        workspace_id=workspace_id,
     )
 
 

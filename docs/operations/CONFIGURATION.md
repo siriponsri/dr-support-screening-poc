@@ -13,6 +13,8 @@ Copy `.env.example` into a private environment file or configure variables throu
 | `REMOTE_MODEL_TOKEN` | review | empty; optional bearer token | yes |
 | `DR_SUPPORT_STATE` | review | local runtime default when empty | no |
 | `DR_SUPPORT_WORKSPACE_CATALOG` | review | local workspace catalog default when empty | no |
+| `DR_SUPPORT_CASE_STORE` | review | `sqlite` or explicit `postgres` | no |
+| `DR_SUPPORT_WORKSPACE_ID` | PostgreSQL case store | required stable workspace identifier | no |
 | `DR_SUPPORT_DATABASE_URL` | PostgreSQL foundation | `postgresql://dr_support_app:change-me@127.0.0.1:5432/dr_support` | **yes** |
 | `DR_SUPPORT_DATABASE_SCHEMA` | PostgreSQL foundation | `dr_support` | no |
 | `DR_SUPPORT_DATABASE_CONNECT_TIMEOUT` | PostgreSQL foundation | `5` seconds | no |
@@ -49,6 +51,6 @@ The application rejects incompatible profile/runtime combinations. The review pr
 
 `DR_SUPPORT_DATABASE_URL` is a server-side PostgreSQL connection URL. Store the real value in a private `.env`, service environment, or approved secret manager. Do not expose it through React, browser storage, API responses, or logs. The committed `.env.example` value is a placeholder only.
 
-The Phase P1-F foundation does not yet switch the existing case store or Workspace Manager to PostgreSQL; those changes belong to P1-A and P1-B. Code that explicitly selects PostgreSQL calls `PostgresSettings.from_env()` and fails when `DR_SUPPORT_DATABASE_URL` is missing, invalid, or unavailable. It never chooses SQLite as an implicit fallback.
+The legacy SQLite case store remains the default for fixtures and local compatibility tests. Set `DR_SUPPORT_CASE_STORE=postgres` and provide `DR_SUPPORT_WORKSPACE_ID` to select the explicit PostgreSQL case store. PostgreSQL mode runs the schema migrations, requires `DR_SUPPORT_DATABASE_URL`, and fails when the target is missing, invalid, or unavailable; it never chooses SQLite as an implicit fallback. Workspace/catalog persistence and workspace switching remain a later P1-B change.
 
 PostgreSQL integration tests are opt-in and require both `DR_SUPPORT_TEST_DATABASE_URL` and `DR_SUPPORT_TEST_DATABASE_NAME`. The configured URL's database name must exactly match the explicit name, which must contain a distinct `test` token such as `dr_support_test`. Tests create and remove only uniquely named `dr_support_test_*` schemas; they never drop, truncate, or recreate the configured database.

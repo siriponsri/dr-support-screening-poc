@@ -18,33 +18,8 @@ class Store:
         with self.lock:
             row = self.db.execute('SELECT data FROM cases WHERE id=?', (image_id,)).fetchone()
             if row:
-                case = json.loads(row[0])
-                # S2A1 is an additive JSON migration so old S2 databases remain
-                # readable without a destructive table rewrite.
-                case.setdefault('admission', None)
-                case.setdefault('admission_history', [])
-                case.setdefault('analysis_derivative', None)
-                case.setdefault('analysis_preparation', None)
-                case.setdefault('superseded_model_results', [])
-                case.setdefault('ai_annotation_reviews', [])
-                case.setdefault('annotation_confirmation', None)
-                case.setdefault('queue_state', 'INCLUDED')
-                case.setdefault('queue_history', [])
-                _set_resolver_defaults(case)
-                return case
-            case = {'image_id': image_id, 'revision': 0, 'state': 'PENDING',
-                    'events': [], 'global': None, 'lesion': None, 'cvat': None,
-                    'reviewed_grade': None, 'grade_review_source': None,
-                    'lesion_review_state': None, 'annotations': None,
-                    'human_annotations': [], 'clinician_review': None,
-                    'review_history': [], 'admission': None, 'admission_history': [],
-                    'analysis_derivative': None,
-                    'analysis_preparation': None, 'superseded_model_results': [],
-                    'ai_annotation_reviews': [],
-                    'annotation_confirmation': None,
-                    'queue_state': 'INCLUDED', 'queue_history': []}
-            _set_resolver_defaults(case)
-            return case
+                return apply_case_defaults(json.loads(row[0]))
+            return new_case(image_id)
 
     def all_cases(self):
         """Return durable cases for non-destructive source reconciliation."""
@@ -52,18 +27,7 @@ class Store:
             rows = self.db.execute('SELECT data FROM cases ORDER BY id').fetchall()
             cases = []
             for (data,) in rows:
-                case = json.loads(data)
-                case.setdefault('admission', None)
-                case.setdefault('admission_history', [])
-                case.setdefault('analysis_derivative', None)
-                case.setdefault('analysis_preparation', None)
-                case.setdefault('superseded_model_results', [])
-                case.setdefault('ai_annotation_reviews', [])
-                case.setdefault('annotation_confirmation', None)
-                case.setdefault('queue_state', 'INCLUDED')
-                case.setdefault('queue_history', [])
-                _set_resolver_defaults(case)
-                cases.append(case)
+                cases.append(apply_case_defaults(json.loads(data)))
             return cases
 
     def put(self, case):
@@ -71,6 +35,40 @@ class Store:
             self.db.execute('INSERT OR REPLACE INTO cases VALUES (?, ?)',
                             (case['image_id'], json.dumps(case, allow_nan=False)))
             self.db.commit()
+
+
+def new_case(image_id):
+    """Create the current additive-compatible case document shape."""
+    case = {'image_id': image_id, 'revision': 0, 'state': 'PENDING',
+            'events': [], 'global': None, 'lesion': None, 'cvat': None,
+            'reviewed_grade': None, 'grade_review_source': None,
+            'lesion_review_state': None, 'annotations': None,
+            'human_annotations': [], 'clinician_review': None,
+            'review_history': [], 'admission': None, 'admission_history': [],
+            'analysis_derivative': None,
+            'analysis_preparation': None, 'superseded_model_results': [],
+            'ai_annotation_reviews': [],
+            'annotation_confirmation': None,
+            'queue_state': 'INCLUDED', 'queue_history': []}
+    return apply_case_defaults(case)
+
+
+def apply_case_defaults(case):
+    """Apply additive defaults without rewriting existing case values."""
+    # S2A1 is an additive JSON migration so old S2 databases remain readable
+    # without a destructive table rewrite.
+    case.setdefault('revision', 0)
+    case.setdefault('admission', None)
+    case.setdefault('admission_history', [])
+    case.setdefault('analysis_derivative', None)
+    case.setdefault('analysis_preparation', None)
+    case.setdefault('superseded_model_results', [])
+    case.setdefault('ai_annotation_reviews', [])
+    case.setdefault('annotation_confirmation', None)
+    case.setdefault('queue_state', 'INCLUDED')
+    case.setdefault('queue_history', [])
+    _set_resolver_defaults(case)
+    return case
 
 
 def _set_resolver_defaults(case):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+from pathlib import Path
 from uuid import uuid4
 
 import psycopg
@@ -13,6 +14,8 @@ from psycopg.conninfo import conninfo_to_dict
 from psycopg.errors import CheckViolation, ForeignKeyViolation, UniqueViolation
 
 from dr_support.persistence import (
+    CaseConflictError,
+    PostgresCaseStore,
     DatabaseConfigurationError,
     DatabaseUnavailableError,
     LATEST_SCHEMA_VERSION,
@@ -20,6 +23,8 @@ from dr_support.persistence import (
     PostgresSettings,
     SchemaMigrator,
 )
+from dr_support.persistence.config import CASE_STORE_MODE_ENV, DATABASE_SCHEMA_ENV, DATABASE_URL_ENV
+from dr_support.api import create_app
 from dr_support.persistence.migrations import MIGRATIONS
 
 
@@ -253,3 +258,163 @@ def test_workspace_case_keys_and_revisions_are_enforced(
         ("ws_a", "case_shared", 0),
         ("ws_b", "case_shared", 0),
     ]
+
+
+def test_case_insert_read_update_survives_new_store_instance(
+    postgres_database: PostgresDatabase,
+):
+    SchemaMigrator(postgres_database).migrate()
+    first = PostgresCaseStore(postgres_database, "ws_restart")
+    case = first.get("case_restart")
+    case["events"].append({"action": "INITIALIZED", "source": "synthetic"})
+    first.put(case)
+
+    second = PostgresCaseStore(postgres_database, "ws_restart")
+    restored = second.get("case_restart")
+    assert restored["image_id"] == "case_restart"
+    assert restored["revision"] == 0
+    assert restored["events"] == [{"action": "INITIALIZED", "source": "synthetic"}]
+
+    restored["revision"] += 1
+    restored["review_history"].append({"reviewer": "Synthetic reviewer", "grade": 2})
+    second.put(restored)
+
+    third = PostgresCaseStore(postgres_database, "ws_restart")
+    updated = third.get("case_restart")
+    assert updated["revision"] == 1
+    assert updated["review_history"] == [{"reviewer": "Synthetic reviewer", "grade": 2}]
+
+
+def test_case_update_transaction_rolls_back(postgres_database: PostgresDatabase):
+    SchemaMigrator(postgres_database).migrate()
+    store = PostgresCaseStore(postgres_database, "ws_case_rollback")
+    case = store.get("case_rollback")
+    case["events"].append({"action": "COMMITTED"})
+    store.put(case)
+    schema = sql.Identifier(postgres_database.settings.schema)
+
+    with pytest.raises(RuntimeError, match="planned case rollback"):
+        with postgres_database.transaction() as connection:
+            connection.execute(
+                sql.SQL(
+                    "UPDATE {}.review_cases SET payload = jsonb_set(payload, "
+                        "'{{state}}', '\"PARTIAL\"'::jsonb) "
+                    "WHERE workspace_id = %s AND case_id = %s"
+                ).format(schema),
+                ("ws_case_rollback", "case_rollback"),
+            )
+            raise RuntimeError("planned case rollback")
+
+    assert store.get("case_rollback")["state"] == "PENDING"
+
+
+def test_independent_postgres_connections_reject_stale_case_update(
+    postgres_database: PostgresDatabase,
+):
+    SchemaMigrator(postgres_database).migrate()
+    first = PostgresCaseStore(postgres_database, "ws_conflict")
+    second = PostgresCaseStore(postgres_database, "ws_conflict")
+    seed = first.get("case_conflict")
+    first.put(seed)
+    first_view = first.get("case_conflict")
+    second_view = second.get("case_conflict")
+
+    first_view["revision"] += 1
+    first_view["events"].append({"action": "FIRST_COMMIT"})
+    first.put(first_view)
+
+    second_view["revision"] += 1
+    second_view["events"].append({"action": "STALE_COMMIT"})
+    with pytest.raises(CaseConflictError, match="Case changed; reload"):
+        second.put(second_view)
+
+    current = PostgresCaseStore(postgres_database, "ws_conflict").get("case_conflict")
+    assert current["revision"] == 1
+    assert current["events"] == [{"action": "FIRST_COMMIT"}]
+
+
+def test_case_store_isolates_same_case_id_by_workspace(
+    postgres_database: PostgresDatabase,
+):
+    SchemaMigrator(postgres_database).migrate()
+    workspace_a = PostgresCaseStore(postgres_database, "ws_case_a")
+    workspace_b = PostgresCaseStore(postgres_database, "ws_case_b")
+
+    case_a = workspace_a.get("case_shared")
+    case_a["events"].append({"workspace": "a"})
+    workspace_a.put(case_a)
+    case_b = workspace_b.get("case_shared")
+    case_b["events"].append({"workspace": "b"})
+    workspace_b.put(case_b)
+
+    assert workspace_a.get("case_shared")["events"] == [{"workspace": "a"}]
+    assert workspace_b.get("case_shared")["events"] == [{"workspace": "b"}]
+    assert [case["image_id"] for case in workspace_a.all_cases()] == ["case_shared"]
+    assert [case["image_id"] for case in workspace_b.all_cases()] == ["case_shared"]
+
+
+def test_case_store_preserves_audit_and_provenance_payloads(
+    postgres_database: PostgresDatabase,
+):
+    SchemaMigrator(postgres_database).migrate()
+    store = PostgresCaseStore(postgres_database, "ws_provenance")
+    case = store.get("case_provenance")
+    case.update(
+        {
+            "admission": {
+                "source_sha256": "a" * 64,
+                "source_reference": "WORKSPACE_INPUT/synthetic.png",
+                "retinal_modality": "CFP",
+            },
+            "global": {
+                "grade": 3,
+                "model_id": "retfound-aptos5",
+                "provenance": {"source_sha256": "a" * 64, "runtime": "remote"},
+            },
+            "lesion": {
+                "model_id": "prism-dr-5fold",
+                "lesions": [],
+                "provenance": {"analysis_sha256": "b" * 64, "transform_id": "identity"},
+            },
+            "review_history": [
+                {"action": "CORRECT_GRADE", "reviewer": "Synthetic reviewer", "identity_assurance": "LOCAL_POC_SELF_DECLARED"}
+            ],
+            "ai_annotation_reviews": [
+                {"detection_id": "ai-0123456789abcdef0123", "action": "REJECT", "original_score": 0.71}
+            ],
+            "resolver_evidence": {
+                "method": "FILENAME",
+                "source": "synthetic.png",
+                "candidate": "patient-001",
+            },
+            "events": [
+                {"action": "INFERENCE", "model_id": "retfound-aptos5", "timestamp": "2026-09-28T00:00:00+00:00"},
+                {"action": "REVIEW", "reviewer": "Synthetic reviewer", "timestamp": "2026-09-28T00:01:00+00:00"},
+            ],
+        }
+    )
+    store.put(case)
+
+    restored = PostgresCaseStore(postgres_database, "ws_provenance").get("case_provenance")
+    for field in ("admission", "global", "lesion", "review_history", "ai_annotation_reviews", "resolver_evidence", "events"):
+        assert restored[field] == case[field]
+
+
+def test_application_selects_postgres_case_mode_without_sqlite_fallback(
+    monkeypatch,
+    tmp_path: Path,
+    postgres_database: PostgresDatabase,
+):
+    monkeypatch.setenv(DATABASE_URL_ENV, postgres_database.settings.dsn)
+    monkeypatch.setenv(DATABASE_SCHEMA_ENV, postgres_database.settings.schema)
+    monkeypatch.setenv(CASE_STORE_MODE_ENV, "postgres")
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_ID", "ws_application")
+
+    app = create_app(include_samples=False, include_demo_fixtures=False)
+
+    assert app.state.case_store_mode == "postgres"
+    assert isinstance(app.state.store, PostgresCaseStore)
+    assert app.state.workspace_id == "ws_application"
+    assert app.state.workspace_manager.database_status == "postgres"
+    assert postgres_database.settings.dsn not in app.state.workspace_manager.active_payload()["database"]["path"]
+    assert not (tmp_path / "reviews.sqlite").exists()

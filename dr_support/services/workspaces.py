@@ -206,6 +206,9 @@ class WorkspaceManager:
         root: str | Path,
         *,
         state_path: str | Path | None = None,
+        store=None,
+        database_status: str | None = None,
+        database_path: str | None = None,
         picker: NativePicker | None = None,
     ):
         self.root = Path(root)
@@ -225,11 +228,22 @@ class WorkspaceManager:
         self.active_workspace: WorkspaceProfile | None = None
         self.database_status = "fallback"
         self.database_path = str(state_path or self.fallback_path)
+        self._external_store = store is not None
 
         try:
             self.catalog = WorkspaceCatalog(self.catalog_path)
         except WorkspaceCatalogError as exc:
             self._warn(str(exc))
+
+        if store is not None:
+            if state_path is not None:
+                raise WorkspaceDatabaseError(
+                    "state_path cannot be combined with an explicitly selected case store"
+                )
+            self.store = store
+            self.database_status = database_status or "external"
+            self.database_path = database_path or "configured"
+            return
 
         if state_path is not None:
             self.store = Store(state_path)
@@ -307,6 +321,7 @@ class WorkspaceManager:
         app.state.workspace_manager = self
         app.state.workspace_picker = self.picker
         app.state.store = self.store
+        app.state.workspace_id = getattr(self.store, "workspace_id", None)
 
     def _require_catalog(self) -> WorkspaceCatalog:
         if self.catalog is None:
@@ -314,6 +329,10 @@ class WorkspaceManager:
         return self.catalog
 
     def _swap_store(self, store: Store, profile: WorkspaceProfile) -> None:
+        if self._external_store:
+            raise WorkspaceDatabaseError(
+                "Workspace switching is not available for the selected external case store"
+            )
         self.store = store
         self.active_workspace = profile
         self.database_status = "ready"
@@ -332,6 +351,10 @@ class WorkspaceManager:
 
     def create_and_open(self, request: WorkspaceInput) -> WorkspaceProfile:
         with self.lock:
+            if self._external_store:
+                raise WorkspaceDatabaseError(
+                    "PostgreSQL workspace management is not enabled in this case-store mode"
+                )
             store = self._open_workspace_database(request.database_path)
             now = utc_now()
             profile = WorkspaceProfile(
@@ -351,6 +374,10 @@ class WorkspaceManager:
 
     def update_and_open(self, workspace_id: str, request: WorkspaceInput) -> WorkspaceProfile:
         with self.lock:
+            if self._external_store:
+                raise WorkspaceDatabaseError(
+                    "PostgreSQL workspace management is not enabled in this case-store mode"
+                )
             current = self.get_profile(workspace_id)
             store = self._open_workspace_database(request.database_path)
             now = utc_now()
@@ -371,6 +398,10 @@ class WorkspaceManager:
 
     def open(self, workspace_id: str) -> WorkspaceProfile:
         with self.lock:
+            if self._external_store:
+                raise WorkspaceDatabaseError(
+                    "PostgreSQL workspace management is not enabled in this case-store mode"
+                )
             current = self.get_profile(workspace_id)
             store = self._open_workspace_database(current.database_path)
             opened = self._require_catalog().activate(workspace_id, utc_now())
