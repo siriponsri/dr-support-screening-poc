@@ -14,7 +14,7 @@
 | `dr_support/contracts/` | Pydantic contracts: admission, resolver, workspace, model gateway, inference results. |
 | `dr_support/presentation.py` | Bounded lesion-review view, detection IDs, review evidence, annotation-set hash. |
 | `dr_support/store.py` | SQLite case store with additive JSON migration defaults. |
-| `dr_support/persistence/` | M1 PostgreSQL settings, connection/transaction boundary, schema conventions, and deterministic forward migrations. It is not wired into the legacy stores until P1-A/P1-B. |
+| `dr_support/persistence/` | M1 PostgreSQL settings, connection/transaction boundary, deterministic forward migrations, case persistence, and managed workspace/catalog persistence. |
 | `dr_support/cvat.py`, `sync.py` | Optional CVAT Online transport and round-trip sync. |
 | `dr_support/setup_models.py`, `model_assets.py` | One-time asset acquisition (`--model all`) and read-only verification (`--verify`). |
 | `frontend/src/` | React UI: `pages/`, `components/{shell,worklist,review,workspace,settings,common}`, `lib/` (API client, preferences, navigation), `theme/`. |
@@ -62,6 +62,6 @@ The shared P1-F tables deliberately define only cross-stage persistence contract
 - The case payload remains `JSONB` so P1-A can preserve current review/provenance semantics without prematurely normalizing unresolved clinical taxonomy.
 - The workspace foreign key uses `ON DELETE RESTRICT`; profile removal or later catalog behavior must not cascade-delete authoritative review data.
 
-P1-F provides this schema and connection boundary only. P1-A owns the review/case repository migration, and P1-B owns Workspace Manager/catalog migration.
+P1-A preserves review/case documents in workspace-scoped PostgreSQL JSONB rows. P1-B adds the managed PostgreSQL workspace/catalog path; legacy SQLite mode remains available for compatibility tests and local fallback operation. Workspace profile archival does not cascade into review cases or source/output files.
 
 Frontend build facts (`frontend/vite.config.ts`): `base: '/app/'`, output `frontend/dist` (gitignored), `sourcemap: true`, `target: es2020`, and alias `@` → `src`. In development, the Vite server on 5173 proxies `/v1`, `/ui`, and `/health` to `127.0.0.1:8000` with `changeOrigin: false`, which keeps the same-origin guard meaningful.

@@ -5,4 +5,5 @@ CASES_TABLE = "review_cases"
 WORKSPACE_ID_COLUMN = "workspace_id"
 CASE_ID_COLUMN = "case_id"
 REVISION_COLUMN = "revision"
+ARCHIVED_AT_COLUMN = "archived_at"
 INITIAL_REVISION = 0

@@ -37,7 +37,7 @@ Set-Location dr-support-screening-poc
 .\START.cmd
 ```
 
-The browser opens at **http://127.0.0.1:8000/app/**. In **Settings**, create a **New workspace** with a name, local input folder, output folder, and SQLite database path. Select that workspace before reviewing images. Keep the review database and output folder in approved local storage; source images are not moved by workspace setup.
+The browser opens at **http://127.0.0.1:8000/app/**. In **Settings**, create a **New workspace** with a name and local input/output folders. In the default legacy SQLite mode, the manager also asks for a review database path; in managed PostgreSQL mode, review data is stored server-side and no local database path is required. Select that workspace before reviewing images. Source images are not moved by workspace setup.
 
 On later days, use `.\OPEN_APP.cmd` to reopen or start the app. When finished, run `.\STOP.cmd` to stop the process managed by this checkout. The launcher keeps the workstation on `127.0.0.1:8000` and stores logs under ignored `local-state/`. [Configuration](docs/operations/CONFIGURATION.md) covers private settings and deployment choices.
 

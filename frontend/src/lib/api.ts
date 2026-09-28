@@ -351,7 +351,7 @@ export interface WorkspaceProfile {
   name: string;
   input_folder: string;
   output_folder: string;
-  database_path: string;
+  database_path: string | null;
   note?: string | null;
   created_at: string;
   updated_at: string;
@@ -370,12 +370,12 @@ export interface WorkspaceListResponse {
   warnings: string[];
 }
 
-export type WorkspaceDatabaseStatus = 'ready' | 'fallback' | 'unavailable';
+export type WorkspaceDatabaseStatus = 'ready' | 'postgres' | 'fallback' | 'unavailable';
 
 export interface ActiveWorkspaceResponse {
   workspace: WorkspaceProfile | null;
   database: {
-    path: string;
+    path: string | null;
     status: WorkspaceDatabaseStatus;
   };
   warnings: string[];
@@ -384,6 +384,7 @@ export interface ActiveWorkspaceResponse {
 export interface WorkspaceMutationResponse {
   workspace: WorkspaceProfile;
   active: boolean;
+  database?: ActiveWorkspaceResponse['database'];
   warnings: string[];
 }
 

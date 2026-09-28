@@ -28,16 +28,18 @@ dependencies. It sets `APP_PROFILE=review` and `MODEL_RUNTIME=remote`, then runs
 `python -m dr_support.run` on `127.0.0.1:8000`. `OPEN_APP.cmd` opens the app or
 delegates to `START.cmd`; `STOP.cmd` stops only the recorded repository process.
 
-At startup, `WorkspaceManager` opens the catalog
-(`DR_SUPPORT_WORKSPACE_CATALOG`, default `local-state/bridge/workspaces.sqlite`).
-In the default compatibility mode it then opens the active Workspace's review
-DB, or the fallback DB (`DR_SUPPORT_STATE`, default
-`local-state/bridge/reviews.sqlite`). P1-A PostgreSQL case mode is explicit:
-set `DR_SUPPORT_CASE_STORE=postgres`, `DR_SUPPORT_WORKSPACE_ID`, and the
-server-side `DR_SUPPORT_DATABASE_URL`; case records then use the migrated
-workspace-scoped PostgreSQL store and never fall back to SQLite. Workspace
-catalog persistence and switching remain the later P1-B boundary. The active
-input folder is scanned once when a local workspace is available.
+At startup, `WorkspaceManager` uses the legacy SQLite catalog
+(`DR_SUPPORT_WORKSPACE_CATALOG`, default `local-state/bridge/workspaces.sqlite`)
+in compatibility mode, then opens the active Workspace's review DB or the
+fallback DB (`DR_SUPPORT_STATE`, default `local-state/bridge/reviews.sqlite`).
+With `DR_SUPPORT_CASE_STORE=postgres` and the server-side
+`DR_SUPPORT_DATABASE_URL`, both catalog profiles and review cases use the
+workspace-scoped PostgreSQL store. The manager restores the most recently
+opened profile, switches the active `PostgresCaseStore` dynamically, and never
+falls back to SQLite when PostgreSQL is unavailable. Managed workspace profiles
+do not require a local database path; any retained legacy path is provenance
+only. The active input folder is scanned once when a local workspace is
+available.
 
 `REMOTE_MODEL_URL` and the optional `REMOTE_MODEL_TOKEN` come from the process environment. The connection can also be tested and saved at runtime through **Settings → Model connection** (`/v1/model-connection*`). The token is held in process memory only and is never returned by the API.
 

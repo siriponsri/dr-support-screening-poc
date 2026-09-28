@@ -63,6 +63,7 @@ from ..persistence import (
     PostgresCaseStore,
     PostgresDatabase,
     PostgresSettings,
+    PostgresWorkspaceCatalog,
     SchemaMigrator,
 )
 from ..workflow import install_workflow
@@ -82,22 +83,19 @@ def _resolve_case_store_mode(case_store_mode: str | None) -> str:
 
 def _build_case_store(case_store_mode: str, state_path, workspace_id: str | None):
     if case_store_mode == "sqlite":
-        return None, None, None
+        return None, None, None, None
     if state_path is not None:
         raise ValueError("state_path cannot be used with PostgreSQL case storage")
-    selected_workspace_id = (
-        workspace_id or os.environ.get(WORKSPACE_ID_ENV) or ""
-    ).strip()
-    if not selected_workspace_id:
-        raise ValueError(
-            f"{WORKSPACE_ID_ENV} is required when {CASE_STORE_MODE_ENV}=postgres"
-        )
+    selected_workspace_id = (workspace_id or os.environ.get(WORKSPACE_ID_ENV) or "").strip()
     settings = PostgresSettings.from_env()
     database = PostgresDatabase(settings)
     SchemaMigrator(database).migrate()
+    if not selected_workspace_id:
+        profile = PostgresWorkspaceCatalog(database).latest_opened()
+        selected_workspace_id = profile.id if profile is not None else "ws_bootstrap"
     store = PostgresCaseStore(database, selected_workspace_id)
     store.ensure_workspace()
-    return store, selected_workspace_id, settings
+    return store, selected_workspace_id, settings, database
 
 
 def create_app(
@@ -112,7 +110,7 @@ def create_app(
     root = Path(__file__).resolve().parents[2]
 
     resolved_case_store_mode = _resolve_case_store_mode(case_store_mode)
-    selected_store, selected_workspace_id, postgres_settings = _build_case_store(
+    selected_store, selected_workspace_id, _postgres_settings, postgres_database = _build_case_store(
         resolved_case_store_mode, state_path, workspace_id
     )
 
@@ -140,7 +138,8 @@ def create_app(
             root,
             store=selected_store,
             database_status="postgres",
-            database_path=postgres_settings.safe_target,
+            database_path="Managed PostgreSQL storage",
+            postgres_database=postgres_database,
         )
     install_workflow(app, workspace_manager.store)
     workspace_manager.attach(app)

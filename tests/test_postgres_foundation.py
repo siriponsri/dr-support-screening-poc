@@ -14,6 +14,7 @@ import pytest
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict
 from psycopg.errors import CheckViolation, ForeignKeyViolation, UniqueViolation
+from fastapi.testclient import TestClient
 
 from dr_support.persistence import (
     CaseConflictError,
@@ -24,6 +25,7 @@ from dr_support.persistence import (
     LATEST_SCHEMA_VERSION,
     PostgresDatabase,
     PostgresSettings,
+    PostgresWorkspaceCatalog,
     SchemaMigrator,
 )
 from dr_support.persistence.config import CASE_STORE_MODE_ENV, DATABASE_SCHEMA_ENV, DATABASE_URL_ENV
@@ -174,6 +176,27 @@ def test_clean_schema_upgrade_is_repeatable(postgres_database: PostgresDatabase)
     assert rows == [
         (migration.version, migration.name, migration.checksum) for migration in MIGRATIONS
     ]
+    with postgres_database.session() as connection:
+        columns = {
+            row[0]
+            for row in connection.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = %s AND table_name = 'workspaces'",
+                (postgres_database.settings.schema,),
+            ).fetchall()
+        }
+    assert {
+        "workspace_id", "name", "input_folder", "output_folder", "database_path",
+        "note", "created_at", "updated_at", "last_opened", "archived_at",
+    }.issubset(columns)
+    with postgres_database.session() as connection:
+        indexes = connection.execute(
+            "SELECT schemaname, indexname FROM pg_indexes "
+            "WHERE schemaname = %s AND tablename = 'workspaces' "
+            "AND indexname = 'workspaces_catalog_order_idx'",
+            (postgres_database.settings.schema,),
+        ).fetchall()
+    assert indexes == [(postgres_database.settings.schema, "workspaces_catalog_order_idx")]
 
 
 def test_transaction_exception_rolls_back(postgres_database: PostgresDatabase):
@@ -538,4 +561,196 @@ def test_application_selects_postgres_case_mode_without_sqlite_fallback(
     assert app.state.workspace_id == "ws_application"
     assert app.state.workspace_manager.database_status == "postgres"
     assert postgres_database.settings.dsn not in app.state.workspace_manager.active_payload()["database"]["path"]
+    assert not (tmp_path / "reviews.sqlite").exists()
+
+
+def test_postgres_workspace_catalog_is_authoritative_and_switches_case_store(
+    monkeypatch,
+    tmp_path: Path,
+    postgres_database: PostgresDatabase,
+):
+    monkeypatch.setenv(DATABASE_URL_ENV, postgres_database.settings.dsn)
+    monkeypatch.setenv(DATABASE_SCHEMA_ENV, postgres_database.settings.schema)
+    monkeypatch.setenv(CASE_STORE_MODE_ENV, "postgres")
+    monkeypatch.delenv("DR_SUPPORT_WORKSPACE_ID", raising=False)
+    catalog_path = tmp_path / "workspaces.sqlite"
+    fallback_path = tmp_path / "reviews.sqlite"
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_CATALOG", str(catalog_path))
+    monkeypatch.setenv("DR_SUPPORT_STATE", str(fallback_path))
+
+    app = create_app(include_samples=False, include_demo_fixtures=False)
+    client = TestClient(app)
+    input_a = tmp_path / "input-a"
+    output_a = tmp_path / "output-a"
+    input_b = tmp_path / "input-b"
+    output_b = tmp_path / "output-b"
+    for path in (input_a, output_a, input_b, output_b):
+        path.mkdir()
+
+    first = client.post(
+        "/v1/workspaces",
+        json={
+            "name": "Managed A",
+            "input_folder": str(input_a),
+            "output_folder": str(output_a),
+            "database_path": str(tmp_path / "should-not-open.sqlite"),
+            "note": "synthetic workspace A",
+        },
+    )
+    assert first.status_code == 200
+    first_profile = first.json()["workspace"]
+    assert first_profile["database_path"] is None
+    assert first.json()["database"]["status"] == "postgres"
+    assert not (tmp_path / "should-not-open.sqlite").exists()
+
+    updated = client.put(
+        f"/v1/workspaces/{first_profile['id']}",
+        json={
+            "name": "Managed A updated",
+            "input_folder": str(input_a),
+            "output_folder": str(output_a),
+            "note": "updated synthetic workspace",
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["workspace"]["name"] == "Managed A updated"
+    assert updated.json()["workspace"]["database_path"] is None
+    assert not catalog_path.exists()
+    assert not fallback_path.exists()
+
+    first_case = app.state.store.get("shared-case")
+    first_case["events"].append({"workspace": "a"})
+    app.state.store.put(first_case)
+
+    second = client.post(
+        "/v1/workspaces",
+        json={
+            "name": "Managed B",
+            "input_folder": str(input_b),
+            "output_folder": str(output_b),
+        },
+    )
+    assert second.status_code == 200
+    second_profile = second.json()["workspace"]
+    second_case = app.state.store.get("shared-case")
+    second_case["events"].append({"workspace": "b"})
+    app.state.store.put(second_case)
+    assert app.state.store.get("shared-case")["events"] == [{"workspace": "b"}]
+
+    opened = client.post(f"/v1/workspaces/{first_profile['id']}/open")
+    assert opened.status_code == 200
+    assert app.state.workspace_id == first_profile["id"]
+    assert app.state.store.get("shared-case")["events"] == [{"workspace": "a"}]
+
+    archived = client.delete(f"/v1/workspaces/{second_profile['id']}")
+    assert archived.status_code == 200
+    assert all(
+        item["id"] != second_profile["id"]
+        for item in client.get("/v1/workspaces").json()["workspaces"]
+    )
+    with postgres_database.session() as connection:
+        schema = sql.Identifier(postgres_database.settings.schema)
+        archived_at = connection.execute(
+            sql.SQL("SELECT archived_at FROM {}.workspaces WHERE workspace_id = %s").format(schema),
+            (second_profile["id"],),
+        ).fetchone()[0]
+        remaining_cases = connection.execute(
+            sql.SQL("SELECT count(*) FROM {}.review_cases WHERE workspace_id = %s").format(schema),
+            (second_profile["id"],),
+        ).fetchone()[0]
+    assert archived_at is not None
+    assert remaining_cases == 1
+
+    fresh = create_app(include_samples=False, include_demo_fixtures=False)
+    assert fresh.state.workspace_manager.active_workspace.id == first_profile["id"]
+    assert fresh.state.workspace_id == first_profile["id"]
+    assert fresh.state.store.get("shared-case")["events"] == [{"workspace": "a"}]
+
+
+def test_postgres_workspace_catalog_get_ignores_identity_only_and_archived_rows(
+    postgres_database: PostgresDatabase,
+    tmp_path: Path,
+):
+    from dr_support.contracts import WorkspaceProfile
+
+    SchemaMigrator(postgres_database).migrate()
+    catalog = PostgresWorkspaceCatalog(postgres_database)
+    catalog.create_and_activate(
+        WorkspaceProfile(
+            id="ws_catalog_complete",
+            name="Complete workspace",
+            input_folder=str(tmp_path / "input"),
+            output_folder=str(tmp_path / "output"),
+            created_at="2026-09-28T00:00:00+00:00",
+            updated_at="2026-09-28T00:00:00+00:00",
+        )
+    )
+    PostgresCaseStore(postgres_database, "ws_catalog_identity_only").ensure_workspace()
+
+    assert catalog.get("ws_catalog_complete").name == "Complete workspace"
+    assert catalog.get("ws_catalog_identity_only") is None
+    assert "ws_catalog_identity_only" not in {
+        profile.id for profile in catalog.list_profiles()
+    }
+
+    catalog.create_and_activate(
+        WorkspaceProfile(
+            id="ws_catalog_archived",
+            name="Archived workspace",
+            input_folder=str(tmp_path / "archived-input"),
+            output_folder=str(tmp_path / "archived-output"),
+            created_at="2026-09-28T00:00:00+00:00",
+            updated_at="2026-09-28T00:00:00+00:00",
+        )
+    )
+    catalog.archive("ws_catalog_archived")
+    assert catalog.get("ws_catalog_archived") is None
+
+
+def test_postgres_workspace_mode_accepts_missing_database_path_but_requires_managed_fields(
+    monkeypatch,
+    tmp_path: Path,
+    postgres_database: PostgresDatabase,
+):
+    monkeypatch.setenv(DATABASE_URL_ENV, postgres_database.settings.dsn)
+    monkeypatch.setenv(DATABASE_SCHEMA_ENV, postgres_database.settings.schema)
+    monkeypatch.setenv(CASE_STORE_MODE_ENV, "postgres")
+    app = create_app(include_samples=False, include_demo_fixtures=False, workspace_id="ws_validation")
+    client = TestClient(app)
+    input_folder = tmp_path / "input"
+    output_folder = tmp_path / "output"
+    input_folder.mkdir()
+    output_folder.mkdir()
+
+    missing_database = client.post(
+        "/v1/workspaces",
+        json={
+            "name": "No local database",
+            "input_folder": str(input_folder),
+            "output_folder": str(output_folder),
+        },
+    )
+    assert missing_database.status_code == 200
+    invalid = client.post(
+        "/v1/workspaces",
+        json={"name": "Missing folders"},
+    )
+    assert invalid.status_code == 422
+
+
+def test_postgres_workspace_catalog_is_not_used_when_postgres_is_unavailable(
+    monkeypatch,
+    tmp_path: Path,
+):
+    monkeypatch.setenv(DATABASE_URL_ENV, "postgresql://postgres@127.0.0.1:59999/dr_support_test")
+    monkeypatch.setenv(DATABASE_SCHEMA_ENV, "dr_support_test_unavailable")
+    monkeypatch.setenv(CASE_STORE_MODE_ENV, "postgres")
+    monkeypatch.setenv("DR_SUPPORT_DATABASE_CONNECT_TIMEOUT", "1")
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_CATALOG", str(tmp_path / "workspaces.sqlite"))
+    monkeypatch.setenv("DR_SUPPORT_STATE", str(tmp_path / "reviews.sqlite"))
+
+    with pytest.raises(DatabaseUnavailableError):
+        create_app(include_samples=False, include_demo_fixtures=False, workspace_id="ws_outage")
+
+    assert not (tmp_path / "workspaces.sqlite").exists()
     assert not (tmp_path / "reviews.sqlite").exists()

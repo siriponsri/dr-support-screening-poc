@@ -10,6 +10,12 @@ from threading import RLock
 from uuid import uuid4
 
 from ..contracts import WorkspaceInput, WorkspaceProfile, is_absolute_local_path
+from ..persistence import (
+    MANAGED_STORAGE_LABEL,
+    PostgresCaseStore,
+    PostgresDatabase,
+    PostgresWorkspaceCatalog,
+)
 from ..store import Store
 from .pickers import NativePicker
 
@@ -209,6 +215,7 @@ class WorkspaceManager:
         store=None,
         database_status: str | None = None,
         database_path: str | None = None,
+        postgres_database: PostgresDatabase | None = None,
         picker: NativePicker | None = None,
     ):
         self.root = Path(root)
@@ -223,12 +230,25 @@ class WorkspaceManager:
             or self.root / "local-state/bridge/reviews.sqlite"
         )
         self.catalog: WorkspaceCatalog | None = None
+        self.postgres_catalog: PostgresWorkspaceCatalog | None = None
+        self.postgres_database = postgres_database
+        self.postgres_mode = postgres_database is not None
         self.warnings: list[str] = []
         self.app = None
         self.active_workspace: WorkspaceProfile | None = None
-        self.database_status = "fallback"
+        self.database_status = "postgres" if self.postgres_mode else "fallback"
         self.database_path = str(state_path or self.fallback_path)
-        self._external_store = store is not None
+        self._external_store = store is not None and not self.postgres_mode
+
+        if self.postgres_mode:
+            if state_path is not None:
+                raise WorkspaceDatabaseError(
+                    "state_path cannot be combined with PostgreSQL workspace storage"
+                )
+            self.postgres_catalog = PostgresWorkspaceCatalog(postgres_database)
+            self.database_path = MANAGED_STORAGE_LABEL
+            self._configure_postgres_startup(store)
+            return
 
         try:
             self.catalog = WorkspaceCatalog(self.catalog_path)
@@ -251,6 +271,22 @@ class WorkspaceManager:
             return
 
         self.store = self._resolve_startup_store()
+
+    def _configure_postgres_startup(self, store) -> None:
+        """Restore the most recently opened catalog profile, if one exists."""
+        catalog = self._require_postgres_catalog()
+        requested_id = getattr(store, "workspace_id", None)
+        profile = catalog.get(requested_id) if requested_id else catalog.latest_opened()
+        if profile is not None:
+            self.store = PostgresCaseStore(self.postgres_database, profile.id)
+            self.active_workspace = profile
+            return
+        self.store = store
+
+    def _require_postgres_catalog(self) -> PostgresWorkspaceCatalog:
+        if self.postgres_catalog is None:
+            raise WorkspaceCatalogError("PostgreSQL workspace catalog is unavailable")
+        return self.postgres_catalog
 
     def _warn(self, message: str) -> None:
         if message not in self.warnings:
@@ -303,6 +339,10 @@ class WorkspaceManager:
     @staticmethod
     def _open_workspace_database(database_path: str) -> Store:
         try:
+            if not database_path:
+                raise WorkspaceDatabaseError(
+                    "SQLite workspace mode requires database_path"
+                )
             path = Path(database_path)
             if not is_absolute_local_path(database_path) or not path.is_absolute():
                 raise WorkspaceDatabaseError("Database path must be an absolute local path")
@@ -335,22 +375,91 @@ class WorkspaceManager:
             )
         self.store = store
         self.active_workspace = profile
-        self.database_status = "ready"
-        self.database_path = profile.database_path
+        self.database_status = "postgres" if self.postgres_mode else "ready"
+        self.database_path = MANAGED_STORAGE_LABEL if self.postgres_mode else profile.database_path
         if self.app is not None:
             self.app.state.store = store
+            self.app.state.workspace_id = getattr(store, "workspace_id", None)
 
     def list_profiles(self) -> list[WorkspaceProfile]:
+        if self.postgres_mode:
+            return self._require_postgres_catalog().list_profiles()
         return self._require_catalog().list_profiles()
 
     def get_profile(self, workspace_id: str) -> WorkspaceProfile:
-        profile = self._require_catalog().get(workspace_id)
+        if self.postgres_mode:
+            profile = self._require_postgres_catalog().get(workspace_id)
+        else:
+            profile = self._require_catalog().get(workspace_id)
         if profile is None:
             raise WorkspaceNotFoundError(workspace_id)
         return profile
 
+    def _profile_from_request(
+        self,
+        request: WorkspaceInput,
+        *,
+        workspace_id: str,
+        created_at: str,
+        database_path: str | None,
+    ) -> WorkspaceProfile:
+        return WorkspaceProfile(
+            id=workspace_id,
+            name=request.name,
+            input_folder=request.input_folder,
+            output_folder=request.output_folder,
+            database_path=database_path,
+            note=request.note,
+            created_at=created_at,
+            updated_at=created_at,
+            last_opened=created_at,
+        )
+
+    def _managed_database_path(self, request: WorkspaceInput, current: WorkspaceProfile | None = None) -> str | None:
+        """Retain legacy path metadata but never use it as PostgreSQL storage."""
+        return current.database_path if current is not None else None
+
+    def _create_postgres_workspace(self, request: WorkspaceInput) -> WorkspaceProfile:
+        now = utc_now()
+        profile = self._profile_from_request(
+            request,
+            workspace_id=f"ws_{uuid4().hex}",
+            created_at=now,
+            database_path=None,
+        )
+        self._require_postgres_catalog().create_and_activate(profile)
+        self._swap_store(PostgresCaseStore(self.postgres_database, profile.id), profile)
+        return profile
+
+    def _update_postgres_workspace(self, workspace_id: str, request: WorkspaceInput) -> WorkspaceProfile:
+        current = self.get_profile(workspace_id)
+        now = utc_now()
+        profile = self._profile_from_request(
+            request,
+            workspace_id=current.id,
+            created_at=current.created_at,
+            database_path=self._managed_database_path(request, current),
+        ).model_copy(
+            update={
+                "updated_at": now,
+                "last_opened": now,
+                "note": request.note if "note" in request.model_fields_set else current.note,
+            }
+        )
+        self._require_postgres_catalog().update_and_activate(profile)
+        self._swap_store(PostgresCaseStore(self.postgres_database, profile.id), profile)
+        return profile
+
+    def _open_postgres_workspace(self, workspace_id: str) -> WorkspaceProfile:
+        current = self.get_profile(workspace_id)
+        opened = self._require_postgres_catalog().activate(workspace_id, utc_now())
+        self._swap_store(PostgresCaseStore(self.postgres_database, current.id), opened)
+        return opened
+
     def create_and_open(self, request: WorkspaceInput) -> WorkspaceProfile:
         with self.lock:
+            if self.postgres_mode:
+                return self._create_postgres_workspace(request)
             if self._external_store:
                 raise WorkspaceDatabaseError(
                     "PostgreSQL workspace management is not enabled in this case-store mode"
@@ -374,6 +483,8 @@ class WorkspaceManager:
 
     def update_and_open(self, workspace_id: str, request: WorkspaceInput) -> WorkspaceProfile:
         with self.lock:
+            if self.postgres_mode:
+                return self._update_postgres_workspace(workspace_id, request)
             if self._external_store:
                 raise WorkspaceDatabaseError(
                     "PostgreSQL workspace management is not enabled in this case-store mode"
@@ -398,6 +509,8 @@ class WorkspaceManager:
 
     def open(self, workspace_id: str) -> WorkspaceProfile:
         with self.lock:
+            if self.postgres_mode:
+                return self._open_postgres_workspace(workspace_id)
             if self._external_store:
                 raise WorkspaceDatabaseError(
                     "PostgreSQL workspace management is not enabled in this case-store mode"
@@ -413,12 +526,17 @@ class WorkspaceManager:
             profile = self.get_profile(workspace_id)
             if self.active_workspace is not None and self.active_workspace.id == profile.id:
                 raise WorkspaceActiveError(profile.id)
+            if self.postgres_mode:
+                self._require_postgres_catalog().archive(profile.id)
+                return
             self._require_catalog().delete(profile.id)
 
     def list_payload(self) -> dict:
         try:
             profiles = self.list_profiles()
         except WorkspaceCatalogError as exc:
+            if self.postgres_mode:
+                raise
             self._warn(str(exc))
             profiles = []
         return {

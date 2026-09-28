@@ -50,7 +50,9 @@ class WorkspaceProfile(Contract):
     name: str = Field(min_length=1, max_length=120)
     input_folder: str
     output_folder: str
-    database_path: str
+    # Legacy SQLite profiles retain this as provenance. PostgreSQL profiles
+    # intentionally leave it unset because storage is managed server-side.
+    database_path: str | None = None
     note: str | None = Field(default=None, max_length=500)
     created_at: str = Field(min_length=1)
     updated_at: str = Field(min_length=1)
@@ -73,9 +75,16 @@ class WorkspaceProfile(Contract):
         cleaned = value.strip()
         return cleaned or None
 
-    @field_validator("input_folder", "output_folder", "database_path", mode="before")
+    @field_validator("input_folder", "output_folder", mode="before")
     @classmethod
     def clean_paths(cls, value: str) -> str:
+        return _clean_local_path(value)
+
+    @field_validator("database_path", mode="before")
+    @classmethod
+    def clean_database_path(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
         return _clean_local_path(value)
 
     @field_validator("created_at", "updated_at", "last_opened")
@@ -98,7 +107,7 @@ class WorkspaceInput(Contract):
     name: str = Field(min_length=1, max_length=120)
     input_folder: str
     output_folder: str
-    database_path: str
+    database_path: str | None = None
     note: str | None = Field(default=None, max_length=500)
 
     @field_validator("name", mode="before")
@@ -118,9 +127,16 @@ class WorkspaceInput(Contract):
         cleaned = value.strip()
         return cleaned or None
 
-    @field_validator("input_folder", "output_folder", "database_path", mode="before")
+    @field_validator("input_folder", "output_folder", mode="before")
     @classmethod
     def clean_paths(cls, value: str) -> str:
+        return _clean_local_path(value)
+
+    @field_validator("database_path", mode="before")
+    @classmethod
+    def clean_database_path(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
         return _clean_local_path(value)
 
 

@@ -63,6 +63,62 @@ MIGRATIONS = (
             """,
         ),
     ),
+    Migration(
+        version=3,
+        name="workspace_catalog_profiles",
+        statements=(
+            """
+            ALTER TABLE {schema}.workspaces
+                ADD COLUMN IF NOT EXISTS name TEXT,
+                ADD COLUMN IF NOT EXISTS input_folder TEXT,
+                ADD COLUMN IF NOT EXISTS output_folder TEXT,
+                ADD COLUMN IF NOT EXISTS database_path TEXT,
+                ADD COLUMN IF NOT EXISTS note TEXT,
+                ADD COLUMN IF NOT EXISTS last_opened TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ
+            """,
+            """
+            DO $migration$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conrelid = '{schema}.workspaces'::regclass
+                      AND conname = 'workspace_name_when_catalogued'
+                ) THEN
+                    ALTER TABLE {schema}.workspaces
+                        ADD CONSTRAINT workspace_name_when_catalogued
+                        CHECK (name IS NULL OR length(btrim(name)) > 0);
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conrelid = '{schema}.workspaces'::regclass
+                      AND conname = 'workspace_input_folder_when_catalogued'
+                ) THEN
+                    ALTER TABLE {schema}.workspaces
+                        ADD CONSTRAINT workspace_input_folder_when_catalogued
+                        CHECK (input_folder IS NULL OR length(btrim(input_folder)) > 0);
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conrelid = '{schema}.workspaces'::regclass
+                      AND conname = 'workspace_output_folder_when_catalogued'
+                ) THEN
+                    ALTER TABLE {schema}.workspaces
+                        ADD CONSTRAINT workspace_output_folder_when_catalogued
+                        CHECK (output_folder IS NULL OR length(btrim(output_folder)) > 0);
+                END IF;
+            END $migration$
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS workspaces_catalog_order_idx
+                ON {schema}.workspaces (last_opened DESC NULLS LAST, workspace_id)
+                WHERE archived_at IS NULL AND name IS NOT NULL
+            """,
+        ),
+    ),
 )
 LATEST_SCHEMA_VERSION = MIGRATIONS[-1].version
 

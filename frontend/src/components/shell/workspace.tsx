@@ -14,7 +14,6 @@ import {
   type DatabasePickerMode,
   type FolderPickerPurpose,
   type PickerResponse,
-  type WorkspaceDatabaseStatus,
   type WorkspaceDeleteResponse,
   type WorkspaceDraft,
   type WorkspaceMutationResponse,
@@ -109,7 +108,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setStatus('error');
       setError('Workspace service is unavailable. Check the local review API and retry.');
     } else {
-      setStatus(nextWarnings.length > 0 || (active ? active.database.status !== 'ready' : false) ? 'degraded' : 'ready');
+      const storageDegraded = active
+        ? !['ready', 'postgres'].includes(active.database.status)
+        : false;
+      setStatus(nextWarnings.length > 0 || storageDegraded ? 'degraded' : 'ready');
     }
   }, []);
 
@@ -120,7 +122,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const applyMutation = useCallback((response: WorkspaceMutationResponse) => {
     setWorkspaces((current) => mergeWorkspace(current, response.workspace));
     setActiveWorkspace(response.workspace);
-    setActiveDatabase({ path: response.workspace.database_path, status: 'ready' as WorkspaceDatabaseStatus });
+    setActiveDatabase(response.database ?? {
+      path: response.workspace.database_path,
+      status: response.workspace.database_path ? 'ready' : 'postgres',
+    });
     setWarnings(response.warnings);
     setError(null);
     setStatus(response.warnings.length > 0 ? 'degraded' : 'ready');

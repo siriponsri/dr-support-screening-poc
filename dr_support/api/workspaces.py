@@ -43,6 +43,15 @@ def _picker_result(value) -> PickerResult:
         )
 
 
+def _mutation_payload(manager: WorkspaceManager, profile) -> dict:
+    return {
+        "workspace": _json_profile(profile),
+        "active": True,
+        "database": manager.active_payload()["database"],
+        "warnings": list(manager.warnings),
+    }
+
+
 def install_workspace_routes(app, manager: WorkspaceManager) -> None:
     """Install the frozen workspace API surface on the review app."""
 
@@ -69,8 +78,9 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
         except (WorkspaceCatalogError, WorkspaceDatabaseError, WorkspaceNotFoundError) as error:
             raise _workspace_error(error) from None
         scan = app.state.scan_active_workspace()
-        return {"workspace": _json_profile(profile), "active": True,
-                "warnings": list(manager.warnings) + list(scan.get("warnings", []))}
+        response = _mutation_payload(manager, profile)
+        response["warnings"] += list(scan.get("warnings", []))
+        return response
     @app.post("/v1/workspaces/pickers/folder")
     def pick_folder(request: FolderPickerRequest):
         try:
@@ -88,6 +98,12 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
 
     @app.post("/v1/workspaces/pickers/database")
     def pick_database(request: DatabasePickerRequest):
+        if manager.postgres_mode:
+            return PickerResult(
+                status="unavailable",
+                code="managed_storage",
+                message="Managed PostgreSQL storage is active; no local database file is required.",
+            ).model_dump(mode="json")
         try:
             result = app.state.workspace_picker.pick_database(
                 mode=request.mode,
@@ -109,8 +125,9 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
         except (WorkspaceCatalogError, WorkspaceDatabaseError, WorkspaceNotFoundError) as error:
             raise _workspace_error(error) from None
         scan = app.state.scan_active_workspace()
-        return {"workspace": _json_profile(profile), "active": True,
-                "warnings": list(manager.warnings) + list(scan.get("warnings", []))}
+        response = _mutation_payload(manager, profile)
+        response["warnings"] += list(scan.get("warnings", []))
+        return response
 
     @app.post("/v1/workspaces/{workspace_id}/open")
     def open_workspace(workspace_id: str):
@@ -119,8 +136,9 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
         except (WorkspaceCatalogError, WorkspaceDatabaseError, WorkspaceNotFoundError) as error:
             raise _workspace_error(error) from None
         scan = app.state.scan_active_workspace()
-        return {"workspace": _json_profile(profile), "active": True,
-                "warnings": list(manager.warnings) + list(scan.get("warnings", []))}
+        response = _mutation_payload(manager, profile)
+        response["warnings"] += list(scan.get("warnings", []))
+        return response
 
     @app.delete("/v1/workspaces/{workspace_id}")
     def delete_workspace(workspace_id: str):

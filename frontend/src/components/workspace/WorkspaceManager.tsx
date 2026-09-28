@@ -48,7 +48,7 @@ function draftFromWorkspace(workspace: WorkspaceProfile): WorkspaceDraft {
     name: workspace.name,
     input_folder: workspace.input_folder,
     output_folder: workspace.output_folder,
-    database_path: workspace.database_path,
+    database_path: workspace.database_path ?? '',
     note: workspace.note ?? '',
   };
 }
@@ -57,8 +57,8 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : 'The workspace request could not be completed.';
 }
 
-function suggestedDatabaseName(path: string) {
-  const filename = path.split(/[\\/]/).pop();
+function suggestedDatabaseName(path: string | null) {
+  const filename = (path ?? '').split(/[\\/]/).pop();
   return filename || 'review.sqlite';
 }
 
@@ -79,6 +79,7 @@ export function WorkspaceManager() {
     pickFolder,
     pickDatabase,
   } = useWorkspace();
+  const managedStorage = activeDatabase?.status === 'postgres';
   const [editorMode, setEditorMode] = useState<EditorMode | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<WorkspaceDraft>(EMPTY_DRAFT);
@@ -139,7 +140,7 @@ export function WorkspaceManager() {
     setPickerLoading(`database-${mode}`);
     setFeedback(null);
     try {
-      const result = await pickDatabase(mode, draft.database_path, suggestedDatabaseName(draft.database_path));
+      const result = await pickDatabase(mode, draft.database_path ?? '', suggestedDatabaseName(draft.database_path));
       if (result.status === 'selected' && result.path) {
         updateDraft('database_path', result.path);
         setFeedback({ status: 'success', message: mode === 'create' ? 'New SQLite database location selected.' : 'SQLite database selected.' });
@@ -164,11 +165,16 @@ export function WorkspaceManager() {
       name: draft.name.trim(),
       input_folder: draft.input_folder.trim(),
       output_folder: draft.output_folder.trim(),
-      database_path: draft.database_path.trim(),
+      database_path: draft.database_path?.trim() || null,
       note: draft.note?.trim() || null,
     };
-    if (!normalized.name || !normalized.input_folder || !normalized.output_folder || !normalized.database_path) {
-      setFeedback({ status: 'error', message: 'Name, input folder, output folder, and SQLite database are required.' });
+    if (!normalized.name || !normalized.input_folder || !normalized.output_folder || (!managedStorage && !normalized.database_path)) {
+      setFeedback({
+        status: 'error',
+        message: managedStorage
+          ? 'Name, input folder, and output folder are required.'
+          : 'Name, input folder, output folder, and SQLite database are required.',
+      });
       return;
     }
     if (normalized.name.length > 120) {
@@ -266,17 +272,24 @@ export function WorkspaceManager() {
               <Button size="sm" variant="outline" leftIcon={<Pencil size={14} />} onClick={() => beginEdit(activeWorkspace)}>Edit</Button>
             </HStack>
           </HStack>
-          <HStack mt={2} spacing={2} align="flex-start" minW={0}>
-            <Database size={15} color="var(--chakra-colors-text-secondary)" aria-hidden="true" />
-            <Text flex={1} minW={0} noOfLines={1} fontSize="sm" fontFamily="mono" title={activeDatabase.path}>{activeDatabase.path}</Text>
-            <IconButton aria-label="Copy active database path" icon={<Copy size={14} />} size="sm" variant="ghost" onClick={() => void copyPath('Database path', activeDatabase.path)} />
-          </HStack>
+          {managedStorage ? (
+            <HStack mt={2} spacing={2} align="flex-start" minW={0}>
+              <Database size={15} color="var(--chakra-colors-text-secondary)" aria-hidden="true" />
+              <Text fontSize="sm" color="text.secondary">Managed PostgreSQL storage</Text>
+            </HStack>
+          ) : (
+            <HStack mt={2} spacing={2} align="flex-start" minW={0}>
+              <Database size={15} color="var(--chakra-colors-text-secondary)" aria-hidden="true" />
+              <Text flex={1} minW={0} noOfLines={1} fontSize="sm" fontFamily="mono" title={activeDatabase.path ?? undefined}>{activeDatabase.path}</Text>
+              {activeDatabase.path && <IconButton aria-label="Copy active database path" icon={<Copy size={14} />} size="sm" variant="ghost" onClick={() => void copyPath('Database path', activeDatabase.path!)} />}
+            </HStack>
+          )}
         </Box>
       )}
       <SimpleGrid columns={{ base: 1, laptop: editorMode ? 2 : 1 }} gap={4} alignItems="start">
         <Section
           title="Saved workspaces"
-          description="Profiles keep local folders and the SQLite review database together."
+          description={managedStorage ? 'Profiles keep local input and output folders together in managed storage.' : 'Profiles keep local folders and the SQLite review database together.'}
           action={
             <Button size="sm" variant="solid" leftIcon={<Plus size={14} />} onClick={beginCreate}>
               New workspace
@@ -289,7 +302,7 @@ export function WorkspaceManager() {
             <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" borderRadius="md" bg="surface.subtle" p={5}>
               <Stack spacing={2}>
                 <Text fontWeight="semibold">No workspaces saved</Text>
-                <Text fontSize="sm" color="text.secondary">Create a profile to choose the local input folder, output folder, and SQLite database for this review station.</Text>
+                <Text fontSize="sm" color="text.secondary">{managedStorage ? 'Create a profile to choose the local input and output folders for this review station.' : 'Create a profile to choose the local input folder, output folder, and SQLite database for this review station.'}</Text>
                 <Button size="sm" variant="secondary" leftIcon={<Plus size={14} />} onClick={beginCreate} w="fit-content">Create the first workspace</Button>
               </Stack>
             </Box>
@@ -304,6 +317,7 @@ export function WorkspaceManager() {
                   onEdit={() => beginEdit(workspace)}
                   onDelete={() => setPendingDelete(workspace)}
                   onCopy={copyPath}
+                  managedStorage={managedStorage}
                   isMutating={isMutating}
                 />
               ))}
@@ -314,7 +328,7 @@ export function WorkspaceManager() {
         {editorMode && (
           <Section
             title={editorMode === 'create' ? 'Create workspace' : 'Edit workspace'}
-            description="Paths are local configuration. Saving creates or opens the selected SQLite database."
+            description={managedStorage ? 'Input and output paths are local configuration. Review data uses managed PostgreSQL storage.' : 'Paths are local configuration. Saving creates or opens the selected SQLite database.'}
             action={<IconButton aria-label="Close workspace editor" icon={<X size={16} />} size="sm" variant="ghost" onClick={closeEditor} />}
           >
             <form onSubmit={save}>
@@ -331,22 +345,31 @@ export function WorkspaceManager() {
                 </FormControl>
                 <PathField label="Input folder" value={draft.input_folder} onChange={(value) => updateDraft('input_folder', value)} onBrowse={() => void browseFolder('input')} onCopy={() => void copyPath('Input folder', draft.input_folder)} isLoading={pickerLoading === 'input_folder'} />
                 <PathField label="Output folder" value={draft.output_folder} onChange={(value) => updateDraft('output_folder', value)} onBrowse={() => void browseFolder('output')} onCopy={() => void copyPath('Output folder', draft.output_folder)} isLoading={pickerLoading === 'output_folder'} />
-                <FormControl isRequired>
-                  <FormLabel htmlFor="workspace-database">SQLite database</FormLabel>
-                  <HStack align="stretch">
-                    <Input id="workspace-database" aria-label="SQLite database" flex={1} value={draft.database_path} onChange={(event) => updateDraft('database_path', event.target.value)} placeholder="C:\\Data\\review.sqlite" fontFamily="mono" title={draft.database_path} />
-                    <IconButton aria-label="Copy SQLite database path" icon={<Copy size={14} />} size="sm" variant="ghost" onClick={() => void copyPath('Database path', draft.database_path)} isDisabled={!draft.database_path} />
-                  </HStack>
-                  <HStack mt={2} spacing={2} flexWrap="wrap">
-                    <Button size="sm" variant="outline" leftIcon={<FolderOpen size={14} />} onClick={() => void browseDatabase('open')} isLoading={pickerLoading === 'database-open'} isDisabled={Boolean(pickerLoading)}>Open existing</Button>
-                    <Button size="sm" variant="secondary" leftIcon={<Database size={14} />} onClick={() => void browseDatabase('create')} isLoading={pickerLoading === 'database-create'} isDisabled={Boolean(pickerLoading)}>Choose new database</Button>
-                  </HStack>
-                  <FormHelperText>The database is initialized when this workspace is saved; existing case data is preserved.</FormHelperText>
-                </FormControl>
-                <Alert status="info" alignItems="flex-start">
-                  <AlertIcon mt="2px" />
-                  <Text fontSize="sm">Browse uses the local FastAPI process's native dialog. If it is unavailable, enter an absolute local path manually.</Text>
-                </Alert>
+                {managedStorage ? (
+                  <Alert status="info" alignItems="flex-start">
+                    <AlertIcon mt="2px" />
+                    <Text fontSize="sm">Managed PostgreSQL storage is selected for this workstation. No local database file is required.</Text>
+                  </Alert>
+                ) : (
+                  <>
+                    <FormControl isRequired>
+                      <FormLabel htmlFor="workspace-database">SQLite database</FormLabel>
+                      <HStack align="stretch">
+                        <Input id="workspace-database" aria-label="SQLite database" flex={1} value={draft.database_path ?? ''} onChange={(event) => updateDraft('database_path', event.target.value)} placeholder="C:\\Data\\review.sqlite" fontFamily="mono" title={draft.database_path ?? ''} />
+                        <IconButton aria-label="Copy SQLite database path" icon={<Copy size={14} />} size="sm" variant="ghost" onClick={() => void copyPath('Database path', draft.database_path ?? '')} isDisabled={!draft.database_path} />
+                      </HStack>
+                      <HStack mt={2} spacing={2} flexWrap="wrap">
+                        <Button size="sm" variant="outline" leftIcon={<FolderOpen size={14} />} onClick={() => void browseDatabase('open')} isLoading={pickerLoading === 'database-open'} isDisabled={Boolean(pickerLoading)}>Open existing</Button>
+                        <Button size="sm" variant="secondary" leftIcon={<Database size={14} />} onClick={() => void browseDatabase('create')} isLoading={pickerLoading === 'database-create'} isDisabled={Boolean(pickerLoading)}>Choose new database</Button>
+                      </HStack>
+                      <FormHelperText>The database is initialized when this workspace is saved; existing case data is preserved.</FormHelperText>
+                    </FormControl>
+                    <Alert status="info" alignItems="flex-start">
+                      <AlertIcon mt="2px" />
+                      <Text fontSize="sm">Browse uses the local FastAPI process's native dialog. If it is unavailable, enter an absolute local path manually.</Text>
+                    </Alert>
+                  </>
+                )}
                 <HStack justify="flex-end" spacing={2}>
                   <Button type="button" size="sm" variant="ghost" leftIcon={<X size={14} />} onClick={closeEditor}>Cancel</Button>
                   <Button type="submit" size="sm" variant="solid" leftIcon={editorMode === 'create' ? <Plus size={14} /> : <Save size={14} />} isLoading={isMutating} isDisabled={Boolean(pickerLoading)}>
@@ -396,14 +419,14 @@ function PathField({ label, value, onChange, onBrowse, onCopy, isLoading }: { la
   );
 }
 
-function WorkspaceRow({ workspace, active, onSwitch, onEdit, onDelete, onCopy, isMutating }: { workspace: WorkspaceProfile; active: boolean; onSwitch: () => void; onEdit: () => void; onDelete: () => void; onCopy: (label: string, path: string) => void; isMutating: boolean }) {
+function WorkspaceRow({ workspace, active, onSwitch, onEdit, onDelete, onCopy, managedStorage, isMutating }: { workspace: WorkspaceProfile; active: boolean; onSwitch: () => void; onEdit: () => void; onDelete: () => void; onCopy: (label: string, path: string) => void; managedStorage: boolean; isMutating: boolean }) {
   return (
     <Box role="group" aria-label={`${workspace.name} workspace`} py={3} px={1} borderLeftWidth="3px" borderLeftColor={active ? 'action.primary' : 'transparent'} pl={active ? 3 : 4}>
       <HStack align="flex-start" justify="space-between" spacing={4} flexWrap="wrap">
         <Stack spacing={1} minW={0} flex={1}>
           <Text flex={1} minW={0} fontWeight="semibold" noOfLines={1} title={workspace.name}>{workspace.name}</Text>
           {workspace.note && <Text fontSize="xs" color="text.secondary" noOfLines={2} title={workspace.note}>{workspace.note}</Text>}
-          <WorkspaceMetadata workspace={workspace} onCopy={onCopy} />
+          <WorkspaceMetadata workspace={workspace} onCopy={onCopy} managedStorage={managedStorage} />
         </Stack>
         <HStack spacing={2} align="center" flexShrink={0} flexWrap="wrap" justify="flex-end">
           {active ? <StatusBadge tone="brand"><CheckCircle2 size={11} aria-hidden="true" /> Active</StatusBadge> : <Button size="sm" width="152px" justifyContent="center" variant="solid" onClick={onSwitch} isLoading={isMutating}>Switch</Button>}
@@ -415,11 +438,11 @@ function WorkspaceRow({ workspace, active, onSwitch, onEdit, onDelete, onCopy, i
   );
 }
 
-function WorkspaceMetadata({ workspace, onCopy }: { workspace: WorkspaceProfile; onCopy: (label: string, path: string) => void }) {
+function WorkspaceMetadata({ workspace, onCopy, managedStorage }: { workspace: WorkspaceProfile; onCopy: (label: string, path: string) => void; managedStorage: boolean }) {
   const metadata = [
     { label: 'Input', value: workspace.input_folder },
     { label: 'Output', value: workspace.output_folder },
-    { label: 'Storage', value: `SQLite · ${workspace.database_path}` },
+    { label: 'Storage', value: managedStorage ? 'Managed PostgreSQL storage' : `SQLite · ${workspace.database_path ?? ''}` },
   ];
 
   return (
@@ -439,7 +462,7 @@ function WorkspaceMetadata({ workspace, onCopy }: { workspace: WorkspaceProfile;
           >
             {value}
           </Text>
-          {(label === 'Input' || label === 'Storage') && <IconButton aria-label={`Copy ${label.toLowerCase()} path: ${value}`} title={`Copy ${label.toLowerCase()} path`} icon={<Copy size={14} />} size="sm" variant="ghost" flexShrink={0} onClick={() => onCopy(label === 'Storage' ? 'Database path' : `${label} folder`, label === 'Storage' ? workspace.database_path : value)} />}
+          {(label === 'Input' || (label === 'Storage' && !managedStorage)) && <IconButton aria-label={`Copy ${label.toLowerCase()} path: ${value}`} title={`Copy ${label.toLowerCase()} path`} icon={<Copy size={14} />} size="sm" variant="ghost" flexShrink={0} onClick={() => onCopy(label === 'Storage' ? 'Database path' : `${label} folder`, label === 'Storage' ? workspace.database_path! : value)} />}
         </HStack>
       ))}
     </Stack>

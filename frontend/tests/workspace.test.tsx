@@ -58,7 +58,9 @@ function mockWorkspaceApi(options: MockOptions = {}) {
     if (url.endsWith('/v1/workspaces/active')) {
       return jsonResponse({
         workspace: active,
-        database: active ? { path: active.database_path, status: 'ready' } : { path: 'local-state/bridge/reviews.sqlite', status: 'fallback' },
+        database: active
+          ? { path: active.database_path, status: active.database_path === null ? 'postgres' : 'ready' }
+          : { path: 'local-state/bridge/reviews.sqlite', status: 'fallback' },
         warnings: [],
       });
     }
@@ -253,5 +255,24 @@ describe('Workspace manager', () => {
       database_path: 'C:\\Data\\review.sqlite',
     });
     expect(screen.getAllByText('New local review')).not.toHaveLength(0);
+  });
+
+  it('does not require a SQLite path for managed PostgreSQL storage', async () => {
+    const managedWorkspace = { ...workspaceA, database_path: null };
+    const calls = mockWorkspaceApi({ workspaces: [managedWorkspace], active: managedWorkspace });
+    const user = userEvent.setup();
+    renderAppAt('/settings');
+
+    expect(await screen.findAllByText('Managed PostgreSQL storage')).not.toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: 'New workspace' }));
+    expect(screen.queryByLabelText('SQLite database')).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('Workspace name'), 'Managed review');
+    await user.type(screen.getByLabelText('Input folder'), 'C:\\Data\\input');
+    await user.type(screen.getByLabelText('Output folder'), 'C:\\Data\\output');
+    await user.click(screen.getByRole('button', { name: 'Create workspace', exact: true }));
+
+    expect(calls.find((call) => call.url.endsWith('/v1/workspaces') && call.method === 'POST')?.body).toMatchObject({
+      database_path: null,
+    });
   });
 });
