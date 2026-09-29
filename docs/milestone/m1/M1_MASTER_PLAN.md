@@ -1,16 +1,16 @@
 # DR Screening — Milestone 1 Master Plan
 
 **Document path in repository:** `docs/milestone/m1/M1_MASTER_PLAN.md`  
-**Document revision:** Candidate r2.3 (O2 receipt correction; preserves the 2026-09-25 working master)
-**Prepared:** 2026-09-28  
-**Document status:** `CANDIDATE_FOR_OWNER_REVIEW`  
-**Implementation status:** Phase 1 `IN_PROGRESS` (candidate `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` is locally integrated; fresh independent O1 review approved it; post-merge validation is recorded in the Phase 1 evidence; owner/auditor approval remains pending); see the phase tracker, which is independent of document approval.
+**Document revision:** Closeout r2.4 (owner-approved Phase 1 closeout; preserves the 2026-09-25 working master)
+**Prepared:** 2026-09-29  
+**Document status:** `OWNER_APPROVED_CLOSEOUT`  
+**Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted; final validation and limitations are recorded in the Phase 1 evidence); see the phase tracker, which is independent of later-phase authorization.
 **Source baseline commit:** `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2`
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.  
 **Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; see §24.  
 **Primary repository:** `siriponsri/dr-support-screening-poc`  
 
-**Current reading guide (r2.3):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and the original §15 status rows record the 2026-09-25 planning baseline; the adjacent r2.3 current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Candidate `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` is locally integrated and O1-approved; Phase 1 remains `IN_PROGRESS`/`READY_FOR_REVIEW`, and this document does not authorize Phase 2 or claim `DONE`.
+**Current reading guide (closeout r2.4):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29 based on the recorded implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c` and independent O1 review. This document does not authorize Phase 2, production, hospital-data use, or clinical/model semantic changes.
 
 ---
 
@@ -623,17 +623,17 @@ Create the durable data foundation for physician review, model evidence, workspa
 
 ## Phase 1 status tracker
 
-**Status:** `IN_PROGRESS` (candidate `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` is locally integrated; fresh O1 review approved it; post-merge validation is recorded; owner/auditor approval and final remote synchronization remain pending)
+**Status:** `DONE` (owner-approved 2026-09-29; independent O1 technical review accepted; final documentation closeout is bounded to this administrative update)
 **Start date:** 2026-09-25
-**Completion date:**  
-**Reviewed by:**  
-**Evidence / commit(s):** Integrated candidate `a1da89c5b90c2e32d432ee863f79d8db70fde0c4`; O1 review run `e1859e9890d24166b682f2b429fa4ed2` approved it for main integration; P1-F foundation at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; current validation evidence is in `docs/milestone/m1/M1_PHASE1_POSTGRES.md`.
+**Completion date:** 2026-09-29  
+**Reviewed by:** Owner approval on 2026-09-29; independent O1 technical review run `e1859e9890d24166b682f2b429fa4ed2` accepted the exact candidate.  
+**Evidence / commit(s):** Owner-reviewed implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c`; O1-reviewed candidate `a1da89c5b90c2e32d432ee863f79d8db70fde0c4`; P1-F foundation at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; final documentation closeout commit is recorded in Project Brain after push; current validation evidence is in `docs/milestone/m1/M1_PHASE1_POSTGRES.md`.
 **Migration evidence:** Isolated synthetic PostgreSQL 16.15, schema v1->v4; one workspace and one case imported; revision 4/content preserved; identical rerun idempotent; changed source rejected with exit 2; SQLite sources remained read-only.
 **Fresh migration receipt:** snapshot `phase1-synthetic-receipt-20260929`; source-set SHA-256 `6674d63f93d00396826e61796b8659a5cc692d2bda5395c8923f4a9b9dd966d2`; catalog SHA-256 `a903f9fb9b5bdce0a4b98f0249c52e99fc3ddc26be32079c588e107762fd4158`; one orphan reported inventory-only.
 **Dry-run result: safe_to_proceed=true.** The successful dry-run caused no destructive source/target mutation; SQLite source bytes remained unchanged and no target data was deleted, truncated, or recreated.
 **Restore evidence:** 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and verified revision/content; restored application selected PostgreSQL storage.
-**Open blockers:** Owner/auditor review remains; root legacy UI smoke lacks the ten public HRF samples required by its documented environment prerequisite, and documentation QA reports the pre-existing missing `docs/README.md`; Phase 1 is not `DONE`.
-**Owner decisions:**  
+**Accepted limitations:** Root legacy UI smoke lacks the ten public HRF samples required by its documented environment prerequisite; documentation QA reports the pre-existing missing `docs/README.md`; the post-merge backend run did not use a designated PostgreSQL DSN while the designated-DSN receipt remains recorded; two optional NumPy-dependent DICOM/S5 tests remain skipped; existing React warnings and the frontend large-chunk warning remain. These do not block this owner-approved Phase 1 closeout.
+**Owner decisions:** Owner approved P1-A, P1-B, P1-I, the recorded PostgreSQL qualification/restore evidence, and the public/synthetic-only Phase 1 boundary on 2026-09-29. No hospital-data inference/export, production deployment, clinical/model semantic change, or Phase 2 implementation is authorized by this closeout.  
 
 ---
 
@@ -1034,7 +1034,7 @@ Update this table after each phase review.
 | Phase | Name | Status | Integrated commit / evidence | Main blockers / notes |
 |---|---|---|---|---|
 | 0 | Baseline & Scope Freeze | `NOT_STARTED` |  |  |
-| 1 | Data Foundation & PostgreSQL | `IN_PROGRESS` | P1-F foundation plus P1-A/P1-B/P1-I candidate evidence in `docs/milestone/m1/M1_PHASE1_POSTGRES.md` | Fresh review, merge, main validation/smoke, and owner/auditor approval remain |
+| 1 | Data Foundation & PostgreSQL | `DONE` | Owner-approved implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c`; detailed receipt in `docs/milestone/m1/M1_PHASE1_POSTGRES.md` | Public/synthetic-only scope; accepted UI/documentation validation limitations remain; Phase 2 not started |
 | 2 | UWF Labeling Workflow | `NOT_STARTED` |  |  |
 | 3 | AI Models & Model API Integration | `NOT_STARTED` |  | Native UWF work may use explicit CFP fallback temporarily |
 | 4 | Dataset & Review Tools | `NOT_STARTED` |  |  |
@@ -1202,11 +1202,11 @@ Where clinical taxonomy, acceptance thresholds, model rights, or local-hospital 
 
 ## 22. Candidate rebaseline and current versus target (2026-09-28)
 
-This candidate preserves §§1–21, including the historical Phase 0 and Phase 1 trackers and decision log. The two baseline documents were read at the pinned commit; package research is separately dated evidence, not a repository revision or clinical authorization. These candidate files have no implementation authority before owner review. Historical test counts and the Phase 1 worker transcript are historical evidence, not tests run during this planning session. The historical Phase 1 suggested `/goal` is preserved as an audit record, not a current provider/account instruction.
+This closeout preserves §§1–21, including the historical Phase 0 and Phase 1 trackers and decision log. The two baseline documents were read at the pinned commit; package research is separately dated evidence, not a repository revision or clinical authorization. Owner approved Phase 1 `DONE` on 2026-09-29 based on the recorded repository evidence and independent O1 technical review. Historical test counts and the Phase 1 worker transcript remain historical evidence, not new tests run during this documentation closeout. The historical Phase 1 suggested `/goal` is preserved as an audit record, not a current provider/account instruction.
 
 | Area | Current implementation or evidence at pinned commit | Required target / accountable work |
 |---|---|---|
-| Persistence | Candidate `feat/m1-p1-phase1-postgres` provides PostgreSQL-authoritative managed review/case and workspace/catalog paths, legacy SQLite read-only migration, and documented live synthetic qualification; exact evidence is in `M1_PHASE1_POSTGRES.md`. | Complete the documentation repair review, merge/integrate, validate authoritative `main`, and obtain owner/auditor approval. Phase 1 remains `IN_PROGRESS` until those gates pass. |
+| Persistence | Owner-approved baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c` provides PostgreSQL-authoritative managed review/case and workspace/catalog paths, legacy SQLite read-only migration, and documented live synthetic qualification; exact evidence is in `M1_PHASE1_POSTGRES.md`. | Phase 1 is closed as `DONE`; any later clinical/schema/export extension requires a new owner-reviewed phase instruction. |
 | Intake/review | Existing admission, resolver, workflow and UI milestones; image, grade and annotation confirmations are separate (`docs/adr/0004-three-human-confirmation-milestones.md`). | Phase 2 adds efficient UWF manual workflow and clinically approved per-group completeness without converting case-level annotation confirmation into individual AI ROI confirmation. |
 | Source origin / permission (B01) | `dr_support/services/admission.py` currently creates workspace `BridgeImage` with `source_type="PUBLIC"`; `workflow.py` has a `PUBLIC` fallback. Bridge v1 `contracts/_schema.py`/`services/model_api.py` accept only `PUBLIC`/`SYNTHETIC`; `providers/remote.py` forwards the image value. These are pinned-source observations, not a hospital runtime test. | Owner/data steward approves a truthful authorized-hospital provenance/permission contract and migration/Bridge compatibility. P2-1 owns intake identity, P1-A durable baseline, P3-4 wire/result mapping, P4-3 export lineage and P5-1/3/5 integrated authorization checks. Do not classify hospital images as public/synthetic solely to satisfy the current schema. |
 | Dataset | Existing `s4.dataset-manifest.v2` and `s8.2-task-specific-v1` grade/lesion readiness in `docs/reference/DATASET_MANIFEST.md`. | Phase 4 preserves compatibility and adds read-only inspection, snapshot reproducibility and approved completeness semantics. |
@@ -1247,6 +1247,6 @@ The supplied `07-physical-deployment.png` image's **whole-diagram approval statu
 
 ## 25. Candidate change log and next handoff
 
-2026-09-28 r1: preserved the baseline sections, work-item history and status tracker; corrected document path and added candidate status, pinned provenance, current/target matrix, shared contracts, dependencies, owner decisions and links to the detailed Phase 2–5 candidates. See the corresponding candidate report in the working package (`candidate-r2.1/M1_PLAN_RECONCILIATION_REPORT.md`) for r2.1 changes/hashes; r1 and r2 remain untouched. 2026-09-28 r2: resolved static reviewer comments in §§3.6, 5, 6.1, 6.3, 15 and deployment authority in §24; clinical/deployment decisions remain pending. The attached ChatGPT static document review is separate from an O2/runtime review and owner approval. Candidate r2.1 (2026-09-28) adds B01 source-origin and B02 loader-security gates to §§22–24 without changing prior research/clinical statuses. Candidate r2.2 records the owner's clarified product direction: M1 is the Labeling System that is extended in M2 into a Clinical Screening System; NB01/USPEC is the preferred UWF grading candidate, RETFound becomes comparator/temporary fallback, the masked analysis image and a distinct Explainability Panel are first-class review surfaces, and later hospital-domain fine-tuning must use versioned physician-confirmed snapshots in separately authorized runs rather than online/in-place learning. No model runtime, clinical validation or hospital-data training was performed to make this documentation change. On review, reconcile Phase 0 and Phase 1 ledger against a fresh implementation baseline before authorizing bounded work; do not treat this candidate as automatic execution approval.
+2026-09-28 r1: preserved the baseline sections, work-item history and status tracker; corrected document path and added candidate status, pinned provenance, current/target matrix, shared contracts, dependencies, owner decisions and links to the detailed Phase 2–5 candidates. See the corresponding candidate report in the working package (`candidate-r2.1/M1_PLAN_RECONCILIATION_REPORT.md`) for r2.1 changes/hashes; r1 and r2 remain untouched. 2026-09-28 r2: resolved static reviewer comments in §§3.6, 5, 6.1, 6.3, 15 and deployment authority in §24; clinical/deployment decisions remain pending. The attached ChatGPT static document review is separate from an O2/runtime review and owner approval. Candidate r2.1 (2026-09-28) adds B01 source-origin and B02 loader-security gates to §§22–24 without changing prior research/clinical statuses. Candidate r2.2 records the owner's clarified product direction: M1 is the Labeling System that is extended in M2 into a Clinical Screening System; NB01/USPEC is the preferred UWF grading candidate, RETFound becomes comparator/temporary fallback, the masked analysis image and a distinct Explainability Panel are first-class review surfaces, and later hospital-domain fine-tuning must use versioned physician-confirmed snapshots in separately authorized runs rather than online/in-place learning. No model runtime, clinical validation or hospital-data training was performed to make this documentation change. On review, reconcile Phase 0 and Phase 1 ledger against a fresh implementation baseline before authorizing bounded work; do not treat this candidate as automatic execution approval. 2026-09-29 closeout r2.4: owner approved Phase 1 `DONE` on the public/synthetic evidence boundary after accepting the recorded P1-A/P1-B/P1-I, validation, and limitation receipts; independent O1 review remains the technical review record. Phase 2 is not started and requires a new owner instruction.
 
 # End of M1 Master Plan
