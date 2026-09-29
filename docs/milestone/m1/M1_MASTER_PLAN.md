@@ -632,7 +632,7 @@ Create the durable data foundation for physician review, model evidence, workspa
 **Fresh migration receipt:** snapshot `phase1-synthetic-receipt-20260929`; source-set SHA-256 `6674d63f93d00396826e61796b8659a5cc692d2bda5395c8923f4a9b9dd966d2`; catalog SHA-256 `a903f9fb9b5bdce0a4b98f0249c52e99fc3ddc26be32079c588e107762fd4158`; one orphan reported inventory-only.
 **Dry-run result: safe_to_proceed=true.** The successful dry-run caused no destructive source/target mutation; SQLite source bytes remained unchanged and no target data was deleted, truncated, or recreated.
 **Restore evidence:** 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and verified revision/content; restored application selected PostgreSQL storage.
-**Open blockers:** Owner/auditor review and final remote synchronization/cleanup remain; root legacy UI smoke lacks the ten public HRF samples required by its documented environment prerequisite, and documentation QA reports the pre-existing missing `docs/README.md`; Phase 1 is not `DONE`.
+**Open blockers:** Owner/auditor review remains; root legacy UI smoke lacks the ten public HRF samples required by its documented environment prerequisite, and documentation QA reports the pre-existing missing `docs/README.md`; Phase 1 is not `DONE`.
 **Owner decisions:**  
 
 ---

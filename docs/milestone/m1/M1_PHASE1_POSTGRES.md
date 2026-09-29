@@ -831,7 +831,7 @@ Update this section during execution. Do not mark an item `DONE` without evidenc
 | Backup/restore smoke | READY_FOR_REVIEW | `main` / `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` | MAIN receipt: 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and revision/content verification. |
 | Full backend validation | READY_FOR_REVIEW | `main` / `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` | Post-merge run: 181 passed, 27 skipped, 38 warnings without a designated PostgreSQL test DSN; designated-DSN receipt remains 206 passed, 2 skipped, 38 warnings. |
 | Frontend validation/build if changed | READY_FOR_REVIEW | `main` / `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` | Post-merge run: 16 files/99 tests, typecheck, and build passed; Vitest execution is serialized for local jsdom/Chakra stability. |
-| Main smoke and synchronization | READY_FOR_REVIEW | `main` / `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` | Local synthetic API smoke passed; push and final cleanup remain in the closeout sequence. |
+| Main smoke and synchronization | READY_FOR_REVIEW | `main` / `4dfbc3c99e5d9ff83e366361d241442d098ce41e` | Local synthetic API smoke passed; `main` is pushed and synchronized; completed feature ref/worktree cleanup is verified. |
 | Owner/auditor review | TODO | — | — |
 
 **Current prerequisite/evidence gate ledger (r2.4; separate from historical P1-F implementation row):**
@@ -905,9 +905,9 @@ The main orchestrator must complete this section before asking the owner/auditor
 Repository root: <feature-worktree-root; sanitized in this document>
 Main HEAD before Phase 1: 0ac3f66 (origin/main)
 Main HEAD after Phase 1: `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` (local fast-forward integration)
-Main status: post-merge validation run; `origin/main` still requires synchronization; root `_main_*.txt` packets are untracked orchestration artifacts pending final closeout cleanup
+Main status: post-merge validation run; local `main` and `origin/main` are synchronized; completed feature worktree/branches and root `_main_*.txt` orchestration packets were removed during closeout
 Feature branch: `feat/m1-p1-phase1-postgres`
-Origin synchronization: `origin/feat/m1-p1-phase1-postgres` and local `main` point to `a1da89c5b90c2e32d432ee863f79d8db70fde0c4`; `origin/main` remains at `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2` until the authorized final push
+Origin synchronization: final main commit `4dfbc3c99e5d9ff83e366361d241442d098ce41e` is present on local `main` and `origin/main`; the completed feature ref/worktree were removed
 ```
 
 ### Integrated branches
@@ -970,7 +970,7 @@ Skipped tests/checks and reason: current backend run skipped 27 tests because no
 - The fresh synthetic receipt supplies the exact source-set/catalog hashes and one orphan count; the prior MAIN receipt supplies backup/restore evidence.
 - The current designated PostgreSQL validation used an isolated unique schema in synthetic PostgreSQL 16.15 on `dr_support_test`; the schema was removed and no hospital or production data was used.
 - Optional NumPy-dependent DICOM/S5 tests remain unrun because NumPy is not installed.
-- The candidate is fast-forwarded into local `main`; `origin/main` push and completed branch/worktree cleanup remain pending.
+- The candidate is fast-forwarded into local `main`; final main commit is pushed and synchronized, and completed branch/worktree cleanup is verified.
 - Root legacy UI smoke and documentation QA remain environment/repository-prerequisite limitations: public HRF samples are absent, and `docs/README.md` is missing.
 ```
 
