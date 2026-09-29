@@ -4,14 +4,14 @@
 **Milestone:** M1  
 **Phase:** 1 — Data Foundation & PostgreSQL  
 **Document revision:** Closeout r2.5, preserving 2026-09-25 Phase 1 specification
-**Prepared:** 2026-09-29  
-**Document status:** `OWNER_APPROVED_CLOSEOUT`  
+**Prepared:** 2026-09-29
+**Document status:** `OWNER_APPROVED_CLOSEOUT`
 **Implementation status:** `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted; final validation and limitations are recorded below)
 **Source baseline commit:** `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2`
-**Owner-reviewed implementation / receipt baseline:** `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c`  
+**Owner-reviewed implementation / receipt baseline:** `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c`
 **Integrated candidate / receipt evidence:** `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` (O1 review run `e1859e9890d24166b682f2b429fa4ed2`, `APPROVE_FOR_MAIN_INTEGRATION`)
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md` (package paths, not repository links)  
-**Owner decisions pending:** Phase 0 reconciliation, clinical completeness extension, schema/contract changes beyond frozen Phase 1 scope; these are outside the completed Phase 1 scope.  
+**Owner decisions pending:** Phase 0 reconciliation, clinical completeness extension, schema/contract changes beyond frozen Phase 1 scope; these are outside the completed Phase 1 scope.
 **Original owner decision date:** 2026-09-25  
 **Parent plan:** `docs/milestone/m1/M1_MASTER_PLAN.md`
 

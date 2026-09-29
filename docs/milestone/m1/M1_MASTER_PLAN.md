@@ -2,8 +2,8 @@
 
 **Document path in repository:** `docs/milestone/m1/M1_MASTER_PLAN.md`  
 **Document revision:** Closeout r2.4 (owner-approved Phase 1 closeout; preserves the 2026-09-25 working master)
-**Prepared:** 2026-09-29  
-**Document status:** `OWNER_APPROVED_CLOSEOUT`  
+**Prepared:** 2026-09-29
+**Document status:** `OWNER_APPROVED_CLOSEOUT`
 **Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted; final validation and limitations are recorded in the Phase 1 evidence); see the phase tracker, which is independent of later-phase authorization.
 **Source baseline commit:** `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2`
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.  
@@ -625,15 +625,15 @@ Create the durable data foundation for physician review, model evidence, workspa
 
 **Status:** `DONE` (owner-approved 2026-09-29; independent O1 technical review accepted; final documentation closeout is bounded to this administrative update)
 **Start date:** 2026-09-25
-**Completion date:** 2026-09-29  
-**Reviewed by:** Owner approval on 2026-09-29; independent O1 technical review run `e1859e9890d24166b682f2b429fa4ed2` accepted the exact candidate.  
+**Completion date:** 2026-09-29
+**Reviewed by:** Owner approval on 2026-09-29; independent O1 technical review run `e1859e9890d24166b682f2b429fa4ed2` accepted the exact candidate.
 **Evidence / commit(s):** Owner-reviewed implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c`; O1-reviewed candidate `a1da89c5b90c2e32d432ee863f79d8db70fde0c4`; P1-F foundation at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; final documentation closeout commit is recorded in Project Brain after push; current validation evidence is in `docs/milestone/m1/M1_PHASE1_POSTGRES.md`.
 **Migration evidence:** Isolated synthetic PostgreSQL 16.15, schema v1->v4; one workspace and one case imported; revision 4/content preserved; identical rerun idempotent; changed source rejected with exit 2; SQLite sources remained read-only.
 **Fresh migration receipt:** snapshot `phase1-synthetic-receipt-20260929`; source-set SHA-256 `6674d63f93d00396826e61796b8659a5cc692d2bda5395c8923f4a9b9dd966d2`; catalog SHA-256 `a903f9fb9b5bdce0a4b98f0249c52e99fc3ddc26be32079c588e107762fd4158`; one orphan reported inventory-only.
 **Dry-run result: safe_to_proceed=true.** The successful dry-run caused no destructive source/target mutation; SQLite source bytes remained unchanged and no target data was deleted, truncated, or recreated.
 **Restore evidence:** 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and verified revision/content; restored application selected PostgreSQL storage.
 **Accepted limitations:** Root legacy UI smoke lacks the ten public HRF samples required by its documented environment prerequisite; documentation QA reports the pre-existing missing `docs/README.md`; the post-merge backend run did not use a designated PostgreSQL DSN while the designated-DSN receipt remains recorded; two optional NumPy-dependent DICOM/S5 tests remain skipped; existing React warnings and the frontend large-chunk warning remain. These do not block this owner-approved Phase 1 closeout.
-**Owner decisions:** Owner approved P1-A, P1-B, P1-I, the recorded PostgreSQL qualification/restore evidence, and the public/synthetic-only Phase 1 boundary on 2026-09-29. No hospital-data inference/export, production deployment, clinical/model semantic change, or Phase 2 implementation is authorized by this closeout.  
+**Owner decisions:** Owner approved P1-A, P1-B, P1-I, the recorded PostgreSQL qualification/restore evidence, and the public/synthetic-only Phase 1 boundary on 2026-09-29. No hospital-data inference/export, production deployment, clinical/model semantic change, or Phase 2 implementation is authorized by this closeout.
 
 ---
 
