@@ -23,6 +23,7 @@ from dr_support.persistence import (
     LegacySQLiteMigrationService,
     LegacySourceConflictError,
     MigrationConsistencyError,
+    MigrationNotSafeError,
     PostgresCaseStore,
     DatabaseConfigurationError,
     DatabaseUnavailableError,
@@ -33,6 +34,7 @@ from dr_support.persistence import (
     SchemaMigrator,
 )
 from dr_support.persistence.config import CASE_STORE_MODE_ENV, DATABASE_SCHEMA_ENV, DATABASE_URL_ENV
+from dr_support.persistence.legacy_migration import _capture_source
 from dr_support.api import create_app
 from dr_support.persistence.migrations import MIGRATIONS
 
@@ -849,6 +851,48 @@ def test_legacy_inventory_reports_missing_duplicate_and_orphan_without_mutation(
     assert referenced.read_bytes() == referenced_before
 
 
+@pytest.mark.parametrize("sidecar_kind", ("wal", "journal"))
+def test_legacy_inventory_records_readable_sidecar_without_mutating_or_importing(
+    postgres_database: PostgresDatabase,
+    tmp_path: Path,
+    sidecar_kind: str,
+):
+    SchemaMigrator(postgres_database).migrate()
+    workspace_db = tmp_path / "workspace.sqlite"
+    _write_legacy_case_database(
+        workspace_db,
+        {"image_id": "synthetic-sidecar", "revision": 0, "events": []},
+    )
+    workspace_before = workspace_db.read_bytes()
+    clean_source = _capture_source(workspace_db, "workspace_database", "ws_sidecar")
+
+    sidecar_path = Path(f"{workspace_db}-{sidecar_kind}")
+    sidecar_path.write_bytes(f"synthetic {sidecar_kind} state".encode("ascii"))
+    sidecar_before = sidecar_path.read_bytes()
+    source = _capture_source(workspace_db, "workspace_database", "ws_sidecar")
+    repeated = _capture_source(workspace_db, "workspace_database", "ws_sidecar")
+    sidecar = next(item for item in source.effective_state if item.kind == sidecar_kind)
+
+    assert sidecar.status == "readable"
+    assert source != clean_source
+    assert source == repeated
+    if sidecar_kind == "journal":
+        assert source.status == "invalid"
+        assert source.error == "SQLite rollback journal is present; source state is not stable"
+    else:
+        assert source.status == "readable"
+    assert workspace_db.read_bytes() == workspace_before
+    assert sidecar_path.read_bytes() == sidecar_before
+    with postgres_database.session() as connection:
+        schema = sql.Identifier(postgres_database.settings.schema)
+        assert connection.execute(
+            sql.SQL("SELECT count(*) FROM {}.workspaces").format(schema)
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            sql.SQL("SELECT count(*) FROM {}.review_cases").format(schema)
+        ).fetchone()[0] == 0
+
+
 def test_legacy_import_preserves_profiles_cases_receipt_and_is_idempotent(
     postgres_database: PostgresDatabase,
     tmp_path: Path,
@@ -939,7 +983,9 @@ def test_legacy_import_preserves_profiles_cases_receipt_and_is_idempotent(
         2,
     )
 
-    repeated = service.import_legacy(boundary)
+    repeated = service.import_legacy(
+        boundary, expected_source_set_sha256=plan.inventory.source_set_sha256
+    )
     assert repeated.idempotent is True
     assert repeated.imported_workspaces == 0
     assert repeated.imported_cases == 0
@@ -965,7 +1011,21 @@ def test_legacy_import_requires_boundary_and_rejects_changed_source(
         service.import_legacy()
 
     boundary = ConsistencyBoundary.writer_quiesced("synthetic-window-2")
-    service.import_legacy(boundary)
+    plan = service.plan(boundary)
+    with pytest.raises(LegacySourceConflictError, match="Expected source-set"):
+        service.import_legacy(boundary, expected_source_set_sha256="0" * 64)
+    schema = sql.Identifier(postgres_database.settings.schema)
+    with postgres_database.session() as connection:
+        assert connection.execute(
+            sql.SQL("SELECT count(*) FROM {}.workspaces").format(schema)
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            sql.SQL("SELECT count(*) FROM {}.review_cases").format(schema)
+        ).fetchone()[0] == 0
+        assert connection.execute(
+            sql.SQL("SELECT count(*) FROM {}.legacy_migration_receipts").format(schema)
+        ).fetchone()[0] == 0
+    service.import_legacy(boundary, plan=plan)
     connection = sqlite3.connect(workspace_db)
     try:
         connection.execute(
@@ -987,9 +1047,8 @@ def test_legacy_import_requires_boundary_and_rejects_changed_source(
         connection.close()
 
     with pytest.raises(LegacySourceConflictError, match="source set"):
-        service.import_legacy(boundary)
+        service.import_legacy(boundary, plan=plan)
 
-    schema = sql.Identifier(postgres_database.settings.schema)
     with postgres_database.session() as connection:
         stored = connection.execute(
             sql.SQL(
@@ -1016,6 +1075,7 @@ def test_legacy_import_rolls_back_when_source_changes_during_import(
     catalog = tmp_path / "catalog.sqlite"
     _write_legacy_catalog(catalog, [_legacy_profile("ws_atomic", workspace_db)])
     service = LegacySQLiteMigrationService(postgres_database, catalog)
+    expected_source_set_sha256 = service.inventory().source_set_sha256
     original_inventory = service.inventory
     inventory_calls = 0
 
@@ -1048,7 +1108,9 @@ def test_legacy_import_rolls_back_when_source_changes_during_import(
     boundary = ConsistencyBoundary.writer_quiesced("synthetic-window-atomic")
 
     with pytest.raises(LegacySourceConflictError, match="changed during import"):
-        service.import_legacy(boundary)
+        service.import_legacy(
+            boundary, expected_source_set_sha256=expected_source_set_sha256
+        )
 
     schema = sql.Identifier(postgres_database.settings.schema)
     with postgres_database.session() as connection:
@@ -1068,3 +1130,38 @@ def test_legacy_import_rolls_back_when_source_changes_during_import(
     assert workspace_count == 0
     assert case_count == 0
     assert receipt_count == 0
+
+
+def test_legacy_import_rejects_preexisting_extra_case_without_deleting_it(
+    postgres_database: PostgresDatabase,
+    tmp_path: Path,
+):
+    SchemaMigrator(postgres_database).migrate()
+    workspace_db = tmp_path / "workspace.sqlite"
+    _write_legacy_case_database(
+        workspace_db,
+        {"image_id": "synthetic-imported", "revision": 0, "events": []},
+    )
+    catalog = tmp_path / "catalog.sqlite"
+    _write_legacy_catalog(catalog, [_legacy_profile("ws_extra_case", workspace_db)])
+    service = LegacySQLiteMigrationService(postgres_database, catalog)
+    boundary = ConsistencyBoundary.snapshot("synthetic-extra-case-snapshot")
+    plan = service.plan(boundary)
+    service.import_legacy(boundary, plan=plan)
+
+    target = PostgresCaseStore(postgres_database, "ws_extra_case")
+    extra = target.get("synthetic-extra")
+    extra["events"] = [{"source": "pre-existing-postgres"}]
+    target.put(extra)
+    extra_before = target.get("synthetic-extra")
+    repeated = service.plan(boundary)
+
+    assert repeated.report.safe_to_proceed is False
+    assert any("extra PostgreSQL cases" in conflict for conflict in repeated.report.conflicts)
+
+    with pytest.raises(MigrationNotSafeError, match="not safe to proceed"):
+        service.import_legacy(
+            boundary, expected_source_set_sha256=plan.inventory.source_set_sha256
+        )
+
+    assert target.get("synthetic-extra") == extra_before

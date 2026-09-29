@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import sys
 from dataclasses import dataclass
@@ -75,8 +76,39 @@ class ConsistencyBoundary:
 
 
 @dataclass(frozen=True)
+class SQLiteSidecarIdentity:
+    """Identity for SQLite state stored beside the main database file."""
+
+    kind: Literal["wal", "shm", "journal"]
+    path: str
+    status: Literal["readable", "missing", "invalid"]
+    size_bytes: int | None = None
+    mtime_ns: int | None = None
+    sha256: str | None = None
+    error: str | None = None
+
+    @property
+    def mtime_utc(self) -> str | None:
+        if self.mtime_ns is None:
+            return None
+        return datetime.fromtimestamp(self.mtime_ns / 1_000_000_000, tz=timezone.utc).isoformat()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "path": self.path,
+            "status": self.status,
+            "size_bytes": self.size_bytes,
+            "mtime_ns": self.mtime_ns,
+            "mtime_utc": self.mtime_utc,
+            "sha256": self.sha256,
+            "error": self.error,
+        }
+
+
+@dataclass(frozen=True)
 class SourceIdentity:
-    """Byte and filesystem identity recorded for one SQLite source."""
+    """Main-file and effective sidecar identity recorded for one SQLite source."""
 
     role: str
     path: str
@@ -86,6 +118,7 @@ class SourceIdentity:
     mtime_ns: int | None = None
     sha256: str | None = None
     error: str | None = None
+    effective_state: tuple[SQLiteSidecarIdentity, ...] = ()
 
     @property
     def mtime_utc(self) -> str | None:
@@ -104,6 +137,7 @@ class SourceIdentity:
             "mtime_utc": self.mtime_utc,
             "sha256": self.sha256,
             "error": self.error,
+            "effective_state": [item.to_dict() for item in self.effective_state],
         }
 
 
@@ -244,6 +278,14 @@ class MigrationReport:
         details = [f"status={source.status}", f"size={source.size_bytes}", f"mtime={source.mtime_utc}"]
         if source.sha256:
             details.append(f"sha256={source.sha256}")
+        sidecars = [
+            f"{item.kind}:{item.status}"
+            + (f":{item.sha256}" if item.sha256 else "")
+            for item in source.effective_state
+            if item.status != "missing"
+        ]
+        if sidecars:
+            details.append("effective_sidecars=" + ",".join(sidecars))
         if source.error:
             details.append(f"detail={source.error}")
         return f"{source.path} ({', '.join(details)})"
@@ -381,14 +423,29 @@ class LegacySQLiteMigrationService:
         boundary: ConsistencyBoundary | None = None,
         *,
         plan: MigrationPlan | None = None,
+        expected_source_set_sha256: str | None = None,
     ) -> MigrationResult:
         """Import one approved source set atomically into the explicit target database."""
 
+        expected_source_set_sha256 = _normalize_expected_source_set_sha256(
+            expected_source_set_sha256
+        )
         if plan is None:
+            if expected_source_set_sha256 is None:
+                raise MigrationConsistencyError(
+                    "Fresh import requires the reviewed source-set SHA-256"
+                )
             plan = self.plan(boundary)
         elif boundary is not None and plan.report.boundary != boundary:
             raise MigrationConsistencyError("Import boundary differs from the planned boundary")
         boundary = plan.report.boundary
+        if (
+            expected_source_set_sha256 is not None
+            and expected_source_set_sha256 != plan.inventory.source_set_sha256
+        ):
+            raise LegacySourceConflictError(
+                "Expected source-set SHA-256 does not match the reviewed dry run"
+            )
         if boundary is None:
             raise MigrationConsistencyError(
                 "Import requires a writer-quiesced or approved snapshot boundary"
@@ -446,6 +503,7 @@ class LegacySQLiteMigrationService:
                 connection, verified
             )
             imported_cases, unchanged_cases = self._write_cases(connection, verified)
+            self._assert_target_matches(connection, verified)
 
             final_inventory = self.inventory()
             if final_inventory.source_set_sha256 != verified.source_set_sha256:
@@ -498,10 +556,15 @@ class LegacySQLiteMigrationService:
         boundary: ConsistencyBoundary | None = None,
         *,
         plan: MigrationPlan | None = None,
+        expected_source_set_sha256: str | None = None,
     ) -> MigrationResult:
         """Explicitly named alias for callers that avoid a method named ``import``."""
 
-        return self.import_legacy(boundary, plan=plan)
+        return self.import_legacy(
+            boundary,
+            plan=plan,
+            expected_source_set_sha256=expected_source_set_sha256,
+        )
 
     def _read_catalog(
         self, conflicts: list[str]
@@ -731,6 +794,28 @@ class LegacySQLiteMigrationService:
                 if not _workspace_row_is_identity_only(row):
                     conflicts.append(f"Workspace {item.workspace_id!r} differs in PostgreSQL")
 
+            source_case_ids = {case_id for case_id, _ in item.cases}
+            target_case_rows = connection.execute(
+                sql.SQL(
+                    "SELECT case_id FROM {}.review_cases WHERE workspace_id = %s "
+                    "ORDER BY case_id"
+                ).format(self._schema),
+                (item.workspace_id,),
+            ).fetchall()
+            target_case_ids = {row[0] for row in target_case_rows}
+            extra_case_ids = sorted(target_case_ids - source_case_ids)
+            if extra_case_ids:
+                conflicts.append(
+                    f"Workspace {item.workspace_id!r} has extra PostgreSQL cases: "
+                    + ", ".join(repr(case_id) for case_id in extra_case_ids)
+                )
+            if not allow_missing and len(target_case_rows) != len(source_case_ids):
+                conflicts.append(
+                    f"Workspace {item.workspace_id!r} target case count "
+                    f"{len(target_case_rows)} does not match source count "
+                    f"{len(source_case_ids)}"
+                )
+
             for case_id, case in item.cases:
                 target = connection.execute(
                     sql.SQL(
@@ -850,34 +935,117 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _capture_sqlite_sidecar(
+    path: Path, kind: Literal["wal", "shm", "journal"]
+) -> SQLiteSidecarIdentity:
+    sidecar_path = Path(f"{path}-{kind}")
+    try:
+        stat = sidecar_path.stat()
+    except FileNotFoundError:
+        return SQLiteSidecarIdentity(kind, str(sidecar_path), "missing")
+    except OSError as exc:
+        return SQLiteSidecarIdentity(kind, str(sidecar_path), "invalid", error=str(exc))
+    if not sidecar_path.is_file():
+        return SQLiteSidecarIdentity(
+            kind,
+            str(sidecar_path),
+            "invalid",
+            stat.st_size,
+            stat.st_mtime_ns,
+            error="path is not a regular file",
+        )
+    try:
+        digest = _sha256(sidecar_path)
+    except OSError as exc:
+        return SQLiteSidecarIdentity(
+            kind,
+            str(sidecar_path),
+            "invalid",
+            stat.st_size,
+            stat.st_mtime_ns,
+            error=str(exc),
+        )
+    return SQLiteSidecarIdentity(
+        kind,
+        str(sidecar_path),
+        "readable",
+        stat.st_size,
+        stat.st_mtime_ns,
+        digest,
+    )
+
+
+def _capture_sqlite_effective_state(path: Path) -> tuple[SQLiteSidecarIdentity, ...]:
+    return tuple(
+        _capture_sqlite_sidecar(path, kind) for kind in ("wal", "shm", "journal")
+    )
+
+
 def _capture_source(path: Path, role: str, workspace_id: str | None) -> SourceIdentity:
     normalized = _normalized_path(path)
+    effective_state = _capture_sqlite_effective_state(normalized)
+    sidecar_errors = [item.error for item in effective_state if item.status == "invalid"]
+    rollback_journal = next(
+        (item for item in effective_state if item.kind == "journal" and item.status == "readable"),
+        None,
+    )
+    sidecar_error = next((error for error in sidecar_errors if error), None)
+    if rollback_journal is not None:
+        sidecar_error = "SQLite rollback journal is present; source state is not stable"
     try:
         stat = normalized.stat()
     except FileNotFoundError:
-        return SourceIdentity(role, str(normalized), workspace_id, "missing")
+        return SourceIdentity(
+            role,
+            str(normalized),
+            workspace_id,
+            "missing",
+            effective_state=effective_state,
+            error=sidecar_error,
+        )
     except OSError as exc:
-        return SourceIdentity(role, str(normalized), workspace_id, "invalid", error=str(exc))
+        return SourceIdentity(
+            role,
+            str(normalized),
+            workspace_id,
+            "invalid",
+            effective_state=effective_state,
+            error=str(exc),
+        )
     if not normalized.is_file():
         return SourceIdentity(
-            role, str(normalized), workspace_id, "invalid", stat.st_size, stat.st_mtime_ns,
+            role,
+            str(normalized),
+            workspace_id,
+            "invalid",
+            stat.st_size,
+            stat.st_mtime_ns,
             error="path is not a regular file",
+            effective_state=effective_state,
         )
     try:
         digest = _sha256(normalized)
     except OSError as exc:
         return SourceIdentity(
-            role, str(normalized), workspace_id, "invalid", stat.st_size, stat.st_mtime_ns,
+            role,
+            str(normalized),
+            workspace_id,
+            "invalid",
+            stat.st_size,
+            stat.st_mtime_ns,
             error=str(exc),
+            effective_state=effective_state,
         )
     return SourceIdentity(
         role,
         str(normalized),
         workspace_id,
-        "readable",
+        "invalid" if sidecar_error else "readable",
         stat.st_size,
         stat.st_mtime_ns,
         digest,
+        sidecar_error,
+        effective_state,
     )
 
 
@@ -888,7 +1056,17 @@ def _same_identity(left: SourceIdentity, right: SourceIdentity) -> bool:
         and left.size_bytes == right.size_bytes
         and left.mtime_ns == right.mtime_ns
         and left.sha256 == right.sha256
+        and left.effective_state == right.effective_state
     )
+
+
+def _normalize_expected_source_set_sha256(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", normalized):
+        raise MigrationConsistencyError("Expected source-set SHA-256 must be 64 hexadecimal characters")
+    return normalized
 
 
 def _source_set_hash(catalog: SourceIdentity, workspaces: Sequence[LegacyWorkspace]) -> str:
@@ -987,8 +1165,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--writer-quiesced", help="Approved writer-quiescence window identity")
     parser.add_argument("--snapshot-id", help="Approved consistent snapshot identity")
+    parser.add_argument(
+        "--expected-source-set-sha256",
+        help="Exact SHA-256 copied from the reviewed dry-run report (required for import)",
+    )
     args = parser.parse_args(argv)
     try:
+        if args.command == "import" and not args.expected_source_set_sha256:
+            raise MigrationConsistencyError(
+                "Fresh CLI import requires --expected-source-set-sha256 copied from the reviewed dry run"
+            )
         boundary = _build_boundary(args)
         settings = PostgresSettings.from_env()
         database = PostgresDatabase(settings)
@@ -1000,7 +1186,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not plan.report.safe_to_proceed:
             return 2
         if args.command == "import":
-            result = service.import_legacy(boundary, plan=plan)
+            result = service.import_legacy(
+                boundary,
+                plan=plan,
+                expected_source_set_sha256=args.expected_source_set_sha256,
+            )
             print(
                 "Import result: "
                 f"workspaces imported={result.imported_workspaces}, "

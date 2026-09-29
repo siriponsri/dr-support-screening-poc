@@ -79,15 +79,22 @@ Use `--snapshot-id "<approved-snapshot-id>"` instead of
 The report includes source sizes, modification times, SHA-256 values, case
 counts, mappings, conflicts, and orphan files. Do not continue if authority is
 ambiguous, a source is missing or invalid, or the source-set hash changed.
+Readable SQLite WAL, shared-memory, or rollback-journal sidecars are part of
+the effective source state. If sidecar or journal state is unstable between
+inventory and verification, stop the migration and establish a new consistent
+source boundary.
 
 After reviewing the dry-run report, execute the import with the same catalog,
-orphan roots, and exact consistency boundary:
+orphan roots, exact consistency boundary, and exact source-set SHA-256 copied
+from the reviewed dry-run report. The import must use that exact reviewed hash;
+do not substitute a newly calculated or different value:
 
 ```powershell
 .\.venv\Scripts\python.exe -m dr_support.persistence.legacy_migration import `
   --catalog "<absolute-path-to-authoritative-catalog.sqlite>" `
   --orphan-root "<absolute-path-to-legacy-runtime>" `
-  --writer-quiesced "<approved-quiescence-window-id>"
+  --writer-quiesced "<approved-quiescence-window-id>" `
+  --expected-source-set-sha256 "<sha-from-reviewed-dry-run>"
 ```
 
 Verify the reported workspace and case counts, IDs, revisions, deterministic
