@@ -6,9 +6,9 @@
 **Document revision:** Candidate r2.3, preserving 2026-09-25 Phase 1 specification
 **Prepared:** 2026-09-28  
 **Document status:** `CANDIDATE_FOR_OWNER_REVIEW`  
-**Implementation status:** `IN_PROGRESS` (frontend validation repair evidence recorded; commit and independent review remain pending)
+**Implementation status:** `IN_PROGRESS` (candidate committed; independent review and integration remain pending)
 **Source baseline commit:** `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2`
-**Current candidate commit:** `d024ff91fbcd4df42a4a8d11471f4c1d6c313061`
+**Current candidate commit:** `84061db`
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md` (package paths, not repository links)  
 **Owner decisions pending:** Phase 0 reconciliation, clinical completeness extension, schema/contract changes beyond frozen Phase 1 scope  
 **Original owner decision date:** 2026-09-25  
@@ -825,12 +825,12 @@ Update this section during execution. Do not mark an item `DONE` without evidenc
 | Work item | Status | Branch / commit | Evidence / notes |
 |---|---|---|---|
 | P1-F PostgreSQL foundation | DONE | `siriponsri/feat-m1-p1-postgres-foundation` / `b63126ae989109e380ef9bdeb6d425c49eb96cec` | Historical integration row. Current live qualification is recorded in §18.1; no owner/auditor `DONE` claim is made for this candidate. |
-| P1-A Review/case persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending commit | Managed PostgreSQL case persistence preserved revision 4/content in the prior MAIN restore receipt; direct SQLite import API removed and migration-service tests retained. |
-| P1-B Workspace persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending commit | Prior MAIN restore receipt verified one workspace and restored app PostgreSQL selection. |
-| Legacy SQLite dry-run/import verification | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending commit | Prior MAIN receipt: one authoritative workspace and one case imported; identical rerun idempotent; changed source rejected with exit 2; source remained read-only. |
-| Backup/restore smoke | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending commit | Prior MAIN receipt: 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and revision/content verification. |
-| Full backend validation | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending commit | PASS: 206 passed, 2 skipped, 38 warnings with the designated synthetic PostgreSQL target; the two skips are optional NumPy-dependent DICOM/S5 tests. |
-| Frontend validation/build if changed | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending commit | PASS: 16 files/99 tests, typecheck, and build; Vitest execution is serialized for local jsdom/Chakra stability. |
+| P1-A Review/case persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | Managed PostgreSQL case persistence preserved revision 4/content in the prior MAIN restore receipt; direct SQLite import API removed and migration-service tests retained. |
+| P1-B Workspace persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | Prior MAIN restore receipt verified one workspace and restored app PostgreSQL selection. |
+| Legacy SQLite dry-run/import verification | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | Prior MAIN receipt: one authoritative workspace and one case imported; identical rerun idempotent; changed source rejected with exit 2; source remained read-only. |
+| Backup/restore smoke | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | Prior MAIN receipt: 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and revision/content verification. |
+| Full backend validation | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | PASS: 206 passed, 2 skipped, 38 warnings with the designated synthetic PostgreSQL target; the two skips are optional NumPy-dependent DICOM/S5 tests. |
+| Frontend validation/build if changed | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | PASS: 16 files/99 tests, typecheck, and build; Vitest execution is serialized for local jsdom/Chakra stability. |
 | Main smoke and synchronization | TODO | — | — |
 | Owner/auditor review | TODO | — | — |
 
@@ -902,14 +902,14 @@ Main HEAD before Phase 1: 0ac3f66 (origin/main)
 Main HEAD after Phase 1: NOT_RUN; this candidate is not merged
 Main status: NOT_RUN; main was not touched
 Feature branch: `feat/m1-p1-phase1-postgres`
-Origin synchronization: candidate `d024ff91fbcd4df42a4a8d11471f4c1d6c313061` is pushed and synchronized with `origin/feat/m1-p1-phase1-postgres`
+Origin synchronization: candidate `84061db` is not yet pushed; push verification remains pending
 ```
 
 ### Integrated branches
 
 | Branch | Base | Final commit | Validation | Merge result |
 |---|---|---|---|---|
-| `feat/m1-p1-phase1-postgres` | `0ac3f66` | `d024ff91fbcd4df42a4a8d11471f4c1d6c313061` | Focused/full backend receipts below; frontend validation recorded below; independent review pending | NOT_RUN; feature candidate only |
+| `feat/m1-p1-phase1-postgres` | `0ac3f66` | `84061db` | Focused/full backend receipts below; frontend validation recorded below; independent review pending | NOT_RUN; feature candidate only |
 
 Remove rows for branches not used. Add rows for owner-approved bounded fix branches if required.
 
@@ -947,7 +947,7 @@ Skipped tests/checks and reason: `tests/test_dicom_ingest.py` and `tests/test_s5
 ### Known limitations
 
 ```text
-- The candidate still needs a commit containing the frontend validation repair and has not undergone fresh independent O2 review.
+- The candidate is committed but has not yet been pushed or undergone fresh independent O2 review.
 - Frontend validation is serialized to avoid the local resource contention observed with parallel jsdom/Chakra execution; the passing run still emits existing React test warnings.
 - Frontend build passes with the existing large-chunk warning.
 - The prior MAIN receipt supplies counts and outcomes but not the source-set hash value or orphan-file count in this partial worktree.
