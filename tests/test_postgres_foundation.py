@@ -14,6 +14,7 @@ import pytest
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict
 from psycopg.errors import CheckViolation, ForeignKeyViolation, UniqueViolation
+from psycopg.types.json import Jsonb
 from fastapi.testclient import TestClient
 
 from dr_support.persistence import (
@@ -1165,3 +1166,59 @@ def test_legacy_import_rejects_preexisting_extra_case_without_deleting_it(
         )
 
     assert target.get("synthetic-extra") == extra_before
+
+
+def test_legacy_import_rejects_divergent_target_case_identity_and_revision(
+    postgres_database: PostgresDatabase,
+    tmp_path: Path,
+):
+    SchemaMigrator(postgres_database).migrate()
+    workspace_db = tmp_path / "workspace.sqlite"
+    _write_legacy_case_database(
+        workspace_db,
+        {"image_id": "synthetic-target", "revision": 0, "events": []},
+    )
+    catalog = tmp_path / "catalog.sqlite"
+    _write_legacy_catalog(catalog, [_legacy_profile("ws_target_divergence", workspace_db)])
+    service = LegacySQLiteMigrationService(postgres_database, catalog)
+    boundary = ConsistencyBoundary.snapshot("synthetic-target-divergence-snapshot")
+    plan = service.plan(boundary)
+    service.import_legacy(boundary, plan=plan)
+
+    schema = sql.Identifier(postgres_database.settings.schema)
+    with postgres_database.transaction() as connection:
+        stored_payload = connection.execute(
+            sql.SQL(
+                "SELECT payload FROM {}.review_cases "
+                "WHERE workspace_id = %s AND case_id = %s"
+            ).format(schema),
+            ("ws_target_divergence", "synthetic-target"),
+        ).fetchone()[0]
+        stored_payload["image_id"] = "synthetic-divergent-target"
+        stored_payload["revision"] = 99
+        connection.execute(
+            sql.SQL(
+                "UPDATE {}.review_cases SET payload = %s "
+                "WHERE workspace_id = %s AND case_id = %s"
+            ).format(schema),
+            (Jsonb(stored_payload), "ws_target_divergence", "synthetic-target"),
+        )
+
+    with pytest.raises(LegacySourceConflictError, match="differs in PostgreSQL"):
+        service.import_legacy(
+            boundary,
+            plan=plan,
+            expected_source_set_sha256=plan.inventory.source_set_sha256,
+        )
+
+    with postgres_database.session() as connection:
+        stored = connection.execute(
+            sql.SQL(
+                "SELECT revision, payload FROM {}.review_cases "
+                "WHERE workspace_id = %s AND case_id = %s"
+            ).format(schema),
+            ("ws_target_divergence", "synthetic-target"),
+        ).fetchone()
+    assert stored[0] == 0
+    assert stored[1]["image_id"] == "synthetic-divergent-target"
+    assert stored[1]["revision"] == 99

@@ -1140,10 +1140,15 @@ def _workspace_row_matches(row: Sequence[Any], profile: WorkspaceProfile) -> boo
 
 
 def _case_row_matches(row: Sequence[Any], case: dict[str, Any]) -> bool:
-    existing = apply_case_defaults(dict(row[1]))
-    existing["image_id"] = case["image_id"]
-    existing["revision"] = row[0]
-    return row[0] == case["revision"] and _serialized_payload(existing) == _serialized_payload(case)
+    stored = dict(row[1])
+    if (
+        row[0] != case["revision"]
+        or stored.get("image_id") != case["image_id"]
+        or stored.get("revision") != case["revision"]
+    ):
+        return False
+    existing = apply_case_defaults(stored)
+    return _serialized_payload(existing) == _serialized_payload(case)
 
 
 def _build_boundary(args: argparse.Namespace) -> ConsistencyBoundary | None:
