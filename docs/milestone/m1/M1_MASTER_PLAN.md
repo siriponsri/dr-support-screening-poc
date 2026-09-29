@@ -4,13 +4,13 @@
 **Document revision:** Candidate r2.3 (O2 receipt correction; preserves the 2026-09-25 working master)
 **Prepared:** 2026-09-28  
 **Document status:** `CANDIDATE_FOR_OWNER_REVIEW`  
-**Implementation status:** Phase 1 `IN_PROGRESS` (implementation/evidence complete; prior candidate evidence is pushed; fresh O2 review, integration, main validation/smoke, and owner/auditor approval remain pending); see the phase tracker, which is independent of document approval.
+**Implementation status:** Phase 1 `IN_PROGRESS` (candidate `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` is locally integrated; fresh independent O1 review approved it; post-merge validation is recorded in the Phase 1 evidence; owner/auditor approval remains pending); see the phase tracker, which is independent of document approval.
 **Source baseline commit:** `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2`
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.  
 **Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; see §24.  
 **Primary repository:** `siriponsri/dr-support-screening-poc`  
 
-**Current reading guide (r2.3):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and the original §15 status rows record the 2026-09-25 planning baseline; the adjacent r2.3 current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. This candidate does not authorize implementation, deployment, main merge, or Phase 2.
+**Current reading guide (r2.3):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and the original §15 status rows record the 2026-09-25 planning baseline; the adjacent r2.3 current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Candidate `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` is locally integrated and O1-approved; Phase 1 remains `IN_PROGRESS`/`READY_FOR_REVIEW`, and this document does not authorize Phase 2 or claim `DONE`.
 
 ---
 
@@ -623,16 +623,16 @@ Create the durable data foundation for physician review, model evidence, workspa
 
 ## Phase 1 status tracker
 
-**Status:** `IN_PROGRESS` (candidate evidence complete; prior candidate/evidence `07a58a6fd8c91acf1c06f14bfe80b0f6ba9f0fb7` is pushed; fresh O2 review, integration, main validation/smoke, and owner/auditor approval remain pending)
+**Status:** `IN_PROGRESS` (candidate `a1da89c5b90c2e32d432ee863f79d8db70fde0c4` is locally integrated; fresh O1 review approved it; post-merge validation is recorded; owner/auditor approval and final remote synchronization remain pending)
 **Start date:** 2026-09-25
 **Completion date:**  
 **Reviewed by:**  
-**Evidence / commit(s):** Prior pushed candidate/evidence `07a58a6fd8c91acf1c06f14bfe80b0f6ba9f0fb7`; P1-F foundation at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; Phase 1 candidate branch `feat/m1-p1-phase1-postgres` contains P1-A/P1-B/P1-I implementation and current validation evidence in `docs/milestone/m1/M1_PHASE1_POSTGRES.md`.
+**Evidence / commit(s):** Integrated candidate `a1da89c5b90c2e32d432ee863f79d8db70fde0c4`; O1 review run `e1859e9890d24166b682f2b429fa4ed2` approved it for main integration; P1-F foundation at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; current validation evidence is in `docs/milestone/m1/M1_PHASE1_POSTGRES.md`.
 **Migration evidence:** Isolated synthetic PostgreSQL 16.15, schema v1->v4; one workspace and one case imported; revision 4/content preserved; identical rerun idempotent; changed source rejected with exit 2; SQLite sources remained read-only.
 **Fresh migration receipt:** snapshot `phase1-synthetic-receipt-20260929`; source-set SHA-256 `6674d63f93d00396826e61796b8659a5cc692d2bda5395c8923f4a9b9dd966d2`; catalog SHA-256 `a903f9fb9b5bdce0a4b98f0249c52e99fc3ddc26be32079c588e107762fd4158`; one orphan reported inventory-only.
 **Dry-run result: safe_to_proceed=true.** The successful dry-run caused no destructive source/target mutation; SQLite source bytes remained unchanged and no target data was deleted, truncated, or recreated.
 **Restore evidence:** 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and verified revision/content; restored application selected PostgreSQL storage.
-**Open blockers:** Fresh O2 review, integration/merge, main validation/smoke, and owner/auditor review remain; Phase 1 is not `DONE`.
+**Open blockers:** Owner/auditor review and final remote synchronization/cleanup remain; root legacy UI smoke lacks the ten public HRF samples required by its documented environment prerequisite, and documentation QA reports the pre-existing missing `docs/README.md`; Phase 1 is not `DONE`.
 **Owner decisions:**  
 
 ---
