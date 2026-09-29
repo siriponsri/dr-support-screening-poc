@@ -11,8 +11,8 @@ Copy `.env.example` into a private environment file or configure variables throu
 | `WORKERS` | server | `1` | no |
 | `REMOTE_MODEL_URL` | review | empty until Model API is deployed | no |
 | `REMOTE_MODEL_TOKEN` | review | empty; optional bearer token | yes |
-| `DR_SUPPORT_STATE` | review | empty in managed mode; explicit path selects legacy SQLite | no |
-| `DR_SUPPORT_WORKSPACE_CATALOG` | review | empty in managed mode; explicit path selects legacy SQLite | no |
+| `DR_SUPPORT_STATE` | review | empty; compatibility path only | no |
+| `DR_SUPPORT_WORKSPACE_CATALOG` | review | empty; compatibility path only | no |
 | `DR_SUPPORT_CASE_STORE` | review | `postgres` | no |
 | `DR_SUPPORT_WORKSPACE_ID` | PostgreSQL case store | optional bootstrap workspace identifier | no |
 | `DR_SUPPORT_DATABASE_URL` | PostgreSQL foundation | `postgresql://dr_support_app:change-me@127.0.0.1:5432/dr_support` | **yes** |
@@ -51,6 +51,6 @@ The application rejects incompatible profile/runtime combinations. The review pr
 
 `DR_SUPPORT_DATABASE_URL` is a server-side PostgreSQL connection URL. Store the real value in a private `.env`, service environment, or approved secret manager. Do not expose it through React, browser storage, API responses, or logs. The committed `.env.example` value is a placeholder only.
 
-Managed PostgreSQL workspace/catalog and case persistence is the normal runtime. Provide the server-side `DR_SUPPORT_DATABASE_URL`; PostgreSQL mode runs the schema migrations and fails when the target is missing, invalid, or unavailable. It never chooses SQLite as an implicit fallback. Set `DR_SUPPORT_CASE_STORE=sqlite` for an explicit legacy compatibility run, or provide an explicit legacy `DR_SUPPORT_STATE`/`DR_SUPPORT_WORKSPACE_CATALOG` path for test or API-smoke fixtures. `DR_SUPPORT_WORKSPACE_ID` remains an optional bootstrap workspace identifier when the PostgreSQL catalog has no last-opened profile. Managed PostgreSQL workspace creation and switching do not require or open a local SQLite database path; any legacy path retained on an imported profile is provenance only.
+Case-store mode precedence follows `_resolve_case_store_mode`: an explicit `DR_SUPPORT_CASE_STORE` is used first; otherwise `DR_SUPPORT_DATABASE_URL` selects PostgreSQL; otherwise function-level `case_store_mode` or `state_path` compatibility arguments apply; if none is supplied, the default remains PostgreSQL. `DR_SUPPORT_STATE` and `DR_SUPPORT_WORKSPACE_CATALOG` alone do not implicitly select SQLite. Set `DR_SUPPORT_CASE_STORE=sqlite` for an explicit legacy compatibility run, with the legacy paths supplied for that run. Managed PostgreSQL workspace creation and switching do not require or open a local SQLite database path; any legacy path retained on an imported profile is provenance only.
 
 PostgreSQL integration tests are opt-in and require both `DR_SUPPORT_TEST_DATABASE_URL` and `DR_SUPPORT_TEST_DATABASE_NAME`. The configured URL's database name must exactly match the explicit name, which must contain a distinct `test` token such as `dr_support_test`. Tests create and remove only uniquely named `dr_support_test_*` schemas; they never drop, truncate, or recreate the configured database.

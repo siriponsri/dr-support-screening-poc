@@ -6,9 +6,9 @@
 **Document revision:** Candidate r2.3, preserving 2026-09-25 Phase 1 specification
 **Prepared:** 2026-09-28  
 **Document status:** `CANDIDATE_FOR_OWNER_REVIEW`  
-**Implementation status:** `IN_PROGRESS` (candidate committed; independent review and integration remain pending)
+**Implementation status:** `IN_PROGRESS` (documentation repair pending commit; independent review and integration remain pending)
 **Source baseline commit:** `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2`
-**Current candidate commit:** `84061db`
+**Current candidate commit:** `candidate pending this repair commit`
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md` (package paths, not repository links)  
 **Owner decisions pending:** Phase 0 reconciliation, clinical completeness extension, schema/contract changes beyond frozen Phase 1 scope  
 **Original owner decision date:** 2026-09-25  
@@ -825,12 +825,12 @@ Update this section during execution. Do not mark an item `DONE` without evidenc
 | Work item | Status | Branch / commit | Evidence / notes |
 |---|---|---|---|
 | P1-F PostgreSQL foundation | DONE | `siriponsri/feat-m1-p1-postgres-foundation` / `b63126ae989109e380ef9bdeb6d425c49eb96cec` | Historical integration row. Current live qualification is recorded in §18.1; no owner/auditor `DONE` claim is made for this candidate. |
-| P1-A Review/case persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | Managed PostgreSQL case persistence preserved revision 4/content in the prior MAIN restore receipt; direct SQLite import API removed and migration-service tests retained. |
-| P1-B Workspace persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | Prior MAIN restore receipt verified one workspace and restored app PostgreSQL selection. |
-| Legacy SQLite dry-run/import verification | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | Prior MAIN receipt: one authoritative workspace and one case imported; identical rerun idempotent; changed source rejected with exit 2; source remained read-only. |
-| Backup/restore smoke | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | Prior MAIN receipt: 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and revision/content verification. |
-| Full backend validation | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | PASS: 206 passed, 2 skipped, 38 warnings with the designated synthetic PostgreSQL target; the two skips are optional NumPy-dependent DICOM/S5 tests. |
-| Frontend validation/build if changed | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / `84061db` | PASS: 16 files/99 tests, typecheck, and build; Vitest execution is serialized for local jsdom/Chakra stability. |
+| P1-A Review/case persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Managed PostgreSQL case persistence preserved revision 4/content in the prior MAIN restore receipt; direct SQLite import API removed and migration-service tests retained. |
+| P1-B Workspace persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Prior MAIN restore receipt verified one workspace and restored app PostgreSQL selection. |
+| Legacy SQLite dry-run/import verification | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Fresh synthetic receipt: one authoritative workspace and one case imported; one orphan reported; identical rerun idempotent; changed source rejected; sources remained read-only. |
+| Backup/restore smoke | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Prior MAIN receipt: 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and revision/content verification. |
+| Full backend validation | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Prior candidate validation: 206 passed, 2 skipped, 38 warnings with the designated synthetic PostgreSQL target; the two skips are optional NumPy-dependent DICOM/S5 tests. |
+| Frontend validation/build if changed | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Prior candidate validation: 16 files/99 tests, typecheck, and build; Vitest execution is serialized for local jsdom/Chakra stability. |
 | Main smoke and synchronization | TODO | — | — |
 | Owner/auditor review | TODO | — | — |
 
@@ -902,30 +902,33 @@ Main HEAD before Phase 1: 0ac3f66 (origin/main)
 Main HEAD after Phase 1: NOT_RUN; this candidate is not merged
 Main status: NOT_RUN; main was not touched
 Feature branch: `feat/m1-p1-phase1-postgres`
-Origin synchronization: candidate `84061db` is not yet pushed; push verification remains pending
+Origin synchronization: repair candidate pending commit and push; final SHA verification remains pending
 ```
 
 ### Integrated branches
 
 | Branch | Base | Final commit | Validation | Merge result |
 |---|---|---|---|---|
-| `feat/m1-p1-phase1-postgres` | `0ac3f66` | `84061db` | Focused/full backend receipts below; frontend validation recorded below; independent review pending | NOT_RUN; feature candidate only |
+| `feat/m1-p1-phase1-postgres` | `0ac3f66` | candidate pending this repair commit | Focused/full backend receipts below; frontend validation recorded below; independent review pending | NOT_RUN; feature candidate only |
 
 Remove rows for branches not used. Add rows for owner-approved bounded fix branches if required.
 
 ### Database/migration evidence
 
 ```text
-PostgreSQL version used: isolated synthetic PostgreSQL 16.15 (prior MAIN receipt)
+PostgreSQL version used: isolated synthetic PostgreSQL 16.15 (fresh designated loopback receipt)
 Schema/migration version: v1->v4
-Legacy catalog source SHA-256: verified in the prior MAIN source-set receipt; exact value is not present in this partial worktree
-Eligible workspace databases discovered: 1 (prior MAIN receipt)
-Eligible workspace databases imported: 1 (prior MAIN receipt)
-Orphan SQLite files reported: not included in the supplied prior MAIN summary
+Consistency boundary: snapshot `phase1-synthetic-receipt-20260929`
+Legacy catalog source SHA-256: a903f9fb9b5bdce0a4b98f0249c52e99fc3ddc26be32079c588e107762fd4158
+Legacy source-set SHA-256: 6674d63f93d00396826e61796b8659a5cc692d2bda5395c8923f4a9b9dd966d2
+Eligible workspace databases discovered: 1
+Eligible workspace databases imported: 1
+Orphan SQLite files reported: 1 (inventory-only)
 Workspace count verification: 1 imported; 1 restored
 Case count verification: 1 imported; 1 restored
 Revision/content verification: restored case revision 4 and content verified
-Idempotency result: identical rerun idempotent; changed source rejected with exit 2
+Idempotency result: identical rerun idempotent; changed source rejected
+SQLite source verification: catalog and workspace bytes unchanged after import
 Backup/restore result: 10,950-byte custom dump restored into a clean isolated target with 1 workspace, 1 case, and 1 receipt; restored app selected PostgreSQL
 ```
 
@@ -934,9 +937,9 @@ Do not paste real credentials, PHI, or patient-identifying paths into this docum
 ### Validation evidence
 
 ```text
-Focused tests: PASS; `.venv\Scripts\python.exe -m pytest -q -rs tests/test_postgres_foundation.py tests/test_workspaces.py` with the designated test DSN => 45 passed, 1 warning
-Full backend tests: PASS; `.venv\Scripts\python.exe -m pytest -q -rs` with the designated test DSN => 206 passed, 2 skipped, 38 warnings
-Ruff/static checks: PASS; `.venv\Scripts\python.exe -m ruff check dr_support tests` and `git diff --check`
+Focused tests: PASS; system Python 3.12 with the feature environment site-packages and designated test DSN, running `python -m pytest -q -rs tests/test_postgres_foundation.py tests/test_workspaces.py` => 45 passed, 1 warning
+Full backend tests: PASS in prior candidate validation; `python -m pytest -q -rs` with the designated test DSN => 206 passed, 2 skipped, 38 warnings
+Ruff/static checks: PASS; `.venv\Scripts\ruff.exe check dr_support tests`; base-to-final and working-tree `git diff --check` are pending the repair commit
 Frontend tests: PASS; `npm.cmd test` from `frontend/` with serialized Vitest execution => 16 files passed, 99 tests passed. The configuration uses `fileParallelism: false`, `maxWorkers: 1`, and `minWorkers: 1` for the existing jsdom/Chakra integration suite.
 Frontend typecheck: PASS; `npm.cmd run typecheck` from `frontend/`
 Frontend build: PASS; `npm.cmd run build` from `frontend/` (existing large-chunk warning only)
@@ -947,11 +950,11 @@ Skipped tests/checks and reason: `tests/test_dicom_ingest.py` and `tests/test_s5
 ### Known limitations
 
 ```text
-- The candidate is committed but has not yet been pushed or undergone fresh independent O2 review.
+- The documentation repair is not yet committed, pushed, or undergone fresh independent O2 review.
 - Frontend validation is serialized to avoid the local resource contention observed with parallel jsdom/Chakra execution; the passing run still emits existing React test warnings.
 - Frontend build passes with the existing large-chunk warning.
-- The prior MAIN receipt supplies counts and outcomes but not the source-set hash value or orphan-file count in this partial worktree.
-- The current designated PostgreSQL validation used isolated synthetic PostgreSQL 16.15 in `dr_support_test`; the test container/database is the cleanup boundary and no hospital or production data was used.
+- The fresh synthetic receipt supplies the exact source-set/catalog hashes and one orphan count; the prior MAIN receipt supplies backup/restore evidence.
+- The current designated PostgreSQL validation used an isolated unique schema in synthetic PostgreSQL 16.15 on `dr_support_test`; the schema was removed and no hospital or production data was used.
 - Optional NumPy-dependent DICOM/S5 tests remain unrun because NumPy is not installed.
 - This feature branch is not merged; main validation, main smoke, and owner/auditor approval remain pending.
 ```

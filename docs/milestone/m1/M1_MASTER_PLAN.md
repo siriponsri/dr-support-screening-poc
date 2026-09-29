@@ -4,8 +4,8 @@
 **Document revision:** Candidate r2.2 (owner-directed refinement of r2.1; preserves the 2026-09-25 working master)  
 **Prepared:** 2026-09-28  
 **Document status:** `CANDIDATE_FOR_OWNER_REVIEW`  
-**Implementation status:** Phase 1 `IN_PROGRESS` (implementation/evidence complete; review and integration remain); see the phase tracker, which is independent of document approval.  
-**Source baseline commit:** `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2`  
+**Implementation status:** Phase 1 `IN_PROGRESS` (implementation/evidence complete; documentation repair pending commit, review, and integration); see the phase tracker, which is independent of document approval.
+**Source baseline commit:** `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2`
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.  
 **Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; see §24.  
 **Primary repository:** `siriponsri/dr-support-screening-poc`  
@@ -629,8 +629,9 @@ Create the durable data foundation for physician review, model evidence, workspa
 **Reviewed by:**  
 **Evidence / commit(s):** P1-F foundation at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; Phase 1 candidate branch `feat/m1-p1-phase1-postgres` contains P1-A/P1-B/P1-I implementation and current validation evidence in `docs/milestone/m1/M1_PHASE1_POSTGRES.md`.
 **Migration evidence:** Isolated synthetic PostgreSQL 16.15, schema v1->v4; one workspace and one case imported; revision 4/content preserved; identical rerun idempotent; changed source rejected with exit 2; SQLite sources remained read-only.
+**Fresh migration receipt:** snapshot `phase1-synthetic-receipt-20260929`; source-set SHA-256 `6674d63f93d00396826e61796b8659a5cc692d2bda5395c8923f4a9b9dd966d2`; catalog SHA-256 `a903f9fb9b5bdce0a4b98f0249c52e99fc3ddc26be32079c588e107762fd4158`; one orphan reported inventory-only.
 **Restore evidence:** 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and verified revision/content; restored application selected PostgreSQL storage.
-**Open blockers:** Commit/push the final evidence candidate, fresh O2 review, merge and validate `main`, owner/auditor review, and final main smoke remain.
+**Open blockers:** Commit/push the documentation repair, fresh O2 review, merge and validate `main`, owner/auditor review, and final main smoke remain.
 **Owner decisions:**  
 
 ---
@@ -1204,7 +1205,7 @@ This candidate preserves §§1–21, including the historical Phase 0 and Phase 
 
 | Area | Current implementation or evidence at pinned commit | Required target / accountable work |
 |---|---|---|
-| Persistence | Candidate `feat/m1-p1-phase1-postgres` provides PostgreSQL-authoritative managed review/case and workspace/catalog paths, legacy SQLite read-only migration, and documented live synthetic qualification; exact evidence is in `M1_PHASE1_POSTGRES.md`. | Complete fresh review, merge/integrate, validate authoritative `main`, and obtain owner/auditor approval. Phase 1 remains `IN_PROGRESS` until those gates pass. |
+| Persistence | Candidate `feat/m1-p1-phase1-postgres` provides PostgreSQL-authoritative managed review/case and workspace/catalog paths, legacy SQLite read-only migration, and documented live synthetic qualification; exact evidence is in `M1_PHASE1_POSTGRES.md`. | Complete the documentation repair review, merge/integrate, validate authoritative `main`, and obtain owner/auditor approval. Phase 1 remains `IN_PROGRESS` until those gates pass. |
 | Intake/review | Existing admission, resolver, workflow and UI milestones; image, grade and annotation confirmations are separate (`docs/adr/0004-three-human-confirmation-milestones.md`). | Phase 2 adds efficient UWF manual workflow and clinically approved per-group completeness without converting case-level annotation confirmation into individual AI ROI confirmation. |
 | Source origin / permission (B01) | `dr_support/services/admission.py` currently creates workspace `BridgeImage` with `source_type="PUBLIC"`; `workflow.py` has a `PUBLIC` fallback. Bridge v1 `contracts/_schema.py`/`services/model_api.py` accept only `PUBLIC`/`SYNTHETIC`; `providers/remote.py` forwards the image value. These are pinned-source observations, not a hospital runtime test. | Owner/data steward approves a truthful authorized-hospital provenance/permission contract and migration/Bridge compatibility. P2-1 owns intake identity, P1-A durable baseline, P3-4 wire/result mapping, P4-3 export lineage and P5-1/3/5 integrated authorization checks. Do not classify hospital images as public/synthetic solely to satisfy the current schema. |
 | Dataset | Existing `s4.dataset-manifest.v2` and `s8.2-task-specific-v1` grade/lesion readiness in `docs/reference/DATASET_MANIFEST.md`. | Phase 4 preserves compatibility and adds read-only inspection, snapshot reproducibility and approved completeness semantics. |
