@@ -65,7 +65,9 @@ def _build_default_app():
     """Construct the default review app for ``dr_support.api:app``.
 
     Preserve the historical SQLite entrypoint only when no managed target or
-    explicit legacy path/mode is configured. The managed runtime uses
+    explicit legacy mode/path is configured. A legacy path without
+    ``DR_SUPPORT_CASE_STORE=sqlite`` is passed to the managed default and does
+    not silently select SQLite. The managed runtime uses
     ``dr_support.app:app_factory`` and PostgreSQL by default.
     """
     configured_mode = (os.environ.get('DR_SUPPORT_CASE_STORE') or '').strip()

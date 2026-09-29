@@ -12,6 +12,7 @@ const venvPython = path.resolve('.venv','Scripts','python.exe');
 // UI smoke (synthetic-only Analyze + correction flow) continues to pass.
 const server = spawn(venvPython,['-m','uvicorn','dr_support.api:app','--port','8011'],{
   env:{...process.env,
+    DR_SUPPORT_CASE_STORE:'sqlite',
     DR_SUPPORT_STATE:path.join(tmp,'review.sqlite'),
     DR_SUPPORT_WORKSPACE_CATALOG:path.join(tmp,'workspaces.sqlite')},stdio:'ignore'});
 const base='http://127.0.0.1:8011';

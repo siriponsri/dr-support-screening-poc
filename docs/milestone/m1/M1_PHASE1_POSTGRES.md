@@ -3,17 +3,17 @@
 **Document path:** `docs/milestone/m1/M1_PHASE1_POSTGRES.md`  
 **Milestone:** M1  
 **Phase:** 1 — Data Foundation & PostgreSQL  
-**Document revision:** Candidate r2.2, preserving 2026-09-25 Phase 1 specification  
+**Document revision:** Candidate r2.3, preserving 2026-09-25 Phase 1 specification
 **Prepared:** 2026-09-28  
 **Document status:** `CANDIDATE_FOR_OWNER_REVIEW`  
-**Implementation status:** `IN_PROGRESS` (P1-F integrated; P1-A/P1-B/P1-I open)  
+**Implementation status:** `IN_PROGRESS` (candidate validation passed; commit and independent review pending)
 **Source baseline commit:** `0f41bb9774c2da455d477d1634ce8888e9265732`  
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md` (package paths, not repository links)  
 **Owner decisions pending:** Phase 0 reconciliation, clinical completeness extension, schema/contract changes beyond frozen Phase 1 scope  
 **Original owner decision date:** 2026-09-25  
 **Parent plan:** `docs/milestone/m1/M1_MASTER_PLAN.md`
 
-**Current reading guide (r2.2):** P1-F integrated implementation is historically `DONE` at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; the live-PostgreSQL foundation gate is separately `PENDING_EVIDENCE` (§14/§18), and P1-A/B/I remain open. §§20–21 preserve a past worker transcript and suggested prompt for audit, not current launch instructions. §13 defines roles without prescribing provider/account; repository `AGENTS.md` and currently configured FORGE Orchestrator (`fo`) determine actual execution settings. No PostgreSQL or migration test was run to prepare r2.
+**Current reading guide (r2.3):** P1-F integrated implementation is historically `DONE` at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; the prior MAIN evidence now records live PostgreSQL 16.15 migration and backup/restore qualification in §18.1. This feature candidate carries the compatible API/test repair and remains `IN_PROGRESS` until commit and independent review; owner/auditor approval is still required and no `DONE` claim is made. §§20–21 preserve a past worker transcript and suggested prompt for audit, not current launch instructions. §13 defines roles without prescribing provider/account; repository `AGENTS.md` and current orchestration configuration determine actual execution settings.
 
 ---
 
@@ -823,24 +823,24 @@ Update this section during execution. Do not mark an item `DONE` without evidenc
 
 | Work item | Status | Branch / commit | Evidence / notes |
 |---|---|---|---|
-| P1-F PostgreSQL foundation | DONE | `siriponsri/feat-m1-p1-postgres-foundation` / `b63126ae989109e380ef9bdeb6d425c49eb96cec` | Integrated into `main`; focused tests 5 passed/3 skipped, full backend 178 passed/5 skipped, Ruff and lock checks passed. PostgreSQL integration remains opt-in pending a designated test service. |
-| P1-A Review/case persistence | TODO | — | — |
-| P1-B Workspace persistence | TODO | — | — |
-| Legacy SQLite dry-run/import verification | TODO | — | — |
-| Backup/restore smoke | TODO | — | — |
-| Full backend validation | TODO | — | — |
-| Frontend validation/build if changed | TODO | — | — |
+| P1-F PostgreSQL foundation | DONE | `siriponsri/feat-m1-p1-postgres-foundation` / `b63126ae989109e380ef9bdeb6d425c49eb96cec` | Historical integration row. Current live qualification is recorded in §18.1; no owner/auditor `DONE` claim is made for this candidate. |
+| P1-A Review/case persistence | IN_PROGRESS | `feat/m1-p1-phase1-postgres` / uncommitted candidate | Managed PostgreSQL case persistence preserved revision 4/content in the prior MAIN restore receipt; direct SQLite import API removed and migration-service tests retained. |
+| P1-B Workspace persistence | IN_PROGRESS | `feat/m1-p1-phase1-postgres` / uncommitted candidate | Prior MAIN restore receipt verified one workspace and restored app PostgreSQL selection. |
+| Legacy SQLite dry-run/import verification | IN_PROGRESS | `feat/m1-p1-phase1-postgres` / uncommitted candidate | Prior MAIN receipt: one authoritative workspace and one case imported; identical rerun idempotent; changed source rejected with exit 2; source remained read-only. |
+| Backup/restore smoke | IN_PROGRESS | `feat/m1-p1-phase1-postgres` / uncommitted candidate | Prior MAIN receipt: 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and revision/content verification. |
+| Full backend validation | IN_PROGRESS | `feat/m1-p1-phase1-postgres` / uncommitted candidate | PASS: 206 passed, 2 skipped, 38 warnings with the designated synthetic PostgreSQL target; the two skips are optional NumPy-dependent DICOM/S5 tests. |
+| Frontend validation/build if changed | READY_FOR_REVIEW | — | N/A for this backend-only repair; frontend is unchanged. |
 | Main smoke and synchronization | TODO | — | — |
 | Owner/auditor review | TODO | — | — |
 
-**Current prerequisite/evidence gate ledger (r2; separate from historical P1-F implementation row):**
+**Current prerequisite/evidence gate ledger (r2.3; separate from historical P1-F implementation row):**
 
 | Gate | Historical evidence | Current state | Required receipt and accountable role | Prerequisite / permitted work |
 |---|---|---|---|---|
 | P1-F integrated implementation | `b63126ae989109e380ef9bdeb6d425c49eb96cec`, 5 passed/3 skipped focused; 178 passed/5 skipped backend, Ruff/lock | `DONE` as code integration only | Retain §18 row; MAIN does not re-create it | Source for P1-A/B bounded analysis |
-| P1-F live foundation qualification | PostgreSQL opt-in, designated test service unavailable in historical run | `PENDING_EVIDENCE` | Operator/owner designates isolated DB; IMPLEMENT runs clean migration/config/session/revision checks; REVIEW signs off on receipt, skips explained | Before shared-foundation fan-out/integration readiness; does not block read-only analysis |
-| P1-A/P1-B PostgreSQL case/catalog integration | No integrated receipt | `TODO` | Exact branches/commits, scoped tests including concurrent revisions/workspace isolation | Qualified shared foundation and contract review |
-| P1-I source consistency, migration, cutover, restore | No dry-run/import/restore receipt | `TODO` | MAIN + operator source snapshot/writer quiescence, counts/hashes, explicit cutover, backup/restore | After A/B; required before Phase 1 closeout |
+| P1-F live foundation qualification | Prior MAIN evidence: isolated synthetic PostgreSQL 16.15; schema v1->v4 | `READY_FOR_REVIEW` | REVIEW signs off on the sanitized migration and restore receipts in §18.1 | Owner/auditor review; no product `DONE` claim |
+| P1-A/P1-B PostgreSQL case/catalog integration | Prior MAIN restore: one workspace/one case; restored app selected PostgreSQL | `IN_PROGRESS` | Exact committed candidate plus focused/full validation receipt | Commit, independent review, owner/auditor review |
+| P1-I source consistency, migration, cutover, restore | Prior MAIN evidence: one workspace/one case imported; source-set/idempotency/conflict checks and 10,950-byte custom dump restore | `IN_PROGRESS` | Review §18.1 receipt and exact pushed candidate; no owner/auditor `DONE` claim | Commit, independent review, owner/auditor review |
 
 The list below applies to **work-item implementation statuses** in the historical §18 ledger. The adjacent **evidence gate** has its own `PENDING_EVIDENCE` state and is not a new implementation status or a P1-F rollback.
 
@@ -854,6 +854,41 @@ Allowed work-item statuses:
 
 ---
 
+## 18.1 Prior MAIN migration and restore receipts (sanitized)
+
+The following is the sanitized evidence recorded by the prior MAIN execution
+for this candidate. It contains no credentials, PHI, runtime database files,
+or backup files. The command identities are the repository migration module and
+the PostgreSQL custom-dump tools; connection values and source/backup paths are
+intentionally omitted.
+
+```text
+Evidence identity: prior MAIN M1 Phase 1 PostgreSQL qualification receipt
+Target: isolated synthetic PostgreSQL 16.15
+Schema transition: v1 -> v4
+Migration command identity: python -m dr_support.persistence.legacy_migration
+  dry-run/import against the authoritative synthetic catalog, with an explicit
+  consistency boundary and reviewed source-set hash
+Migration result: imported 1 workspace and 1 case
+Revision/content result: case revision 4 and content preserved
+Rerun result: identical rerun was idempotent
+Conflict result: changed source was rejected; import process exit code 2
+Source behavior: catalog and workspace SQLite sources remained read-only
+
+Backup command identity: pg_dump --format=custom followed by pg_restore
+Backup receipt: custom dump size 10,950 bytes
+Restore target: clean isolated PostgreSQL target
+Restore result: 1 workspace, 1 case, and 1 migration receipt
+Restore verification: restored case revision 4 and content verified
+Application verification: restored application selected PostgreSQL storage
+```
+
+This receipt is qualification evidence for review, not owner/auditor approval
+or a production cutover record. The exact secret-bearing connection strings,
+local paths, source files, and backup file remain outside the repository.
+
+---
+
 ## 19. Completion evidence template
 
 The main orchestrator must complete this section before asking the owner/auditor to close Phase 1.
@@ -861,37 +896,35 @@ The main orchestrator must complete this section before asking the owner/auditor
 ### Repository state
 
 ```text
-Repository root:
-Main HEAD before Phase 1:
-Main HEAD after Phase 1:
-Main status:
-Origin synchronization:
+Repository root: <feature-worktree-root; sanitized in this document>
+Main HEAD before Phase 1: 0ac3f66 (origin/main)
+Main HEAD after Phase 1: NOT_RUN; this candidate is not merged
+Main status: NOT_RUN; main was not touched
+Origin synchronization: feature branch was synchronized at 43f8771 before this continuation; final commit/push receipt is pending
 ```
 
 ### Integrated branches
 
 | Branch | Base | Final commit | Validation | Merge result |
 |---|---|---|---|---|
-| `feat/m1-p1-postgres-foundation` | | | | |
-| `feat/m1-p1-case-persistence` | | | | |
-| `feat/m1-p1-workspace-persistence` | | | | |
+| `feat/m1-p1-phase1-postgres` | `43f8771` | uncommitted candidate | Focused: 8 passed/25 skipped; full backend: 181 passed/27 skipped/38 warnings; Ruff and diff check pass; independent review pending | NOT_RUN; feature candidate only |
 
 Remove rows for branches not used. Add rows for owner-approved bounded fix branches if required.
 
 ### Database/migration evidence
 
 ```text
-PostgreSQL version used:
-Schema/migration version:
-Legacy catalog source SHA-256:
-Eligible workspace databases discovered:
-Eligible workspace databases imported:
-Orphan SQLite files reported:
-Workspace count verification:
-Case count verification:
-Revision/content verification:
-Idempotency result:
-Backup/restore result:
+PostgreSQL version used: isolated synthetic PostgreSQL 16.15 (prior MAIN receipt)
+Schema/migration version: v1->v4
+Legacy catalog source SHA-256: verified in the prior MAIN source-set receipt; exact value is not present in this partial worktree
+Eligible workspace databases discovered: 1 (prior MAIN receipt)
+Eligible workspace databases imported: 1 (prior MAIN receipt)
+Orphan SQLite files reported: not included in the supplied prior MAIN summary
+Workspace count verification: 1 imported; 1 restored
+Case count verification: 1 imported; 1 restored
+Revision/content verification: restored case revision 4 and content verified
+Idempotency result: identical rerun idempotent; changed source rejected with exit 2
+Backup/restore result: 10,950-byte custom dump restored into a clean isolated target with 1 workspace, 1 case, and 1 receipt; restored app selected PostgreSQL
 ```
 
 Do not paste real credentials, PHI, or patient-identifying paths into this document.
@@ -899,26 +932,30 @@ Do not paste real credentials, PHI, or patient-identifying paths into this docum
 ### Validation evidence
 
 ```text
-Focused tests:
-Full backend tests:
-Ruff/static checks:
-Frontend tests:
-Frontend typecheck:
-Frontend build:
-Application smoke:
-Skipped tests/checks and reason:
+Focused tests: PASS; `.venv\Scripts\python.exe -m pytest -q -rs tests/test_postgres_foundation.py tests/test_workspaces.py` with the designated test DSN => 45 passed, 1 warning
+Full backend tests: PASS; `.venv\Scripts\python.exe -m pytest -q -rs` with the designated test DSN => 206 passed, 2 skipped, 38 warnings
+Ruff/static checks: PASS; `.venv\Scripts\python.exe -m ruff check dr_support tests` and `git diff --check`
+Frontend tests: N/A; frontend unchanged and outside this bounded repair
+Frontend typecheck: N/A; frontend unchanged and outside this bounded repair
+Frontend build: N/A; frontend unchanged and outside this bounded repair
+Application smoke: NOT_RUN; no owner-approved post-merge main smoke has been run
+Skipped tests/checks and reason: `tests/test_dicom_ingest.py` and `tests/test_s5_integration.py` are skipped because NumPy is not installed; no PostgreSQL test was skipped in the designated-DSN run. Frontend checks are N/A because frontend files are unchanged. No skipped check is called PASS.
 ```
 
 ### Known limitations
 
 ```text
-- 
+- The candidate is currently uncommitted and has not undergone fresh independent O2 review.
+- The prior MAIN receipt supplies counts and outcomes but not the source-set hash value or orphan-file count in this partial worktree.
+- The current designated PostgreSQL validation used isolated synthetic PostgreSQL 16.15 in `dr_support_test`; the test container/database is the cleanup boundary and no hospital or production data was used.
+- Optional NumPy-dependent DICOM/S5 tests remain unrun because NumPy is not installed.
+- This feature branch is not merged; main validation, main smoke, and owner/auditor approval remain pending.
 ```
 
 ### Blockers deferred to later phases
 
 ```text
-- 
+- Phase 2 UWF labeling, clinical taxonomy, model behavior, and frontend work remain out of scope.
 ```
 
 ### Final Phase 1 state
@@ -1005,7 +1042,7 @@ When Phase 1 is approved as `DONE`:
 
 ## 23. Candidate rebaseline: current foundation and Phase 2–4 minimum contract
 
-The historical Phase 0 audit at `7af3ef1a11fc9de12b871d82c73d8be53d2ffa84` in §4 is retained as an earlier audit. The source baseline for this candidate is `0f41bb9774c2da455d477d1634ce8888e9265732`. §18 P1-F `DONE` records the integrated `b63126ae989109e380ef9bdeb6d425c49eb96cec` foundation and historical focused/full test counts. It does not prove that a PostgreSQL service, migration, restore or complete Phase 1 has been validated. P1-A and P1-B remain `TODO`; P1-I is the already-defined §14 integration/migration/recovery stage and the separate §18 TODO rows remain intact. The old §21 suggested orchestrator prompt is historical; it does not set current account, provider or authority. Historical §22 originally called for a later Phase 2 specification; this r2.1 closeout rule now directs revalidation/refinement of the already-authored candidate after Phase 1 evidence. The owner’s 2026-09-28 instruction requested candidates before closeout; execution timing remains gated. Their implementation entry gates, and the Phase 1 closeout rule, remain pending review.
+The historical Phase 0 audit at `7af3ef1a11fc9de12b871d82c73d8be53d2ffa84` in §4 is retained as an earlier audit. The source baseline for this candidate is `0f41bb9774c2da455d477d1634ce8888e9265732`. §18 P1-F `DONE` records the integrated `b63126ae989109e380ef9bdeb6d425c49eb96cec` foundation and historical focused/full test counts. The prior MAIN qualification receipt in §18.1 now supplies the isolated PostgreSQL 16.15, v1->v4 migration, source consistency, idempotency, and restore evidence. P1-A, P1-B, and P1-I are `READY_FOR_REVIEW` for this feature candidate; owner/auditor approval is still pending and no Phase 1 `DONE` claim is made. The old §21 suggested orchestrator prompt is historical; it does not set current account, provider or authority. Historical §22 originally called for a later Phase 2 specification; this r2.1 closeout rule now directs revalidation/refinement of the already-authored candidate after Phase 1 evidence. The owner’s 2026-09-28 instruction requested candidates before closeout; this candidate remains gated on review and executable validation in the target environment.
 
 | Downstream data/contract need | Current verified source at pinned commit | P1 responsibility / proof gate |
 |---|---|---|
@@ -1019,10 +1056,10 @@ The Master's §7 logical entities describe M1 target. Phase 1 may initially pers
 
 ## 24. Execution handoff and candidate review addendum
 
-**Entry:** clean bounded implementation worktree under `AGENTS.md`, foundation diff and schema reviewed, designated test PostgreSQL available for integration validation, eligible SQLite authority inventory; owner resolution before protected behavior changes. **Consumed:** existing SQLite catalog/case stores, workflow/admission/resolver/derivative contracts. **Produced:** PostgreSQL-authoritative scoped records, migration receipts and documented restore path, no long-lived dual write. **Invariant:** immutable source and no PHI/credentials in logs or plan; workspace-profile removal never purges source/review state. §14 already bounds P1-F/A/B/I; §§7–11 and 16 already supply affected areas, preserve/proof/exclusions. No separate work-item IDs replace them.
+**Entry:** clean bounded implementation worktree under `AGENTS.md`, foundation diff and schema reviewed, designated test PostgreSQL evidence supplied by prior MAIN, eligible SQLite authority inventory; owner resolution before protected behavior changes. **Consumed:** existing SQLite catalog/case stores, workflow/admission/resolver/derivative contracts. **Produced:** PostgreSQL-authoritative scoped records, migration receipts and documented restore path, no long-lived dual write. **Invariant:** immutable source and no PHI/credentials in logs or plan; workspace-profile removal never purges source/review state. §14 already bounds P1-F/A/B/I; §§7–11 and 16 already supply affected areas, preserve/proof/exclusions. No separate work-item IDs replace them.
 
 **Recovery:** dry-run inventories and hashes before import; idempotent retry, transaction boundaries and count/content/revision comparison; stop on ambiguous catalog mapping; preserve SQLite read-only; use a designated test DB for restore smoke; rollback/cutover decision and backup evidence before authority switch. Never drop an arbitrary database to make a test pass. **Failure gates:** unexplained source mismatch, cross-workspace read/write, lost revision, destructive deletion or missing restore evidence blocks P1 closeout; model runtime unavailability does not.
 
-**Acceptance/evidence:** execute §16 checklist and §19 template on the actual integrated revision. Existing commands in `AGENTS.md`: `python -m pytest -q`, `python -m ruff check dr_support tests`; frontend from `frontend/`: `npm test`, `npm run typecheck`, `npm run build` when affected. Focused existing `tests/test_postgres_foundation.py`, `tests/test_workflow.py`, `tests/test_workspaces.py`, `tests/test_dataset.py`, `tests/test_resolver.py`; live designated-PostgreSQL, migration idempotency and restore cases may require PROPOSED new integration fixtures/tests. Historical 178 passed/5 skipped does not substitute for these results. Reviewer records exact commit, commands, skip reasons, schema, migration counts/hash and restore receipt without patient identifiers.
+**Acceptance/evidence:** execute §16 checklist and §19 template on the actual candidate revision. The prior MAIN receipt in §18.1 records the live designated PostgreSQL, migration idempotency, changed-source exit 2, and restore checks. This continuation adds the direct-import API removal, DSN precedence regressions, and explicit SQLite compatibility coverage. Current candidate validation used the designated synthetic PostgreSQL 16.15 test target and passed the focused persistence/workspace suite (45 passed) and full backend suite (206 passed, 2 skipped, 38 warnings); Ruff and diff checks also pass. The two skips are optional NumPy-dependent DICOM/S5 tests. Existing commands in `AGENTS.md`: `python -m pytest -q`, `python -m ruff check dr_support tests`; frontend from `frontend/`: `npm test`, `npm run typecheck`, `npm run build` when affected. Reviewer records the exact pushed candidate, commands, skip reasons, schema, migration counts, source-set receipt, and restore receipt without patient identifiers.
 
-**Dependencies/blockers:** P1-A and P1-B depend on P1-F interfaces; P1-I follows integrated A/B, though analysis of Phase 2 manual workflow can proceed. Clinical owner must approve any new group completeness taxonomy before persistence semantics/export eligibility change. A proposed change to existing milestone or dataset policy requires contract review, not an implicit Phase 1 amendment. **Gate:** after integrated tests and restore, report `READY_FOR_REVIEW`; owner/auditor approval is required for `DONE`. This document revision itself awaits owner review. **Ledger:** §18 remains authoritative and unchanged by this planning pass. **Change log:** 2026-09-28 candidate r1 adds pinned baseline, current/target data matrix and handoff constraints without modifying historical ledger. Candidate r2 clarifies current roles, live P1-F evidence gate, source consistency/cutover and later-phase migration ownership; the P1-F historical row and test counts remain unchanged. Candidate r2.1 (E01/B01) refines §22 closeout wording, labels §18 status namespaces and records the source-origin persistence gap; it does not change historical evidence. Candidate r2.2 records only downstream compatibility expectations for explanation evidence and explicitly keeps Explainability UI and model retraining out of Phase 1; no Phase 1 implementation scope, historical receipt or gate status changed. **Next:** hand the proven persisted fields/versions and explicit gaps to [Phase 2](M1_PHASE2_UWF_LABELING.md), [Phase 3](M1_PHASE3_MODELS_MODEL_API.md) and [Phase 4](M1_PHASE4_DATASET_REVIEW_EXPORT.md); update Master gate only after review.
+**Dependencies/blockers:** P1-A and P1-B depend on P1-F interfaces; P1-I evidence is supplied by the prior MAIN receipt and remains subject to review, though analysis of Phase 2 manual workflow can proceed. Clinical owner must approve any new group completeness taxonomy before persistence semantics/export eligibility change. A proposed change to existing milestone or dataset policy requires contract review, not an implicit Phase 1 amendment. **Gate:** this candidate reports `READY_FOR_REVIEW`; owner/auditor approval is required for `DONE`. Current designated PostgreSQL validation passes; optional NumPy-dependent DICOM/S5 tests remain skipped. This document revision itself awaits owner review. **Ledger:** §18 is updated with current candidate evidence while retaining the historical P1-F implementation row. **Change log:** 2026-09-28 candidate r1 adds pinned baseline, current/target data matrix and handoff constraints without modifying historical ledger. Candidate r2 clarifies current roles, live P1-F evidence gate, source consistency/cutover and later-phase migration ownership; the P1-F historical row and test counts remain unchanged. Candidate r2.1 (E01/B01) refines §22 closeout wording, labels §18 status namespaces and records the source-origin persistence gap; it does not change historical evidence. Candidate r2.2 records only downstream compatibility expectations for explanation evidence and explicitly keeps Explainability UI and model retraining out of Phase 1; no Phase 1 implementation scope, historical receipt or gate status changed. Candidate r2.3 records the prior MAIN migration/restore receipt, the current READY_FOR_REVIEW gates, and the bounded runtime/test repair. **Next:** hand the proven persisted fields/versions and explicit gaps to [Phase 2](M1_PHASE2_UWF_LABELING.md), [Phase 3](M1_PHASE3_MODELS_MODEL_API.md) and [Phase 4](M1_PHASE4_DATASET_REVIEW_EXPORT.md); update Master gate only after review.

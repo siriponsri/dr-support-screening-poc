@@ -19,7 +19,6 @@ from fastapi.testclient import TestClient
 
 from dr_support.persistence import (
     CaseConflictError,
-    CaseImportConflictError,
     ConsistencyBoundary,
     LegacySQLiteMigrationService,
     LegacySourceConflictError,
@@ -477,68 +476,6 @@ def _write_legacy_catalog(path: Path, profiles: list[dict]) -> None:
         connection.close()
 
 
-def test_case_import_is_read_only_dry_run_and_idempotent(
-    postgres_database: PostgresDatabase,
-    tmp_path: Path,
-):
-    SchemaMigrator(postgres_database).migrate()
-    source = tmp_path / "legacy-reviews.sqlite"
-    case = {
-        "image_id": "legacy-case",
-        "revision": 2,
-        "state": "REVIEWED",
-        "events": [{"action": "REVIEW", "source": "synthetic"}],
-        "review_history": [{"reviewer": "Synthetic reviewer"}],
-    }
-    _write_legacy_case_database(source, case)
-    before = source.read_bytes()
-    store = PostgresCaseStore(postgres_database, "ws_import")
-
-    dry_run = store.import_sqlite_cases(source, dry_run=True)
-    assert dry_run.discovered_cases == 1
-    assert dry_run.imported_cases == 0
-    assert dry_run.dry_run is True
-    assert source.read_bytes() == before
-    assert store.all_cases() == []
-
-    imported = store.import_sqlite_cases(source)
-    assert imported.imported_cases == 1
-    assert imported.unchanged_cases == 0
-    assert store.get("legacy-case")["revision"] == 2
-    assert store.get("legacy-case")["review_history"] == case["review_history"]
-    assert source.read_bytes() == before
-
-    repeated = store.import_sqlite_cases(source)
-    assert repeated.imported_cases == 0
-    assert repeated.unchanged_cases == 1
-
-
-def test_case_import_rejects_changed_source_without_merging(
-    postgres_database: PostgresDatabase,
-    tmp_path: Path,
-):
-    SchemaMigrator(postgres_database).migrate()
-    source = tmp_path / "legacy-reviews.sqlite"
-    _write_legacy_case_database(
-        source,
-        {"image_id": "legacy-conflict", "revision": 0, "events": [{"source": "one"}]},
-    )
-    store = PostgresCaseStore(postgres_database, "ws_import_conflict")
-    store.import_sqlite_cases(source)
-
-    source.unlink()
-    _write_legacy_case_database(
-        source,
-        {"image_id": "legacy-conflict", "revision": 1, "events": [{"source": "two"}]},
-    )
-    with pytest.raises(CaseImportConflictError):
-        store.import_sqlite_cases(source)
-
-    current = store.get("legacy-conflict")
-    assert current["revision"] == 0
-    assert current["events"] == [{"source": "one"}]
-
-
 def test_case_store_preserves_audit_and_provenance_payloads(
     postgres_database: PostgresDatabase,
 ):
@@ -608,14 +545,67 @@ def test_application_selects_postgres_case_mode_without_sqlite_fallback(
     assert not (tmp_path / "reviews.sqlite").exists()
 
 
-def test_application_defaults_to_postgres_and_requires_dsn_without_legacy_paths(
+def test_application_dsn_wins_over_legacy_paths_without_explicit_mode(
+    monkeypatch,
+    tmp_path: Path,
+    postgres_database: PostgresDatabase,
+):
+    monkeypatch.setenv(DATABASE_URL_ENV, postgres_database.settings.dsn)
+    monkeypatch.setenv(DATABASE_SCHEMA_ENV, postgres_database.settings.schema)
+    monkeypatch.delenv(CASE_STORE_MODE_ENV, raising=False)
+    monkeypatch.setenv("DR_SUPPORT_STATE", str(tmp_path / "reviews.sqlite"))
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_CATALOG", str(tmp_path / "workspaces.sqlite"))
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_ID", "ws_dsn_precedence")
+
+    app = create_app(include_samples=False, include_demo_fixtures=False)
+
+    assert app.state.case_store_mode == "postgres"
+    assert isinstance(app.state.store, PostgresCaseStore)
+    assert not (tmp_path / "reviews.sqlite").exists()
+    assert not (tmp_path / "workspaces.sqlite").exists()
+
+
+def test_explicit_sqlite_mode_is_compatible_with_a_configured_dsn(
+    monkeypatch,
+    tmp_path: Path,
+):
+    monkeypatch.setenv(DATABASE_URL_ENV, "postgresql://synthetic@127.0.0.1:59999/dr_support_test")
+    monkeypatch.setenv(CASE_STORE_MODE_ENV, "sqlite")
+    monkeypatch.setenv("DR_SUPPORT_STATE", str(tmp_path / "reviews.sqlite"))
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_CATALOG", str(tmp_path / "workspaces.sqlite"))
+
+    app = create_app(include_samples=False, include_demo_fixtures=False)
+
+    assert app.state.case_store_mode == "sqlite"
+    assert app.state.workspace_manager.database_status == "fallback"
+    assert (tmp_path / "reviews.sqlite").exists()
+
+
+def test_function_level_sqlite_compatibility_does_not_override_configured_dsn(
+    monkeypatch,
+    postgres_database: PostgresDatabase,
+):
+    monkeypatch.setenv(DATABASE_URL_ENV, postgres_database.settings.dsn)
+    monkeypatch.setenv(DATABASE_SCHEMA_ENV, postgres_database.settings.schema)
+    monkeypatch.delenv(CASE_STORE_MODE_ENV, raising=False)
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_ID", "ws_function_compatibility")
+
+    app = create_app(
+        include_samples=False,
+        include_demo_fixtures=False,
+        case_store_mode="sqlite",
+    )
+
+    assert app.state.case_store_mode == "postgres"
+    assert isinstance(app.state.store, PostgresCaseStore)
+
+
+def test_application_requires_explicit_sqlite_mode_for_legacy_paths(
     monkeypatch,
     tmp_path: Path,
 ):
     monkeypatch.delenv(CASE_STORE_MODE_ENV, raising=False)
     monkeypatch.delenv(DATABASE_URL_ENV, raising=False)
-    monkeypatch.delenv("DR_SUPPORT_STATE", raising=False)
-    monkeypatch.delenv("DR_SUPPORT_WORKSPACE_CATALOG", raising=False)
 
     with pytest.raises(DatabaseConfigurationError, match=DATABASE_URL_ENV):
         create_app(include_samples=False, include_demo_fixtures=False)

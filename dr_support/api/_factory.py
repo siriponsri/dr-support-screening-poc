@@ -57,6 +57,7 @@ from ..services.model_gateway import (
 )
 from ..persistence import (
     CASE_STORE_MODE_ENV,
+    DATABASE_URL_ENV,
     DEFAULT_CASE_STORE_MODE,
     WORKSPACE_ID_ENV,
     CaseConflictError,
@@ -72,13 +73,23 @@ from .dataset import install_dataset_routes
 
 
 def _resolve_case_store_mode(case_store_mode: str | None, state_path) -> str:
-    mode = case_store_mode or os.environ.get(CASE_STORE_MODE_ENV)
-    if not mode:
-        legacy_path_supplied = state_path is not None or any(
-            (os.environ.get(name) or '').strip()
-            for name in ('DR_SUPPORT_STATE', 'DR_SUPPORT_WORKSPACE_CATALOG')
-        )
-        mode = 'sqlite' if legacy_path_supplied else DEFAULT_CASE_STORE_MODE
+    configured_mode = (os.environ.get(CASE_STORE_MODE_ENV) or "").strip()
+    configured_dsn = (os.environ.get(DATABASE_URL_ENV) or "").strip()
+    if configured_mode:
+        # An explicit environment mode is the operator's compatibility choice.
+        mode = configured_mode
+    elif configured_dsn:
+        # A managed target wins over legacy paths and function-level defaults.
+        mode = "postgres"
+    elif case_store_mode:
+        mode = case_store_mode
+    elif state_path is not None:
+        # A direct function argument is an explicit legacy compatibility call.
+        mode = "sqlite"
+    else:
+        # Environment paths are provenance/configuration only; they must not
+        # silently select SQLite when the managed mode has no DSN.
+        mode = DEFAULT_CASE_STORE_MODE
     mode = mode.strip().lower()
     if mode not in {"sqlite", "postgres"}:
         raise ValueError(
