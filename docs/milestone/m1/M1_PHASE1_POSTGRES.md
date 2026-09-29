@@ -3,18 +3,18 @@
 **Document path:** `docs/milestone/m1/M1_PHASE1_POSTGRES.md`  
 **Milestone:** M1  
 **Phase:** 1 — Data Foundation & PostgreSQL  
-**Document revision:** Candidate r2.3, preserving 2026-09-25 Phase 1 specification
+**Document revision:** Candidate r2.4, preserving 2026-09-25 Phase 1 specification
 **Prepared:** 2026-09-28  
 **Document status:** `CANDIDATE_FOR_OWNER_REVIEW`  
-**Implementation status:** `IN_PROGRESS` (documentation repair pending commit; independent review and integration remain pending)
+**Implementation status:** `IN_PROGRESS` (prior candidate evidence is pushed; fresh O2 review, integration, main validation/smoke, and owner/auditor approval remain pending)
 **Source baseline commit:** `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2`
-**Current candidate commit:** `candidate pending this repair commit`
+**Prior candidate / receipt evidence:** `07a58a6fd8c91acf1c06f14bfe80b0f6ba9f0fb7` (already pushed before this bounded documentation correction)
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md` (package paths, not repository links)  
 **Owner decisions pending:** Phase 0 reconciliation, clinical completeness extension, schema/contract changes beyond frozen Phase 1 scope  
 **Original owner decision date:** 2026-09-25  
 **Parent plan:** `docs/milestone/m1/M1_MASTER_PLAN.md`
 
-**Current reading guide (r2.3):** P1-F integrated implementation is historically `DONE` at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; the prior MAIN evidence now records live PostgreSQL 16.15 migration and backup/restore qualification in §18.1. This feature candidate carries the compatible API/test repair and remains `IN_PROGRESS` until commit and independent review; owner/auditor approval is still required and no `DONE` claim is made. §§20–21 preserve a past worker transcript and suggested prompt for audit, not current launch instructions. §13 defines roles without prescribing provider/account; repository `AGENTS.md` and current orchestration configuration determine actual execution settings.
+**Current reading guide (r2.4):** P1-F integrated implementation is historically `DONE` at `b63126ae989109e380ef9bdeb6d425c49eb96cec`; the prior MAIN evidence now records live PostgreSQL 16.15 migration and backup/restore qualification in §18.1. This feature candidate carries the compatible API/test repair and remains `IN_PROGRESS` pending fresh O2 review, integration, main validation/smoke, and owner/auditor approval; no `DONE` claim is made. §§20–21 preserve a past worker transcript and suggested prompt for audit, not current launch instructions. §13 defines roles without prescribing provider/account; repository `AGENTS.md` and current orchestration configuration determine actual execution settings.
 
 ---
 
@@ -825,16 +825,16 @@ Update this section during execution. Do not mark an item `DONE` without evidenc
 | Work item | Status | Branch / commit | Evidence / notes |
 |---|---|---|---|
 | P1-F PostgreSQL foundation | DONE | `siriponsri/feat-m1-p1-postgres-foundation` / `b63126ae989109e380ef9bdeb6d425c49eb96cec` | Historical integration row. Current live qualification is recorded in §18.1; no owner/auditor `DONE` claim is made for this candidate. |
-| P1-A Review/case persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Managed PostgreSQL case persistence preserved revision 4/content in the prior MAIN restore receipt; direct SQLite import API removed and migration-service tests retained. |
-| P1-B Workspace persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Prior MAIN restore receipt verified one workspace and restored app PostgreSQL selection. |
-| Legacy SQLite dry-run/import verification | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Fresh synthetic receipt: one authoritative workspace and one case imported; one orphan reported; identical rerun idempotent; changed source rejected; sources remained read-only. |
-| Backup/restore smoke | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Prior MAIN receipt: 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and revision/content verification. |
-| Full backend validation | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Prior candidate validation: 206 passed, 2 skipped, 38 warnings with the designated synthetic PostgreSQL target; the two skips are optional NumPy-dependent DICOM/S5 tests. |
-| Frontend validation/build if changed | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / candidate pending this repair commit | Prior candidate validation: 16 files/99 tests, typecheck, and build; Vitest execution is serialized for local jsdom/Chakra stability. |
+| P1-A Review/case persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / prior candidate `07a58a6`; receipt correction in this branch | Managed PostgreSQL case persistence preserved revision 4/content in the prior MAIN restore receipt; direct SQLite import API removed and migration-service tests retained. |
+| P1-B Workspace persistence | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / prior candidate `07a58a6`; receipt correction in this branch | Prior MAIN restore receipt verified one workspace and restored app PostgreSQL selection. |
+| Legacy SQLite dry-run/import verification | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / prior candidate `07a58a6`; receipt correction in this branch | Fresh synthetic receipt: one authoritative workspace and one case imported; one orphan reported; identical rerun idempotent; changed source rejected; sources remained read-only. |
+| Backup/restore smoke | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / prior candidate `07a58a6`; receipt correction in this branch | Prior MAIN receipt: 10,950-byte custom dump restored into a clean isolated target with one workspace, one case, one receipt, and revision/content verification. |
+| Full backend validation | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / prior candidate `07a58a6`; receipt correction in this branch | Prior candidate validation: 206 passed, 2 skipped, 38 warnings with the designated synthetic PostgreSQL target; the two skips are optional NumPy-dependent DICOM/S5 tests. |
+| Frontend validation/build if changed | READY_FOR_REVIEW | `feat/m1-p1-phase1-postgres` / prior candidate `07a58a6`; receipt correction in this branch | Prior candidate validation: 16 files/99 tests, typecheck, and build; Vitest execution is serialized for local jsdom/Chakra stability. |
 | Main smoke and synchronization | TODO | — | — |
 | Owner/auditor review | TODO | — | — |
 
-**Current prerequisite/evidence gate ledger (r2.3; separate from historical P1-F implementation row):**
+**Current prerequisite/evidence gate ledger (r2.4; separate from historical P1-F implementation row):**
 
 | Gate | Historical evidence | Current state | Required receipt and accountable role | Prerequisite / permitted work |
 |---|---|---|---|---|
@@ -870,6 +870,10 @@ Schema transition: v1 -> v4
 Migration command identity: python -m dr_support.persistence.legacy_migration
   dry-run/import against the authoritative synthetic catalog, with an explicit
   consistency boundary and reviewed source-set hash
+Dry-run result: safe_to_proceed=true
+Dry-run safety: successful dry-run caused no destructive source/target mutation;
+  SQLite source bytes remained unchanged and no target data was deleted,
+  truncated, or recreated
 Migration result: imported 1 workspace and 1 case
 Revision/content result: case revision 4 and content preserved
 Rerun result: identical rerun was idempotent
@@ -902,14 +906,14 @@ Main HEAD before Phase 1: 0ac3f66 (origin/main)
 Main HEAD after Phase 1: NOT_RUN; this candidate is not merged
 Main status: NOT_RUN; main was not touched
 Feature branch: `feat/m1-p1-phase1-postgres`
-Origin synchronization: repair candidate pending commit and push; final SHA verification remains pending
+Origin synchronization: prior candidate/evidence commit `07a58a6fd8c91acf1c06f14bfe80b0f6ba9f0fb7` was already pushed; this branch carries the bounded receipt correction; fresh O2 review, integration, main validation/smoke, and owner/auditor approval remain pending
 ```
 
 ### Integrated branches
 
 | Branch | Base | Final commit | Validation | Merge result |
 |---|---|---|---|---|
-| `feat/m1-p1-phase1-postgres` | `0ac3f66` | candidate pending this repair commit | Focused/full backend receipts below; frontend validation recorded below; independent review pending | NOT_RUN; feature candidate only |
+| `feat/m1-p1-phase1-postgres` | `0ac3f66` | prior candidate/evidence `07a58a6`; receipt correction in this branch | Focused/full backend receipts below; frontend validation recorded below; fresh independent O2 review pending | NOT_RUN; feature candidate only |
 
 Remove rows for branches not used. Add rows for owner-approved bounded fix branches if required.
 
@@ -921,6 +925,10 @@ Schema/migration version: v1->v4
 Consistency boundary: snapshot `phase1-synthetic-receipt-20260929`
 Legacy catalog source SHA-256: a903f9fb9b5bdce0a4b98f0249c52e99fc3ddc26be32079c588e107762fd4158
 Legacy source-set SHA-256: 6674d63f93d00396826e61796b8659a5cc692d2bda5395c8923f4a9b9dd966d2
+Dry-run result: safe_to_proceed=true
+Dry-run safety: successful dry-run caused no destructive source/target mutation;
+  SQLite source bytes remained unchanged and no target data was deleted,
+  truncated, or recreated
 Eligible workspace databases discovered: 1
 Eligible workspace databases imported: 1
 Orphan SQLite files reported: 1 (inventory-only)
@@ -939,7 +947,8 @@ Do not paste real credentials, PHI, or patient-identifying paths into this docum
 ```text
 Focused tests: PASS; system Python 3.12 with the feature environment site-packages and designated test DSN, running `python -m pytest -q -rs tests/test_postgres_foundation.py tests/test_workspaces.py` => 45 passed, 1 warning
 Full backend tests: PASS in prior candidate validation; `python -m pytest -q -rs` with the designated test DSN => 206 passed, 2 skipped, 38 warnings
-Ruff/static checks: PASS; `.venv\Scripts\ruff.exe check dr_support tests`; base-to-final and working-tree `git diff --check` are pending the repair commit
+Ruff/static checks: PASS in prior candidate validation; `.venv\Scripts\ruff.exe check dr_support tests`
+Documentation diff checks: working-tree `git diff --check` PASS; base-to-final check will run after this correction is committed
 Frontend tests: PASS; `npm.cmd test` from `frontend/` with serialized Vitest execution => 16 files passed, 99 tests passed. The configuration uses `fileParallelism: false`, `maxWorkers: 1`, and `minWorkers: 1` for the existing jsdom/Chakra integration suite.
 Frontend typecheck: PASS; `npm.cmd run typecheck` from `frontend/`
 Frontend build: PASS; `npm.cmd run build` from `frontend/` (existing large-chunk warning only)
@@ -950,7 +959,7 @@ Skipped tests/checks and reason: `tests/test_dicom_ingest.py` and `tests/test_s5
 ### Known limitations
 
 ```text
-- The documentation repair is not yet committed, pushed, or undergone fresh independent O2 review.
+- Fresh independent O2 review has not yet run; integration/merge, main validation, main smoke, and owner/auditor approval remain pending.
 - Frontend validation is serialized to avoid the local resource contention observed with parallel jsdom/Chakra execution; the passing run still emits existing React test warnings.
 - Frontend build passes with the existing large-chunk warning.
 - The fresh synthetic receipt supplies the exact source-set/catalog hashes and one orphan count; the prior MAIN receipt supplies backup/restore evidence.
