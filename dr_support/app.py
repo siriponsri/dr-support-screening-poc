@@ -27,7 +27,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from .api import create_app as create_review_app
+from .api._factory import create_app as create_review_app
 from .services.model_api import create_app as create_model_api_app
 
 

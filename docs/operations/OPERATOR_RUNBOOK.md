@@ -63,6 +63,15 @@ $env:DR_SUPPORT_DATABASE_SCHEMA = "dr_support"
 $env:DR_SUPPORT_CASE_STORE = "postgres"
 ```
 
+Before the first dry run against a new PostgreSQL schema, explicitly bootstrap
+the managed schema. This applies schema migrations only; it does not import
+legacy rows, alter source SQLite files, or make the dry run mutate application
+data. Run it as a separate operator step and stop if it fails:
+
+```powershell
+.\.venv\Scripts\python.exe -c "from dr_support.persistence import PostgresDatabase, PostgresSettings, SchemaMigrator; SchemaMigrator(PostgresDatabase(PostgresSettings.from_env())).migrate()"
+```
+
 Run the dry run against the explicit authoritative catalog. Add one or more
 `--orphan-root` arguments for configured runtime locations that should be
 inventoried. A successful report must end with `Safe to proceed: YES`:

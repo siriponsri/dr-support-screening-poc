@@ -593,7 +593,9 @@ def test_application_selects_postgres_case_mode_without_sqlite_fallback(
 ):
     monkeypatch.setenv(DATABASE_URL_ENV, postgres_database.settings.dsn)
     monkeypatch.setenv(DATABASE_SCHEMA_ENV, postgres_database.settings.schema)
-    monkeypatch.setenv(CASE_STORE_MODE_ENV, "postgres")
+    monkeypatch.delenv(CASE_STORE_MODE_ENV, raising=False)
+    monkeypatch.delenv("DR_SUPPORT_STATE", raising=False)
+    monkeypatch.delenv("DR_SUPPORT_WORKSPACE_CATALOG", raising=False)
     monkeypatch.setenv("DR_SUPPORT_WORKSPACE_ID", "ws_application")
 
     app = create_app(include_samples=False, include_demo_fixtures=False)
@@ -604,6 +606,39 @@ def test_application_selects_postgres_case_mode_without_sqlite_fallback(
     assert app.state.workspace_manager.database_status == "postgres"
     assert postgres_database.settings.dsn not in app.state.workspace_manager.active_payload()["database"]["path"]
     assert not (tmp_path / "reviews.sqlite").exists()
+
+
+def test_application_defaults_to_postgres_and_requires_dsn_without_legacy_paths(
+    monkeypatch,
+    tmp_path: Path,
+):
+    monkeypatch.delenv(CASE_STORE_MODE_ENV, raising=False)
+    monkeypatch.delenv(DATABASE_URL_ENV, raising=False)
+    monkeypatch.delenv("DR_SUPPORT_STATE", raising=False)
+    monkeypatch.delenv("DR_SUPPORT_WORKSPACE_CATALOG", raising=False)
+
+    with pytest.raises(DatabaseConfigurationError, match=DATABASE_URL_ENV):
+        create_app(include_samples=False, include_demo_fixtures=False)
+
+    assert not (tmp_path / "reviews.sqlite").exists()
+    assert not (tmp_path / "workspaces.sqlite").exists()
+
+
+def test_application_defaults_to_postgres_with_configured_dsn(
+    monkeypatch,
+    postgres_database: PostgresDatabase,
+):
+    monkeypatch.delenv(CASE_STORE_MODE_ENV, raising=False)
+    monkeypatch.setenv(DATABASE_URL_ENV, postgres_database.settings.dsn)
+    monkeypatch.setenv(DATABASE_SCHEMA_ENV, postgres_database.settings.schema)
+    monkeypatch.delenv("DR_SUPPORT_STATE", raising=False)
+    monkeypatch.delenv("DR_SUPPORT_WORKSPACE_CATALOG", raising=False)
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_ID", "ws_default_postgres")
+
+    app = create_app(include_samples=False, include_demo_fixtures=False)
+
+    assert app.state.case_store_mode == "postgres"
+    assert isinstance(app.state.store, PostgresCaseStore)
 
 
 def test_postgres_workspace_catalog_is_authoritative_and_switches_case_store(

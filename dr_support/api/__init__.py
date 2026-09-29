@@ -28,6 +28,8 @@ UI smoke test), a module-level ``app`` instance is exposed. Production
 deployments that need strict profile/runtime invariants should instead use
 ``dr_support.app:app_factory`` and set ``APP_PROFILE`` explicitly.
 """
+import os
+
 from ._factory import create_app as _create_review_app
 
 __all__ = ['create_app', 'app']
@@ -62,9 +64,19 @@ def create_app(
 def _build_default_app():
     """Construct the default review app for ``dr_support.api:app``.
 
-    Honours ``MODEL_RUNTIME`` exactly the way the legacy single-server mode did.
+    Preserve the historical SQLite entrypoint only when no managed target or
+    explicit legacy path/mode is configured. The managed runtime uses
+    ``dr_support.app:app_factory`` and PostgreSQL by default.
     """
-    return _create_review_app(include_samples=True)
+    configured_mode = (os.environ.get('DR_SUPPORT_CASE_STORE') or '').strip()
+    configured_dsn = (os.environ.get('DR_SUPPORT_DATABASE_URL') or '').strip()
+    configured_legacy_path = any(
+        (os.environ.get(name) or '').strip()
+        for name in ('DR_SUPPORT_STATE', 'DR_SUPPORT_WORKSPACE_CATALOG')
+    )
+    if configured_mode or configured_dsn or configured_legacy_path:
+        return _create_review_app(include_samples=True)
+    return _create_review_app(include_samples=True, case_store_mode='sqlite')
 
 
 app = _build_default_app()

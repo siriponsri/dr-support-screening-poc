@@ -71,8 +71,14 @@ from .workspaces import install_workspace_routes
 from .dataset import install_dataset_routes
 
 
-def _resolve_case_store_mode(case_store_mode: str | None) -> str:
-    mode = (case_store_mode or os.environ.get(CASE_STORE_MODE_ENV) or DEFAULT_CASE_STORE_MODE)
+def _resolve_case_store_mode(case_store_mode: str | None, state_path) -> str:
+    mode = case_store_mode or os.environ.get(CASE_STORE_MODE_ENV)
+    if not mode:
+        legacy_path_supplied = state_path is not None or any(
+            (os.environ.get(name) or '').strip()
+            for name in ('DR_SUPPORT_STATE', 'DR_SUPPORT_WORKSPACE_CATALOG')
+        )
+        mode = 'sqlite' if legacy_path_supplied else DEFAULT_CASE_STORE_MODE
     mode = mode.strip().lower()
     if mode not in {"sqlite", "postgres"}:
         raise ValueError(
@@ -109,7 +115,7 @@ def create_app(
     app = FastAPI(title='Retinal Review Workbench', version='0.7.0')
     root = Path(__file__).resolve().parents[2]
 
-    resolved_case_store_mode = _resolve_case_store_mode(case_store_mode)
+    resolved_case_store_mode = _resolve_case_store_mode(case_store_mode, state_path)
     selected_store, selected_workspace_id, _postgres_settings, postgres_database = _build_case_store(
         resolved_case_store_mode, state_path, workspace_id
     )
