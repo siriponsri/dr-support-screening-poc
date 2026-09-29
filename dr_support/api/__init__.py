@@ -79,5 +79,9 @@ def _build_default_app():
     return _create_review_app(include_samples=True, case_store_mode='sqlite')
 
 
-app = _build_default_app()
+def __getattr__(name):
+    """Lazily construct the legacy ASGI app only when explicitly requested."""
+    if name == 'app':
+        return _build_default_app()
+    raise AttributeError(name)
 

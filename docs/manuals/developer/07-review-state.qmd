@@ -2,7 +2,7 @@
 
 ## Case record and concurrency
 
-Each case is one JSON document in the selected workspace case store. The default compatibility store is SQLite (`dr_support/store.py`); explicit `DR_SUPPORT_CASE_STORE=postgres` mode stores the same document in PostgreSQL JSONB with an explicit `workspace_id` and database-enforced revision checks. New fields are added as JSON defaults (additive migration), so there are no table rewrites. Every mutating request carries the client's `revision`. A mismatch returns `409 Case changed; reload`. Success increments `revision` and appends an event. A same-origin middleware rejects cross-origin non-GET requests.
+Each case is one JSON document in the selected workspace case store. Normal workstation operation uses configured PostgreSQL JSONB with an explicit `workspace_id` and database-enforced revision checks. Explicit `DR_SUPPORT_CASE_STORE=sqlite` mode remains available for legacy compatibility and synthetic fixtures. New fields are added as JSON defaults (additive migration), so there are no table rewrites. Every mutating request carries the client's `revision`. A mismatch returns `409 Case changed; reload`. Success increments `revision` and appends an event. A same-origin middleware rejects cross-origin non-GET requests.
 
 ## Confirm DR Grade (`POST /v1/cases/{id}/review`)
 
