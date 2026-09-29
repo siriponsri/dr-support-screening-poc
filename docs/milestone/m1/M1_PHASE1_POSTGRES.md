@@ -948,7 +948,7 @@ Do not paste real credentials, PHI, or patient-identifying paths into this docum
 Focused tests: PASS; system Python 3.12 with the feature environment site-packages and designated test DSN, running `python -m pytest -q -rs tests/test_postgres_foundation.py tests/test_workspaces.py` => 45 passed, 1 warning
 Full backend tests: PASS in prior candidate validation; `python -m pytest -q -rs` with the designated test DSN => 206 passed, 2 skipped, 38 warnings
 Ruff/static checks: PASS in prior candidate validation; `.venv\Scripts\ruff.exe check dr_support tests`
-Documentation diff checks: working-tree `git diff --check` PASS; base-to-final `git diff --check` PASS on the pushed candidate reviewed by O1
+Documentation diff checks: working-tree `git diff --check` PASS; base-to-final `git diff --check` PASS on the pushed candidate.
 Frontend tests: PASS; `npm.cmd test` from `frontend/` with serialized Vitest execution => 16 files passed, 99 tests passed. The configuration uses `fileParallelism: false`, `maxWorkers: 1`, and `minWorkers: 1` for the existing jsdom/Chakra integration suite.
 Frontend typecheck: PASS; `npm.cmd run typecheck` from `frontend/`
 Frontend build: PASS; `npm.cmd run build` from `frontend/` (existing large-chunk warning only)
