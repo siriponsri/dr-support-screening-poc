@@ -840,8 +840,8 @@ Update this section during execution. Do not mark an item `DONE` without evidenc
 |---|---|---|---|---|
 | P1-F integrated implementation | `b63126ae989109e380ef9bdeb6d425c49eb96cec`, 5 passed/3 skipped focused; 178 passed/5 skipped backend, Ruff/lock | `DONE` as code integration only | Retain §18 row; MAIN does not re-create it | Source for P1-A/B bounded analysis |
 | P1-F live foundation qualification | Prior MAIN evidence: isolated synthetic PostgreSQL 16.15; schema v1->v4 | `READY_FOR_REVIEW` | REVIEW signs off on the sanitized migration and restore receipts in §18.1 | Owner/auditor review; no product `DONE` claim |
-| P1-A/P1-B PostgreSQL case/catalog integration | Prior MAIN restore: one workspace/one case; restored app selected PostgreSQL | `READY_FOR_REVIEW` | Exact committed candidate plus focused/full validation receipt | Commit, independent review, owner/auditor review |
-| P1-I source consistency, migration, cutover, restore | Prior MAIN evidence: one workspace/one case imported; source-set/idempotency/conflict checks and 10,950-byte custom dump restore | `READY_FOR_REVIEW` | Review §18.1 receipt and exact pushed candidate; no owner/auditor `DONE` claim | Commit, independent review, owner/auditor review |
+| P1-A/P1-B PostgreSQL case/catalog integration | Prior MAIN restore: one workspace/one case; restored app selected PostgreSQL | `READY_FOR_REVIEW` | Exact committed candidate plus focused/full validation receipt | Independent review, owner/auditor review |
+| P1-I source consistency, migration, cutover, restore | Prior MAIN evidence: one workspace/one case imported; source-set/idempotency/conflict checks and 10,950-byte custom dump restore | `READY_FOR_REVIEW` | Review §18.1 receipt and exact pushed candidate; no owner/auditor `DONE` claim | Independent review, owner/auditor review |
 
 The list below applies to **work-item implementation statuses** in the historical §18 ledger. The adjacent **evidence gate** has its own `PENDING_EVIDENCE` state and is not a new implementation status or a P1-F rollback.
 
@@ -871,7 +871,8 @@ Migration command identity: python -m dr_support.persistence.legacy_migration
   dry-run/import against the authoritative synthetic catalog, with an explicit
   consistency boundary and reviewed source-set hash
 Dry-run result: safe_to_proceed=true
-Dry-run safety: successful dry-run caused no destructive source/target mutation;
+Dry-run safety: successful dry-run performed no PostgreSQL application-data writes
+  and caused no destructive source/target mutation;
   SQLite source bytes remained unchanged and no target data was deleted,
   truncated, or recreated
 Migration result: imported 1 workspace and 1 case
@@ -926,7 +927,8 @@ Consistency boundary: snapshot `phase1-synthetic-receipt-20260929`
 Legacy catalog source SHA-256: a903f9fb9b5bdce0a4b98f0249c52e99fc3ddc26be32079c588e107762fd4158
 Legacy source-set SHA-256: 6674d63f93d00396826e61796b8659a5cc692d2bda5395c8923f4a9b9dd966d2
 Dry-run result: safe_to_proceed=true
-Dry-run safety: successful dry-run caused no destructive source/target mutation;
+Dry-run safety: successful dry-run performed no PostgreSQL application-data writes
+  and caused no destructive source/target mutation;
   SQLite source bytes remained unchanged and no target data was deleted,
   truncated, or recreated
 Eligible workspace databases discovered: 1
