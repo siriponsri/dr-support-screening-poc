@@ -907,7 +907,7 @@ Origin synchronization: feature branch was synchronized at 43f8771 before this c
 
 | Branch | Base | Final commit | Validation | Merge result |
 |---|---|---|---|---|
-| `feat/m1-p1-phase1-postgres` | `43f8771` | uncommitted candidate | Focused: 8 passed/25 skipped; full backend: 181 passed/27 skipped/38 warnings; Ruff and diff check pass; independent review pending | NOT_RUN; feature candidate only |
+| `feat/m1-p1-phase1-postgres` | `43f8771` | uncommitted candidate | Focused: 45 passed; full backend: 206 passed/2 skipped/38 warnings; Ruff and diff check pass; independent review pending | NOT_RUN; feature candidate only |
 
 Remove rows for branches not used. Add rows for owner-approved bounded fix branches if required.
 
