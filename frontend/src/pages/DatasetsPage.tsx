@@ -30,7 +30,7 @@ import {
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { datasetApi, type DatasetImageRow, type DatasetManifestResponse } from '@/lib/api';
+import { datasetApi, drGradeLabel, type DatasetImageRow, type DatasetManifestResponse } from '@/lib/api';
 import { Download, RefreshCw } from '@/lib/icons';
 
 type DatasetFilter = 'all' | 'dr-ready' | 'lesion-ready' | 'needs-review' | 'excluded';
@@ -46,6 +46,12 @@ function annotationSummary(row: DatasetImageRow): string {
   if (row.ai_lesion_count) parts.push(`${row.ai_lesion_count} AI`);
   if (row.cvat_annotation_count) parts.push(`${row.cvat_annotation_count} imported`);
   return parts.length ? parts.join(' / ') : 'None';
+}
+
+function gradeEligibilityLabel(reason: string | undefined): string {
+  if (reason === 'NEEDS_SECOND_REVIEW') return 'Needs second review';
+  if (reason === 'UNGRADABLE') return 'Ungradable';
+  return reason?.replace(/_/g, ' ') ?? 'Needs final grade';
 }
 
 function filterRows(images: DatasetImageRow[], filter: DatasetFilter): DatasetImageRow[] {
@@ -68,7 +74,7 @@ function DatasetTable({ images }: { images: DatasetImageRow[] }) {
           <Tr key={row.image_id} data-testid={`dataset-row-${row.image_id}`}>
             <Td><Stack spacing={0.5}><Text fontWeight="semibold" noOfLines={1} title={row.filename}>{row.filename}</Text><Code fontSize="xxs" noOfLines={1}>{row.image_id}</Code></Stack></Td>
             <Td><Text>{patientEye(row)}</Text></Td>
-            <Td>{row.dr_grade_training_ready ? <Text fontWeight="semibold">Grade {row.clinician_grade}</Text> : <Text color="text.secondary">{row.grade_eligibility_reason?.replace(/_/g, ' ') ?? 'Needs final grade'}</Text>}</Td>
+            <Td>{row.dr_grade_training_ready ? <Text fontWeight="semibold">{drGradeLabel(row.clinician_grade) ?? 'Grade confirmed'}</Text> : <Text color="text.secondary">{gradeEligibilityLabel(row.grade_eligibility_reason)}</Text>}</Td>
             <Td><Text fontSize="sm">{annotationSummary(row)}</Text></Td>
             <Td><Stack spacing={1} fontSize="xs"><Text><StatusBadge tone={row.dr_grade_training_ready ? 'success' : 'warning'}>DR: {row.dr_grade_training_ready ? 'Ready' : 'Needs review'}</StatusBadge></Text><Text><StatusBadge tone={row.lesion_training_ready ? 'success' : 'warning'}>Lesions: {row.lesion_training_ready ? 'Ready' : (row.lesion_eligibility_reason?.replace(/_/g, ' ') ?? 'Needs review')}</StatusBadge></Text></Stack></Td>
           </Tr>

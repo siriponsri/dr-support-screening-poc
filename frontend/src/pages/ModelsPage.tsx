@@ -18,7 +18,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { RetinalCanvas } from '@/components/review/RetinalCanvas';
-import { apiJson, type CaseRecord, type GlobalResult, type LesionResult, type ModelDescriptor, type Provenance } from '@/lib/api';
+import { apiJson, drGradeLabel, type CaseRecord, type GlobalResult, type LesionResult, type ModelDescriptor, type Provenance } from '@/lib/api';
 
 function errorText(err: unknown) {
   return err instanceof Error ? err.message : 'The request could not be completed.';
@@ -96,7 +96,7 @@ function CaseLineage({ item }: { item: CaseRecord }) {
           }) : <Text fontSize="sm" color="text.secondary">No inference events recorded for this case.</Text>}
         </Stack>
         {item.analysis_preparation && item.modality === 'UWF' && <Stack spacing={1} minW={0}>
-          <Text fontSize="sm" color="text.secondary">Retinal analysis area</Text>
+              <Text fontSize="sm" color="text.secondary">Masked Analysis</Text>
           <Text fontSize="sm">{item.analysis_preparation.status === 'READY' ? 'Prepared for inspection' : 'Not safely prepared'} · No UWF AI analysis</Text>
           {analysisAudit?.valid_retina_mask_sha256 && <Code fontSize="xs" whiteSpace="normal" wordBreak="break-all">Mask SHA-256: {analysisAudit.valid_retina_mask_sha256}</Code>}
           {analysisAudit?.valid_retina_fraction != null && <Text fontSize="xs">Valid area: {(analysisAudit.valid_retina_fraction * 100).toFixed(1)}% · {analysisAudit.coordinate_mapping.kind.toLowerCase()} coordinates · {analysisAudit.analysis_dimensions.width} x {analysisAudit.analysis_dimensions.height}px</Text>}
@@ -203,7 +203,7 @@ export function ModelsPage() {
               <Stack spacing={4}>
                 <Metadata result={item.global} descriptor={retfound} />
                 {item.global ? <>
-                  <HStack justify="space-between"><Text color="text.secondary">Predicted grade</Text><Text fontSize="xl" fontWeight="semibold">{item.global.grade === null ? item.global.state : `Grade ${item.global.grade}`}</Text></HStack>
+                  <HStack justify="space-between"><Text color="text.secondary">Predicted grade</Text><Text fontSize="xl" fontWeight="semibold">{item.global.grade === null ? item.global.state : (drGradeLabel(item.global.grade) ?? 'Grade available')}</Text></HStack>
                   <HStack justify="space-between"><Text color="text.secondary">Confidence / model score</Text><Text fontWeight="semibold">{item.global.confidence === null ? 'Not returned' : `${(item.global.confidence * 100).toFixed(1)}%`}</Text></HStack>
                   <Box><Text fontSize="sm" color="text.secondary" mb={2}>Probability distribution - Grades 0-4</Text><ProbabilityBars result={item.global} /></Box>
                   <Warnings warnings={globalWarnings} />

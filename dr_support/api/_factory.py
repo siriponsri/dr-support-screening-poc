@@ -449,6 +449,11 @@ def create_app(
             # decision before it can reach either provider path.
             admission = legacy_admission(image)
             app.state.admissions[request.image_id] = admission
+        if admission.get('source_origin') not in {'PUBLIC', 'SYNTHETIC'}:
+            raise HTTPException(
+                409,
+                'This source is available for manual review only; model analysis is not approved for its origin.',
+            )
         if not is_inference_eligible(admission, require_cfp_source=True):
             raise HTTPException(409, 'Image needs review or its image type is not supported for AI analysis.')
         if request.modality != admission['retinal_modality']:
@@ -511,6 +516,8 @@ def create_app(
                     case['state'] = 'PENDING'
                     case['reviewed_grade'] = None
                     case['grade_review_source'] = None
+                    case['grade_status'] = 'NOT_REVIEWED'
+                    case['reviewed_grade_label'] = None
                     case['clinician_review'] = None
                 event = {
                     'action': 'INFERENCE',

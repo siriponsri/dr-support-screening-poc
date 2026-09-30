@@ -31,6 +31,7 @@ import { annotationsConfirmed, caseComplete, formatTimestamp, gradeConfirmed, im
 import { loadCaseList, nextIncompleteCaseId } from '@/lib/caseNavigation';
 import {
   apiJson,
+  drGradeLabel,
   humanAnnotationApi,
   lesionReviewApi,
   type AnnotationGeometry,
@@ -1013,7 +1014,7 @@ export function AnnotationEditorPage() {
       />
       <HStack mb={3} spacing={2} fontSize="sm" aria-label="DR grade status" color={hasConfirmedGrade ? 'text.secondary' : 'status.warning'}>
         {hasConfirmedGrade ? <CheckCircle2 size={16} color="var(--chakra-colors-status-success)" /> : null}
-        <Text>{hasConfirmedGrade ? `DR grade confirmed · Grade ${item.clinician_review?.final_grade}` : 'DR grade not confirmed'}</Text>
+        <Text>{hasConfirmedGrade ? `DR grade confirmed · ${drGradeLabel(item.clinician_review?.final_grade) ?? 'Grade confirmed'}` : 'DR grade not confirmed'}</Text>
       </HStack>
       {Boolean((location.state as { gradingComplete?: boolean } | null)?.gradingComplete) && hasConfirmedGrade && (
         <Alert status="success" mb={4}><AlertIcon /><Text><strong>Grading complete.</strong> Correct AI regions only where you disagree, then Confirm Annotation to finish this image.</Text></Alert>

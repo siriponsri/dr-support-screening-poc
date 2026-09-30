@@ -76,6 +76,67 @@ const readyCase: CaseRecord = {
   resolver_state: 'RESOLVED',
 };
 
+const processingCase: CaseRecord = {
+  ...readyCase,
+  source_origin: 'PUBLIC',
+  global: {
+    ...readyCase.global!,
+    warnings: ['CFP-trained AI - not validated for UWF.'],
+    provenance: {
+      image_sha256: 'b'.repeat(64),
+      source_type: 'PUBLIC',
+      preprocessing: 'RGB model transform fixture',
+      checkpoint_sha256: {},
+      source_revision: 'fixture-v1',
+    },
+  },
+  analysis_preparation: {
+    status: 'READY',
+    derivative: {
+      source_sha256: 'a'.repeat(64),
+      source_origin: 'PUBLIC',
+      derivative_sha256: 'b'.repeat(64),
+      analysis_sha256: 'b'.repeat(64),
+      purpose: 'ANALYSIS',
+      transform_id: 'analysis-uwf-retinal-mask-v1',
+      transform_description: 'Deterministic bounded retinal-field mask',
+      transform_version: 1,
+      representation_version: 'uwf-analysis-representation-v1',
+      analysis_coordinate_space: 'analysis_pixels',
+      original_coordinate_space: 'original_image_pixels',
+      spatial_mapping_version: 'analysis-to-original-v1',
+      valid_retina_mask_sha256: 'c'.repeat(64),
+      valid_retina_fraction: 0.6,
+      retinal_field_status: 'READY',
+      source_dimensions: { width: 640, height: 480, bit_depth: 8, channels: 3 },
+      analysis_dimensions: { width: 640, height: 480, bit_depth: 8, channels: 3 },
+      coordinate_mapping: {
+        kind: 'IDENTITY',
+        canonical_width: 640,
+        canonical_height: 480,
+        analysis_width: 640,
+        analysis_height: 480,
+        scale_x: 1,
+        scale_y: 1,
+      },
+      lineage: {
+        source_sha256: 'a'.repeat(64),
+        derivative_sha256: 'b'.repeat(64),
+        purpose: 'ANALYSIS',
+        format: 'PNG',
+        media_type: 'image/png',
+        width: 640,
+        height: 480,
+        bit_depth: 8,
+        transform_id: 'analysis-uwf-retinal-mask-v1',
+        transform_description: 'Deterministic bounded retinal-field mask',
+        coordinate_space: 'analysis_pixels',
+        created_at: '2026-01-01T00:00:00Z',
+      },
+    },
+  },
+};
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -89,17 +150,17 @@ function requestPath(input: RequestInfo | URL) {
   return new URL(input.url, window.location.origin).pathname;
 }
 
-function mockReviewApi(onReview?: (request: Record<string, unknown>) => void) {
+function mockReviewApi(onReview?: (request: Record<string, unknown>) => void, currentCase: CaseRecord = readyCase) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const path = requestPath(input);
-    if (path === '/v1/cases/ready') return jsonResponse(readyCase);
-    if (path === '/v1/cases') return jsonResponse([readyCase]);
+    if (path === '/v1/cases/ready') return jsonResponse(currentCase);
+    if (path === '/v1/cases') return jsonResponse([currentCase]);
     if (path === '/v1/cases/ready/review') {
       expect(init?.method).toBe('POST');
       const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
       onReview?.(request);
       return jsonResponse({
-        ...readyCase,
+        ...currentCase,
         revision: 1,
         state: request.action === 'ESCALATE' ? 'ESCALATED' : 'REVIEWED',
         clinician_review: {
@@ -140,6 +201,32 @@ describe('Review responsibility boundary', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm DR Grade' }));
     expect(reviewRequest).toMatchObject({ action: 'ACCEPT', grade: 2, reviewer: 'Review clinician' });
     expect(await screen.findByRole('button', { name: 'Confirm Annotation' })).toBeInTheDocument();
+  });
+
+  it('shows recorded mask, transforms, and model-domain warning in Processing details', async () => {
+    mockReviewApi(undefined, processingCase);
+    renderAppAt('/review/ready');
+
+    expect(await screen.findByText('Retinal-field mask recorded; no fallback used')).toBeInTheDocument();
+    expect(screen.getByText('Deterministic bounded retinal-field mask')).toBeInTheDocument();
+    expect(screen.getByText('RGB model transform fixture')).toBeInTheDocument();
+    expect(screen.getByText('CFP-trained AI - not validated for UWF.')).toBeInTheDocument();
+    expect(screen.getByText('Public source')).toBeInTheDocument();
+  });
+
+  it('states when processing and model provenance are unavailable', async () => {
+    const unavailableCase: CaseRecord = {
+      ...readyCase,
+      global: null,
+      lesion: null,
+      analysis_preparation: { status: 'FAILED' },
+    };
+    mockReviewApi(undefined, unavailableCase);
+    renderAppAt('/review/ready');
+
+    expect(await screen.findByText('Unavailable - mask preparation failed; Original/manual review only')).toBeInTheDocument();
+    expect(screen.getByText('Unavailable - no transform recorded')).toBeInTheDocument();
+    expect(screen.getAllByText('Unavailable - no model result recorded')).toHaveLength(2);
   });
 
   it('keeps a legacy escalation record readable without restoring the retired action', async () => {

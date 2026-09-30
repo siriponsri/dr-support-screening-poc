@@ -56,10 +56,13 @@ export function aiState(item: CaseRecord): AiState {
   return 'not-analyzed';
 }
 
-export type ReviewState = 'pending' | 'complete' | 'reviewed' | 'needs-annotation' | 'escalated' | 'excluded';
+export type ReviewState = 'pending' | 'complete' | 'reviewed' | 'needs-annotation' | 'escalated' | 'legacy-unknown' | 'needs-second-review' | 'ungradable' | 'excluded';
 
 export function reviewState(item: CaseRecord): ReviewState {
   if (item.queue_state === 'EXCLUDED') return 'excluded';
+  if (item.grade_status === 'NEEDS_SECOND_REVIEW' || item.state === 'NEEDS_SECOND_REVIEW') return 'needs-second-review';
+  if (item.grade_status === 'UNGRADABLE') return 'ungradable';
+  if (item.grade_status === 'UNKNOWN') return 'legacy-unknown';
   if (gradeConfirmed(item) && annotationsConfirmed(item)) return 'complete';
   if (item.state === 'REVIEWED') return 'reviewed';
   if (item.state === 'NEEDS_CORRECTION') return 'needs-annotation';
@@ -73,6 +76,9 @@ export function reviewStateLabel(state: ReviewState): string {
     case 'reviewed': return 'Grade confirmed';
     case 'needs-annotation': return 'Legacy correction record';
     case 'escalated': return 'Legacy senior review';
+    case 'legacy-unknown': return 'Historical Unknown';
+    case 'needs-second-review': return 'Needs Second Review';
+    case 'ungradable': return 'Ungradable';
     case 'excluded': return 'Excluded';
     default: return 'Pending review';
   }
@@ -121,9 +127,12 @@ export function compareCases(left: CaseRecord, right: CaseRecord, sort: SortOpti
       pending: 0,
       'needs-annotation': 1,
       escalated: 2,
-      reviewed: 3,
-      complete: 4,
-      excluded: 5,
+      'legacy-unknown': 3,
+      'needs-second-review': 4,
+      ungradable: 5,
+      reviewed: 6,
+      complete: 7,
+      excluded: 8,
     };
     result = order[reviewState(left)] - order[reviewState(right)];
   } else if (sort === 'recent') {

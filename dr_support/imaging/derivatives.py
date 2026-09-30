@@ -36,7 +36,19 @@ ANALYSIS_SOURCE_TRANSFORM = "analysis-source-v1"
 ANALYSIS_TIFF_PNG_TRANSFORM = "analysis-tiff-png-rgb-v1"
 ANALYSIS_DICOM_PNG_TRANSFORM = "analysis-dicom-png-rgb-v1"
 ANALYSIS_UWF_MASK_TRANSFORM = "analysis-uwf-retinal-mask-v1"
+ANALYSIS_REPRESENTATION_VERSION = "uwf-analysis-representation-v1"
+ORIGINAL_COORDINATE_SPACE = "original_image_pixels"
+ANALYSIS_COORDINATE_SPACE = "analysis_pixels"
 REMOTE_IMAGE_B64_LIMIT = 20_000_000
+
+
+def _resolved_source_origin(image: BridgeImage) -> str:
+    """Use the same origin value for cache identity and audit metadata."""
+    if image.source_origin and image.source_origin != "UNKNOWN":
+        return image.source_origin
+    if image.source_type in {"PUBLIC", "SYNTHETIC"}:
+        return image.source_type
+    return "UNKNOWN"
 
 
 class DerivativeError(RuntimeError):
@@ -108,6 +120,7 @@ class PreparedDerivative:
     source: SourceMetadata
     lineage: DerivativeLineage
     coordinate_mapping: CoordinateMapping
+    source_origin: str = "UNKNOWN"
     valid_retina_mask_sha256: str | None = None
     valid_retina_fraction: float | None = None
     retinal_field_status: str = "NOT_APPLICABLE"
@@ -125,6 +138,7 @@ class PreparedDerivative:
 
         record = {
             "source_sha256": self.source.source_sha256,
+            "source_origin": self.source_origin,
             "derivative_sha256": self.lineage.derivative_sha256,
             "purpose": self.lineage.purpose,
             "transform_id": self.lineage.transform_id,
@@ -137,6 +151,10 @@ class PreparedDerivative:
         if self.lineage.purpose is DerivativePurpose.ANALYSIS:
             record["analysis_sha256"] = self.lineage.derivative_sha256
             record["transform_version"] = 1
+            record["representation_version"] = ANALYSIS_REPRESENTATION_VERSION
+            record["analysis_coordinate_space"] = ANALYSIS_COORDINATE_SPACE
+            record["original_coordinate_space"] = ORIGINAL_COORDINATE_SPACE
+            record["spatial_mapping_version"] = "analysis-to-original-v1"
             record["valid_retina_mask_sha256"] = self.valid_retina_mask_sha256
             record["valid_retina_fraction"] = self.valid_retina_fraction
             record["retinal_field_status"] = self.retinal_field_status
@@ -165,7 +183,7 @@ class DerivativeService:
     """Cache deterministic representations by source identity and transform."""
 
     def __init__(self) -> None:
-        self._cache: dict[tuple[str, DerivativePurpose, str], PreparedDerivative] = {}
+        self._cache: dict[tuple[str, DerivativePurpose, str, str], PreparedDerivative] = {}
 
     def prepare_display(self, image: BridgeImage) -> PreparedDerivative:
         return self._prepare(image, DerivativePurpose.DISPLAY)
@@ -185,6 +203,7 @@ class DerivativeService:
                 modality=modality,
                 filename=image.filename,
                 media_type=prepared.media_type,
+                source_origin=prepared.source_origin,
             ),
             prepared,
         )
@@ -192,9 +211,10 @@ class DerivativeService:
     def _prepare(self, image: BridgeImage, purpose: DerivativePurpose, *, source_modality: str | None = None) -> PreparedDerivative:
         source_sha256 = image.sha256
         modality = source_modality or image.modality
+        source_origin = _resolved_source_origin(image)
         if purpose is DerivativePurpose.ANALYSIS and modality == "UNKNOWN":
             raise DerivativeError("Image type must be confirmed before analysis preparation")
-        key = (source_sha256, purpose, modality)
+        key = (source_sha256, purpose, modality, source_origin)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -285,7 +305,7 @@ class DerivativeService:
             bit_depth=output_dimensions.bit_depth,
             transform_id=transform_id,
             transform_description=description,
-            coordinate_space="analysis_pixels",
+            coordinate_space=ANALYSIS_COORDINATE_SPACE,
         )
         prepared = PreparedDerivative(
             data=data,
@@ -293,6 +313,7 @@ class DerivativeService:
             source=source,
             lineage=lineage,
             coordinate_mapping=mapping,
+            source_origin=source_origin,
             valid_retina_mask_sha256=mask_sha,
             valid_retina_fraction=valid_fraction,
             retinal_field_status=field_status,
@@ -378,6 +399,8 @@ def _dicom_to_png(data: bytes) -> bytes:
 __all__ = [
     "ANALYSIS_SOURCE_TRANSFORM",
     "ANALYSIS_UWF_MASK_TRANSFORM",
+    "ANALYSIS_REPRESENTATION_VERSION",
+    "ORIGINAL_COORDINATE_SPACE",
     "ANALYSIS_TIFF_PNG_TRANSFORM",
     "CoordinateMapping",
     "DerivativeError",

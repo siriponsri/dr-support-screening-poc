@@ -13,7 +13,8 @@ export function imageContextConfirmed(item: Pick<CaseRecord, 'admission_history'
 
 export function gradeConfirmed(item: Pick<CaseRecord, 'clinician_review'> | null | undefined): boolean {
   const grade = item?.clinician_review?.final_grade;
-  return grade !== null && grade !== undefined;
+  const status = (item as Pick<CaseRecord, 'grade_status'> | null | undefined)?.grade_status;
+  return grade !== null && grade !== undefined && status !== 'NEEDS_SECOND_REVIEW' && status !== 'UNGRADABLE';
 }
 
 export function annotationsConfirmed(item: Pick<CaseRecord, 'annotation_confirmation_status'> | null | undefined): boolean {
