@@ -579,6 +579,11 @@ def install_workflow(app, store):
                 requested_source = ('AI_CORRECTED' if current_ai and
                                     current_ai.get('grade') is not None else 'MANUAL')
             elif request.action == 'MARK_UNGRADABLE':
+                if case.get('grade_status') == GRADE_STATUS_NEEDS_SECOND_REVIEW:
+                    raise HTTPException(
+                        409,
+                        'Resolve the outstanding grade disagreement before marking the image ungradable',
+                    )
                 requested_grade = None
                 requested_source = None
             elif request.action == 'REQUEST_SECOND_REVIEW':

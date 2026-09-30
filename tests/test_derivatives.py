@@ -29,7 +29,12 @@ def _raster_bytes(format_name: str, size: tuple[int, int] = (320, 240)) -> bytes
     return stream.getvalue()
 
 
-def _image(data: bytes, filename: str, source_type: str = "PUBLIC") -> BridgeImage:
+def _image(
+    data: bytes,
+    filename: str,
+    source_type: str = "PUBLIC",
+    source_origin: str = "UNKNOWN",
+) -> BridgeImage:
     return BridgeImage(
         image_id=hashlib.sha256(data).hexdigest(),
         data=data,
@@ -38,6 +43,7 @@ def _image(data: bytes, filename: str, source_type: str = "PUBLIC") -> BridgeIma
         modality="CFP",
         filename=filename,
         media_type={".jpg": "image/jpeg", ".png": "image/png", ".tiff": "image/tiff"}[Path(filename).suffix],
+        source_origin=source_origin,
     )
 
 
@@ -102,6 +108,32 @@ def test_analysis_derivative_cache_and_lineage_are_source_anchored():
     assert first.lineage.derivative_sha256 != image.sha256
     assert first.audit_record()["source_sha256"] == image.sha256
     assert first.audit_record()["analysis_sha256"] == first.lineage.derivative_sha256
+
+
+@pytest.mark.parametrize(
+    ("first_origin", "second_origin"),
+    [
+        ("PUBLIC", "WORKSPACE"),
+        ("WORKSPACE", "PUBLIC"),
+        ("SYNTHETIC", "WORKSPACE"),
+        ("WORKSPACE", "SYNTHETIC"),
+    ],
+)
+def test_analysis_cache_separates_source_origins_in_both_orders(first_origin, second_origin):
+    source = _raster_bytes("TIFF")
+    first_type = first_origin if first_origin in {"PUBLIC", "SYNTHETIC"} else "PUBLIC"
+    second_type = second_origin if second_origin in {"PUBLIC", "SYNTHETIC"} else "PUBLIC"
+    first_image = _image(source, "first.tiff", source_type=first_type, source_origin=first_origin)
+    second_image = _image(source, "second.tiff", source_type=second_type, source_origin=second_origin)
+    service = DerivativeService()
+
+    first = service.prepare_analysis(first_image)
+    second = service.prepare_analysis(second_image)
+
+    assert first is not second
+    assert first.audit_record()["source_origin"] == first_origin
+    assert second.audit_record()["source_origin"] == second_origin
+    assert first.lineage.derivative_sha256 == second.lineage.derivative_sha256
 
 
 def test_coordinate_mapping_returns_analysis_boxes_to_canonical_pixels():

@@ -42,6 +42,15 @@ ANALYSIS_COORDINATE_SPACE = "analysis_pixels"
 REMOTE_IMAGE_B64_LIMIT = 20_000_000
 
 
+def _resolved_source_origin(image: BridgeImage) -> str:
+    """Use the same origin value for cache identity and audit metadata."""
+    if image.source_origin and image.source_origin != "UNKNOWN":
+        return image.source_origin
+    if image.source_type in {"PUBLIC", "SYNTHETIC"}:
+        return image.source_type
+    return "UNKNOWN"
+
+
 class DerivativeError(RuntimeError):
     """Raised when a safe deterministic representation cannot be prepared."""
 
@@ -174,7 +183,7 @@ class DerivativeService:
     """Cache deterministic representations by source identity and transform."""
 
     def __init__(self) -> None:
-        self._cache: dict[tuple[str, DerivativePurpose, str], PreparedDerivative] = {}
+        self._cache: dict[tuple[str, DerivativePurpose, str, str], PreparedDerivative] = {}
 
     def prepare_display(self, image: BridgeImage) -> PreparedDerivative:
         return self._prepare(image, DerivativePurpose.DISPLAY)
@@ -202,9 +211,10 @@ class DerivativeService:
     def _prepare(self, image: BridgeImage, purpose: DerivativePurpose, *, source_modality: str | None = None) -> PreparedDerivative:
         source_sha256 = image.sha256
         modality = source_modality or image.modality
+        source_origin = _resolved_source_origin(image)
         if purpose is DerivativePurpose.ANALYSIS and modality == "UNKNOWN":
             raise DerivativeError("Image type must be confirmed before analysis preparation")
-        key = (source_sha256, purpose, modality)
+        key = (source_sha256, purpose, modality, source_origin)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -303,11 +313,7 @@ class DerivativeService:
             source=source,
             lineage=lineage,
             coordinate_mapping=mapping,
-            source_origin=(
-                image.source_origin
-                if image.source_origin != "UNKNOWN"
-                else image.source_type if image.source_type in {"PUBLIC", "SYNTHETIC"} else "UNKNOWN"
-            ),
+            source_origin=source_origin,
             valid_retina_mask_sha256=mask_sha,
             valid_retina_fraction=valid_fraction,
             retinal_field_status=field_status,

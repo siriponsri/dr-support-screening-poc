@@ -4,11 +4,12 @@ import hashlib
 import io
 
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from dr_support.api import create_app
 from dr_support.images import BridgeImage
-from dr_support.imaging import DerivativeService
+from dr_support.imaging import CoordinateMapping, DerivativeService, SourceDimensions
+from dr_support.imaging.retinal_field import prepare_retinal_field
 
 
 def test_named_grade_persists_and_disagreement_is_not_overwritten(tmp_path):
@@ -64,6 +65,40 @@ def test_named_grade_persists_and_disagreement_is_not_overwritten(tmp_path):
     assert body["reviewed_grade"] == 2
     assert body["grade_adjudication"]["status"] == "RESOLVED"
     assert [entry["grade"] for entry in body["grade_reviews"]] == [2, 1, 2]
+
+
+def test_ungradable_cannot_clear_unresolved_grade_disagreement(tmp_path):
+    client = TestClient(create_app(tmp_path / "review.sqlite", include_samples=False))
+    base = "/v1/cases/SYNTH_001/review"
+
+    first = client.post(base, json={
+        "revision": 0,
+        "action": "CORRECT_GRADE",
+        "reviewer": "First clinician",
+        "grade": 2,
+    })
+    second = client.post(base, json={
+        "revision": first.json()["revision"],
+        "action": "CORRECT_GRADE",
+        "reviewer": "Second clinician",
+        "grade": 1,
+    })
+    unresolved = second.json()
+    assert unresolved["grade_status"] == "NEEDS_SECOND_REVIEW"
+    assert unresolved["grade_adjudication"]["status"] == "UNRESOLVED"
+
+    rejected = client.post(base, json={
+        "revision": unresolved["revision"],
+        "action": "MARK_UNGRADABLE",
+        "reviewer": "Third clinician",
+    })
+
+    assert rejected.status_code == 409
+    preserved = client.get("/v1/cases/SYNTH_001").json()
+    assert preserved["grade_status"] == "NEEDS_SECOND_REVIEW"
+    assert preserved["state"] == "NEEDS_SECOND_REVIEW"
+    assert preserved["grade_adjudication"]["status"] == "UNRESOLVED"
+    assert [entry["grade"] for entry in preserved["grade_reviews"]] == [2, 1]
 
 
 def test_historical_unknown_review_remains_readable_without_a_grade(tmp_path):
@@ -188,6 +223,52 @@ def test_analysis_representation_and_spatial_mismatch_fail_closed(tmp_path):
     detail = client.get("/v1/cases/SYNTH_001").json()
     assert detail["spatial_ai_display"]["reason"] == "SOURCE_ORIGIN_MISMATCH"
     assert detail["lesion"] is None
+
+
+def test_double_mask_candidates_record_matching_hash_dimensions_and_geometry():
+    source = Image.new("RGB", (512, 384), (7, 7, 7))
+    draw = ImageDraw.Draw(source)
+    draw.ellipse((32, 24, 480, 360), fill=(170, 60, 35))
+    draw.ellipse((230, 140, 280, 180), fill=(240, 240, 220))
+    field = prepare_retinal_field(source)
+    black = Image.new("RGB", source.size, (0, 0, 0))
+    source_dimensions = SourceDimensions(width=source.width, height=source.height, bit_depth=8, channels=3)
+
+    def encode(image):
+        output = io.BytesIO()
+        image.save(output, format="PNG", optimize=False, compress_level=9)
+        return output.getvalue()
+
+    shared_masked = Image.composite(source, black, field.mask)
+    single_data = encode(shared_masked)
+    adapter_masked = Image.composite(shared_masked, black, field.mask)
+    double_data = encode(adapter_masked)
+    geometry = {
+        "mask_bbox": field.mask.getbbox(),
+        "coordinate_mapping": CoordinateMapping.for_dimensions(
+            source_dimensions,
+            SourceDimensions(width=source.width, height=source.height, bit_depth=8, channels=3),
+        ).model_dump(mode="json"),
+    }
+    comparison = {
+        "single_mask": {
+            "mask_sha256": field.mask_sha256,
+            "analysis_sha256": hashlib.sha256(single_data).hexdigest(),
+            "dimensions": shared_masked.size,
+            "geometry": geometry,
+        },
+        "adapter_reapplied_mask": {
+            "input_sha256": hashlib.sha256(single_data).hexdigest(),
+            "analysis_sha256": hashlib.sha256(double_data).hexdigest(),
+            "dimensions": adapter_masked.size,
+            "geometry": geometry,
+        },
+    }
+
+    assert comparison["single_mask"]["analysis_sha256"] == comparison["adapter_reapplied_mask"]["input_sha256"]
+    assert comparison["single_mask"]["analysis_sha256"] == comparison["adapter_reapplied_mask"]["analysis_sha256"]
+    assert comparison["single_mask"]["dimensions"] == comparison["adapter_reapplied_mask"]["dimensions"]
+    assert comparison["single_mask"]["geometry"] == comparison["adapter_reapplied_mask"]["geometry"]
 
 
 def test_spatial_ai_requires_matching_lineage_and_coordinate_mapping(tmp_path):

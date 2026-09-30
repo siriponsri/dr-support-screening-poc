@@ -190,6 +190,51 @@ function sourceOriginLabel(sourceOrigin: CaseRecord['source_origin']): string {
   return 'Not recorded';
 }
 
+function processingAudit(item: CaseRecord) {
+  return item.analysis_preparation?.derivative ?? item.analysis_derivative;
+}
+
+function selectedMaskLabel(item: CaseRecord): string {
+  const preparation = item.analysis_preparation;
+  const audit = processingAudit(item);
+  if (preparation?.status === 'NEEDS_REVIEW') {
+    return 'Unavailable - mask needs review; Original/manual review only';
+  }
+  if (preparation?.status === 'FAILED') {
+    return 'Unavailable - mask preparation failed; Original/manual review only';
+  }
+  if (audit?.retinal_field_status === 'READY' && audit.valid_retina_mask_sha256) {
+    return 'Retinal-field mask recorded; no fallback used';
+  }
+  if (audit?.retinal_field_status === 'NOT_APPLICABLE') {
+    return 'No mask recorded; source representation used';
+  }
+  if (item.modality === 'UWF') {
+    return 'Unavailable - no mask record; Original/manual review only';
+  }
+  return 'Not applicable for this case';
+}
+
+function analysisTransformLabel(item: CaseRecord): string {
+  return processingAudit(item)?.transform_description ?? 'Unavailable - no transform recorded';
+}
+
+function modelTransformLabel(item: CaseRecord): string {
+  const preprocessing = item.global?.provenance?.preprocessing ?? item.lesion?.provenance?.preprocessing;
+  if (preprocessing) return preprocessing;
+  return item.global || item.lesion
+    ? 'Unavailable - model transform not reported'
+    : 'Unavailable - no model result recorded';
+}
+
+function modelDomainWarningLabel(item: CaseRecord): string {
+  const warnings = [...(item.global?.warnings ?? []), ...(item.lesion?.warnings ?? [])].filter(Boolean);
+  if (warnings.length > 0) return warnings.join(' ');
+  return item.global || item.lesion
+    ? 'No model/domain warning recorded'
+    : 'Unavailable - no model result recorded';
+}
+
 export function ReviewPage() {
   const location = useLocation();
   const { pathname } = location;
@@ -426,6 +471,10 @@ export function ReviewPage() {
             <Stack spacing={1}><Text color="text.secondary">Visit / capture</Text><Text>{item.visit_context?.visit_key ?? 'Unknown'}{item.visit_context?.captured_at ? ` · ${item.visit_context.captured_at}` : ''}</Text></Stack>
             <Stack spacing={1}><Text color="text.secondary">Analysis representation</Text><Text>{item.analysis_preparation?.derivative?.representation_version ?? 'Not used or not recorded'}</Text></Stack>
             <Stack spacing={1}><Text color="text.secondary">Spatial AI display</Text><Text>{item.spatial_ai_display?.status === 'AVAILABLE' ? 'Available in original-image pixels' : item.spatial_ai_display?.status === 'BLOCKED' ? 'Blocked until provenance matches' : 'Unavailable'}</Text></Stack>
+            <Stack spacing={1}><Text color="text.secondary">Selected mask / fallback</Text><Text>{selectedMaskLabel(item)}</Text>{processingAudit(item)?.valid_retina_mask_sha256 && <Code fontSize="xs" whiteSpace="normal">{processingAudit(item)?.valid_retina_mask_sha256}</Code>}</Stack>
+            <Stack spacing={1}><Text color="text.secondary">Analysis transform</Text><Text>{analysisTransformLabel(item)}</Text></Stack>
+            <Stack spacing={1}><Text color="text.secondary">Model transform</Text><Text>{modelTransformLabel(item)}</Text></Stack>
+            <Stack spacing={1}><Text color="text.secondary">Model / domain warning</Text><Text>{modelDomainWarningLabel(item)}</Text></Stack>
           </SimpleGrid>
           {item.analysis_preparation?.status === 'FAILED' && <Alert status="warning" mt={4}><AlertIcon /><Text>Masked Analysis could not be prepared. Original and manual grading remain available.</Text></Alert>}
           {item.explainability?.status !== 'AVAILABLE' && <Text mt={4} fontSize="sm" color="text.secondary">Explainability unavailable. No attention map or clinical probability is fabricated.</Text>}
