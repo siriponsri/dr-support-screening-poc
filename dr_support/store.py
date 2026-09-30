@@ -50,6 +50,7 @@ def new_case(image_id):
             'analysis_derivative': None,
             'analysis_preparation': None, 'superseded_model_results': [],
             'ai_annotation_reviews': [],
+            'annotation_completeness': {},
             'annotation_confirmation': None,
             'queue_state': 'INCLUDED', 'queue_history': []}
     return apply_case_defaults(case)
@@ -66,6 +67,7 @@ def apply_case_defaults(case):
     case.setdefault('analysis_preparation', None)
     case.setdefault('superseded_model_results', [])
     case.setdefault('ai_annotation_reviews', [])
+    case.setdefault('annotation_completeness', {})
     case.setdefault('annotation_confirmation', None)
     case.setdefault('queue_state', 'INCLUDED')
     case.setdefault('queue_history', [])

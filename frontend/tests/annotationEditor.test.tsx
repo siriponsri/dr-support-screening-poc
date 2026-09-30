@@ -227,6 +227,44 @@ describe('AnnotationEditorPage human movement', () => {
     expect(requests).toContain('/v1/cases/CASE-001/review');
   });
 
+  it('records deliberate Core completeness separately from an empty annotation list', async () => {
+    const current: CaseRecord = {
+      ...item,
+      human_annotations: [],
+      annotation_completeness: {},
+      clinician_review: { reviewer: 'Clinician', final_grade: 2, review_action: 'CORRECT_GRADE', remark: '', timestamp: '2026-01-01T00:00:00Z', revision: 1 },
+    };
+    let completenessRequest: Record<string, unknown> | undefined;
+    renderEditor(current, (input, init) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
+      if (path === '/v1/cases' || path === '/v1/cases/CASE-001') return current;
+      if (path.endsWith('/annotation-completeness')) {
+        completenessRequest = JSON.parse(String(init?.body));
+        return {
+          ...current,
+          revision: 1,
+          annotation_completeness: {
+            CORE: {
+              group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician',
+              timestamp: '2026-01-01T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
+            },
+          },
+        };
+      }
+      return current;
+    });
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('0 human annotations')).toBeInTheDocument());
+    const reviewerInput = screen.getByPlaceholderText('Reviewer name');
+    await user.clear(reviewerInput);
+    await user.type(reviewerInput, 'Clinician');
+    await user.click(screen.getByRole('button', { name: 'Reviewed none found' }));
+    await waitFor(() => expect(completenessRequest).toMatchObject({
+      group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician', taxonomy_version: 'core-lesions-v1',
+    }));
+    expect(screen.getByText(/Status: REVIEWED_NONE_FOUND/)).toBeInTheDocument();
+  });
+
   it('moves editable human geometry, records undo, and respects lock state', async () => {
     renderEditor();
     const { svg } = await setupStage();

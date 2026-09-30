@@ -242,6 +242,18 @@ class HumanAnnotationDerive(Contract):
     intent: Literal['USE_AS_HUMAN', 'CORRECT_AS_HUMAN']
 
 
+class AnnotationCompletenessUpdate(Contract):
+    revision: int = Field(ge=0)
+    reviewer: str = Field(min_length=1, max_length=80)
+    group: Literal['CORE', 'ADVANCED']
+    state: Literal[
+        'NOT_REVIEWED', 'PARTIALLY_REVIEWED',
+        'REVIEWED_NONE_FOUND', 'REVIEWED_FINDINGS_RECORDED',
+    ]
+    taxonomy_version: str = Field(min_length=1, max_length=80)
+    note: str = Field(default='', max_length=1000)
+
+
 class ManualImport(Contract):
     revision: int = Field(ge=0)
     image_sha256: str
@@ -391,6 +403,7 @@ def install_workflow(app, store):
                 'clinician_review': case.get('clinician_review'),
                 'review_history': case.get('review_history', []),
                 'review_evidence': review_evidence_view(evidence_case),
+                'annotation_completeness': case.get('annotation_completeness', {}),
                 'annotation_hash': current_annotation_hash,
                 'annotation_set_hash': current_annotation_hash,
                 'annotation_confirmation_status': 'CONFIRMED' if annotation_confirmed else 'DRAFT',
@@ -1166,6 +1179,42 @@ def install_workflow(app, store):
                 'reviewer': reviewer,
                 'count': len(saved),
                 'annotation_changes': annotation_changes,
+                'timestamp': timestamp,
+                'new_revision': case['revision'],
+            })
+            store.put(case)
+            return detail(image_id)
+
+    @app.put('/v1/cases/{image_id}/annotation-completeness')
+    def update_annotation_completeness(image_id: str, request: AnnotationCompletenessUpdate):
+        get_image(image_id)
+        reviewer = request.reviewer.strip()
+        if not reviewer:
+            raise HTTPException(422, 'Reviewer name required')
+        if request.state == 'NOT_REVIEWED':
+            raise HTTPException(422, 'Completeness state requires a deliberate review action')
+        store = current_store()
+        with store.lock:
+            case = store.get(image_id)
+            if request.revision != case['revision']:
+                raise HTTPException(409, 'Case changed; reload before saving completeness')
+            timestamp = datetime.now(timezone.utc).isoformat()
+            previous = (case.get('annotation_completeness') or {}).get(request.group)
+            record = {
+                'group': request.group,
+                'state': request.state,
+                'reviewer': reviewer,
+                'timestamp': timestamp,
+                'taxonomy_version': request.taxonomy_version.strip(),
+                'note': request.note.strip(),
+            }
+            case.setdefault('annotation_completeness', {})[request.group] = record
+            case['revision'] += 1
+            case.setdefault('events', []).append({
+                'action': 'ANNOTATION_COMPLETENESS_UPDATED',
+                'group': request.group,
+                'previous': previous,
+                'new': record,
                 'timestamp': timestamp,
                 'new_revision': case['revision'],
             })
