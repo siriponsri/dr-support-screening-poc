@@ -132,12 +132,17 @@ export interface DerivativeLineage {
 
 export interface AnalysisDerivativeAudit {
   source_sha256: string;
+  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'UNKNOWN' | string;
   derivative_sha256: string;
   analysis_sha256: string;
   purpose: 'DISPLAY' | 'ANALYSIS' | 'MASTER';
   transform_id: string;
   transform_description: string;
   transform_version?: number;
+  representation_version?: string;
+  analysis_coordinate_space?: string;
+  original_coordinate_space?: string;
+  spatial_mapping_version?: string;
   valid_retina_mask_sha256?: string | null;
   valid_retina_fraction?: number | null;
   retinal_field_status?: 'READY' | 'NEEDS_REVIEW' | 'FAILED' | 'NOT_APPLICABLE';
@@ -171,10 +176,34 @@ export interface HumanAnnotation {
 export interface ClinicianReview {
   reviewer: string;
   final_grade: number | null;
-  review_action: 'ACCEPT' | 'MARK_INCORRECT' | 'CORRECT_GRADE' | 'ESCALATE' | 'CONFIRM_ANNOTATIONS';
+  review_action: 'ACCEPT' | 'MARK_INCORRECT' | 'CORRECT_GRADE' | 'ESCALATE' | 'CONFIRM_ANNOTATIONS' | 'MARK_UNGRADABLE' | 'REQUEST_SECOND_REVIEW' | 'ADJUDICATE_GRADE';
   remark: string;
   timestamp: string;
   revision: number;
+}
+
+export interface GradeReview {
+  reviewer: string;
+  grade: number | null;
+  grade_label?: string | null;
+  review_action: ClinicianReview['review_action'];
+  remark?: string;
+  timestamp: string | null;
+  revision?: number;
+  legacy?: boolean;
+}
+
+export interface SpatialAiDisplay {
+  status: 'AVAILABLE' | 'UNAVAILABLE' | 'BLOCKED';
+  reason?: string;
+  coordinate_space?: string;
+  note: string;
+}
+
+export interface ExplainabilityState {
+  status: 'AVAILABLE' | 'UNAVAILABLE' | 'BLOCKED';
+  note: string;
+  [key: string]: unknown;
 }
 
 export interface CaseRecord {
@@ -182,6 +211,7 @@ export interface CaseRecord {
   display_name: string;
   filename: string | null;
   source_type: string;
+  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'UNKNOWN' | string;
   source: string;
   modality: RetinalModality;
   width: number;
@@ -195,6 +225,21 @@ export interface CaseRecord {
     reason_code?: string;
     source_sha256?: string;
     derivative?: AnalysisDerivativeAudit;
+  } | null;
+  spatial_ai_display?: SpatialAiDisplay;
+  explainability?: ExplainabilityState;
+  grade_status?: 'NOT_REVIEWED' | 'CONFIRMED' | 'UNGRADABLE' | 'NEEDS_SECOND_REVIEW' | 'UNKNOWN' | string;
+  reviewed_grade?: number | null;
+  reviewed_grade_label?: string | null;
+  grade_review_source?: string | null;
+  grade_reviews?: GradeReview[];
+  grade_adjudication?: Record<string, unknown> | null;
+  visit_context?: {
+    visit_key: string | null;
+    captured_at: string | null;
+    capture_sequence: number | null;
+    device: string | null;
+    evidence_state: 'PROVIDED' | 'UNKNOWN' | string;
   } | null;
   state: string;
   revision: number;
@@ -289,6 +334,7 @@ export interface AdmissionMetadata {
   retinal_modality_state?: 'RESOLVED' | 'NEEDS_CONFIRMATION';
   retinal_modality_method?: 'NONE' | 'MANUAL' | 'LEGACY_COMPAT' | 'DICOM_METADATA';
   retinal_modality_candidate?: RetinalModality | null;
+  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'UNKNOWN' | string;
   admission_method: 'AUTOMATIC' | 'MANUAL' | 'LEGACY_COMPAT' | 'DATASET_IMPORT';
   admission_reason_code: string;
   quality_reason_code: string | null;
@@ -326,7 +372,23 @@ export interface ConfirmImageRequest {
   patient_key?: string | null;
   laterality: Laterality;
   retinal_modality?: RetinalModality;
+  visit_key?: string | null;
+  captured_at?: string | null;
+  capture_sequence?: number | null;
+  device?: string | null;
   note?: string;
+}
+
+export const DR_GRADE_LABELS: Record<number, string> = {
+  0: 'No apparent DR',
+  1: 'Mild NPDR',
+  2: 'Moderate NPDR',
+  3: 'Severe NPDR',
+  4: 'Proliferative DR',
+};
+
+export function drGradeLabel(grade: number | null | undefined): string | null {
+  return grade == null ? null : DR_GRADE_LABELS[grade] ?? null;
 }
 
 export interface AdmissionScanResponse {

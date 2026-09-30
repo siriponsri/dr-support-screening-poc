@@ -17,6 +17,7 @@ ModalityAdmission = Literal[
 ]
 QualityState = Literal["GRADABLE", "UNGRADABLE", "NEEDS_REVIEW", "NOT_EVALUATED"]
 RetinalModality = Literal["CFP", "UWF", "UNKNOWN"]
+SourceOrigin = Literal["PUBLIC", "SYNTHETIC", "WORKSPACE", "UNKNOWN"]
 AdmissionMethod = Literal["AUTOMATIC", "MANUAL", "LEGACY_COMPAT", "DATASET_IMPORT"]
 AdmissionReviewAction = Literal[
     "ACCEPT_RETINAL",
@@ -46,6 +47,7 @@ class AdmissionMetadata(Contract):
     retinal_modality_state: Literal["RESOLVED", "NEEDS_CONFIRMATION"] = "NEEDS_CONFIRMATION"
     retinal_modality_method: Literal["NONE", "MANUAL", "LEGACY_COMPAT", "DICOM_METADATA"] = "NONE"
     retinal_modality_candidate: RetinalModality | None = None
+    source_origin: SourceOrigin = "UNKNOWN"
     admission_method: AdmissionMethod
     admission_reason_code: str = Field(min_length=1, max_length=80)
     quality_reason_code: str | None = Field(default=None, max_length=80)

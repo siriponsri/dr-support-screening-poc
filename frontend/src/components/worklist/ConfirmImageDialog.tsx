@@ -9,6 +9,10 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
   const [patientKey, setPatientKey] = useState('');
   const [laterality, setLaterality] = useState<Laterality>('UNKNOWN');
   const [imageType, setImageType] = useState<RetinalModality>('UNKNOWN');
+  const [visitKey, setVisitKey] = useState('');
+  const [capturedAt, setCapturedAt] = useState('');
+  const [captureSequence, setCaptureSequence] = useState('');
+  const [device, setDevice] = useState('');
   const [reviewer, setReviewer] = useState('');
   const [useAsDefault, setUseAsDefault] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,6 +24,10 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
     setPatientKey(item.patient_key ?? item.patient_candidate ?? '');
     setLaterality(item.laterality ?? 'UNKNOWN');
     setImageType(item.admission?.retinal_modality ?? item.modality ?? 'UNKNOWN');
+    setVisitKey(item.visit_context?.visit_key ?? '');
+    setCapturedAt(item.visit_context?.captured_at ?? '');
+    setCaptureSequence(item.visit_context?.capture_sequence == null ? '' : String(item.visit_context.capture_sequence));
+    setDevice(item.visit_context?.device ?? '');
     setReviewer(defaultReviewer);
     setUseAsDefault(Boolean(defaultReviewer));
     setError(null);
@@ -36,6 +44,10 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
         patient_key: patientKey.trim() || null,
         laterality,
         retinal_modality: imageType,
+        visit_key: visitKey.trim() || null,
+        captured_at: capturedAt.trim() || null,
+        capture_sequence: captureSequence.trim() ? Number(captureSequence) : null,
+        device: device.trim() || null,
       });
       if (useAsDefault) setDefaultReviewer(reviewer);
       else setDefaultReviewer('');
@@ -55,6 +67,10 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
         <FormControl><FormLabel htmlFor="confirm-image-type">Image type</FormLabel><Select id="confirm-image-type" value={imageType} onChange={(event) => setImageType(event.target.value as RetinalModality)}><option value="UNKNOWN">Not sure yet</option><option value="CFP">Conventional fundus photograph</option><option value="UWF">Ultra-widefield</option></Select><Text fontSize="xs" color="text.secondary" mt={1}>If unsure, keep Not sure yet. AI analysis requires a confirmed supported image type.</Text></FormControl>
         <FormControl><FormLabel htmlFor="confirm-image-patient-key">Pseudonymous patient key</FormLabel><Input id="confirm-image-patient-key" value={patientKey} onChange={(event) => setPatientKey(event.target.value.toUpperCase())} placeholder="PAT0001" /></FormControl>
         <FormControl><FormLabel htmlFor="confirm-image-eye">Eye</FormLabel><Select id="confirm-image-eye" value={laterality} onChange={(event) => setLaterality(event.target.value as Laterality)}><option value="LEFT">Left</option><option value="RIGHT">Right</option><option value="UNKNOWN">Unknown</option></Select></FormControl>
+        <FormControl><FormLabel htmlFor="confirm-image-visit">Visit key (optional)</FormLabel><Input id="confirm-image-visit" value={visitKey} onChange={(event) => setVisitKey(event.target.value)} placeholder="Only enter supported evidence" /></FormControl>
+        <FormControl><FormLabel htmlFor="confirm-image-capture">Capture date/time (optional)</FormLabel><Input id="confirm-image-capture" value={capturedAt} onChange={(event) => setCapturedAt(event.target.value)} placeholder="Leave blank when unknown" /></FormControl>
+        <FormControl><FormLabel htmlFor="confirm-image-sequence">Capture sequence (optional)</FormLabel><Input id="confirm-image-sequence" type="number" min={0} value={captureSequence} onChange={(event) => setCaptureSequence(event.target.value)} placeholder="Leave blank when unknown" /></FormControl>
+        <FormControl><FormLabel htmlFor="confirm-image-device">Camera / device (optional)</FormLabel><Input id="confirm-image-device" value={device} onChange={(event) => setDevice(event.target.value)} placeholder="Leave blank when unknown" /></FormControl>
         <ReviewerField id="confirm-image-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
       </Stack></ModalBody>
       <ModalFooter><HStack spacing={2}><Button variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button><Button variant="solid" onClick={() => void save()} isLoading={saving}>Confirm image & continue</Button></HStack></ModalFooter>

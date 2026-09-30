@@ -42,6 +42,8 @@ def new_case(image_id):
     case = {'image_id': image_id, 'revision': 0, 'state': 'PENDING',
             'events': [], 'global': None, 'lesion': None, 'cvat': None,
             'reviewed_grade': None, 'grade_review_source': None,
+            'grade_status': 'NOT_REVIEWED', 'grade_reviews': [],
+            'grade_adjudication': None, 'reviewed_grade_label': None,
             'lesion_review_state': None, 'annotations': None,
             'human_annotations': [], 'clinician_review': None,
             'review_history': [], 'admission': None, 'admission_history': [],
@@ -67,6 +69,28 @@ def apply_case_defaults(case):
     case.setdefault('annotation_confirmation', None)
     case.setdefault('queue_state', 'INCLUDED')
     case.setdefault('queue_history', [])
+    prior_review = case.get('clinician_review') or {}
+    prior_grade = case.get('reviewed_grade')
+    if prior_grade is None:
+        prior_grade = prior_review.get('final_grade')
+    legacy_grade_status = (
+        'CONFIRMED' if prior_grade is not None
+        else 'UNKNOWN' if prior_review
+        else 'NOT_REVIEWED'
+    )
+    case.setdefault('grade_status', legacy_grade_status)
+    case.setdefault('grade_reviews', [])
+    case.setdefault('grade_adjudication', None)
+    case.setdefault('reviewed_grade_label', None)
+    case.setdefault('visit_context', {
+        'visit_key': None,
+        'captured_at': None,
+        'capture_sequence': None,
+        'device': None,
+        'evidence_state': 'UNKNOWN',
+    })
+    case.setdefault('explainability', None)
+    case.setdefault('spatial_ai_display', None)
     _set_resolver_defaults(case)
     return case
 

@@ -22,7 +22,7 @@ import {
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { RetinalCanvas } from '@/components/review/RetinalCanvas';
-import { apiJson, type CaseRecord } from '@/lib/api';
+import { apiJson, drGradeLabel, type CaseRecord } from '@/lib/api';
 import { ArrowLeft, CheckCircle2, Pencil } from '@/lib/icons';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { EDIT_CONFIRMED_GRADE_DIALOG, LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -32,7 +32,7 @@ import { ReviewerField } from '@/components/common/ReviewerField';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
 import { NextActionHint } from '@/components/common/NextActionHint';
 
-type ReviewAction = 'ACCEPT' | 'CORRECT_GRADE';
+type ReviewAction = 'ACCEPT' | 'CORRECT_GRADE' | 'MARK_UNGRADABLE' | 'REQUEST_SECOND_REVIEW' | 'ADJUDICATE_GRADE';
 
 function errorText(err: unknown) {
   return err instanceof Error ? err.message : 'The request could not be completed.';
@@ -40,8 +40,11 @@ function errorText(err: unknown) {
 
 function reviewLabel(item: CaseRecord) {
   if (gradeConfirmed(item)) return 'Grading complete';
+  if (item.grade_status === 'UNGRADABLE') return 'Ungradable';
+  if (item.grade_status === 'NEEDS_SECOND_REVIEW' || item.state === 'NEEDS_SECOND_REVIEW') return 'Needs Second Review';
   if (item.state === 'ESCALATED') return 'Legacy senior-review record';
   if (item.state === 'NEEDS_CORRECTION') return 'Legacy correction record';
+  if (item.grade_status === 'UNKNOWN') return 'Historical Unknown';
   return 'Not confirmed';
 }
 
@@ -105,20 +108,24 @@ export function ClinicianReviewPage() {
     if (await confirm(EDIT_CONFIRMED_GRADE_DIALOG)) setEditingConfirmed(true);
   };
 
-  const saveGrade = async () => {
+  const saveGrade = async (requestedAction?: ReviewAction) => {
     if (!item || saving) return;
     if (!reviewer.trim()) {
       setError('Reviewer name is required.');
       return;
     }
-    if (grade === '') {
+    if (!requestedAction && grade === '') {
       setError('Choose a final DR grade before confirming.');
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      const action: ReviewAction = item.global?.grade != null && item.global.grade === Number(grade) ? 'ACCEPT' : 'CORRECT_GRADE';
+      const action: ReviewAction = requestedAction ?? (
+        item.grade_status === 'NEEDS_SECOND_REVIEW'
+          ? 'ADJUDICATE_GRADE'
+          : item.global?.grade != null && item.global.grade === Number(grade) ? 'ACCEPT' : 'CORRECT_GRADE'
+      );
       const saved = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(item.image_id)}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -126,7 +133,7 @@ export function ClinicianReviewPage() {
           revision: item.revision,
           action,
           reviewer: reviewer.trim(),
-          grade: Number(grade),
+          ...(grade === '' ? {} : { grade: Number(grade) }),
           comment: remark,
         }),
       });
@@ -136,12 +143,15 @@ export function ClinicianReviewPage() {
       toast({
         id: 'dr-grade-confirmed',
         status: 'success',
-        title: 'DR grade confirmed · Grading complete',
+         title: action === 'MARK_UNGRADABLE' ? 'Image marked Ungradable' : action === 'REQUEST_SECOND_REVIEW' ? 'Needs Second Review recorded' : action === 'ADJUDICATE_GRADE' ? 'DR grade adjudicated' : 'DR grade confirmed · ' + (drGradeLabel(Number(grade)) ?? 'selected grade'),
+        description: action === 'MARK_UNGRADABLE' ? 'Ungradable is separate from the five DR grades.' : action === 'REQUEST_SECOND_REVIEW' ? 'No final grade is treated as resolved until review is completed.' : (drGradeLabel(Number(grade)) ?? undefined),
         duration: 3500,
         position: 'top',
         isClosable: true,
       });
-      navigate(`/edit/${encodeURIComponent(saved.image_id)}`, { state: { gradingComplete: true } });
+      if (action !== 'MARK_UNGRADABLE' && action !== 'REQUEST_SECOND_REVIEW') {
+        navigate(`/edit/${encodeURIComponent(saved.image_id)}`, { state: { gradingComplete: true } });
+      }
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -170,7 +180,7 @@ export function ClinicianReviewPage() {
         <Section title="Retinal image" description="AI output is optional evidence; this page records the clinician's final grade.">
           <RetinalCanvas item={item} showAi={false} showHuman={true} />
           <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={4} mt={4}>
-            <Stack spacing={1}><Text fontSize="sm" color="text.secondary">AI suggestion</Text><Heading size="md">{item.global?.grade == null ? 'Not available' : `Grade ${item.global.grade}`}</Heading></Stack>
+            <Stack spacing={1}><Text fontSize="sm" color="text.secondary">AI suggestion</Text><Heading size="md">{item.global?.grade == null ? 'Not available' : (drGradeLabel(item.global.grade) ?? 'Not available')}</Heading></Stack>
             <Stack spacing={1}><Text fontSize="sm" color="text.secondary">Human annotations</Text><Heading size="md">{item.human_annotations?.length ?? 0}</Heading></Stack>
             <Stack spacing={1}><Text fontSize="sm" color="text.secondary">AI lesion suggestions</Text><Heading size="md">{item.lesion_review?.suggestion_count ?? 0}</Heading></Stack>
           </SimpleGrid>
@@ -184,7 +194,7 @@ export function ClinicianReviewPage() {
             <Section title="DR grade confirmed" description="The confirmed grade is read-only. Reopen it only if the grade must change.">
               <Stack spacing={3}>
                 <HStack spacing={2}><CheckCircle2 size={18} color="var(--chakra-colors-status-success)" /><Text fontWeight="semibold">Grading complete</Text></HStack>
-                <Text><strong>Grade:</strong> Grade {item.clinician_review?.final_grade}</Text>
+                <Text><strong>Grade:</strong> {drGradeLabel(item.clinician_review?.final_grade) ?? 'Not set'}</Text>
                 <Text fontSize="sm" color="text.secondary"><strong>Reviewer:</strong> {item.clinician_review?.reviewer}</Text>
                 <Text fontSize="sm" color="text.secondary"><strong>Confirmed at:</strong> {formatTimestamp(item.clinician_review?.timestamp)}</Text>
                 <HStack spacing={2} flexWrap="wrap">
@@ -198,7 +208,7 @@ export function ClinicianReviewPage() {
               <Stack spacing={4}>
                 <HStack spacing={2}>
                   <Text fontSize="sm" color="text.secondary">Status:</Text>
-                  <StatusBadge tone="neutral">{editingConfirmed ? 'Editing confirmed grade' : 'Not confirmed'}</StatusBadge>
+                  <StatusBadge tone="neutral">{editingConfirmed ? 'Editing confirmed grade' : item.grade_status === 'UNKNOWN' ? 'Historical Unknown' : 'Not confirmed'}</StatusBadge>
                 </HStack>
                 {legacyEscalation && (
                   <Alert status="info" variant="subtle">
@@ -206,12 +216,25 @@ export function ClinicianReviewPage() {
                     <Text fontSize="sm"><strong>Legacy senior-review record.</strong> This historical record stays in the review history. Confirm a final DR grade to complete grading.</Text>
                   </Alert>
                 )}
+                {item.grade_status === 'NEEDS_SECOND_REVIEW' && (
+                  <Alert status="warning" variant="subtle">
+                    <AlertIcon />
+                    <Stack spacing={1}>
+                      <Text fontWeight="semibold">Needs Second Review</Text>
+                      <Text fontSize="sm">Independent reviews disagree or a second review was requested. The unresolved grade is excluded from training-ready status.</Text>
+                      {(item.grade_reviews ?? []).map((entry, index) => <Text key={`${entry.reviewer}-${entry.timestamp}-${index}`} fontSize="sm">{entry.reviewer}: {entry.grade_label ?? (entry.grade == null ? 'No grade recorded' : `Grade ${entry.grade}`)}</Text>)}
+                    </Stack>
+                  </Alert>
+                )}
+                {item.grade_status === 'UNGRADABLE' && (
+                  <Alert status="warning" variant="subtle"><AlertIcon /><Text fontSize="sm"><strong>Ungradable.</strong> This is a separate image-review state, not a DR severity.</Text></Alert>
+                )}
                 <ReviewerField id="clinician-reviewer-name" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
-                <Text fontSize="sm" color="text.secondary">AI suggestion: {item.global?.grade == null ? 'Not available' : `Grade ${item.global.grade}`} <Text as="span" color="text.muted">(optional evidence, not pre-selected)</Text></Text>
+                <Text fontSize="sm" color="text.secondary">AI suggestion: {item.global?.grade == null ? 'Not available' : (drGradeLabel(item.global.grade) ?? 'Not available')} <Text as="span" color="text.muted">(optional evidence, not pre-selected)</Text></Text>
                 <FormControl>
                   <FormLabel htmlFor="clinician-review-grade">Final DR grade</FormLabel>
-                  <Select id="clinician-review-grade" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Select grade 0-4">
-                    {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>Grade {value}</option>)}
+                  <Select id="clinician-review-grade" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Select a DR grade">
+                    {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{drGradeLabel(value)}</option>)}
                   </Select>
                 </FormControl>
                 <FormControl>
@@ -219,15 +242,19 @@ export function ClinicianReviewPage() {
                   <Textarea id="clinician-review-remark" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Add a review remark" rows={4} />
                 </FormControl>
                 {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
-                <Button variant="solid" onClick={() => void saveGrade()} isLoading={saving} isDisabled={grade === ''}>Confirm DR Grade</Button>
-                <Text fontSize="sm" color="text.secondary">This finalizes the DR grade and continues to annotation review.</Text>
+                <HStack spacing={2} flexWrap="wrap">
+                  <Button variant="solid" onClick={() => void saveGrade()} isLoading={saving} isDisabled={grade === ''}>{item.grade_status === 'NEEDS_SECOND_REVIEW' ? 'Resolve and confirm DR grade' : 'Confirm DR Grade'}</Button>
+                  <Button variant="outline" onClick={() => void saveGrade('MARK_UNGRADABLE')} isLoading={saving}>Mark Ungradable</Button>
+                  <Button variant="outline" onClick={() => void saveGrade('REQUEST_SECOND_REVIEW')} isLoading={saving}>Request Second Review</Button>
+                </HStack>
+                <Text fontSize="sm" color="text.secondary">Confirming one grade is the normal path. Use the separate actions when the image is not gradable or needs an independent review.</Text>
               </Stack>
             </Section>
           )}
           <Section title="Review record" description="Persisted in the existing case store with revision history.">
             {item.clinician_review ? (
               <Stack spacing={2} fontSize="sm">
-                <Text><strong>Final grade:</strong> {item.clinician_review.final_grade == null ? 'Not set' : item.clinician_review.final_grade}</Text>
+                <Text><strong>Final grade:</strong> {drGradeLabel(item.clinician_review.final_grade) ?? (item.grade_status === 'UNGRADABLE' ? 'Ungradable' : item.grade_status === 'UNKNOWN' ? 'Historical Unknown' : 'Not set')}</Text>
                 <Text><strong>Remark:</strong> {item.clinician_review.remark || 'None'}</Text>
                 <Text fontSize="xs" color="text.muted">Revision {item.clinician_review.revision}</Text>
               </Stack>

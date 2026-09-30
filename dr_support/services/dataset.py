@@ -141,8 +141,10 @@ def _grade_group(case: dict, admission: dict | None) -> tuple[str, int | None]:
     if (admission or {}).get("quality_state") == "UNGRADABLE":
         return "ungradable", None
     review = case.get("clinician_review") or {}
-    if case.get("state") == "ESCALATED" or review.get("review_action") == "ESCALATE":
+    if case.get("grade_status") == "NEEDS_SECOND_REVIEW" or case.get("state") in {"ESCALATED", "NEEDS_SECOND_REVIEW"} or review.get("review_action") == "ESCALATE":
         return "senior_review", None
+    if case.get("grade_status") == "UNGRADABLE" or review.get("review_action") == "MARK_UNGRADABLE":
+        return "ungradable", None
     grade, source, _ = DatasetManifestService._final_grade(case)
     if isinstance(grade, int) and not isinstance(grade, bool) and grade in range(5) and source in {
         "AI_ACCEPTED", "AI_CORRECTED", "MANUAL",
@@ -243,6 +245,8 @@ class DatasetManifestService:
     @staticmethod
     def _final_grade(case: dict) -> tuple[object, object, dict]:
         review = case.get("clinician_review") or {}
+        if case.get("grade_status") in {"NEEDS_SECOND_REVIEW", "UNGRADABLE"}:
+            return None, case.get("grade_review_source"), review
         grade = case.get("reviewed_grade")
         if grade is None:
             grade = review.get("final_grade")
@@ -273,6 +277,10 @@ class DatasetManifestService:
             return False, "QUALITY_REVIEW_REQUIRED"
         if quality not in {"GRADABLE", "NOT_EVALUATED"}:
             return False, "QUALITY_REVIEW_REQUIRED"
+        if case.get("grade_status") == "NEEDS_SECOND_REVIEW":
+            return False, "NEEDS_SECOND_REVIEW"
+        if case.get("grade_status") == "UNGRADABLE":
+            return False, "UNGRADABLE"
         grade, source, review = DatasetManifestService._final_grade(case)
         if grade is None:
             return False, "NO_FINAL_CLINICIAN_GRADE"
@@ -290,6 +298,10 @@ class DatasetManifestService:
             return "Excluded"
         if include:
             return "Ready for dataset"
+        if case.get("grade_status") == "NEEDS_SECOND_REVIEW":
+            return "Needs second review"
+        if case.get("grade_status") == "UNGRADABLE":
+            return "Ungradable"
         grade, _, _ = DatasetManifestService._final_grade(case)
         if grade is None and (case.get("global") or case.get("lesion")):
             return "AI only"
@@ -334,6 +346,10 @@ class DatasetManifestService:
     @staticmethod
     def _grade_confirmation(case: dict, grade: object, review: dict) -> tuple[str, str | None, str | None]:
         """Expose the final-grade milestone without changing historical review records."""
+        if case.get("grade_status") == "UNGRADABLE":
+            return "UNGRADABLE", review.get("reviewer"), review.get("timestamp")
+        if case.get("grade_status") == "NEEDS_SECOND_REVIEW":
+            return "NEEDS_SECOND_REVIEW", review.get("reviewer"), review.get("timestamp")
         if grade is not None and review.get("reviewer") and review.get("timestamp"):
             return "CONFIRMED", review.get("reviewer"), review.get("timestamp")
         return "DRAFT", None, None
@@ -354,6 +370,10 @@ class DatasetManifestService:
         if not image_confirmed:
             return "IMAGE_NOT_CONFIRMED"
         if task == "grade":
+            if case.get("grade_status") == "NEEDS_SECOND_REVIEW":
+                return "NEEDS_SECOND_REVIEW"
+            if case.get("grade_status") == "UNGRADABLE":
+                return "UNGRADABLE"
             grade, source, review = DatasetManifestService._final_grade(case)
             if grade is None:
                 return "NO_FINAL_CLINICIAN_GRADE"

@@ -7,7 +7,7 @@ export function reviewStatus(item: CaseRecord): { label: string; tone: StatusTon
   const state = reviewState(item);
   const tone: StatusTone = state === 'complete' ? 'success'
     : state === 'reviewed' ? 'info'
-      : state === 'needs-annotation' || state === 'escalated' ? 'warning' : 'neutral';
+    : state === 'needs-annotation' || state === 'escalated' || state === 'needs-second-review' || state === 'ungradable' ? 'warning' : 'neutral';
   return { label: reviewStateLabel(state), tone };
 }
 

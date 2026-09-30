@@ -146,6 +146,7 @@ def _metadata(
     retinal_modality_method: str = "NONE",
     admission_reason_code: str,
     quality_reason_code: str | None,
+    source_origin: str = "WORKSPACE",
     method: str = "AUTOMATIC",
     created_at: str | None = None,
     updated_at: str | None = None,
@@ -172,6 +173,7 @@ def _metadata(
         retinal_modality=retinal_modality,
         retinal_modality_state="RESOLVED" if retinal_modality != "UNKNOWN" else "NEEDS_CONFIRMATION",
         retinal_modality_method=retinal_modality_method,
+        source_origin=source_origin,
         admission_method=method,
         admission_reason_code=admission_reason_code,
         quality_reason_code=quality_reason_code,
@@ -359,6 +361,7 @@ def _inspect_dicom(
                 filename=filename,
                 media_type=SUPPORTED_INPUT_TYPES[extension],
                 dimensions=(source.dimensions.width, source.dimensions.height),
+                source_origin="WORKSPACE",
             ),
         )
 
@@ -536,6 +539,7 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
         admission_reason_code="FUNDUS_PLAUSIBLE" if modality == "FUNDUS_ACCEPTED" else "FUNDUS_UNCERTAIN",
         quality_reason_code=quality_reason,
         source_metadata=source_metadata,
+        source_origin="WORKSPACE",
         integrity=SourceIntegrity(
             status=IntegrityStatus.OK,
             aliases=[_alias(filename, reference)],
@@ -550,6 +554,7 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
             "WORKSPACE_INPUT",
             filename=filename,
             media_type=SUPPORTED_INPUT_TYPES[extension],
+            source_origin="WORKSPACE",
         ),
     )
 
@@ -634,6 +639,11 @@ def legacy_admission(image: BridgeImage) -> dict:
     except Exception:
         width = height = None
         mode = None
+    source_origin = getattr(image, "source_origin", None)
+    if source_origin not in {"PUBLIC", "SYNTHETIC", "WORKSPACE", "UNKNOWN"}:
+        source_origin = "UNKNOWN"
+    if source_origin == "UNKNOWN" and image.source_type in {"PUBLIC", "SYNTHETIC"}:
+        source_origin = image.source_type
     return _metadata(
         image_id=image.image_id,
         source_reference=image.source,
@@ -650,6 +660,7 @@ def legacy_admission(image: BridgeImage) -> dict:
         method="LEGACY_COMPAT",
         retinal_modality=image.modality,
         retinal_modality_method="LEGACY_COMPAT" if image.modality != "UNKNOWN" else "NONE",
+        source_origin=source_origin,
         source_sha256=sha256_bytes(image.data),
         source_metadata=source_metadata,
         integrity=SourceIntegrity(
@@ -661,8 +672,8 @@ def legacy_admission(image: BridgeImage) -> dict:
 
 def is_inference_eligible(record: dict, *, require_cfp_source: bool = False) -> bool:
     # The standalone Model API inspects supplied bytes and handles its own
-    # explicit CFP/UWF request gate. Only the review workstation has a
-    # persisted clinician-confirmed source type to require here.
+    # explicit CFP/UWF request gate. The review workstation applies its
+    # persisted source-origin boundary before calling this shared predicate.
     return (
         record.get("modality_admission") == "FUNDUS_ACCEPTED"
         and record.get("quality_state") in {"GRADABLE", "NOT_EVALUATED"}
@@ -718,7 +729,7 @@ def clinician_view(record: dict) -> dict:
     if record.get("retinal_modality") == "UWF":
         return {
             "label": "AI unavailable",
-            "note": "Current AI models support conventional fundus images only. Clinical review can continue.",
+            "note": "No qualified UWF AI model is enabled. Clinical review can continue manually.",
             "tone": "neutral",
             "action_required": False,
         }
@@ -728,6 +739,13 @@ def clinician_view(record: dict) -> dict:
             "note": "Confirm the image type before AI analysis. Clinical review can continue.",
             "tone": "warning",
             "action_required": True,
+        }
+    if record.get("source_origin") == "WORKSPACE":
+        return {
+            "label": "Manual review only",
+            "note": "This workspace source is not approved for the current model boundary. Clinical review can continue manually.",
+            "tone": "neutral",
+            "action_required": False,
         }
     return {
         "label": "Ready for analysis",

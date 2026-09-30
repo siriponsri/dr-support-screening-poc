@@ -19,12 +19,188 @@ from .services.resolver import (
     resolver_clinician_view,
 )
 from .imaging import DerivativeError
+from .imaging.derivatives import (
+    ANALYSIS_COORDINATE_SPACE,
+    ANALYSIS_DICOM_PNG_TRANSFORM,
+    ANALYSIS_REPRESENTATION_VERSION,
+    ANALYSIS_SOURCE_TRANSFORM,
+    ANALYSIS_TIFF_PNG_TRANSFORM,
+    ANALYSIS_UWF_MASK_TRANSFORM,
+    ORIGINAL_COORDINATE_SPACE,
+)
 from .imaging.retinal_field import RetinalFieldNeedsReview
+from .grade import (
+    GRADE_STATUS_CONFIRMED,
+    GRADE_STATUS_NEEDS_SECOND_REVIEW,
+    GRADE_STATUS_NOT_REVIEWED,
+    GRADE_STATUS_UNGRADABLE,
+    grade_label,
+)
+
+
+KNOWN_ANALYSIS_TRANSFORMS = frozenset({
+    ANALYSIS_SOURCE_TRANSFORM,
+    ANALYSIS_TIFF_PNG_TRANSFORM,
+    ANALYSIS_DICOM_PNG_TRANSFORM,
+    ANALYSIS_UWF_MASK_TRANSFORM,
+})
+
+
+def _source_origin(record, image):
+    """Resolve origin from explicit admission/image facts without relabeling unknown data."""
+    allowed = {'PUBLIC', 'SYNTHETIC', 'WORKSPACE', 'UNKNOWN'}
+    record_origin = (record or {}).get('source_origin')
+    if record_origin in allowed:
+        return record_origin
+    image_origin = getattr(image, 'source_origin', None) if image is not None else None
+    if image_origin in allowed and image_origin != 'UNKNOWN':
+        return image_origin
+    if image is not None and image.source_type in {'PUBLIC', 'SYNTHETIC'}:
+        return image.source_type
+    return 'UNKNOWN'
+
+
+def _spatial_ai_display(case, image, *, source_origin='UNKNOWN'):
+    """Return a safe projection for spatial AI evidence without mutating raw output."""
+    lesion = case.get('lesion')
+    if not lesion:
+        return {
+            'status': 'UNAVAILABLE',
+            'reason': 'NO_SPATIAL_AI_RESULT',
+            'note': 'No AI overlay is available. Review the Original image manually.',
+        }
+    if image is None:
+        return {
+            'status': 'BLOCKED',
+            'reason': 'SOURCE_UNAVAILABLE',
+            'note': 'AI overlay is hidden because the immutable source is unavailable. Review the Original image manually.',
+        }
+    if source_origin not in {'PUBLIC', 'SYNTHETIC'}:
+        return {
+            'status': 'BLOCKED',
+            'reason': 'SOURCE_ORIGIN_UNSUPPORTED',
+            'note': 'AI overlay is hidden because this source is outside the approved model boundary. Review the Original image manually.',
+        }
+
+    provenance = lesion.get('provenance') or {}
+    derivative = case.get('analysis_derivative') or {}
+    source_sha = image.sha256
+    result_sha = provenance.get('image_sha256')
+    if derivative:
+        mapping = derivative.get('coordinate_mapping') or {}
+        source_dimensions = derivative.get('source_dimensions') or {}
+        analysis_dimensions = derivative.get('analysis_dimensions') or {}
+        lineage = derivative.get('lineage') or {}
+        canonical_width = image.size[0]
+        canonical_height = image.size[1]
+        analysis_width = analysis_dimensions.get('width')
+        analysis_height = analysis_dimensions.get('height')
+        expected_kind = 'IDENTITY' if (canonical_width, canonical_height) == (
+            analysis_width, analysis_height,
+        ) else 'SCALE'
+        if derivative.get('source_sha256') != source_sha:
+            reason = 'SOURCE_HASH_MISMATCH'
+        elif result_sha != derivative.get('analysis_sha256'):
+            reason = 'ANALYSIS_HASH_MISMATCH'
+        elif derivative.get('derivative_sha256') != derivative.get('analysis_sha256'):
+            reason = 'DERIVATIVE_HASH_MISMATCH'
+        elif provenance.get('source_type') != source_origin:
+            reason = 'SOURCE_ORIGIN_MISMATCH'
+        elif derivative.get('source_origin') != source_origin:
+            reason = 'SOURCE_ORIGIN_MISMATCH'
+        elif derivative.get('representation_version') != ANALYSIS_REPRESENTATION_VERSION:
+            reason = 'REPRESENTATION_VERSION_MISMATCH'
+        elif derivative.get('transform_id') not in KNOWN_ANALYSIS_TRANSFORMS:
+            reason = 'TRANSFORM_MISMATCH'
+        elif (
+            lineage.get('purpose') != 'ANALYSIS'
+            or lineage.get('source_sha256') != source_sha
+            or lineage.get('derivative_sha256') != derivative.get('analysis_sha256')
+            or lineage.get('transform_id') != derivative.get('transform_id')
+        ):
+            reason = 'LINEAGE_MISMATCH'
+        elif derivative.get('analysis_coordinate_space') != ANALYSIS_COORDINATE_SPACE:
+            reason = 'ANALYSIS_COORDINATE_SPACE_MISMATCH'
+        elif derivative.get('original_coordinate_space') != ORIGINAL_COORDINATE_SPACE:
+            reason = 'COORDINATE_SPACE_MISMATCH'
+        elif derivative.get('spatial_mapping_version') != 'analysis-to-original-v1':
+            reason = 'SPATIAL_MAPPING_MISMATCH'
+        elif lineage.get('coordinate_space') != ANALYSIS_COORDINATE_SPACE:
+            reason = 'ANALYSIS_COORDINATE_SPACE_MISMATCH'
+        elif (
+            source_dimensions.get('width') != canonical_width
+            or source_dimensions.get('height') != canonical_height
+            or mapping.get('canonical_width') != canonical_width
+            or mapping.get('canonical_height') != canonical_height
+            or mapping.get('analysis_width') != analysis_width
+            or mapping.get('analysis_height') != analysis_height
+            or lineage.get('width') != analysis_width
+            or lineage.get('height') != analysis_height
+            or mapping.get('kind') != expected_kind
+            or not isinstance(analysis_width, int)
+            or isinstance(analysis_width, bool)
+            or analysis_width <= 0
+            or not isinstance(analysis_height, int)
+            or isinstance(analysis_height, bool)
+            or analysis_height <= 0
+            or mapping.get('scale_x') != canonical_width / analysis_width
+            or mapping.get('scale_y') != canonical_height / analysis_height
+        ):
+            reason = 'DIMENSION_MISMATCH'
+        elif lesion.get('width') != image.size[0] or lesion.get('height') != image.size[1]:
+            reason = 'RESULT_DIMENSION_MISMATCH'
+        else:
+            return {
+                'status': 'AVAILABLE',
+                'coordinate_space': ORIGINAL_COORDINATE_SPACE,
+                'note': 'AI overlay geometry is mapped to original-image pixels; it remains optional model evidence.',
+            }
+    elif provenance.get('source_type') != source_origin:
+        reason = 'SOURCE_ORIGIN_MISMATCH'
+    elif result_sha != source_sha:
+        reason = 'SOURCE_HASH_MISMATCH'
+    elif lesion.get('width') != image.size[0] or lesion.get('height') != image.size[1]:
+        reason = 'RESULT_DIMENSION_MISMATCH'
+    else:
+        return {
+            'status': 'AVAILABLE',
+            'coordinate_space': ORIGINAL_COORDINATE_SPACE,
+            'note': 'AI overlay geometry is mapped to original-image pixels; it remains optional model evidence.',
+        }
+    return {
+        'status': 'BLOCKED',
+        'reason': reason,
+        'note': 'AI overlay is hidden because its source or transform no longer matches the Original image. Review manually.',
+    }
+
+
+def _legacy_grade_reviews(case):
+    reviews = list(case.get('grade_reviews') or [])
+    if reviews:
+        return reviews
+    prior = case.get('clinician_review') or {}
+    if prior and prior.get('review_action') != 'CONFIRM_ANNOTATIONS':
+        grade = prior.get('final_grade')
+        return [{
+            'reviewer': prior.get('reviewer'),
+            'grade': grade,
+            'grade_label': grade_label(grade),
+            'review_action': prior.get('review_action'),
+            'remark': prior.get('remark', ''),
+            'timestamp': prior.get('timestamp'),
+            'revision': prior.get('revision'),
+            'legacy': True,
+        }]
+    return []
 
 
 class Review(Contract):
     revision: int = Field(ge=0)
-    action: Literal['ACCEPT', 'MARK_INCORRECT', 'CORRECT_GRADE', 'ESCALATE', 'CONFIRM_ANNOTATIONS']
+    action: Literal[
+        'ACCEPT', 'MARK_INCORRECT', 'CORRECT_GRADE', 'ESCALATE',
+        'CONFIRM_ANNOTATIONS', 'MARK_UNGRADABLE', 'REQUEST_SECOND_REVIEW',
+        'ADJUDICATE_GRADE',
+    ]
     reviewer: str = Field(min_length=1, max_length=80)
     grade: int | None = Field(default=None, ge=0, le=4, strict=True)
     comment: str = Field(default='', max_length=1000)
@@ -36,6 +212,10 @@ class ConfirmImage(Contract):
     patient_key: str | None = Field(default=None, max_length=80)
     laterality: Literal['LEFT', 'RIGHT', 'UNKNOWN'] = 'UNKNOWN'
     retinal_modality: Literal['CFP', 'UWF', 'UNKNOWN'] | None = None
+    visit_key: str | None = Field(default=None, max_length=120)
+    captured_at: str | None = Field(default=None, max_length=80)
+    capture_sequence: int | None = Field(default=None, ge=0)
+    device: str | None = Field(default=None, max_length=120)
     note: str = Field(default='', max_length=1000)
 
 
@@ -163,13 +343,26 @@ def install_workflow(app, store):
             and case.get('lesion_review_state') == 'REVIEWED'
         )
         source_modality = (record or {}).get('retinal_modality', 'UNKNOWN')
+        source_origin = _source_origin(record, image)
+        spatial_ai = _spatial_ai_display(case, image, source_origin=source_origin)
         # CFP evidence from a legacy case is not current evidence for UWF.
-        visible_ai = source_modality == 'CFP'
-        evidence_case = case if visible_ai else {**case, 'global': None, 'lesion': None,
-                                                'ai_annotation_reviews': []}
+        visible_ai = source_modality == 'CFP' and source_origin in {'PUBLIC', 'SYNTHETIC'}
+        visible_lesion = case.get('lesion') if spatial_ai['status'] == 'AVAILABLE' else None
+        evidence_case = (case if visible_ai else {
+            **case, 'global': None, 'lesion': None, 'ai_annotation_reviews': []
+        })
+        if visible_ai and visible_lesion is None:
+            evidence_case = {**evidence_case, 'lesion': None, 'ai_annotation_reviews': []}
+        explanation = case.get('explainability')
+        if not isinstance(explanation, dict):
+            explanation = {
+                'status': 'UNAVAILABLE',
+                'note': 'Explainability evidence is unavailable for this result. It is not lesion localization or a clinical probability.',
+            }
         return {**case, 'global': case.get('global') if visible_ai else None,
-                'lesion': case.get('lesion') if visible_ai else None,
-                'source_type': image.source_type if image is not None else 'PUBLIC',
+                'lesion': visible_lesion if visible_ai else None,
+                'source_type': image.source_type if image is not None else None,
+                'source_origin': source_origin,
                 'source': image.source if image is not None else 'WORKSPACE_INPUT',
                 'filename': filename or None,
                 'display_name': Path(filename).stem if filename else image_id,
@@ -180,6 +373,13 @@ def install_workflow(app, store):
                 'source_image_url': f'/v1/images/{image_id}' if image is not None else None,
                 'analysis_derivative': case.get('analysis_derivative'),
                 'analysis_preparation': case.get('analysis_preparation'),
+                'spatial_ai_display': spatial_ai,
+                'explainability': explanation,
+                'grade_status': case.get('grade_status', GRADE_STATUS_NOT_REVIEWED),
+                'reviewed_grade_label': case.get('reviewed_grade_label') or grade_label(case.get('reviewed_grade')),
+                'grade_reviews': _legacy_grade_reviews(case),
+                'grade_adjudication': case.get('grade_adjudication'),
+                'visit_context': case.get('visit_context'),
                 'modality': source_modality,
                 'admission': record,
                 'admission_ui': clinician_view(record) if record is not None else None,
@@ -332,7 +532,12 @@ def install_workflow(app, store):
         audit = derivative.audit_record()
         if (expected.get('source_sha256') != audit['source_sha256']
                 or expected.get('analysis_sha256') != audit['analysis_sha256']
-                or expected.get('valid_retina_mask_sha256') != audit['valid_retina_mask_sha256']):
+                or expected.get('valid_retina_mask_sha256') != audit['valid_retina_mask_sha256']
+                or expected.get('transform_id') != audit['transform_id']
+                or (expected.get('representation_version') is not None
+                    and expected.get('representation_version') != audit['representation_version'])
+                or (expected.get('original_coordinate_space') is not None
+                    and expected.get('original_coordinate_space') != audit['original_coordinate_space'])):
             raise HTTPException(409, 'Analysis area no longer matches its recorded source.')
         return Response(derivative.data, media_type=derivative.media_type,
                         headers={'Cache-Control': 'private, no-store',
@@ -347,25 +552,38 @@ def install_workflow(app, store):
             case = store.get(image_id)
             # Historical CFP evidence cannot authorize AI provenance on a
             # source whose image type is now UWF or still unknown.
-            current_ai = (case.get('global') if (admission_record(image_id) or {}).get('retinal_modality') == 'CFP'
+            current_admission = admission_record(image_id) or {}
+            current_source_origin = _source_origin(current_admission, app.state.images.get(image_id))
+            current_ai = (case.get('global') if current_admission.get('retinal_modality') == 'CFP'
+                          and current_source_origin in {'PUBLIC', 'SYNTHETIC'}
                           else None)
             if request.revision != case['revision']:
                 raise HTTPException(409, 'Case changed; reload before reviewing')
             if not request.reviewer.strip():
                 raise HTTPException(422, 'Reviewer name required')
+            grade_action = request.action in {
+                'ACCEPT', 'CORRECT_GRADE', 'MARK_UNGRADABLE',
+                'REQUEST_SECOND_REVIEW', 'ADJUDICATE_GRADE',
+            }
             if request.action == 'ACCEPT':
                 if not current_ai or current_ai['grade'] is None:
                     raise HTTPException(409, 'No grade suggestion to accept')
-                case['reviewed_grade'] = current_ai['grade']
-                case['grade_review_source'] = 'AI_ACCEPTED'
-                case['state'] = 'REVIEWED'
-            elif request.action == 'CORRECT_GRADE':
+                requested_grade = current_ai['grade']
+                requested_source = 'AI_ACCEPTED'
+            elif request.action in {'CORRECT_GRADE', 'ADJUDICATE_GRADE'}:
                 if request.grade is None:
                     raise HTTPException(422, 'Corrected/manual grade required')
-                case['reviewed_grade'] = request.grade
-                case['grade_review_source'] = ('AI_CORRECTED' if current_ai and
-                                               current_ai.get('grade') is not None else 'MANUAL')
-                case['state'] = 'REVIEWED'
+                if request.action == 'ADJUDICATE_GRADE' and case.get('grade_status') != GRADE_STATUS_NEEDS_SECOND_REVIEW:
+                    raise HTTPException(409, 'This case does not have an unresolved grade disagreement')
+                requested_grade = request.grade
+                requested_source = ('AI_CORRECTED' if current_ai and
+                                    current_ai.get('grade') is not None else 'MANUAL')
+            elif request.action == 'MARK_UNGRADABLE':
+                requested_grade = None
+                requested_source = None
+            elif request.action == 'REQUEST_SECOND_REVIEW':
+                requested_grade = None
+                requested_source = None
             elif request.action == 'CONFIRM_ANNOTATIONS':
                 case['annotation_hash'] = annotation_set_hash(case)
                 case['lesion_review_state'] = 'REVIEWED'
@@ -377,6 +595,63 @@ def install_workflow(app, store):
                 case['state'] = 'NEEDS_CORRECTION' if request.action == 'MARK_INCORRECT' else 'ESCALATED'
                 case['reviewed_grade'] = None
                 case['grade_review_source'] = None
+                case['grade_status'] = GRADE_STATUS_NOT_REVIEWED
+                case['reviewed_grade_label'] = None
+
+            if grade_action:
+                previous_reviews = _legacy_grade_reviews(case)
+                prior_grade_reviews = [
+                    item for item in previous_reviews
+                    if isinstance(item.get('grade'), int) and not isinstance(item.get('grade'), bool)
+                ]
+                independent_disagreement = (
+                    requested_grade is not None
+                    and request.action != 'ADJUDICATE_GRADE'
+                    and any(
+                        item.get('reviewer', '').strip().casefold() != request.reviewer.strip().casefold()
+                        and item.get('grade') != requested_grade
+                        for item in prior_grade_reviews
+                    )
+                )
+                unresolved = (
+                    request.action == 'REQUEST_SECOND_REVIEW'
+                    or independent_disagreement
+                    or (
+                        case.get('grade_status') == GRADE_STATUS_NEEDS_SECOND_REVIEW
+                        and request.action != 'ADJUDICATE_GRADE'
+                    )
+                )
+                if request.action == 'MARK_UNGRADABLE':
+                    case['grade_status'] = GRADE_STATUS_UNGRADABLE
+                    case['reviewed_grade'] = None
+                    case['grade_review_source'] = None
+                    case['reviewed_grade_label'] = None
+                    case['state'] = 'REVIEWED'
+                    case['grade_adjudication'] = None
+                elif unresolved:
+                    case['grade_status'] = GRADE_STATUS_NEEDS_SECOND_REVIEW
+                    case['reviewed_grade'] = None
+                    case['grade_review_source'] = None
+                    case['reviewed_grade_label'] = None
+                    case['state'] = 'NEEDS_SECOND_REVIEW'
+                    case['grade_adjudication'] = {
+                        'status': 'UNRESOLVED',
+                        'opened_by': request.reviewer.strip(),
+                        'opened_at': datetime.now(timezone.utc).isoformat(),
+                    }
+                else:
+                    case['reviewed_grade'] = requested_grade
+                    case['reviewed_grade_label'] = grade_label(requested_grade)
+                    case['grade_review_source'] = requested_source
+                    case['grade_status'] = GRADE_STATUS_CONFIRMED
+                    case['state'] = 'REVIEWED'
+                    if request.action == 'ADJUDICATE_GRADE':
+                        case['grade_adjudication'] = {
+                            'status': 'RESOLVED',
+                            'resolved_by': request.reviewer.strip(),
+                            'resolved_at': datetime.now(timezone.utc).isoformat(),
+                            'grade': requested_grade,
+                        }
             case['revision'] += 1
             timestamp = datetime.now(timezone.utc).isoformat()
             event = {**request.model_dump(), 'timestamp': timestamp,
@@ -385,6 +660,7 @@ def install_workflow(app, store):
             review_record = {
                 'reviewer': request.reviewer.strip(),
                 'final_grade': case.get('reviewed_grade'),
+                'final_grade_label': grade_label(case.get('reviewed_grade')),
                 'review_action': request.action,
                 'remark': request.comment,
                 'timestamp': timestamp,
@@ -396,6 +672,19 @@ def install_workflow(app, store):
             if request.action != 'CONFIRM_ANNOTATIONS':
                 case['clinician_review'] = review_record
             case.setdefault('review_history', []).append(review_record)
+            if grade_action:
+                case['grade_reviews'] = [
+                    *previous_reviews,
+                    {
+                        'reviewer': request.reviewer.strip(),
+                        'grade': requested_grade,
+                        'grade_label': grade_label(requested_grade),
+                        'review_action': request.action,
+                        'remark': request.comment,
+                        'timestamp': timestamp,
+                        'revision': case['revision'],
+                    },
+                ]
             if request.action == 'CONFIRM_ANNOTATIONS':
                 case['annotation_confirmation'] = {
                     'reviewer': request.reviewer.strip(),
@@ -708,6 +997,8 @@ def install_workflow(app, store):
                     case['state'] = 'PENDING'
                     case['reviewed_grade'] = None
                     case['grade_review_source'] = None
+                    case['grade_status'] = GRADE_STATUS_NOT_REVIEWED
+                    case['reviewed_grade_label'] = None
                     case['clinician_review'] = None
             if chosen_modality == 'UWF':
                 try:
@@ -727,6 +1018,16 @@ def install_workflow(app, store):
                     }
             else:
                 case['analysis_preparation'] = {'status': 'NOT_APPLICABLE', 'source_sha256': image.sha256}
+
+            case['visit_context'] = {
+                'visit_key': request.visit_key.strip() if request.visit_key else None,
+                'captured_at': request.captured_at.strip() if request.captured_at else None,
+                'capture_sequence': request.capture_sequence,
+                'device': request.device.strip() if request.device else None,
+                'evidence_state': 'PROVIDED' if any((request.visit_key, request.captured_at,
+                                                     request.capture_sequence is not None, request.device))
+                else 'UNKNOWN',
+            }
 
             patient_key = request.patient_key.strip() if request.patient_key else ''
             if patient_key:

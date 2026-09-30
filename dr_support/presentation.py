@@ -106,6 +106,7 @@ def _review_status(case: dict) -> str:
         'REVIEWED': 'Reviewed',
         'NEEDS_CORRECTION': 'Needs correction',
         'ESCALATED': 'Escalated',
+        'NEEDS_SECOND_REVIEW': 'Needs Second Review',
     }.get(case.get('state'), 'Pending review')
 
 

@@ -24,6 +24,9 @@ class BridgeImage:
     filename: str = ''
     media_type: str = 'image/jpeg'
     dimensions: tuple[int, int] | None = None
+    # Kept separate from Bridge v1 ``source_type`` so workspace origin never
+    # gets serialized as PUBLIC/SYNTHETIC model provenance.
+    source_origin: str = 'UNKNOWN'
 
     @property
     def sha256(self):
@@ -49,7 +52,8 @@ def synthetic_image():
     image.save(out, format='PNG')
     return BridgeImage('SYNTH_001', out.getvalue(), 'SYNTHETIC',
                        'Generated workflow fixture', modality='CFP',
-                       filename='SYNTH_001.png', media_type='image/png')
+                       filename='SYNTH_001.png', media_type='image/png',
+                       source_origin='SYNTHETIC')
 
 
 def admitted_demo_images(folder):
@@ -86,6 +90,7 @@ def admitted_demo_images(folder):
                 f'DR-DEMO/{path.name}',
                 filename=path.name,
                 media_type=SUPPORTED_DEMO_TYPES[path.suffix.lower()],
+                source_origin='PUBLIC',
             ),
         )
     return registry
@@ -108,5 +113,6 @@ def admitted_samples(root):
             item['image_id'], data, 'PUBLIC', item['source'],
             modality=item.get('modality') if item.get('modality') in {'CFP', 'UWF'} else 'UNKNOWN',
             filename=item['filename'],
+            source_origin='PUBLIC',
         )
     return registry
