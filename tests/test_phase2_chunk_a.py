@@ -225,50 +225,158 @@ def test_analysis_representation_and_spatial_mismatch_fail_closed(tmp_path):
     assert detail["lesion"] is None
 
 
-def test_double_mask_candidates_record_matching_hash_dimensions_and_geometry():
+def test_double_mask_candidates_measure_actual_paths_and_geometry():
+    """Record the available shared path and its actual double-mask probe.
+
+    The checked-in field-building step used by the shared UWF derivative is
+    ``prepare_retinal_field``; it is the available implementation corresponding
+    to the research ``border_component_v1`` step.  A separate adapter-v4
+    implementation is not present in this checkout, so this test does not
+    claim equivalence with adapter v4.  The available double-mask probe
+    reruns the shipped derivative path on its own output, which makes any
+    second-pass geometry change observable.
+    """
     source = Image.new("RGB", (512, 384), (7, 7, 7))
     draw = ImageDraw.Draw(source)
     draw.ellipse((32, 24, 480, 360), fill=(170, 60, 35))
     draw.ellipse((230, 140, 280, 180), fill=(240, 240, 220))
-    field = prepare_retinal_field(source)
-    black = Image.new("RGB", source.size, (0, 0, 0))
-    source_dimensions = SourceDimensions(width=source.width, height=source.height, bit_depth=8, channels=3)
+    source_data = io.BytesIO()
+    source.save(source_data, format="PNG", optimize=False, compress_level=9)
+    source_bytes = source_data.getvalue()
+    source_dimensions = SourceDimensions(
+        width=source.width,
+        height=source.height,
+        bit_depth=8,
+        channels=3,
+    )
+    source_image = BridgeImage(
+        hashlib.sha256(source_bytes).hexdigest(),
+        source_bytes,
+        "SYNTHETIC",
+        "Approved synthetic UWF double-mask fixture",
+        modality="UWF",
+        filename="double-mask-fixture.png",
+        media_type="image/png",
+        source_origin="SYNTHETIC",
+    )
 
-    def encode(image):
-        output = io.BytesIO()
-        image.save(output, format="PNG", optimize=False, compress_level=9)
-        return output.getvalue()
+    def measure_stage(label, input_sha256, data):
+        with Image.open(io.BytesIO(data)) as decoded:
+            decoded.load()
+            image = decoded.convert("RGB")
+        dimensions = SourceDimensions(
+            width=image.width,
+            height=image.height,
+            bit_depth=8,
+            channels=len(image.getbands()),
+        )
+        visible_mask_bytes = bytes(
+            255 if pixel != (0, 0, 0) else 0
+            for pixel in image.getdata()
+        )
+        visible_mask = Image.frombytes("L", image.size, visible_mask_bytes)
+        return {
+            "label": label,
+            "input_sha256": input_sha256,
+            "output_sha256": hashlib.sha256(data).hexdigest(),
+            "dimensions": dimensions.model_dump(mode="json"),
+            "geometry": {
+                "visible_mask_bbox": visible_mask.getbbox(),
+                "visible_fraction": visible_mask_bytes.count(255) / (
+                    image.width * image.height
+                ),
+                "visible_mask_sha256": hashlib.sha256(visible_mask_bytes).hexdigest(),
+                "coordinate_mapping": CoordinateMapping.for_dimensions(
+                    source_dimensions,
+                    dimensions,
+                ).model_dump(mode="json"),
+            },
+        }
 
-    shared_masked = Image.composite(source, black, field.mask)
-    single_data = encode(shared_masked)
-    adapter_masked = Image.composite(shared_masked, black, field.mask)
-    double_data = encode(adapter_masked)
-    geometry = {
-        "mask_bbox": field.mask.getbbox(),
-        "coordinate_mapping": CoordinateMapping.for_dimensions(
-            source_dimensions,
-            SourceDimensions(width=source.width, height=source.height, bit_depth=8, channels=3),
-        ).model_dump(mode="json"),
-    }
-    comparison = {
-        "single_mask": {
-            "mask_sha256": field.mask_sha256,
-            "analysis_sha256": hashlib.sha256(single_data).hexdigest(),
-            "dimensions": shared_masked.size,
-            "geometry": geometry,
+    service = DerivativeService()
+    shared = service.prepare_analysis(source_image, source_modality="UWF")
+    shared_image = BridgeImage(
+        hashlib.sha256(shared.data).hexdigest(),
+        shared.data,
+        "SYNTHETIC",
+        "Shared masked-analysis derivative",
+        modality="UWF",
+        filename="double-mask-fixture-analysis.png",
+        media_type="image/png",
+        source_origin="SYNTHETIC",
+    )
+    double_mask = service.prepare_analysis(shared_image, source_modality="UWF")
+    source_field = prepare_retinal_field(source)
+
+    evidence = {
+        "original": {
+            "label": "original",
+            "input_sha256": source_image.sha256,
+            "output_sha256": source_image.sha256,
+            "dimensions": source_dimensions.model_dump(mode="json"),
+            "mask_sha256": source_field.mask_sha256,
+            "valid_retina_fraction": source_field.valid_fraction,
+            "geometry": {
+                "mask_bbox": source_field.mask.getbbox(),
+                "coordinate_mapping": CoordinateMapping.for_dimensions(
+                    source_dimensions,
+                    source_dimensions,
+                ).model_dump(mode="json"),
+            },
         },
-        "adapter_reapplied_mask": {
-            "input_sha256": hashlib.sha256(single_data).hexdigest(),
-            "analysis_sha256": hashlib.sha256(double_data).hexdigest(),
-            "dimensions": adapter_masked.size,
-            "geometry": geometry,
-        },
+        "shared_analysis": measure_stage(
+            "shared_analysis", source_image.sha256, shared.data,
+        ),
+        "double_mask_probe": measure_stage(
+            "double_mask_probe", shared_image.sha256, double_mask.data,
+        ),
     }
+    evidence["shared_analysis"]["lineage_sha256"] = shared.lineage.derivative_sha256
+    evidence["shared_analysis"]["mask_sha256"] = shared.valid_retina_mask_sha256
+    evidence["shared_analysis"]["valid_retina_fraction"] = shared.valid_retina_fraction
+    evidence["double_mask_probe"]["lineage_sha256"] = double_mask.lineage.derivative_sha256
+    evidence["double_mask_probe"]["mask_sha256"] = double_mask.valid_retina_mask_sha256
+    evidence["double_mask_probe"]["valid_retina_fraction"] = double_mask.valid_retina_fraction
 
-    assert comparison["single_mask"]["analysis_sha256"] == comparison["adapter_reapplied_mask"]["input_sha256"]
-    assert comparison["single_mask"]["analysis_sha256"] == comparison["adapter_reapplied_mask"]["analysis_sha256"]
-    assert comparison["single_mask"]["dimensions"] == comparison["adapter_reapplied_mask"]["dimensions"]
-    assert comparison["single_mask"]["geometry"] == comparison["adapter_reapplied_mask"]["geometry"]
+    assert evidence["shared_analysis"]["input_sha256"] == evidence["original"]["output_sha256"]
+    assert (
+        evidence["double_mask_probe"]["input_sha256"]
+        == evidence["shared_analysis"]["output_sha256"]
+    )
+    assert (
+        evidence["shared_analysis"]["output_sha256"]
+        == evidence["shared_analysis"]["lineage_sha256"]
+    )
+    assert (
+        evidence["double_mask_probe"]["output_sha256"]
+        == evidence["double_mask_probe"]["lineage_sha256"]
+    )
+    assert evidence["original"]["mask_sha256"] == evidence["shared_analysis"]["mask_sha256"]
+
+    # On this deterministic fixture, a second actual pass shrinks the measured
+    # field.  Record the difference instead of claiming adapter-v4 equivalence.
+    assert (
+        evidence["shared_analysis"]["output_sha256"]
+        != evidence["double_mask_probe"]["output_sha256"]
+    )
+    assert (
+        evidence["shared_analysis"]["mask_sha256"]
+        != evidence["double_mask_probe"]["mask_sha256"]
+    )
+    assert (
+        evidence["shared_analysis"]["valid_retina_fraction"]
+        > evidence["double_mask_probe"]["valid_retina_fraction"]
+    )
+    assert evidence["shared_analysis"]["dimensions"] == evidence["double_mask_probe"]["dimensions"]
+    assert evidence["shared_analysis"]["geometry"] != evidence["double_mask_probe"]["geometry"]
+    assert (
+        evidence["shared_analysis"]["geometry"]["coordinate_mapping"]
+        == evidence["double_mask_probe"]["geometry"]["coordinate_mapping"]
+    )
+    assert (
+        evidence["shared_analysis"]["geometry"]["visible_mask_sha256"]
+        != evidence["double_mask_probe"]["geometry"]["visible_mask_sha256"]
+    )
 
 
 def test_spatial_ai_requires_matching_lineage_and_coordinate_mapping(tmp_path):
