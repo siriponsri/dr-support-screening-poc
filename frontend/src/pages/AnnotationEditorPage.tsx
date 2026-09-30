@@ -632,8 +632,10 @@ export function AnnotationEditorPage() {
     if (!item || !reviewer.trim() || completenessSaving) return;
     setCompletenessSaving(group);
     try {
+      const persisted = await persistDraft();
+      if (!persisted) return;
       const savedCase = await annotationCompletenessApi.update(item.image_id, {
-        revision: item.revision,
+        revision: persisted.revision,
         reviewer: reviewer.trim(),
         group,
         state,
@@ -803,7 +805,7 @@ export function AnnotationEditorPage() {
           <Text fontSize="xs" color="text.secondary">AI suggestions are evidence. Confirm, correct, remove, or add findings above; an empty list is not a negative result.</Text>
           <HStack spacing={2} flexWrap="wrap">
             <Button size="sm" onClick={() => updateCompleteness('CORE', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Partially reviewed</Button>
-            <Button size="sm" onClick={() => updateCompleteness('CORE', draftRef.current.length ? 'REVIEWED_FINDINGS_RECORDED' : 'REVIEWED_NONE_FOUND')} isDisabled={readOnly || Boolean(completenessSaving)}>{draftRef.current.length ? 'Reviewed findings recorded' : 'Reviewed none found'}</Button>
+            <Button size="sm" onClick={() => updateCompleteness('CORE', draftRef.current.some((entry) => ['MICROANEURYSM', 'HEMORRHAGE', 'HARD_EXUDATE', 'SOFT_EXUDATE'].includes(entry.label)) ? 'REVIEWED_FINDINGS_RECORDED' : 'REVIEWED_NONE_FOUND')} isDisabled={readOnly || Boolean(completenessSaving)}>{draftRef.current.some((entry) => ['MICROANEURYSM', 'HEMORRHAGE', 'HARD_EXUDATE', 'SOFT_EXUDATE'].includes(entry.label)) ? 'Reviewed findings recorded' : 'Reviewed none found'}</Button>
           </HStack>
           <Text fontSize="xs" color="text.secondary">Status: {completeness.CORE?.state ?? 'Not reviewed'}{completeness.CORE?.reviewer ? ` · ${completeness.CORE.reviewer}` : ''}</Text>
         </Stack>

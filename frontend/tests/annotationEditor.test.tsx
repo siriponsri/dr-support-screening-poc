@@ -255,7 +255,9 @@ describe('AnnotationEditorPage human movement', () => {
     });
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText('0 human annotations')).toBeInTheDocument());
-    await user.type(screen.getByPlaceholderText('Reviewer name'), 'Clinician');
+    const reviewerInput = screen.getByPlaceholderText('Reviewer name');
+    await user.clear(reviewerInput);
+    await user.type(reviewerInput, 'Clinician');
     await user.click(screen.getByRole('button', { name: 'Reviewed none found' }));
     await waitFor(() => expect(completenessRequest).toMatchObject({
       group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician', taxonomy_version: 'core-lesions-v1',
