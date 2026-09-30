@@ -105,6 +105,30 @@ export interface HumanAnnotationDeriveRequest {
   intent: 'USE_AS_HUMAN' | 'CORRECT_AS_HUMAN';
 }
 
+export type AnnotationCompletenessState =
+  | 'NOT_REVIEWED'
+  | 'PARTIALLY_REVIEWED'
+  | 'REVIEWED_NONE_FOUND'
+  | 'REVIEWED_FINDINGS_RECORDED';
+
+export interface AnnotationCompletenessRecord {
+  group: 'CORE' | 'ADVANCED';
+  state: AnnotationCompletenessState;
+  reviewer: string;
+  timestamp: string;
+  taxonomy_version: string;
+  note: string;
+}
+
+export interface AnnotationCompletenessUpdateRequest {
+  revision: number;
+  reviewer: string;
+  group: 'CORE' | 'ADVANCED';
+  state: Exclude<AnnotationCompletenessState, 'NOT_REVIEWED'>;
+  taxonomy_version: string;
+  note?: string;
+}
+
 export interface CoordinateMapping {
   kind: 'IDENTITY' | 'SCALE';
   canonical_width: number;
@@ -248,6 +272,7 @@ export interface CaseRecord {
   lesion_review: LesionReview | null;
   review_evidence?: ReviewEvidence;
   human_annotations: HumanAnnotation[];
+  annotation_completeness?: Partial<Record<'CORE' | 'ADVANCED', AnnotationCompletenessRecord>>;
   clinician_review: ClinicianReview | null;
   annotation_hash?: string | null;
   annotation_set_hash?: string | null;
@@ -687,6 +712,13 @@ export const humanAnnotationApi = {
   deriveFromAi: (imageId: string, request: HumanAnnotationDeriveRequest) => apiJson<CaseRecord>(
     `/v1/cases/${encodeURIComponent(imageId)}/annotations/from-ai`,
     jsonRequest({ method: 'POST', body: JSON.stringify(request) }),
+  ),
+};
+
+export const annotationCompletenessApi = {
+  update: (imageId: string, request: AnnotationCompletenessUpdateRequest) => apiJson<CaseRecord>(
+    `/v1/cases/${encodeURIComponent(imageId)}/annotation-completeness`,
+    { method: 'PUT', body: JSON.stringify(request) },
   ),
 };
 

@@ -31,6 +31,7 @@ import { annotationsConfirmed, caseComplete, formatTimestamp, gradeConfirmed, im
 import { loadCaseList, nextIncompleteCaseId } from '@/lib/caseNavigation';
 import {
   apiJson,
+  annotationCompletenessApi,
   drGradeLabel,
   humanAnnotationApi,
   lesionReviewApi,
@@ -39,6 +40,7 @@ import {
   type CaseRecord,
   type HumanAnnotation,
   type LesionLabel,
+  type AnnotationCompletenessState,
 } from '@/lib/api';
 import { ArrowLeft, CheckCircle2, Circle, Lock, MousePointer2, Pentagon, Save, Square, Trash2, Undo2, Unlock } from '@/lib/icons';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
@@ -623,6 +625,28 @@ export function AnnotationEditorPage() {
     : null;
   const selectedIsLocked = selectedAnnotation ? annotationLocked(selectedAnnotation) : false;
   const annotationNeedsConfirmation = item?.annotation_confirmation_status !== 'CONFIRMED' || draftStatus !== 'saved';
+  const completeness = item?.annotation_completeness ?? {};
+  const [completenessSaving, setCompletenessSaving] = useState<string | null>(null);
+
+  const updateCompleteness = async (group: 'CORE' | 'ADVANCED', state: Exclude<AnnotationCompletenessState, 'NOT_REVIEWED'>) => {
+    if (!item || !reviewer.trim() || completenessSaving) return;
+    setCompletenessSaving(group);
+    try {
+      const savedCase = await annotationCompletenessApi.update(item.image_id, {
+        revision: item.revision,
+        reviewer: reviewer.trim(),
+        group,
+        state,
+        taxonomy_version: group === 'CORE' ? 'core-lesions-v1' : 'advanced-deferred-v1',
+      });
+      setItem(savedCase);
+      toast({ id: `completeness-${group}`, status: 'success', title: `${group === 'CORE' ? 'Core' : 'Advanced'} review state saved`, duration: 1800, position: 'bottom' });
+    } catch (err) {
+      setSaveError(errorText(err));
+    } finally {
+      setCompletenessSaving(null);
+    }
+  };
 
   const changeSelectedLabel = (nextLabel: LesionLabel) => {
     if (readOnly || !selectedAnnotation || annotationLocked(selectedAnnotation) || selectedAnnotation.label === nextLabel) return;
@@ -773,6 +797,25 @@ export function AnnotationEditorPage() {
 
   const annotationControls = (
     <Stack spacing={3}>
+      <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
+        <Stack spacing={2}>
+          <Text fontWeight="semibold" fontSize="sm">Core findings review</Text>
+          <Text fontSize="xs" color="text.secondary">AI suggestions are evidence. Confirm, correct, remove, or add findings above; an empty list is not a negative result.</Text>
+          <HStack spacing={2} flexWrap="wrap">
+            <Button size="sm" onClick={() => updateCompleteness('CORE', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Partially reviewed</Button>
+            <Button size="sm" onClick={() => updateCompleteness('CORE', draftRef.current.length ? 'REVIEWED_FINDINGS_RECORDED' : 'REVIEWED_NONE_FOUND')} isDisabled={readOnly || Boolean(completenessSaving)}>{draftRef.current.length ? 'Reviewed findings recorded' : 'Reviewed none found'}</Button>
+          </HStack>
+          <Text fontSize="xs" color="text.secondary">Status: {completeness.CORE?.state ?? 'Not reviewed'}{completeness.CORE?.reviewer ? ` · ${completeness.CORE.reviewer}` : ''}</Text>
+        </Stack>
+      </Box>
+      <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
+        <Stack spacing={2}>
+          <Text fontWeight="semibold" fontSize="sm">Advanced findings</Text>
+          <Text fontSize="xs" color="text.secondary">Optional and deferred in this workflow. Unsupported Advanced classes are not recorded or treated as negative.</Text>
+          <Button size="sm" alignSelf="flex-start" onClick={() => updateCompleteness('ADVANCED', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Record partial review</Button>
+          <Text fontSize="xs" color="text.secondary">Status: {completeness.ADVANCED?.state ?? 'Not reviewed'}</Text>
+        </Stack>
+      </Box>
       <HStack spacing={2} flexWrap="wrap">
           <ToolButton active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector || readOnly}><MousePointer2 size={14} /> Select</ToolButton>
         <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector || readOnly}><Square size={14} /> Box</ToolButton>

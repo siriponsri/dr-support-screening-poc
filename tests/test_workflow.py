@@ -176,6 +176,89 @@ def test_human_annotations_and_clinician_review_roundtrip(tmp_path):
     assert reviewed['review_history'][-1]['review_action'] == 'CORRECT_GRADE'
 
 
+def test_annotation_completeness_requires_deliberate_action_and_survives_reopen(tmp_path):
+    path = tmp_path / 'completeness.sqlite'
+    client = TestClient(create_app(path, include_samples=False))
+    base = '/v1/cases/SYNTH_001'
+    initial = client.get(base).json()
+    assert initial['annotation_completeness'] == {}
+
+    partial = client.put(base + '/annotation-completeness', json={
+        'revision': initial['revision'],
+        'reviewer': 'Core reviewer',
+        'group': 'CORE',
+        'state': 'PARTIALLY_REVIEWED',
+        'taxonomy_version': 'core-lesions-v1',
+    })
+    assert partial.status_code == 200
+    record = partial.json()['annotation_completeness']['CORE']
+    assert record['state'] == 'PARTIALLY_REVIEWED'
+    assert record['reviewer'] == 'Core reviewer'
+    assert record['taxonomy_version'] == 'core-lesions-v1'
+    assert record['timestamp']
+
+    stale = client.put(base + '/annotation-completeness', json={
+        'revision': initial['revision'], 'reviewer': 'Other reviewer', 'group': 'CORE',
+        'state': 'REVIEWED_NONE_FOUND', 'taxonomy_version': 'core-lesions-v1',
+    })
+    assert stale.status_code == 409
+
+    restored = TestClient(create_app(path, include_samples=False)).get(base).json()
+    assert restored['annotation_completeness']['CORE'] == record
+    assert restored['annotation_completeness']['CORE']['state'] != 'REVIEWED_NONE_FOUND'
+
+
+def test_annotation_completeness_never_infers_negative_from_empty_findings(tmp_path):
+    client = TestClient(create_app(tmp_path / 'empty.sqlite', include_samples=False))
+    base = '/v1/cases/SYNTH_001'
+    empty = client.get(base).json()
+    assert empty['human_annotations'] == []
+    assert empty['annotation_completeness'] == {}
+
+    invalid = client.put(base + '/annotation-completeness', json={
+        'revision': empty['revision'], 'reviewer': 'Core reviewer', 'group': 'CORE',
+        'state': 'NOT_REVIEWED', 'taxonomy_version': 'core-lesions-v1',
+    })
+    assert invalid.status_code == 422
+    assert client.get(base).json()['annotation_completeness'] == {}
+
+    reviewed_none = client.put(base + '/annotation-completeness', json={
+        'revision': empty['revision'], 'reviewer': 'Core reviewer', 'group': 'CORE',
+        'state': 'REVIEWED_NONE_FOUND', 'taxonomy_version': 'core-lesions-v1',
+    })
+    assert reviewed_none.status_code == 200
+    assert reviewed_none.json()['annotation_completeness']['CORE']['state'] == 'REVIEWED_NONE_FOUND'
+    assert client.get('/v1/dataset/manifest').json()['images'][0]['lesion_training_ready'] is False
+
+
+def test_advanced_completeness_is_independent_of_core_and_preserves_ai_lineage(tmp_path):
+    client = TestClient(create_app(tmp_path / 'advanced.sqlite', include_samples=False))
+    base = '/v1/cases/SYNTH_001'
+    inferred_response = client.post('/v1/infer/lesion-roi', json={
+        'image_id': 'SYNTH_001', 'model_id': 'mock-lesion',
+    })
+    assert inferred_response.status_code == 200
+    raw = inferred_response.json()
+    before_context = client.get(base).json()
+    assert before_context['lesion'] is not None
+    confirmed = client.post(base + '/confirm-image', json={
+        'revision': before_context['revision'], 'reviewer': 'Fixture reviewer',
+        'retinal_modality': 'CFP',
+    })
+    assert confirmed.status_code == 200
+    inferred = confirmed.json()
+    assert inferred['lesion']['lesions'][0]['canonical_label'] == raw['lesions'][0]['canonical_label']
+    update = client.put(base + '/annotation-completeness', json={
+        'revision': inferred['revision'], 'reviewer': 'Advanced reviewer', 'group': 'ADVANCED',
+        'state': 'PARTIALLY_REVIEWED', 'taxonomy_version': 'advanced-deferred-v1',
+    })
+    assert update.status_code == 200
+    reopened = TestClient(create_app(tmp_path / 'advanced.sqlite', include_samples=False)).get(base).json()
+    assert reopened['annotation_completeness']['ADVANCED']['state'] == 'PARTIALLY_REVIEWED'
+    assert reopened['annotation_completeness'].get('CORE') is None
+    assert reopened['lesion']['lesions'][0] == raw['lesions'][0]
+
+
 def test_review_evidence_keeps_ai_scores_and_human_provenance_separate(tmp_path):
     client = TestClient(create_app(tmp_path / 'state.sqlite', include_samples=False))
     base = '/v1/cases/SYNTH_001'
