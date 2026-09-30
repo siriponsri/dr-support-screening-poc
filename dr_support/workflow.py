@@ -567,6 +567,12 @@ def install_workflow(app, store):
                     409,
                     'Resolve the outstanding grade disagreement before escalating the case',
                 )
+            if (request.action == 'MARK_INCORRECT'
+                    and case.get('grade_status') == GRADE_STATUS_NEEDS_SECOND_REVIEW):
+                raise HTTPException(
+                    409,
+                    'Resolve the outstanding grade disagreement before marking the AI suggestion incorrect',
+                )
             grade_action = request.action in {
                 'ACCEPT', 'CORRECT_GRADE', 'MARK_UNGRADABLE',
                 'REQUEST_SECOND_REVIEW', 'ADJUDICATE_GRADE',

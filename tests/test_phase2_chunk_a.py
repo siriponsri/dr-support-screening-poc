@@ -137,6 +137,63 @@ def test_legacy_escalate_cannot_clear_unresolved_grade_disagreement(tmp_path):
     assert [entry["grade"] for entry in preserved["grade_reviews"]] == [2, 1]
 
 
+def test_legacy_mark_incorrect_cannot_clear_unresolved_grade_disagreement(tmp_path):
+    client = TestClient(create_app(tmp_path / "review.sqlite", include_samples=False))
+    base = "/v1/cases/SYNTH_001"
+
+    inference = client.post("/v1/infer/global", json={
+        "image_id": "SYNTH_001",
+        "modality": "CFP",
+        "model_id": "mock-global",
+    })
+    assert inference.status_code == 200
+    ai_case = client.get(base).json()
+    assert ai_case["global"]["grade"] == 2
+
+    first = client.post(base + "/review", json={
+        "revision": ai_case["revision"],
+        "action": "CORRECT_GRADE",
+        "reviewer": "First clinician",
+        "grade": 2,
+    })
+    second = client.post(base + "/review", json={
+        "revision": first.json()["revision"],
+        "action": "CORRECT_GRADE",
+        "reviewer": "Second clinician",
+        "grade": 1,
+    })
+    unresolved = second.json()
+    assert unresolved["grade_status"] == "NEEDS_SECOND_REVIEW"
+    assert [entry["grade"] for entry in unresolved["grade_reviews"]] == [2, 1]
+
+    rejected = client.post(base + "/review", json={
+        "revision": unresolved["revision"],
+        "action": "MARK_INCORRECT",
+        "reviewer": "Third clinician",
+    })
+
+    assert rejected.status_code == 409
+    assert rejected.json()["detail"] == (
+        "Resolve the outstanding grade disagreement before marking the AI suggestion incorrect"
+    )
+    preserved = client.get(base).json()
+    assert preserved["revision"] == unresolved["revision"]
+    assert preserved["grade_status"] == "NEEDS_SECOND_REVIEW"
+    assert preserved["state"] == "NEEDS_SECOND_REVIEW"
+    assert preserved["global"]["grade"] == 2
+    assert preserved["grade_adjudication"]["status"] == "UNRESOLVED"
+    assert [entry["grade"] for entry in preserved["grade_reviews"]] == [2, 1]
+
+    resolved = client.post(base + "/review", json={
+        "revision": preserved["revision"],
+        "action": "ADJUDICATE_GRADE",
+        "reviewer": "Adjudicating clinician",
+        "grade": 2,
+    })
+    assert resolved.status_code == 200
+    assert resolved.json()["grade_status"] == "CONFIRMED"
+
+
 def test_historical_unknown_review_remains_readable_without_a_grade(tmp_path):
     client = TestClient(create_app(tmp_path / "legacy.sqlite", include_samples=False))
     case = client.app.state.store.get("SYNTH_001")
