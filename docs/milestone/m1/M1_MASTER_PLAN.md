@@ -1,7 +1,7 @@
 # DR Screening — Milestone 1 Master Plan
 
 **Document path in repository:** `docs/milestone/m1/M1_MASTER_PLAN.md`  
-**Document revision:** Closeout r2.5 (owner-approved Phase 1 closeout with adopted Phase 2 Execution r3.0)
+**Document revision:** Closeout r2.6 (Phase 2 implementation evidence through Chunk B)
 **Prepared:** 2026-09-29
 **Document status:** `OWNER_APPROVED_CLOSEOUT`
 **Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted; final validation and limitations are recorded in the Phase 1 evidence); see the phase tracker, which is independent of later-phase authorization.
@@ -10,7 +10,7 @@
 **Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; unresolved optional items follow the Phase 2 safe-defer boundary in §24.
 **Primary repository:** `siriponsri/dr-support-screening-poc`  
 
-**Current reading guide (closeout r2.5):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29 based on the recorded implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c` and independent O1 review. The owner-directed Phase 2 Execution r3.0 specification is adopted, but Phase 2 remains `NOT_STARTED` and this document does not authorize production, hospital-data use, or clinical/model semantic changes.
+**Current reading guide (closeout r2.6):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29 based on the recorded implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c` and independent O1 review. The owner-directed Phase 2 Execution r3.0 specification is adopted; Chunk A and Chunk B implementation evidence and current READY_FOR_REVIEW status are recorded in §10. This does not authorize production, hospital-data use, or clinical/model semantic changes.
 
 ---
 
@@ -647,7 +647,7 @@ Create the durable data foundation for physician review, model evidence, workspa
 
 Make the clinician workflow efficient for repeated UWF labeling while maximizing the amount and quality of physician-confirmed information captured per review session.
 
-**Entry and dependency (2026-09-29):** Phase 1 is `DONE` under the owner-approved public/synthetic evidence boundary. Phase 2 is eligible for bounded implementation, but its status remains `NOT_STARTED` until implementation actually begins after an explicit owner start instruction. Native UWF model readiness, hospital inference/export authorization, production deployment, retraining, referral/DME logic, and autonomous clinical claims are not Phase 2 entry dependencies or permissions.
+**Entry and dependency (2026-09-29):** Phase 1 is `DONE` under the owner-approved public/synthetic evidence boundary. Phase 2 implementation began under the owner-directed start instruction and completed bounded Chunk A and Chunk B work. Native UWF model readiness, hospital inference/export authorization, production deployment, retraining, referral/DME logic, and autonomous clinical claims are not Phase 2 entry dependencies or permissions.
 
 ## Required work
 
@@ -696,15 +696,15 @@ Each chunk receives one independent substantive review of the exact candidate. O
 
 ## Phase 2 status tracker
 
-**Status:** `NOT_STARTED`  
-**Specification:** Execution r3.0 adopted 2026-09-29; implementation not started
-**Start date:**  
+**Status:** `READY_FOR_REVIEW`
+**Specification:** Execution r3.0 adopted 2026-09-29; Chunk A and Chunk B implementation integrated, owner closeout pending
+**Start date:** 2026-10-01
 **Completion date:**  
-**Reviewed by:**  
-**Evidence / commit(s):**  
-**Clinical feedback:**  
-**Open blockers:**  
-**Owner decisions:**  
+**Reviewed by:** Independent O1 Chunk A review PASS; independent O1 Chunk B review PASS; final integration review by MAIN
+**Evidence / commit(s):** Chunk A `6bfa7825da7175694373e6b3661abc7d53d7d5f7`; Chunk B `6c33255741b1b43a42b1474a05a3db6cfcbce021`; integrated main `5b300f70d8ab6a5433d2066d24a8706fe044a696`
+**Clinical feedback:** No new clinical-owner decisions were required for the bounded implementation; unresolved Advanced taxonomy/geometry remains explicitly deferred.
+**Open blockers:** None for Core workflow or engineering review. Phase 2 owner closeout remains pending; Advanced findings are limited/deferred.
+**Owner decisions:** Owner Phase 2 closeout is required before marking `DONE`; Phase 3 model qualification and Phase 4 export-negative policy remain outside this phase.
 
 ---
 
@@ -1054,7 +1054,7 @@ Update this table after each phase review.
 |---|---|---|---|---|
 | 0 | Baseline & Scope Freeze | `NOT_STARTED` |  |  |
 | 1 | Data Foundation & PostgreSQL | `DONE` | Owner-approved implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c`; detailed receipt in `docs/milestone/m1/M1_PHASE1_POSTGRES.md` | Public/synthetic-only scope; accepted UI/documentation validation limitations remain; Phase 2 not started |
-| 2 | UWF Labeling Workflow | `NOT_STARTED` | Execution r3.0 adopted 2026-09-29; implementation not started | Phase 1 dependency satisfied; optional model/clinical capabilities remain safely deferred where unresolved |
+| 2 | UWF Labeling Workflow | `READY_FOR_REVIEW` | Chunk A `6bfa782`; Chunk B `6c33255`; integrated main `5b300f7`; full validation recorded in §10 | Core workflow is ready for owner review; Advanced taxonomy/geometry and native UWF model capabilities remain safely deferred; owner closeout pending |
 | 3 | AI Models & Model API Integration | `NOT_STARTED` |  | Native UWF work may use explicit CFP fallback temporarily |
 | 4 | Dataset & Review Tools | `NOT_STARTED` |  |  |
 | 5 | End-to-End Validation & M1 Review | `NOT_STARTED` |  |  |
@@ -1103,6 +1103,7 @@ Do not edit past decisions silently. Add new rows when the owner changes scope.
 | 2026-09-29 | Phase 2 uses a low-burden descriptive five-grade workflow; `Ungradable` is separate, and active unresolved review uses `Needs Second Review` while historical `Unknown` remains backward-compatible. | Improve physician speed and label consistency without treating non-grade states as grades or silently changing historical records. | Owner-directed |
 | 2026-09-29 | Independent reviewer disagreement preserves both decisions, marks an adjudication/second-review state, and excludes the unresolved grade from training-ready status; two reviews are not required for every image. | Protect review provenance while keeping ordinary labeling low burden. | Owner-directed |
 | 2026-09-29 | Phase 2 uses Chunk A and Chunk B substantive review gates followed by final integration validation; O1 or O2 may provide independent read-only review, and optional unresolved clinical/model capabilities are safely deferred. | Reduce review burden, preserve independence, and keep unrelated Core workflow moving without weakening safety contracts. | Owner-directed |
+| 2026-10-01 | Phase 2 completed bounded Chunk A and Chunk B implementation and independent review. Chunk A covered intake, named grading, disagreement-safe persistence, shared analysis representation, viewer/evidence states, and manual failure paths; Chunk B added persisted Core/Advanced completeness with reviewer/time/taxonomy provenance and explicit no-negative behavior. | Record actual implementation evidence without claiming native UWF model qualification, full Advanced taxonomy, production readiness, or Phase 2 owner closeout. | Owner-directed execution; O1 reviews accepted |
 
 ---
 

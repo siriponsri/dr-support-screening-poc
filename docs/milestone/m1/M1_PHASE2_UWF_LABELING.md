@@ -3,7 +3,7 @@
 **Document revision:** Execution r3.0 (owner-directed Phase 2 execution specification)
 **Prepared:** 2026-09-29
 **Document status:** `OWNER_DIRECTED_EXECUTION_SPEC`
-**Implementation status:** `NOT_STARTED` — this document authorizes preparation and later bounded Phase 2 implementation only after the owner explicitly starts the implementation run.
+**Implementation status:** `READY_FOR_REVIEW` — bounded Phase 2 implementation is integrated; owner closeout is pending.
 **Phase 1 dependency:** `SATISFIED` — Phase 1 is `DONE` as of 2026-09-29.
 **Repository baseline at preparation:** `20726efcb8aa6ce857eb9b8537810fea5175b42e` (`main` / `origin/main`)
 **Primary repository:** `siriponsri/dr-support-screening-poc`
@@ -819,16 +819,16 @@ Do not force-push or delete an unrelated branch/worktree.
 
 | Work item | State at document adoption | Evidence needed to close |
 |---|---|---|
-| P2-1 Intake/context | `TODO` | truthful origin/context fixture + save/reopen |
-| P2-2 Grade review | `TODO` | named-grade workflow, Ungradable/second-review, persistence/disagreement tests |
-| P2-3 Representation | `TODO` | versioned stage contract + measured comparison |
-| P2-4 Viewer/Explainability/mapping | `TODO` | four-mode/unavailable behavior + coordinate evidence |
-| P2-5 Findings | `TODO` | Core actions/provenance + Advanced boundary |
-| P2-6 Completeness | `TODO` | deliberate state transitions + persistence/versioning |
-| P2-7 Manual/failure | `TODO` | AI/mask unavailable receipts + domain honesty |
-| Chunk A REVIEW | `TODO` | independent O1/O2 exact-candidate review |
-| Chunk B REVIEW | `TODO` | independent O1/O2 exact-candidate review |
-| Final integration validation | `TODO` | synchronized main + required test/smoke receipt |
+| P2-1 Intake/context | `DONE` | Chunk A candidate `6bfa782`; intake/context and truthful-origin tests |
+| P2-2 Grade review | `DONE` | Chunk A candidate `6bfa782`; named-grade, Ungradable, Needs Second Review, disagreement/adjudication tests |
+| P2-3 Representation | `DONE` | Chunk A candidate `6bfa782`; versioned derivative, mask and double-mask evidence |
+| P2-4 Viewer/Explainability/mapping | `DONE` | Chunk A candidate `6bfa782`; safe display/unavailable and coordinate fail-closed tests |
+| P2-5 Findings | `DONE` | Chunk B candidate `6c33255`; Core lineage-preserving workflow and safe Advanced boundary |
+| P2-6 Completeness | `DONE` | Chunk B candidate `6c33255`; deliberate group states, persistence, reviewer/time/taxonomy and revision tests |
+| P2-7 Manual/failure | `DONE` | Chunk A candidate `6bfa782`; AI/mask unavailable manual continuation tests |
+| Chunk A REVIEW | `DONE` | Independent O1 exact-candidate review PASS; candidate `6bfa782` |
+| Chunk B REVIEW | `DONE` | Independent O1 exact-candidate review PASS after bounded fix; candidate `6c33255` |
+| Final integration validation | `READY_FOR_REVIEW` | Main `5b300f7`; full backend/frontend validation and diff check pass; owner closeout remains |
 | Owner Phase 2 closeout | `TODO` | owner reviews final evidence and decides `DONE` |
 
 Allowed execution states:
@@ -1005,5 +1005,7 @@ This adoption pass is preparation only. It must not silently start P2-1 through 
 **2026-09-28 r1–r2.2:** prior candidate expanded the Master Phase 2 requirements, source-origin gap, shared masked-analysis representation, Explainability surface, mapping QA, failure behavior and execution ledger.
 
 **2026-09-29 Execution r3.0:** owner-directed execution rewrite after Phase 1 closeout. Rebased Phase 2 on completed PostgreSQL foundation; reduced review-loop intensity; made MAIN/IMPLEMENT autonomous for ordinary implementation details; introduced a low-burden physician grading contract with descriptive five-class labels, separate `Ungradable`, explicit `Needs Second Review`, disagreement/adjudication preservation, and optional calibration; kept Advanced/completeness/model/hospital-data uncertainties from blocking unrelated Core work; moved negative-export authority to Phase 4; replaced pre-test coordinate approval ceremony with implementation-plus-review evidence; retained Master safety, provenance, coordinate, UWF/CFP-domain, manual-fallback and human-authority boundaries.
+
+**2026-10-01 implementation receipt:** Phase 2 began from integrated main `5a4e9721ddfa8d5613db8932aa0e07d13fda6f97`, which contains the adopted r3.0 specification and Chunk A integration. Chunk A candidate `6bfa7825da7175694373e6b3661abc7d53d7d5f7` received independent O1 review PASS and is integrated in main history. Chunk B candidate `6c33255741b1b43a42b1474a05a3db6cfcbce021` received independent O1 review PASS after a bounded completeness synchronization fix. Final integrated main is `5b300f70d8ab6a5433d2066d24a8706fe044a696`. Full main validation: backend `198 passed, 27 skipped, 42 warnings`; Ruff PASS; frontend `17 files / 105 tests PASS`; typecheck PASS; build PASS with existing chunk-size warning; `git diff --check` PASS. Advanced class-specific annotation semantics remain deferred; the UI records Advanced partial review only. Reviewed-none remains completeness evidence, not Phase 2 training/export-negative authority. This receipt sets Phase 2 to `READY_FOR_REVIEW`, not `DONE`; owner closeout remains required.
 
 # End of M1 Phase 2 Execution Specification
