@@ -1,89 +1,1009 @@
 # DR Screening M1 — Phase 2 UWF Labeling Workflow
 
-**Document revision:** Candidate r2.2  
-**Prepared:** 2026-09-28  
-**Document status:** `CANDIDATE_FOR_OWNER_REVIEW`  
-**Implementation status:** `NOT_STARTED` (Master tracker; specification is provisional until Phase 1 exit and owner review)  
-**Source baseline commit:** `0f41bb9774c2da455d477d1634ce8888e9265732`  
-**Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` `PACKAGE_PREPARATION_REPORT.md`, `ASSET_LOCK.json`, `EVIDENCE.md`, `research/notebooks_code_only/`, `research/model_bundles/`, `research/masking/` (package identities, not repository links)  
-**Owner decisions pending:** clinical advanced-finding taxonomy and group completeness rubric; review of any preprocessing/coordinate or existing confirmation-contract change
+**Document revision:** Execution r3.0 (owner-directed Phase 2 execution specification)
+**Prepared:** 2026-09-29
+**Document status:** `OWNER_DIRECTED_EXECUTION_SPEC`
+**Implementation status:** `NOT_STARTED` — this document authorizes preparation and later bounded Phase 2 implementation only after the owner explicitly starts the implementation run.
+**Phase 1 dependency:** `SATISFIED` — Phase 1 is `DONE` as of 2026-09-29.
+**Repository baseline at preparation:** `20726efcb8aa6ce857eb9b8537810fea5175b42e` (`main` / `origin/main`)
+**Primary repository:** `siriponsri/dr-support-screening-poc`
+**Normative parent:** `docs/milestone/m1/M1_MASTER_PLAN.md`, especially §§2–10, 17, 20, 23–24
+**Research evidence retained:** `DR_M1_DELIVERY_20260928_r1/`, notebook/code-reading copies, prepared model bundles and masking research. Research assets are evidence, not clinical or production approval.
 
-## 1. Purpose and authority
+> This document expands the Master Plan; it does not replace it. `AGENTS.md`, `DESIGN.md`, accepted ADRs, the Phase 1 persistence contract, and approved owner decisions remain authoritative. If this file conflicts with a frozen safety/privacy/clinical/data-integrity contract, stop only the affected work, preserve completed unaffected work, and report the exact conflict.
 
-Deliver the Master §10 Phase 2 physician-led UWF workflow: human-confirmed patient/eye/visit context, grade and finding review, Core and optional Advanced annotations, explicit completeness, durable save/reopen, **Original / Masked Analysis / AI Overlay / Explainability** review surfaces, and manual operation when AI is unavailable. M1 is the Labeling System; this UI is intentionally structured for extension into the later M2 Clinical Screening System, but Phase 2 itself is not autonomous diagnosis or referral. This document expands, and does not replace, [Master §§2–9, 23](M1_MASTER_PLAN.md). `AGENTS.md`, `DESIGN.md`, accepted ADRs and existing contracts control frozen behavior. Scope approval does not arise from this candidate.
+---
 
-**Entry:** establish actual Phase 1 integrated revision and persisted fields, verify source worktree under `AGENTS.md`, select deidentified/authorized fixtures, and identify owner decisions before changing clinical semantics. UI and fixture-based manual work can begin before model/L4 readiness; integrated save/reopen acceptance depends on Phase 1 persistence. No real hospital data enter this package.
+## 1. Purpose
 
-## 2. Current implementation and evidence versus required target
+Phase 2 turns the Phase 1 data foundation into an efficient **physician-led UWF labeling workflow**.
 
-| Source locator | Current observation | Required Phase 2 evidence |
+The desired physician path is intentionally short:
+
+```text
+Open UWF case
+→ confirm patient / eye / visit evidence when needed
+→ inspect Original
+→ inspect Masked Analysis / AI evidence when available
+→ choose or correct DR grade
+→ review Core findings
+→ optionally review Advanced findings
+→ confirm/save
+→ move to next case
+```
+
+The system, not the physician, should automatically capture reviewer identity, time, revision, source identity, model/preprocessing provenance, and audit history wherever the existing product context already supplies them.
+
+Phase 2 must optimize for two outcomes at the same time:
+
+1. **low physician burden**, because labeling time is scarce; and
+2. **high training-label consistency**, because ambiguous or inconsistently interpreted labels create downstream relabeling and model-training cost.
+
+M1 remains a **Labeling System**, not an autonomous screening/referral product. Phase 2 does not authorize real hospital inference/export, production deployment, model retraining, or clinical screening claims.
+
+---
+
+## 2. Alignment with the Master Plan
+
+The Master Phase 2 goal is to make repeated UWF labeling efficient while maximizing physician-confirmed information. This specification implements the Master Phase 2 requirements without changing their intent.
+
+| Master Phase 2 requirement | Phase 2 execution owner |
+|---|---|
+| 1. Preserve viewer / visual direction | P2-2, P2-4 |
+| 2. UWF intake without treating UWF as CFP | P2-1, P2-7 |
+| 3. Shared masked-analysis representation and safe failure | P2-3, P2-4 |
+| 4. Patient/eye/visit evidence | P2-1 |
+| 5. Efficient DR grade confirmation/editing | P2-2 |
+| 6. Core findings workflow | P2-5 |
+| 7. Advanced findings separate/optional | P2-5 |
+| 8. Annotation-group completeness | P2-6 |
+| 9. AI vs human provenance | P2-5, P2-6 |
+| 10. Reject/correct/add/confirm | P2-5 |
+| 11. Original-image coordinates authoritative | P2-3, P2-4, P2-5 |
+| 12. Manual labeling when AI unavailable | P2-7 |
+| 13. Explainability Panel + CFP fallback notice | P2-4, P2-7 |
+
+Phase 2 exit is based on the integrated labeling workflow and recorded evidence. Native UWF model readiness is **not** a Phase 2 prerequisite; model qualification belongs to Phase 3.
+
+---
+
+## 3. Execution philosophy — reduce owner burden without weakening safety
+
+### 3.1 MAIN / IMPLEMENT / REVIEW autonomy
+
+Within this approved Phase 2 scope, MAIN, IMPLEMENT and REVIEW should:
+
+- inspect the repository and select the smallest compatible implementation;
+- make normal implementation decisions without asking the owner for component structure, helper functions, file organization, test naming, minor copy, or other routine engineering details;
+- implement, test, review, fix and re-test within the bounded work item;
+- preserve existing frozen contracts unless this specification explicitly authorizes an additive change;
+- continue unaffected work when a local sub-item is blocked.
+
+Do **not** ask the owner to approve every implementation detail.
+
+### 3.2 When an owner decision is actually required
+
+Stop only the affected work and ask the owner when a choice would materially change one of these:
+
+1. clinical label meaning or clinical negative semantics;
+2. real hospital-data access, inference, export, or permission policy;
+3. destructive patient/review-data behavior;
+4. original-image immutability or authoritative coordinate semantics;
+5. model-domain claim, selected production model, or model weight/artifact identity;
+6. referral, DME, treatment, or autonomous screening logic;
+7. a frozen confirmation/provenance contract that cannot be preserved compatibly;
+8. scope beyond Phase 2.
+
+If an unresolved issue can be safely represented as **unavailable**, **not reviewed**, **needs second review**, **deferred**, or **manual-only**, use that safe state and continue. Do not block the whole phase merely because an optional clinical/model capability is unresolved.
+
+### 3.3 Review intensity
+
+Phase 2 deliberately uses fewer review gates than Phase 1.
+
+Use:
+
+- focused tests while implementing;
+- one substantive independent REVIEW for **Chunk A**;
+- one substantive independent REVIEW for **Chunk B**;
+- one final integration review / main validation before Phase 2 closeout.
+
+O1 or O2 is acceptable when the reviewer is independent from MAIN/IMPLEMENT, read-only, and reviews the exact candidate/diff.
+
+A reviewer should classify findings as:
+
+- **BLOCKER** — data loss/corruption, incorrect coordinates, provenance failure, unsafe silent fallback, privacy/security violation, persistence failure, or acceptance-critical test failure;
+- **REQUIRED FIX** — a Phase 2 functional or contract defect that prevents the bounded work from meeting this specification;
+- **NON-BLOCKING / DEFER** — cosmetic issue, speculative enhancement, pre-existing warning/debt, optional documentation polish, or a later-phase capability.
+
+Do not reopen previously closed findings without concrete regression evidence.
+When a reviewed diff changes only to fix a bounded finding, re-review the affected change and contract; do not restart a whole-repository audit.
+
+---
+
+## 4. Phase 2 product outcome
+
+At Phase 2 completion, a physician using public/synthetic or otherwise authorized test fixtures can:
+
+- open a UWF case;
+- verify patient/eye/visit evidence without inventing chronology;
+- inspect the immutable Original;
+- inspect the selected Masked Analysis image when AI processing is used;
+- inspect AI Overlay and available Explainability evidence;
+- assign one clinically named DR grade or deliberately mark the case unresolved/ungradable;
+- review, correct, reject, or add Core findings;
+- optionally use a separate Advanced findings surface without slowing the Core workflow;
+- explicitly record whether a finding group was actually reviewed;
+- save and reopen the same case after restart in the correct workspace;
+- continue manual labeling when masking or Model API processing is unavailable;
+- preserve raw AI history separately from final physician decisions;
+- preserve original-image coordinates for stored spatial findings.
+
+No Phase 2 success claim requires a ready native UWF model.
+
+---
+
+## 5. DR grading contract — fast for physicians, consistent for training
+
+### 5.1 Clinician-facing five-grade rubric
+
+The physician UI must display **descriptive clinical names**, not unexplained numeric buttons.
+
+| Internal grade | Primary clinician-facing label | M1 interpretation baseline |
 |---|---|---|
-| `dr_support/services/admission.py`, `resolver.py`, `docs/adr/0006-human-selected-image-intake-boundary.md`, `tests/test_admission.py`, `tests/test_resolver.py`, `tests/test_uwf_intake.py` | UWF admission and resolver/context evidence exist; user selects approved top-level input. Visit ordinal is not acquisition date. Current admission constructs workspace `BridgeImage` with `source_type="PUBLIC"`, including the inspected DICOM/general image paths; this is not an authorized-hospital provenance contract. | P2-1/2 confirm context/privacy and source-origin evidence against fixtures; hospital path waits for approved truthful origin/permission representation, not PUBLIC relabeling. |
-| `dr_support/imaging/derivatives.py`, `docs/adr/0003-immutable-source-and-separate-analysis-derivative.md`, `tests/test_derivatives.py`, `frontend/src/components/review/RetinalCanvas.tsx` | Immutable source/derivative and coordinate contract; viewer exists. | P2-3/4 original/analysis/overlay visual and geometric round-trip. |
-| `dr_support/workflow.py`, `docs/adr/0004-three-human-confirmation-milestones.md`, `docs/reference/DATASET_MANIFEST.md`, `tests/test_workflow.py`, `frontend/src/components/review/AiRoiPopover.tsx` | Three case-level confirmation milestones and individual AI ROI actions exist; case-level confirmation does not verify each ROI. | P2-5/6 safe grading, human finding action and added group completeness after approval. |
-| Package NB04 and `research/model_bundles/{grading_uspec,lesion_prism_v1}/offline_*.py`, `research/masking/{retina_analysis.py,retina_grading_v4.py}` | NB04 applies `retina_analysis.py` `border_component_v1` then sends its analysis image to adapters that call v4 again. Source inspection does not prove equivalence or harm. | P2-3/4 representation ownership, stage provenance and comparison, without silently dropping a mask or changing thresholds. |
+| `0` | **No apparent DR** | No apparent diabetic-retinopathy abnormality on the reviewed image |
+| `1` | **Mild NPDR** | Microaneurysms only |
+| `2` | **Moderate NPDR** | More than microaneurysms only, but less than Severe NPDR |
+| `3` | **Severe NPDR** | Severe NPDR pattern; no proliferative sign. Use the approved simplified severity baseline (e.g. severe hemorrhage distribution, venous beading, or IRMA criteria) |
+| `4` | **Proliferative DR (PDR)** | Proliferative evidence such as retinal neovascularization and/or vitreous/preretinal hemorrhage |
 
-Research notebook code is a reading copy, not current application implementation or an executed NB04 receipt. PRISM `NOT_VALIDATED_FOR_UWF`; no Phase 2 claim of UWF clinical localization follows from its weights. Baseline Master Phase 2 tracker is `NOT_STARTED`.
+The numeric value is for storage/model compatibility. The UI should prioritize the clinical label.
 
-## 3. Scope, non-goals and interfaces
+The Master Plan and ICO clinical-reference baseline support the five named severity levels. Phase 2 must not create referral or DME semantics from the DR grade.
 
-**Scope:** the thirteen Master Phase 2 required-work entries, with bounded P2 items below. Grade 0–4 and separate Ungradable/Unknown; MA/HE/EX/SE Core; Advanced candidates in Master §3 pending clinician approval; accept/correct/reject/add per finding; group-level reviewed state when approved; source and processing provenance, save/reopen and manual fallback. The active review UI must let the physician inspect the immutable Original, the selected Masked Analysis image used for AI, the AI Overlay, and an Explainability surface when the provider supplies explanation evidence. Preserve current viewer interaction and `DESIGN.md` visual direction.
+### 5.2 Keep non-grade states separate from the five classes
 
-**Non-goals:** training/retraining, production model selection, clinical referral/DME rules, automatically validated mask quality, interpreting model attention as lesion localization, changing existing three confirmations without contract review, automatic hospital-store browsing, source-image edits, and any L4 gate on manual labeling.
+`Ungradable` and unresolved review states are **not sixth/seventh DR grades**.
 
-**Consumes:** approved selected input, immutable source hash and dimensions, source origin/authorization evidence distinct from modality and pseudonymous patient key, resolver evidence, existing `CoordinateMapping`/derivative contract, Phase 1 scoped persistence, optional Model API suggestions and capability metadata. **Produces:** human-confirmed context/grade/findings, per-action audit, explicit group completeness (after rubric approval), original-pixel coordinates, analysis/mask/transform IDs and model provenance or explicit unavailable state. For this phase, **case-level Processing details** must let the reviewing physician inspect the selected source/analysis representation, transform and mask status, fallback/error and model-domain warning on the active case. A separate **Explainability Panel** must show supported model evidence such as grade scores/attention or lesion proposal evidence without mixing that evidence with provenance/debug metadata. If explanation evidence is unavailable, show an explicit unavailable state rather than fabricating it. P4-1 later supplies **workspace-level read-only filtering/details/JSON/export** over recorded processing and explanation evidence. The three existing confirmation milestones and task-specific readiness policy continue to mean exactly what ADR-0004/0005 and `DATASET_MANIFEST.md` say.
+Use semantics equivalent to:
 
-## 4. Clinical, privacy and geometry invariants
+```text
+grade_status =
+  NOT_REVIEWED
+  FINAL
+  UNGRADABLE
+  NEEDS_SECOND_REVIEW
 
-- Original bytes/hash remain immutable; analysis/overlay are derivatives. Spatial findings persist in `original_image_pixels`. Round trips account for resize, letterbox, crop/tile, viewer zoom/pan and any earlier NB04 analysis stage. Use a versioned transform chain rather than treating adapter input pixels as original pixels.
-- A grade or AI box shown is evidence, never physician confirmation. Preserve original AI score/class/geometry on correction, leave corrected score empty, retain removed suggestion for audit, and invalidate case-level annotation confirmation if active set changes. Existing case-level empty-set confirmation is **not** proof of absence.
-- Proposed group states `NOT_REVIEWED`, `PARTIALLY_REVIEWED`, `REVIEWED_NONE_FOUND`, `REVIEWED_FINDINGS_RECORDED` cannot be derived from the number of boxes. A clinical owner must define group/class scope, absence, optional Advanced findings and reviewer actions before schema/UI/export rules change. No automatic DME or referability inference.
-- The masked analysis representation is shared input provenance for grading and lesion adapters; provider-specific transforms may follow, but a second incompatible mask/double-mask path cannot be introduced silently. Mask coverage and v4 `UNMASKED_FALLBACK` do not certify image gradability. `border_component_v1` can raise `ValueError` if a sufficiently visible field cannot be identified. Surface a recoverable processing state and manual original-image review, not a normal-looking result or automatic rejection.
-- Protect image source boundaries and access. Use fixtures/synthetic images for engineering acceptance; no patient-level screenshots, logs or examples in repo docs.
+grade_value =
+  0..4 only when grade_status = FINAL
+```
 
-## 5. Bounded work items
+Exact field names are an implementation decision if the existing contract requires compatibility.
 
-| ID / what | Affected surface and consumed→produced contract | Preserve / proof / exclusion |
-|---|---|---|
-| **P2-1 Intake and context** | `services/admission.py`, `resolver.py`, UI, persisted image/case identity; approved selected source → image, modality, **truthful origin/permission provenance**, pseudonymous patient/eye/visit evidence. | Data steward/owner approves hospital-origin contract and access boundary before hospital use; P2-1 owns intake identity and any approved additive Phase 2 semantics using P1 machinery. Test permitted public/synthetic, rejected/unknown origin and authorized-hospital fixture lineage through save/reopen; do not reclassify hospital input `PUBLIC`/`SYNTHETIC`, assume pseudonym = public, auto-crawl or invent date. |
-| **P2-2 Grade and review surface** | `workflow.py`, grade UI and Phase 1 case persistence; context → human grade 0–4/Ungradable/Unknown with reviewer/time. | Preserve Confirm Image versus Confirm DR Grade, derived binary without erasing grade; test manual save/reopen and declined/unknown; no referral/DME rubric. |
-| **P2-3 Processing-stage ownership** | Proposed shared representation contract spanning source original → selected valid-retina/masked analysis image → provider-specific transform → model input and display derivatives. | Phase 2 owns the representation/transform specification and case-level Processing details, including each operation's owner, input dimensions/color/coordinate space, output identity, mask version, parameters, flags, hashes and chain. Grading and lesion providers consume the same selected analysis stage unless a separately versioned adapter contract proves otherwise. Compare NB04 multi-stage/double-mask behavior with candidate paths; freeze selected version after review. No silent stage/threshold change. |
-| **P2-4 Mask, overlay, Explainability and mapping QA** | `imaging/derivatives.py`, `RetinalCanvas.tsx`, selected analysis image, optional grading attention and lesion evidence; mask/AI evidence → Original / Masked Analysis / AI Overlay / Explainability views plus active-case Processing details. | Before test execution, publish reviewed coordinate oracle: original-pixel origin/axes, box representation, clipping/rounding convention, expected fixture boxes/overlays and tolerance justified from ADR-0003/current viewer contract. Test round trips, borders/rim, resized/tiled/letterboxed, null/failed masks and fallback. If Phase 3 exposes NB01 patch attention, render it as model-focus evidence with its transform/version and explicit **not lesion localization** notice. Lesion boxes/review boxes remain distinct localized AI suggestions. Explainability must not alter stored human labels. |
-| **P2-5 Core and Advanced human annotations** | Existing ROI and manual tools; AI suggestion or blank image → accept/correct/reject/add with class/geometry/lineage. | Preserve provenance and existing class behavior; clinician reviews Advanced candidate taxonomy, version and unsupported classes. Test corrections/rejections/undo and saved original coordinates; no automatic activation of research-only classes. |
-| **P2-6 Group completeness and persistence** | Proposed additive review-state schema/UI; deliberate reviewer action → per group/class reviewed state with reviewer/time/taxonomy version, alongside existing case-level set hash. | Clinical owner approves rubric first. Phase 2 owns any **approved additive payload/schema-version migration**, compatibility/rollback and tests using Phase 1 migration machinery; P1-A/I supplies baseline only. Test state transitions, invalidation, restart/isolation and Phase 4 boundary. Do not reinterpret `annotation_confirmation_status` or infer reviewed-negative from no boxes. |
-| **P2-7 Manual/failure path** | UI/model gateway and case store; unavailable/error/unsupported AI or mask failure → explicit state and continuing manual workflow. | Test no synthetic grade 0/empty findings, no loss of typed labels across retry/restart. For a selected CFP bundle on UWF, primary result and active-case details must communicate `NOT_VALIDATED_FOR_UWF` in equivalent plain language; proposed copy in Master §6.3 requires clinical review. No inference service needed for manual fixtures. |
+#### `UNGRADABLE`
 
-P2-3 owns the representation contract and collects measured compatibility evidence; P3-2 owns per-bundle input/output qualification. Changes to preprocessing/postprocessing may change model behavior even with identical weights and require Phase 3 regression evidence. P1-A/P1-I owns the baseline persistence machinery and versioned fields. P2-3/P2-6 owns subsequent approved Phase 2 processing/completeness extensions and their additive migrations/tests; P4-1 consumes their recorded version rather than rebuilding case-level Processing details. No speculative migration is applied by this plan.
+Use when the physician judges that the available image does not support a reliable DR severity assignment.
 
-## 6. Acceptance and required evidence
+Examples of reasons may include image quality, insufficient usable retinal field, media/artifact obstruction, or another reviewability problem. Reason capture may be optional/quick-select; it must not add mandatory free-text burden.
 
-A reviewer opens approved UWF fixture, confirms patient/eye/visit evidence, switches **Original / Masked Analysis / AI Overlay / Explainability**, sees a verifiable transform/mask record and explanation limitations, sets or corrects grade, handles Core and optional Advanced findings, explicitly records review state under an approved rubric, saves and reopens after process restart in the right workspace. Repeat with Model API down and mask failure; manual review remains usable and absence of inference is visible. Demonstrate original source hash unchanged, model and human lineages distinct, corrected ROI score semantics, and no gold-label promotion from displayed AI.
+`UNGRADABLE` is not exported as grade 0–4.
 
-Existing focused tests to extend: `tests/test_admission.py`, `test_resolver.py`, `test_derivatives.py`, `test_workflow.py`, `test_uwf_intake.py`; `frontend/src` review/geometry tests and `tests/overlay.test.cjs`. **PROPOSED tests**: multi-stage preprocessing fixture comparison with intermediate hashes/geometry; original-coordinate round trip on resized/tiled/letterboxed/rim cases; group completeness transitions and no-AI UI flow; source-origin permission and lineage round-trip cases, with hospital fixtures only when approved. The P2-4 oracle is a reviewable artifact **before** PASS: fixture IDs (synthetic, non-sensitive), source dimensions, precise coordinate convention/rounding/clipping, expected boxes/overlay and tolerance rationale. REVIEW approves its version before qualification; a revised expectation starts a new test-spec revision, never retroactively makes a failing run pass. Run applicable full backend (`python -m pytest -q`, Ruff) and frontend (`cd frontend && npm test`, `npm run typecheck`, `npm run build`) after implementation; these are future commands, **not run in this planning session**. Record fixture rights, commit, command outcomes and visual reviewer receipt; no clinical validity claims from synthetic fixtures.
+#### `NEEDS_SECOND_REVIEW`
 
-## 7. Failure, dependencies, owner decisions and gate
+Use when the image is reviewable but the physician does not want to finalize one of the five grades.
 
-If `border_component_v1` raises, record the failure and allow manual original view; if v4 falls back, flag `UNMASKED_FALLBACK` and leave quality undetermined. A saved derivative/transform mismatch blocks spatial AI display and reverts to original/manual review; never silently rewrite original coordinates. On a persistence conflict, preserve previous revision, expose conflict/retry and do not overwrite clinician action. Application rollback uses a reviewed previous revision and versioned payload/migration recovery plan under P1-I; preserve source bytes.
+This replaces ambiguous clinician-facing use of `Unknown`. Existing persisted `Unknown / not yet determined` data must remain backward compatible, but the active UI should distinguish:
 
-| Issue and evidence | Blocks / can proceed | Closure |
-|---|---|---|
-| Phase 1 P1-A/B/I unfinished (Phase 1 §18) | Integrated PG save/reopen; fixture UI/provenance design can proceed | Phase 1 approved persisted contract and restore evidence. |
-| Group/Advanced clinical semantics (Master §§3,17) | P2-5/6 final state/schema and reviewed-negative export rule; Core/manual flow can proceed | Clinical owner signs taxonomy and completeness rubric. |
-| NB04 multi-stage and missing latest executed receipt (package report) | Selecting or claiming equivalent new model input path; manual review continues | Measured fixture comparison, versioned transforms and owner-reviewed behavior decision. |
-| PRISM UWF validity, grading checkpoint/L4 readiness | Only those model claims; P2 manual path proceeds | Phase 3 separate qualification, domain notice and capability gate. |
+- untouched / not yet reviewed; from
+- deliberately escalated for another review.
 
-**Review gate:** present integrated code revision, accepted clinical rubric, transform/overlay test evidence, user-facing states, privacy handling and Phase 1 schema mapping to owner/auditor. `READY_FOR_REVIEW` is possible with models disabled if manual acceptance passes; `DONE` requires approval. This candidate document itself is awaiting owner review.
+`NEEDS_SECOND_REVIEW` is not training-ready.
 
-## 8. Execution ledger, change log and handoff
+### 5.3 Grade interaction burden
 
-| ID | State | Dependency / accountable role | Evidence to close / blocker or next action |
+Normal grade review should require approximately:
+
+```text
+inspect image
+→ choose one descriptive grade
+→ Confirm DR Grade
+→ next case
+```
+
+Reviewer/time/audit/revision capture should be automatic when available from the current session/workflow.
+
+Save/reopen is a system requirement, **not an extra physician step**. Reopening must restore the existing decision and history.
+
+### 5.4 Multiple physicians and disagreement
+
+Phase 2 must prevent one physician's review from silently overwriting another physician's independent review.
+
+Default operation remains **single-reviewer efficient labeling**; do not require two ophthalmologists to review every image.
+
+When multiple independent reviews exist:
+
+```text
+same final grade
+→ preserve both review records
+→ no disagreement flag required
+
+different final grade
+→ preserve both review records
+→ mark NEEDS_ADJUDICATION / NEEDS_SECOND_REVIEW equivalent
+→ exclude unresolved grade from training-ready status
+→ present the case for a later adjudication pass
+```
+
+Do not:
+
+- automatically average or majority-vote ordinal grades;
+- silently keep only the most recent grade;
+- force the model-training team to contact physicians case-by-case outside the product workflow.
+
+The product should make disagreement cases discoverable as a batch/worklist state. Phase 4 may provide richer workspace-level filtering/export; Phase 2 needs at least persisted status and a usable path to reopen/adjudicate.
+
+### 5.5 Calibration before large-scale labeling
+
+The workflow should support a small clinician calibration/reference set before or early in large-scale labeling.
+
+The exact number of images is operational, not a Phase 2 blocker. The purpose is to:
+
+- expose Mild↔Moderate and Moderate↔Severe interpretation differences;
+- verify that participating physicians interpret the UI rubric consistently;
+- capture feedback on terminology;
+- reduce later relabeling/adjudication load.
+
+Agreement metrics such as weighted kappa may be reported when two independent sets are available, but Phase 2 must not fabricate a statistical acceptance threshold that the project has not approved.
+
+Treated/stable PDR or other difficult edge cases should use `NEEDS_SECOND_REVIEW` until the clinical team freezes a dedicated rule. This does not block ordinary five-grade labeling.
+
+---
+
+## 6. Finding taxonomy and completeness — safe defaults that do not block Core work
+
+### 6.1 Core findings
+
+The Core workflow must remain fast and prioritize the Master Plan families:
+
+- Microaneurysm (MA)
+- Retinal hemorrhage (HE)
+- Hard exudate (EX)
+- Cotton-wool spot / soft exudate (SE)
+
+Phase 2 may preserve the existing generic annotation geometry tooling and provenance model unless a specific class requires a clinically meaningful geometry change.
+
+The Core physician action model is:
+
+```text
+AI suggestion or blank image
+→ accept
+→ correct
+→ reject
+→ add physician finding
+→ confirm annotation set
+```
+
+Raw AI score/class/geometry must remain preserved when a physician corrects or rejects a suggestion. A physician-added/corrected annotation must not inherit a fabricated model score.
+
+### 6.2 Advanced findings
+
+Advanced findings remain a **separate optional surface** so they do not increase Core labeling burden.
+
+The Master candidate list is retained:
+
+- Dot hemorrhage
+- Blot hemorrhage
+- Flame-shaped hemorrhage
+- Venous beading
+- IRMA
+- NVD
+- NVE
+- Preretinal hemorrhage
+- Vitreous hemorrhage
+- Fibrous proliferation
+
+However, unresolved class definitions/geometry do **not** block P2-1/2/3/4/7 or the Core workflow.
+
+Safe policy:
+
+- implement the separate Advanced surface and versioned taxonomy boundary;
+- enable only semantics that can be represented truthfully with the current/approved annotation contract;
+- for a class whose geometry/meaning is unresolved, show it as unavailable/deferred rather than inventing a definition;
+- never turn an unopened Advanced section into negative labels;
+- record the active taxonomy version for every saved Advanced annotation.
+
+If a specific unresolved Advanced class prevents final Phase 2 `DONE`, report that capability as deferred/limited at owner review rather than repeatedly reopening unrelated implementation.
+
+### 6.3 Annotation-group completeness
+
+Support states equivalent to:
+
+```text
+NOT_REVIEWED
+PARTIALLY_REVIEWED
+REVIEWED_NONE_FOUND
+REVIEWED_FINDINGS_RECORDED
+```
+
+Operational meanings for Phase 2:
+
+- `NOT_REVIEWED` — no deliberate review of that group has been recorded;
+- `PARTIALLY_REVIEWED` — deliberate review occurred but the group/class scope was not completed;
+- `REVIEWED_FINDINGS_RECORDED` — reviewer deliberately completed the group and one or more active findings are recorded;
+- `REVIEWED_NONE_FOUND` — reviewer deliberately completed the group and explicitly recorded that no finding in the defined group was found.
+
+Important boundary:
+
+`REVIEWED_NONE_FOUND` may be stored as review-completeness evidence, but **Phase 2 alone does not authorize it as a training/export negative**. Phase 4 owns export eligibility/policy. This lets Phase 2 implement useful review-state capture without forcing the owner to freeze the full training-negative rubric now.
+
+Never infer completeness from:
+
+- number of AI boxes;
+- empty detector output;
+- empty annotation array;
+- opening a panel;
+- case-level annotation confirmation alone.
+
+---
+
+## 7. Intake, identity and provenance
+
+### 7.1 Source boundaries
+
+A source image must retain truthful origin/provenance separate from:
+
+- retinal modality;
+- patient pseudonym;
+- deidentification state;
+- use authorization/permission.
+
+Do not classify hospital-origin data as `PUBLIC` or `SYNTHETIC` merely to fit the current Bridge v1 enum.
+
+Phase 2 may add local/persisted provenance fields or an additive versioned contract needed to represent truthful origin while keeping the current remote Bridge behavior compatible.
+
+Real hospital inference/export remains outside Phase 2 authorization until the appropriate data-steward/owner path is approved.
+
+### 7.2 Patient / eye / visit
+
+Capture or confirm, when evidence exists:
+
+- pseudonymous patient key;
+- laterality;
+- visit/capture identity;
+- acquisition date/time where supported;
+- source evidence for resolver decisions.
+
+Do not turn visit ordinal into acquisition chronology.
+
+Uncertain context must remain uncertain rather than being invented. Manual correction/confirmation must be possible when current workflow supports it.
+
+### 7.3 Original source integrity
+
+Original bytes/hash are immutable evidence.
+
+Normal Phase 2 operations must not:
+
+- overwrite;
+- recompress in place;
+- rename destructively;
+- permanently mask;
+- rewrite source bytes to simplify model input.
+
+All analysis representations are derivatives.
+
+---
+
+## 8. Shared masked-analysis representation and processing contract
+
+### 8.1 One shared analysis-stage identity
+
+Phase 2 owns a versioned contract equivalent to:
+
+```text
+Original
+→ selected valid-retina / masked-analysis representation
+→ provider-specific transform
+→ model input
+→ model output / explanation evidence
+```
+
+The selected Masked Analysis representation must have enough provenance to identify:
+
+- source hash and source dimensions;
+- derivative hash/identity;
+- analysis/mask version;
+- parameters relevant to reproducibility;
+- input/output dimensions;
+- color-space expectations where relevant;
+- coordinate mapping / transform identity;
+- fallback/error state.
+
+### 8.2 Double-mask research issue
+
+NB04 research applied `border_component_v1` before adapters that may apply v4 masking again. Source inspection alone does not prove that the paths are equivalent or harmful.
+
+Phase 2 should:
+
+1. compare candidate paths on synthetic/public fixtures with intermediate hashes/dimensions/geometry;
+2. document measured differences;
+3. choose/freeze the application-level shared representation contract;
+4. avoid silently changing model-specific preprocessing behavior that belongs to Phase 3 qualification.
+
+If the comparison cannot prove that changing adapter behavior is safe, keep current model-adapter behavior unchanged and hand the measured evidence to Phase 3. **Do not block the manual Phase 2 workflow.**
+
+No mask coverage or fallback state may be treated as clinical gradability.
+
+### 8.3 Mask failure
+
+If a safe Masked Analysis image cannot be produced:
+
+- show Original normally;
+- show processing status as unavailable/failure;
+- do not fabricate a normal-looking masked result;
+- do not synthesize grade 0 or empty findings;
+- keep manual grade/annotation workflow usable.
+
+`UNMASKED_FALLBACK` must remain explicit and must not imply that image quality is adequate.
+
+---
+
+## 9. Viewer, AI Overlay, Explainability and coordinates
+
+### 9.1 Required review modes
+
+The active case should support, where evidence exists:
+
+- **Original**
+- **Masked Analysis**
+- **AI Overlay**
+- **Explainability**
+
+Processing details remain distinct from Explainability.
+
+### 9.2 Explainability semantics
+
+Explainability may display supported evidence such as:
+
+- grading class scores;
+- grading patch/attention evidence;
+- lesion proposals / review boxes;
+- proposal confidence/fold agreement where actually available;
+- model-domain limitation;
+- unavailable/error state.
+
+A grading attention map must be labeled as **model attention/evidence, not validated lesion localization**.
+
+Explainability evidence must never:
+
+- become a physician annotation automatically;
+- create a gold lesion label;
+- change the final physician grade;
+- imply calibrated clinical probability unless calibration exists.
+
+If no provider exposes explanation evidence, show `Unavailable` rather than fabricating it.
+
+### 9.3 Original-image coordinates
+
+Persist spatial findings in `original_image_pixels` or the current equivalent authoritative coordinate system.
+
+Round-trip logic must account for relevant:
+
+- resize;
+- letterbox;
+- crop/tile;
+- viewer zoom/pan;
+- shared analysis-stage transform;
+- provider-specific transform.
+
+A derivative/transform mismatch must block spatial AI display for that result and fall back to Original/manual review. Never silently rewrite stored geometry to make an overlay look aligned.
+
+### 9.4 Coordinate oracle — lighter review process
+
+The fixture oracle is developed **with** the implementation/tests, not as a separate pre-test approval ceremony.
+
+It must document:
+
+- synthetic/non-sensitive fixture identity;
+- source dimensions;
+- coordinate origin/axes;
+- box representation;
+- clipping/rounding convention;
+- expected geometry/overlay;
+- tolerance rationale.
+
+REVIEW evaluates the oracle and implementation together during the relevant chunk review.
+
+If a test expectation changes because the prior oracle was wrong, update the oracle with rationale and review that bounded change. Do not retroactively redefine an expectation merely to turn a real failure into PASS.
+
+---
+
+## 10. Manual/failure path and model-domain honesty
+
+Manual physician labeling is a first-class path.
+
+When AI is:
+
+- unavailable;
+- disconnected;
+- unsupported;
+- errored;
+- not ready;
+- disabled;
+
+the physician must still be able to:
+
+- inspect Original;
+- confirm context;
+- grade;
+- annotate;
+- save/reopen.
+
+Do not synthesize AI results to keep the UI looking complete.
+
+For any CFP-trained fallback shown on UWF, preserve the Master meaning equivalent to:
+
+> **CFP-trained AI · Not validated for UWF**
+
+The full primary notice and Processing details metadata must agree with the selected bundle manifest. Phase 2 tests warning visibility/state handling; Phase 3 owns guarded model-contract enablement and qualification.
+
+---
+
+## 11. Bounded Phase 2 work items
+
+| ID | Work | Required outcome | Non-blocking/deferred boundary |
 |---|---|---|---|
-| P2-1 | `TODO` | P1 identity baseline, data-steward hospital contract; IMPLEMENT | Admission/resolver/source-origin fixture and SHA; public/synthetic can proceed; hospital lineage/permission `PENDING_OWNER`. |
-| P2-2 | `TODO` | P1 review persistence; IMPLEMENT + clinical REVIEW | Separate grade milestones, manual save/reopen and reviewer receipt. |
-| P2-3 | `TODO` | P1 payload baseline; IMPLEMENT + model REVIEW | Versioned stage/representation spec and measured candidate comparison; owner decision on changed processing. |
-| P2-4 | `TODO` | P2-3 selected contract, P3 explanation contract when enabled; IMPLEMENT/REVIEW | Approved coordinate oracle, masked-image/overlay/explainability receipt and active-case details; attention never represented as lesion localization; no coverage-as-gradability. |
-| P2-5 | `TODO` | P2-2; clinical owner for Advanced scope | Core provenance/action tests; Advanced taxonomy remains `PENDING_OWNER`. |
-| P2-6 | `TODO` | P1 migration machinery, clinical rubric; IMPLEMENT/clinical owner | Approved completeness, additive version migration/rollback and state tests; rubric `PENDING_OWNER`. |
-| P2-7 | `TODO` | Existing manual UI; IMPLEMENT/REVIEW | Outage/fallback/domain notice in primary view and details; no false normal. |
+| **P2-1** | Intake & context | Truthful source provenance; patient/eye/visit evidence; save/reopen compatibility | Real hospital inference/export authorization remains later approval |
+| **P2-2** | Efficient DR grade review | Named five-grade UI, separate Ungradable and Needs Second Review, automatic audit, disagreement-safe persistence | Treated/stable PDR edge rule may route to second review |
+| **P2-3** | Processing-stage ownership | Versioned Original→Masked Analysis→provider transform contract; measured double-mask comparison | Do not change provider model behavior merely to finish Phase 2 |
+| **P2-4** | Mask / Overlay / Explainability / mapping | Four review modes, case-level Processing details, coordinate round-trip tests, safe unavailable states | Phase 3 may later add richer provider explanation evidence |
+| **P2-5** | Core + optional Advanced annotations | Core accept/correct/reject/add; Advanced separate; provenance preserved | Unresolved Advanced classes may remain disabled/deferred |
+| **P2-6** | Completeness & persistence | Explicit group review states, reviewer/time/taxonomy version, restart/isolation | Phase 4 decides negative/export eligibility |
+| **P2-7** | Manual/failure/domain path | Manual workflow survives Model API/mask failure; CFP-on-UWF warning visible when applicable | Model readiness itself belongs to Phase 3 |
 
-**Change log:** 2026-09-28 r1 expands Master Phase 2 thirteen requirements, adds explicit multi-stage mask ownership, failure semantics and mapping gate; no behavior was changed. **r2 (2026-09-28):** clarified Phase 2 migration and active-case details ownership, reviewed coordinate oracle, warning copy and per-item ledger. **r2.1:** B01 adds current admission origin gap and P2-1 permission/lineage gate; no hospital runtime was exercised. **r2.2:** records owner-confirmed M1 Labeling System scope, makes the Masked Analysis image and Explainability Panel first-class review surfaces, and freezes shared representation ownership so grading/lesion adapters cannot silently double-mask; no model or clinical claim was added. **Next handoff:** give [Phase 3](M1_PHASE3_MODELS_MODEL_API.md) approved representation/transform version and measured adapter compatibility; give [Phase 4](M1_PHASE4_DATASET_REVIEW_EXPORT.md) approved completeness semantics and persisted provenance; give [Phase 5](M1_PHASE5_E2E_VALIDATION.md) fixture and visual receipts. Later-stage details remain provisional until upstream gates and owner decisions.
+---
+
+## 12. Two implementation chunks
+
+### Chunk A — Core UWF Review Foundation
+
+Includes:
+
+- P2-1 Intake & context
+- P2-2 DR grade review
+- P2-3 processing representation
+- P2-4 Original / Masked Analysis / AI Overlay / Explainability / mapping
+- P2-7 manual/failure/domain states
+
+Expected handoff:
+
+- physician can open fixture UWF;
+- context is truthful;
+- grade workflow is low-burden and persistent;
+- Masked Analysis / overlay state is inspectable;
+- manual mode works with AI off;
+- no false model/domain claim;
+- original image unchanged;
+- relevant focused/backend/frontend tests pass.
+
+Then obtain **one independent Chunk A review**.
+
+### Chunk B — Findings & Completeness
+
+Includes:
+
+- P2-5 Core / Advanced annotation workflow
+- P2-6 completeness and persistence
+- adjudication/disagreement worklist state needed by P2-2, if not already completed in Chunk A
+
+Expected handoff:
+
+- Core findings are efficient;
+- AI vs human lineage is preserved;
+- Advanced remains separate and non-blocking;
+- completeness requires deliberate reviewer action;
+- save/reopen and revision behavior remain correct;
+- unresolved negatives are not exported/treated as gold;
+- relevant tests pass.
+
+Then obtain **one independent Chunk B review**.
+
+After both chunks are integrated, run final main validation and produce the Phase 2 evidence receipt.
+
+---
+
+## 13. Validation strategy
+
+### 13.1 Focused tests during implementation
+
+Extend existing tests where practical:
+
+- `tests/test_admission.py`
+- `tests/test_resolver.py`
+- `tests/test_derivatives.py`
+- `tests/test_workflow.py`
+- `tests/test_uwf_intake.py`
+- PostgreSQL persistence/revision/isolation tests affected by additive payload work
+- frontend review/geometry/workflow tests
+- `tests/overlay.test.cjs` where still authoritative
+
+Add focused coverage for:
+
+- five-grade named UI and final persistence;
+- Ungradable vs Needs Second Review;
+- reopen after restart;
+- two-reviewer disagreement preservation and no silent overwrite;
+- source provenance round trip;
+- double-mask candidate comparison;
+- coordinate round-trip;
+- Model API unavailable;
+- mask failure;
+- Explainability unavailable;
+- Core finding accept/correct/reject/add;
+- completeness transitions;
+- no gold-label promotion from untouched AI evidence.
+
+### 13.2 Full validation
+
+Run the applicable repository-required suite before final Phase 2 integration closeout:
+
+```text
+python -m pytest -q
+python -m ruff check dr_support tests
+frontend: npm test
+frontend: npm run typecheck
+frontend: npm run build
+root smoke / applicable browser or API smoke
+git diff --check
+```
+
+Use the repository's actual supported environment/commands at execution time. Report skipped checks honestly.
+
+Do not repeatedly rerun the entire full suite after every minor fix; use focused tests during iteration, then rerun affected tests and final full validation at the integration gate.
+
+### 13.3 Visual/manual receipt
+
+Use public/synthetic/deidentified authorized fixtures only.
+
+Capture a concise reviewer receipt that confirms:
+
+- Original visible;
+- Masked Analysis visible when available;
+- overlay alignment;
+- Explainability semantics/unavailable state;
+- descriptive grade labels;
+- Ungradable / Needs Second Review behavior;
+- Core finding action flow;
+- manual operation with AI off;
+- save/reopen behavior;
+- no PHI/secrets in the receipt.
+
+No synthetic fixture result is a clinical-validity claim.
+
+---
+
+## 14. Acceptance criteria
+
+Phase 2 is `READY_FOR_REVIEW` when the integrated candidate demonstrates the following for the implemented scope:
+
+### Core physician workflow
+
+- [ ] UWF fixture opens in the correct workspace.
+- [ ] Patient/eye/visit evidence is reviewable and not fabricated.
+- [ ] Original source remains immutable.
+- [ ] Five clinical DR labels are understandable without relying on numeric codes.
+- [ ] Normal grade confirmation is a short action path.
+- [ ] Ungradable is separate from DR severity.
+- [ ] Needs Second Review is separate from a final DR grade.
+- [ ] Save/reopen restores prior physician decision/history.
+- [ ] Multiple independent reviews cannot silently overwrite one another.
+- [ ] Unresolved disagreement is excluded from training-ready grade status.
+
+### Representation / AI evidence
+
+- [ ] Masked Analysis is inspectable when used.
+- [ ] Processing-stage provenance is versioned.
+- [ ] Original-coordinate round trip is tested.
+- [ ] AI Overlay does not alter human labels.
+- [ ] Explainability is clearly separated from Processing details.
+- [ ] Attention is not represented as lesion localization.
+- [ ] AI unavailable/error/mask failure preserves manual workflow.
+- [ ] CFP-on-UWF fallback state is truthful when such evidence is displayed.
+
+### Findings
+
+- [ ] Core accept/correct/reject/add works.
+- [ ] Raw AI lineage is preserved after human action.
+- [ ] Physician-added/corrected findings do not inherit fabricated model confidence.
+- [ ] Advanced is separate and optional.
+- [ ] Unsupported/unresolved Advanced semantics are not invented.
+
+### Completeness / persistence
+
+- [ ] Group completeness requires deliberate review action.
+- [ ] Empty AI output or empty annotation list is not automatically negative.
+- [ ] Completeness/reviewer/time/taxonomy version survives restart.
+- [ ] Phase 1 workspace isolation/revision protections remain intact.
+
+### Integration
+
+- [ ] Required focused tests pass.
+- [ ] Applicable full backend/frontend validation passes or limitations are explicitly recorded.
+- [ ] Chunk reviews have no unresolved BLOCKER/REQUIRED FIX.
+- [ ] Final `main` is clean and synchronized with `origin/main`.
+- [ ] Phase evidence is recorded in the Phase 2 document and Master tracker.
+- [ ] No real-hospital-data or production authorization is implied.
+
+`DONE` is an owner closeout decision after the final evidence receipt. Optional/deferred Advanced/model capabilities must be reported honestly and must not be disguised as complete.
+
+---
+
+## 15. Failure behavior
+
+| Failure | Required behavior |
+|---|---|
+| PostgreSQL conflict / stale revision | Preserve existing committed revision, expose conflict/reload path, no silent overwrite |
+| PostgreSQL unavailable | Fail clearly; no silent SQLite authority |
+| Mask extraction fails | Original/manual workflow remains usable; processing failure visible |
+| `UNMASKED_FALLBACK` | Explicit state; no claim of gradability |
+| Model API unavailable/error | Manual workflow continues; no fake grade/findings |
+| Explainability unavailable | Show unavailable; no fabricated heatmap/evidence |
+| Transform/hash mismatch | Do not display spatial AI overlay for that result |
+| Independent grade disagreement | Preserve both reviews; unresolved/adjudication state; not training-ready |
+| Unknown patient/eye/visit evidence | Keep unknown/unresolved; do not invent |
+| Unsupported Advanced definition | Disable/defer that class; continue Core workflow |
+| Clinical/export-negative rule unresolved | Store review state but defer negative training/export semantics to Phase 4 |
+
+---
+
+## 16. Dependencies and decisions intentionally deferred
+
+These are **not blockers for ordinary Phase 2 fixture implementation**:
+
+1. real hospital source/permission contract for inference/export;
+2. production deployment;
+3. NB01/USPEC checkpoint/runtime/rights/clinical qualification;
+4. PRISM clinical UWF validity;
+5. Phase 3 model-contract changes;
+6. final referral/DME policy;
+7. treated/stable PDR edge-case rule beyond safe second-review handling;
+8. full Advanced taxonomy/geometry for classes that cannot be represented safely yet;
+9. Phase 4 negative/export eligibility policy;
+10. learned longitudinal model or progression logic.
+
+If one of these becomes necessary to complete a specific bounded capability, report that capability as `DEFERRED`/`BLOCKED` while continuing unaffected work.
+
+---
+
+## 17. Repository and Git lifecycle
+
+Follow root `AGENTS.md`.
+
+Before implementation writes, record:
+
+```text
+repository root
+worktree path
+current branch
+current HEAD
+git status --short --branch
+```
+
+Implementation work must use bounded branch/worktree(s), not direct writes to authoritative `main`, except owner-authorized documentation/integration-only work.
+
+For each implementation chunk:
+
+```text
+clean synchronized main
+→ bounded branch/worktree
+→ implementation
+→ focused tests
+→ required chunk validation
+→ scoped add
+→ commit
+→ push branch
+→ independent review
+→ bounded fixes if required
+→ merge/integrate
+→ validate authoritative main as applicable
+→ push main
+→ verify remote
+→ cleanup completed branch/worktree
+```
+
+Do not use destructive reset/clean/restore to erase unexpected work.
+
+Do not force-push or delete an unrelated branch/worktree.
+
+---
+
+## 18. Execution ledger
+
+| Work item | State at document adoption | Evidence needed to close |
+|---|---|---|
+| P2-1 Intake/context | `TODO` | truthful origin/context fixture + save/reopen |
+| P2-2 Grade review | `TODO` | named-grade workflow, Ungradable/second-review, persistence/disagreement tests |
+| P2-3 Representation | `TODO` | versioned stage contract + measured comparison |
+| P2-4 Viewer/Explainability/mapping | `TODO` | four-mode/unavailable behavior + coordinate evidence |
+| P2-5 Findings | `TODO` | Core actions/provenance + Advanced boundary |
+| P2-6 Completeness | `TODO` | deliberate state transitions + persistence/versioning |
+| P2-7 Manual/failure | `TODO` | AI/mask unavailable receipts + domain honesty |
+| Chunk A REVIEW | `TODO` | independent O1/O2 exact-candidate review |
+| Chunk B REVIEW | `TODO` | independent O1/O2 exact-candidate review |
+| Final integration validation | `TODO` | synchronized main + required test/smoke receipt |
+| Owner Phase 2 closeout | `TODO` | owner reviews final evidence and decides `DONE` |
+
+Allowed execution states:
+
+```text
+TODO
+IN_PROGRESS
+BLOCKED
+DEFERRED
+READY_FOR_REVIEW
+DONE
+```
+
+Do not convert an optional/deferred capability into a phase-wide blocker unless it is explicitly required by the Master acceptance criteria and cannot be safely represented as unavailable/deferred.
+
+---
+
+## 19. Evidence receipt template
+
+MAIN must maintain a concise receipt rather than repeatedly rewriting planning prose.
+
+### Repository
+
+```text
+Phase 2 start baseline:
+Chunk A integrated commit:
+Chunk B integrated commit:
+Final main commit:
+origin/main synchronized:
+worktree/branch cleanup:
+```
+
+### P2-2 grade workflow
+
+```text
+Five descriptive labels:
+Ungradable state:
+Needs Second Review:
+single-review path:
+multi-review disagreement:
+restart/reopen:
+training-ready exclusion for unresolved:
+```
+
+### Representation / geometry
+
+```text
+shared analysis representation version:
+source hash preservation:
+mask/transform identity:
+double-mask comparison:
+coordinate oracle:
+overlay round-trip:
+```
+
+### Findings / completeness
+
+```text
+Core taxonomy/version:
+Core action tests:
+Advanced enabled/deferred classes:
+group completeness version:
+reviewed-negative export authorization: NOT AUTHORIZED BY PHASE 2 unless separately approved
+```
+
+### Failure/manual path
+
+```text
+Model API down:
+mask failure:
+Explainability unavailable:
+CFP/UWF warning:
+manual save:
+```
+
+### Validation
+
+```text
+focused backend:
+full backend:
+Ruff:
+frontend test:
+typecheck:
+build:
+root/browser/API smoke:
+skips/warnings:
+independent Chunk A review:
+independent Chunk B review:
+final integration review:
+```
+
+---
+
+## 20. Handoff to later phases
+
+### To Phase 3
+
+Provide:
+
+- selected shared analysis representation version;
+- transform/coordinate contract;
+- measured double-mask comparison;
+- model-domain warning requirements;
+- Explainability display contract;
+- manual/unavailable state behavior.
+
+Phase 3 owns:
+
+- bundle hash/load/runtime/security qualification;
+- native UWF / CFP fallback capability negotiation;
+- provider-specific preprocessing/output qualification;
+- production model readiness claims.
+
+### To Phase 4
+
+Provide:
+
+- final physician grade semantics;
+- unresolved/adjudication states;
+- Core/Advanced taxonomy version(s);
+- annotation lineage;
+- completeness states;
+- persisted processing/explanation provenance.
+
+Phase 4 owns:
+
+- workspace-level query/detail/export;
+- training readiness;
+- reviewed-negative eligibility;
+- contamination prevention;
+- reproducible dataset snapshots.
+
+### To Phase 5
+
+Provide:
+
+- integrated Phase 2 commit;
+- workflow/visual receipts;
+- source-integrity evidence;
+- coordinate round-trip evidence;
+- manual/failure evidence;
+- accepted limitations/deferred capabilities.
+
+---
+
+## 21. Phase 2 document-adoption actions
+
+Before implementation starts, MAIN should perform a documentation-only adoption pass:
+
+1. verify actual clean synchronized `main` and current HEAD;
+2. place this file at `docs/milestone/m1/M1_PHASE2_UWF_LABELING.md`;
+3. reconcile only affected Master Plan sections so they agree with this owner-directed Phase 2 specification;
+4. keep Phase 2 implementation status `NOT_STARTED` until code implementation actually begins;
+5. record in the Master decision log:
+   - low-burden descriptive five-grade workflow;
+   - `Ungradable` separate from grade;
+   - `Needs Second Review` replacing ambiguous active-UI `Unknown` semantics while preserving backward compatibility;
+   - disagreement/adjudication preservation without mandatory double review;
+   - two substantive chunk reviews plus final integration validation;
+   - O1/O2 flexible independent review;
+   - unresolved optional clinical/model items should be deferred locally rather than block unrelated Phase 2 work;
+6. update Project Brain with the adopted Phase 2 scope, baseline, review policy and deferred boundaries;
+7. run documentation consistency/diff checks;
+8. commit and push the documentation/Brain preparation as permitted by the repository/Brain workflow;
+9. verify `main == origin/main` and clean state;
+10. **stop and report to the owner before implementation writes.**
+
+This adoption pass is preparation only. It must not silently start P2-1 through P2-7.
+
+---
+
+## 22. Change log
+
+**2026-09-28 r1–r2.2:** prior candidate expanded the Master Phase 2 requirements, source-origin gap, shared masked-analysis representation, Explainability surface, mapping QA, failure behavior and execution ledger.
+
+**2026-09-29 Execution r3.0:** owner-directed execution rewrite after Phase 1 closeout. Rebased Phase 2 on completed PostgreSQL foundation; reduced review-loop intensity; made MAIN/IMPLEMENT autonomous for ordinary implementation details; introduced a low-burden physician grading contract with descriptive five-class labels, separate `Ungradable`, explicit `Needs Second Review`, disagreement/adjudication preservation, and optional calibration; kept Advanced/completeness/model/hospital-data uncertainties from blocking unrelated Core work; moved negative-export authority to Phase 4; replaced pre-test coordinate approval ceremony with implementation-plus-review evidence; retained Master safety, provenance, coordinate, UWF/CFP-domain, manual-fallback and human-authority boundaries.
+
+# End of M1 Phase 2 Execution Specification

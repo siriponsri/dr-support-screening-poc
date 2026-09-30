@@ -1,16 +1,16 @@
 # DR Screening — Milestone 1 Master Plan
 
 **Document path in repository:** `docs/milestone/m1/M1_MASTER_PLAN.md`  
-**Document revision:** Closeout r2.4 (owner-approved Phase 1 closeout; preserves the 2026-09-25 working master)
+**Document revision:** Closeout r2.5 (owner-approved Phase 1 closeout with adopted Phase 2 Execution r3.0)
 **Prepared:** 2026-09-29
 **Document status:** `OWNER_APPROVED_CLOSEOUT`
 **Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted; final validation and limitations are recorded in the Phase 1 evidence); see the phase tracker, which is independent of later-phase authorization.
-**Source baseline commit:** `0ac3f6699aa8c11b6271cd342eff3a9c583b9df2`
+**Source baseline commit:** `20726efcb8aa6ce857eb9b8537810fea5175b42e`
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.  
-**Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; see §24.  
+**Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; unresolved optional items follow the Phase 2 safe-defer boundary in §24.
 **Primary repository:** `siriponsri/dr-support-screening-poc`  
 
-**Current reading guide (closeout r2.4):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29 based on the recorded implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c` and independent O1 review. This document does not authorize Phase 2, production, hospital-data use, or clinical/model semantic changes.
+**Current reading guide (closeout r2.5):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29 based on the recorded implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c` and independent O1 review. The owner-directed Phase 2 Execution r3.0 specification is adopted, but Phase 2 remains `NOT_STARTED` and this document does not authorize production, hospital-data use, or clinical/model semantic changes.
 
 ---
 
@@ -87,9 +87,11 @@ M1 should collect the full physician-confirmed five-level DR grade whenever the 
 | `3` | Severe NPDR |
 | `4` | Proliferative DR |
 | separate state | Ungradable |
-| separate state | Unknown / not yet determined |
+| separate state | Needs Second Review (active unresolved review state) |
 
 The system may later derive coarser labels, such as `DR` versus `NO_DR`, from a physician-confirmed grade. The derived label must not replace or destroy the original grade.
+
+`Ungradable` is used when the image does not support a reliable severity assignment. `Needs Second Review` is used when the image is reviewable but the physician does not finalize one of the five grades. Historical `Unknown / not yet determined` records remain readable for backward compatibility, but the active clinician UI must distinguish untouched/not-yet-reviewed cases from deliberate second-review escalation.
 
 Referral status, DME status, and DR grade are separate concepts. Do not infer DME from hard exudates alone. Do not create a referral rule without an explicitly approved clinical definition.
 
@@ -141,6 +143,8 @@ This distinction is essential for future training. For example:
 - the physician never opened Advanced findings → this is **not** a negative label;
 - the physician reviewed Advanced findings and explicitly confirmed none were present → this may become a valid negative label under the approved export policy;
 - the physician reviewed only selected classes → only those reviewed classes should be treated as resolved.
+
+Phase 2 may persist these states as deliberate review evidence without freezing the full training-negative policy. Phase 4 owns export eligibility; an empty group or `REVIEWED_NONE_FOUND` state must not be promoted to a training negative by Phase 2 alone.
 
 ### 3.6 Longitudinal data in M1
 
@@ -643,13 +647,15 @@ Create the durable data foundation for physician review, model evidence, workspa
 
 Make the clinician workflow efficient for repeated UWF labeling while maximizing the amount and quality of physician-confirmed information captured per review session.
 
+**Entry and dependency (2026-09-29):** Phase 1 is `DONE` under the owner-approved public/synthetic evidence boundary. Phase 2 is eligible for bounded implementation, but its status remains `NOT_STARTED` until implementation actually begins after an explicit owner start instruction. Native UWF model readiness, hospital inference/export authorization, production deployment, retraining, referral/DME logic, and autonomous clinical claims are not Phase 2 entry dependencies or permissions.
+
 ## Required work
 
 1. Preserve the established viewer and general visual direction.
 2. Improve UWF intake/review behavior without treating UWF as CFP.
 3. Implement or harden the shared valid-retina/masked-analysis representation, safe failure states, and clinician inspection of the masked image used for AI.
 4. Improve patient/eye/visit evidence extraction and confirmation.
-5. Provide efficient DR grade confirmation/editing.
+5. Provide efficient DR grade confirmation/editing using descriptive five-grade labels, separate `Ungradable` and `Needs Second Review` states, and disagreement-safe persistence.
 6. Provide **Core findings** annotation workflow.
 7. Provide **Advanced findings** as a separate optional section/tab/surface.
 8. Record annotation-group completeness.
@@ -669,6 +675,9 @@ A physician can:
 - inspect the selected masked/analysis representation when AI processing is used;
 - see available AI evidence and Explainability Panel with correct model-domain warning;
 - set or correct DR grade;
+- use descriptive five-grade labels without relying on numeric codes;
+- route reviewable unresolved cases to `Needs Second Review` rather than an ambiguous active-UI `Unknown` state;
+- preserve independent reviewer decisions and adjudication state when final grades disagree;
 - accept/correct/reject suggested core findings;
 - add new core findings;
 - optionally review/add Advanced findings;
@@ -676,9 +685,19 @@ A physician can:
 - save and reopen the case;
 - continue labeling even if the Model API is unavailable.
 
+## Phase 2 execution and review policy
+
+Implementation is organized into two substantive review gates:
+
+- **Chunk A — Core UWF Review Foundation:** P2-1 through P2-4 and P2-7, including intake/context, low-burden grade review, shared processing representation, viewer/evidence states, and manual/failure behavior.
+- **Chunk B — Findings & Completeness:** P2-5 and P2-6, including Core/Advanced findings, provenance, completeness, persistence, and any required disagreement/adjudication worklist state.
+
+Each chunk receives one independent substantive review of the exact candidate. O1 or O2 may review when read-only and independent from MAIN/IMPLEMENT. Final integration/main validation follows both chunk reviews. Findings are classified as `BLOCKER`, `REQUIRED FIX`, or `NON-BLOCKING / DEFER`; closed findings are not reopened without regression evidence. Routine implementation choices remain with MAIN/IMPLEMENT. Optional clinical/model capabilities use explicit unavailable/deferred/manual-only states rather than blocking unrelated Core work.
+
 ## Phase 2 status tracker
 
 **Status:** `NOT_STARTED`  
+**Specification:** Execution r3.0 adopted 2026-09-29; implementation not started
 **Start date:**  
 **Completion date:**  
 **Reviewed by:**  
@@ -1035,7 +1054,7 @@ Update this table after each phase review.
 |---|---|---|---|---|
 | 0 | Baseline & Scope Freeze | `NOT_STARTED` |  |  |
 | 1 | Data Foundation & PostgreSQL | `DONE` | Owner-approved implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c`; detailed receipt in `docs/milestone/m1/M1_PHASE1_POSTGRES.md` | Public/synthetic-only scope; accepted UI/documentation validation limitations remain; Phase 2 not started |
-| 2 | UWF Labeling Workflow | `NOT_STARTED` |  |  |
+| 2 | UWF Labeling Workflow | `NOT_STARTED` | Execution r3.0 adopted 2026-09-29; implementation not started | Phase 1 dependency satisfied; optional model/clinical capabilities remain safely deferred where unresolved |
 | 3 | AI Models & Model API Integration | `NOT_STARTED` |  | Native UWF work may use explicit CFP fallback temporarily |
 | 4 | Dataset & Review Tools | `NOT_STARTED` |  |  |
 | 5 | End-to-End Validation & M1 Review | `NOT_STARTED` |  |  |
@@ -1080,6 +1099,10 @@ Do not edit past decisions silently. Add new rows when the owner changes scope.
 | 2026-09-28 | NB01/USPEC is the preferred M1 UWF grading direction; RETFound remains comparator/temporary fallback only until NB01 passes its gates. | Align grading with the UWF research path and allow future hospital-domain fine-tuning without discarding the M1 workstation. | Owner-confirmed |
 | 2026-09-28 | Masked analysis image and Explainability Panel are first-class review surfaces, separate from Processing details. | Let physicians inspect what image the model saw and what evidence it used while preserving the distinction between attention, lesion localization and provenance. | Owner-confirmed |
 | 2026-09-28 | Physician-confirmed M1 snapshots may seed later NB01 fine-tuning only through separately authorized, versioned training runs. | Prevent online/self-training contamination and in-place model mutation; preserve parent checkpoint, dataset/split, metrics and artifact identity for M2. | Owner-confirmed |
+| 2026-09-29 | Phase 1 is `DONE`; Phase 2 enters from the completed persistence foundation but remains `NOT_STARTED` until implementation is explicitly started. | Establish the Phase 2 dependency and prevent document adoption from being mistaken for implementation authorization. | Owner-directed |
+| 2026-09-29 | Phase 2 uses a low-burden descriptive five-grade workflow; `Ungradable` is separate, and active unresolved review uses `Needs Second Review` while historical `Unknown` remains backward-compatible. | Improve physician speed and label consistency without treating non-grade states as grades or silently changing historical records. | Owner-directed |
+| 2026-09-29 | Independent reviewer disagreement preserves both decisions, marks an adjudication/second-review state, and excludes the unresolved grade from training-ready status; two reviews are not required for every image. | Protect review provenance while keeping ordinary labeling low burden. | Owner-directed |
+| 2026-09-29 | Phase 2 uses Chunk A and Chunk B substantive review gates followed by final integration validation; O1 or O2 may provide independent read-only review, and optional unresolved clinical/model capabilities are safely deferred. | Reduce review burden, preserve independence, and keep unrelated Core workflow moving without weakening safety contracts. | Owner-directed |
 
 ---
 
@@ -1091,7 +1114,7 @@ These items should be asked when they become necessary for a phase. Do not block
 
 - Confirm the grading rubric used by the participating ophthalmologists.
 - Confirm handling of treated/stable PDR images.
-- Confirm when an image is Ungradable versus Unknown.
+- Confirm edge-case handling around `Ungradable` and `Needs Second Review`; retain historical `Unknown` only for backward-compatible records, not as the active unresolved UI choice.
 - Confirm whether referral status should be collected during M1 and under which approved rule.
 
 ### Core findings
@@ -1222,7 +1245,7 @@ This section is the cross-phase reference for [Phase 1](M1_PHASE1_POSTGRES.md), 
 1. **Identity and source:** human-selected approved top-level workspace input, immutable original bytes and SHA-256, confirmed pseudonymous patient/eye/visit evidence, acquisition date distinct from visit ordinal; do not infer source authority from orphaned SQLite or hospital folder names. Source origin, permission/authorization and retinal modality are separate dimensions. Current Bridge v1 represents `source_type` only as `PUBLIC`/`SYNTHETIC`; deidentification or pseudonymization does not make hospital data public. The hospital contract and allowed path are `PENDING_OWNER`/data-steward review before hospital inference or export; synthetic/public engineering can proceed. Provenance must remain truthful across admission, remote request/result, persistence and export. `docs/adr/0003-immutable-source-and-separate-analysis-derivative.md`, `docs/adr/0006-human-selected-image-intake-boundary.md`; P1-A/P1-B, P2-1/P2-2, P3-4, P4-1/P4-3, P5-1/P5-3.
 2. **Coordinates and representations:** original-image pixels are authoritative for geometry; display and analysis derivatives carry transform identity, source and derivative hashes, mask/preprocessing version and reversible mapping. Overlay must be checked against original pixels. Phase 2 owns the representation contract; Phase 3 tests adapter compatibility and maps outputs; Phase 5 verifies round trips. Neither mask coverage nor an all-true fallback is clinical gradability. `docs/adr/0003-immutable-source-and-separate-analysis-derivative.md`; P2-3/P2-4, P3-2/P3-4, P5-2.
 3. **Human authority:** distinct Confirm Image, Confirm DR Grade and Confirm Annotation milestones; case-level annotation confirmation and set hash do not individually confirm AI ROIs. An untouched, rejected or unreviewed AI suggestion is never a gold label. The grade and lesion readiness policies are independent; empty confirmed active set is reviewed but not proof of no lesion. Future group/class states `NOT_REVIEWED`, `PARTIALLY_REVIEWED`, `REVIEWED_NONE_FOUND`, `REVIEWED_FINDINGS_RECORDED` require an approved rubric and additive migration; they must not be inferred from box count. `docs/adr/0004-three-human-confirmation-milestones.md`, `docs/adr/0005-task-specific-dataset-readiness.md`, `docs/reference/DATASET_MANIFEST.md`; P1-A, P2-5/P2-6, P4-2/P4-3, P5-3.
-4. **Clinical/model domain:** UWF is the target image domain; grade 0–4 with separate Ungradable/Unknown, DR-vs-NO_DR derivation preserves grade; DME/referral are independent and need clinical approval. Core MA/HE/EX/SE and Advanced candidate taxonomy are §3 scope, not a frozen clinical ontology. NB01/USPEC is the preferred UWF grading candidate but production rights remain `UNVERIFIED`; RETFound is comparator/temporary fallback rather than the preferred UWF path. PRISM remains CFP, `NOT_VALIDATED_FOR_UWF`, and `custom_provisional_v3` is not official PRISM evaluation. MIL attention is explanation evidence, not validated lesion localization. CFP assistive fallback on UWF requires explicit domain notice and review; it is not UWF validation. P2-4/P2-5, P3-1/P3-3/P3-4/P3-5, P5-2/P5-4.
+4. **Clinical/model domain:** UWF is the target image domain; grade 0–4 with separate `Ungradable` and active `Needs Second Review` states, while historical `Unknown` remains backward-compatible; DR-vs-NO_DR derivation preserves grade; DME/referral are independent and need clinical approval. Core MA/HE/EX/SE and Advanced candidate taxonomy are §3 scope, not a frozen clinical ontology. NB01/USPEC is the preferred UWF grading candidate but production rights remain `UNVERIFIED`; RETFound is comparator/temporary fallback rather than the preferred UWF path. PRISM remains CFP, `NOT_VALIDATED_FOR_UWF`, and `custom_provisional_v3` is not official PRISM evaluation. MIL attention is explanation evidence, not validated lesion localization. CFP assistive fallback on UWF requires explicit domain notice and review; it is not UWF validation. P2-4/P2-5, P3-1/P3-3/P3-4/P3-5, P5-2/P5-4.
 5. **Failure and privacy:** model unavailable/error/unsupported is explicit and does not synthesize grade 0 or empty findings. Manual review and audited save continue without inference. Access, least privilege, export minimization, no patient-level package evidence; source files and credentials do not enter repository planning overlay. P1-I, P2-7, P3-4, P4-4, P5-5.
 6. **Provenance and export:** persist model/bundle/checkpoint and processing identities, raw suggestion versus human action, reviewer/time, revision/audit and taxonomy/schema/policy versions. Read-only Workspace data and reproducible exports must agree with PostgreSQL; keep patient grouping key but do not create automatic split. P1-A/P1-I, P2-6, P3-4, P4-1/P4-3, P5-3.
 
@@ -1235,7 +1258,7 @@ This section is the cross-phase reference for [Phase 1](M1_PHASE1_POSTGRES.md), 
 | Decision / evidence | Affected work and blocked claim | Work possible now / closure |
 |---|---|---|
 | Phase 0 tracker `NOT_STARTED`; inventory/package evidence does not freeze scope | Phase 0 closure and new plan approval | Review candidate and record owner scope decision; bounded research/manual design can be evaluated. |
-| Advanced taxonomy, group-level reviewed-negative rubric, visit date provenance, referral/DME definitions (§§3, 17; ADR-0004/0006) | P2-2/P2-5, P4-2, clinical labels/export rule | Preserve existing three milestones and `s8.2-task-specific-v1`; clinician owner approves additive definitions before schema/export change. |
+| Advanced taxonomy, group-level reviewed-negative rubric, visit date provenance, referral/DME definitions (§§3, 17; ADR-0004/0006) | P2-2/P2-5, P4-2, clinical labels/export rule | Preserve existing three milestones and `s8.2-task-specific-v1`; implement only truthful supported semantics, defer unresolved classes/negative-export authority, and continue unrelated Core work. |
 | NB04 `border_component_v1` then adapter v4, untested coordinate/input equivalence (package report) | P2-3/P2-4 and P3-2 acceptance | Compare both paths with consented/synthetic fixtures; owner approves any behavior-changing selection. |
 | NB01 grading checkpoint is external to the delivery package; Drive object located but independent observed hash/load receipt still absent. USPEC rights `UNVERIFIED`; PRISM CFP `NOT_VALIDATED_FOR_UWF` despite 21/21 byte checks | Grading load/promotion and production rights; UWF PRISM clinical claims | Manual labeling and planning proceed. Independently verify/hash/load the selected NB01 bundle, obtain rights proof and separate runtime/clinical evidence. |
 | Version mismatch and no L4/offline receipt; NB03 review-only, NB04 latest executed receipt absent | P3-1/P3-3/P3-5 and deployment decisions | Inventory and test isolated target environments, then decide pins/service topology; no fabricated thresholds. |
@@ -1247,6 +1270,6 @@ The supplied `07-physical-deployment.png` image's **whole-diagram approval statu
 
 ## 25. Candidate change log and next handoff
 
-2026-09-28 r1: preserved the baseline sections, work-item history and status tracker; corrected document path and added candidate status, pinned provenance, current/target matrix, shared contracts, dependencies, owner decisions and links to the detailed Phase 2–5 candidates. See the corresponding candidate report in the working package (`candidate-r2.1/M1_PLAN_RECONCILIATION_REPORT.md`) for r2.1 changes/hashes; r1 and r2 remain untouched. 2026-09-28 r2: resolved static reviewer comments in §§3.6, 5, 6.1, 6.3, 15 and deployment authority in §24; clinical/deployment decisions remain pending. The attached ChatGPT static document review is separate from an O2/runtime review and owner approval. Candidate r2.1 (2026-09-28) adds B01 source-origin and B02 loader-security gates to §§22–24 without changing prior research/clinical statuses. Candidate r2.2 records the owner's clarified product direction: M1 is the Labeling System that is extended in M2 into a Clinical Screening System; NB01/USPEC is the preferred UWF grading candidate, RETFound becomes comparator/temporary fallback, the masked analysis image and a distinct Explainability Panel are first-class review surfaces, and later hospital-domain fine-tuning must use versioned physician-confirmed snapshots in separately authorized runs rather than online/in-place learning. No model runtime, clinical validation or hospital-data training was performed to make this documentation change. On review, reconcile Phase 0 and Phase 1 ledger against a fresh implementation baseline before authorizing bounded work; do not treat this candidate as automatic execution approval. 2026-09-29 closeout r2.4: owner approved Phase 1 `DONE` on the public/synthetic evidence boundary after accepting the recorded P1-A/P1-B/P1-I, validation, and limitation receipts; independent O1 review remains the technical review record. Phase 2 is not started and requires a new owner instruction.
+2026-09-28 r1: preserved the baseline sections, work-item history and status tracker; corrected document path and added candidate status, pinned provenance, current/target matrix, shared contracts, dependencies, owner decisions and links to the detailed Phase 2–5 candidates. See the corresponding candidate report in the working package (`candidate-r2.1/M1_PLAN_RECONCILIATION_REPORT.md`) for r2.1 changes/hashes; r1 and r2 remain untouched. 2026-09-28 r2: resolved static reviewer comments in §§3.6, 5, 6.1, 6.3, 15 and deployment authority in §24; clinical/deployment decisions remain pending. The attached ChatGPT static document review is separate from an O2/runtime review and owner approval. Candidate r2.1 (2026-09-28) adds B01 source-origin and B02 loader-security gates to §§22–24 without changing prior research/clinical statuses. Candidate r2.2 records the owner's clarified product direction: M1 is the Labeling System that is extended in M2 into a Clinical Screening System; NB01/USPEC is the preferred UWF grading candidate, RETFound becomes comparator/temporary fallback, the masked analysis image and a distinct Explainability Panel are first-class review surfaces, and later hospital-domain fine-tuning must use versioned physician-confirmed snapshots in separately authorized runs rather than online/in-place learning. No model runtime, clinical validation or hospital-data training was performed to make this documentation change. On review, reconcile Phase 0 and Phase 1 ledger against a fresh implementation baseline before authorizing bounded work; do not treat this candidate as automatic execution approval. 2026-09-29 closeout r2.4: owner approved Phase 1 `DONE` on the public/synthetic evidence boundary after accepting the recorded P1-A/P1-B/P1-I, validation, and limitation receipts; independent O1 review remains the technical review record. Phase 2 is not started and requires a new owner instruction. 2026-09-29 r2.5: adopted the owner-directed Phase 2 Execution r3.0 specification at the synchronized 20726ef baseline. Phase 2 remains `NOT_STARTED`; implementation uses Chunk A and Chunk B reviews followed by final integration, with low-burden named grading, safe disagreement/adjudication, and explicit safe-defer boundaries.
 
 # End of M1 Master Plan
