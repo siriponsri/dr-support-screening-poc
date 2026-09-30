@@ -561,6 +561,12 @@ def install_workflow(app, store):
                 raise HTTPException(409, 'Case changed; reload before reviewing')
             if not request.reviewer.strip():
                 raise HTTPException(422, 'Reviewer name required')
+            if (request.action == 'ESCALATE'
+                    and case.get('grade_status') == GRADE_STATUS_NEEDS_SECOND_REVIEW):
+                raise HTTPException(
+                    409,
+                    'Resolve the outstanding grade disagreement before escalating the case',
+                )
             grade_action = request.action in {
                 'ACCEPT', 'CORRECT_GRADE', 'MARK_UNGRADABLE',
                 'REQUEST_SECOND_REVIEW', 'ADJUDICATE_GRADE',
