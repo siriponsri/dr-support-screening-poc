@@ -158,7 +158,7 @@ describe('Clinician Review grade decision', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm DR Grade' }));
     expect(backend.log.find((entry) => entry.path.endsWith('/review'))?.body).toMatchObject({ action: 'CORRECT_GRADE', grade: 3 });
     expect((await screen.findAllByRole('heading', { name: 'Annotation Editor' })).length).toBeGreaterThan(0);
-    expect(screen.getByText('DR grade confirmed · Grade 3')).toBeInTheDocument();
+    expect(screen.getAllByText('DR grade confirmed · Severe NPDR').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Grading complete/).length).toBeGreaterThan(0);
   });
 

@@ -84,12 +84,12 @@ describe('UWF intake and clinical review', () => {
       return reply([]);
     });
     renderAppAt('/review/synthetic-uwf');
-    expect(await screen.findByText('Analysis area prepared')).toBeInTheDocument();
+    expect(await screen.findByText('Masked Analysis prepared')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Analyze' })).toBeDisabled();
     expect(screen.getByText('AI evidence unavailable for this image type. Clinical review can continue.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue to clinician review' })).toHaveAttribute('href', '/clinician-review/synthetic-uwf');
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Analysis area' }));
-    expect(screen.getByRole('button', { name: 'Analysis area' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Masked Analysis' }));
+    expect(screen.getByRole('button', { name: 'Masked Analysis' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('img', { name: /retinal/i })).toHaveAttribute('src', '/v1/images/synthetic-uwf/analysis-area');
   });
 });
