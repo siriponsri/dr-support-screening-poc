@@ -9,7 +9,6 @@ export interface GradeGuideEntry {
   summary: string;
   detail?: string;
 }
-
 export const DR_GRADE_GUIDE: GradeGuideEntry[] = [
   {
     grade: 0,
@@ -89,4 +88,3 @@ export function GradeGuide() {
     </Box>
   );
 }
-

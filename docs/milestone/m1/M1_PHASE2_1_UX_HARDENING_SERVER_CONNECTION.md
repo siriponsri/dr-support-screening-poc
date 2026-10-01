@@ -1,14 +1,14 @@
 # DR Screening M1 — Phase 2.1 UX Hardening & Server Connection
 
-**Document revision:** Execution r1.0  
-**Prepared:** 2026-10-01  
-**Document status:** `OWNER_DIRECTED_EXECUTION_SPEC`  
-**Parent milestone:** M1 — Labeling System  
-**Parent phase:** Phase 2 — UWF Labeling Workflow  
-**Current Phase 2 state:** `READY_FOR_REVIEW` — technical implementation/reviews passed; Owner UAT found workflow/UX changes required before `DONE`  
-**Repository baseline for this plan:** `bb380e3f9acd470400e26a5ed96915c2c478801c` (`main` / `origin/main`)  
-**Primary repository:** `siriponsri/dr-support-screening-poc`  
-**Normative parents:** `AGENTS.md`, `DESIGN.md`, `docs/milestone/m1/M1_MASTER_PLAN.md`, `docs/milestone/m1/M1_PHASE2_UWF_LABELING.md`  
+**Document revision:** Execution r1.0<br>
+**Prepared:** 2026-10-01<br>
+**Document status:** `OWNER_DIRECTED_EXECUTION_SPEC`<br>
+**Parent milestone:** M1 — Labeling System<br>
+**Parent phase:** Phase 2 — UWF Labeling Workflow<br>
+**Current Phase 2 state:** `READY_FOR_REVIEW` — technical implementation/reviews passed; Owner UAT found workflow/UX changes required before `DONE`<br>
+**Repository baseline for this plan:** `bb380e3f9acd470400e26a5ed96915c2c478801c` (`main` / `origin/main`)<br>
+**Primary repository:** `siriponsri/dr-support-screening-poc`<br>
+**Normative parents:** `AGENTS.md`, `DESIGN.md`, `docs/milestone/m1/M1_MASTER_PLAN.md`, `docs/milestone/m1/M1_PHASE2_UWF_LABELING.md`<br>
 **Phase 3 status:** `NOT_STARTED`
 
 > Phase 2.1 is a bounded owner-UAT hardening pass. It does not reopen completed Phase 2 engineering work broadly. It improves clinician usability, makes masked-analysis review understandable, reduces unnecessary controls, and proves the workstation can connect safely to the Model API server. Model qualification, production readiness, real-hospital-data authorization, and clinical validity remain outside this phase unless explicitly approved.

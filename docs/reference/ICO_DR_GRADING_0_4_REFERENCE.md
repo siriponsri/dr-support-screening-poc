@@ -54,7 +54,7 @@ Those conditions are workflow/evidence states, not proof of no apparent DR.
 
 ## UI help text
 
-> **0 - No apparent DR**  
+> **0 - No apparent DR**<br>
 > No diabetic-retinopathy abnormality is identified on the reviewable image.
 
 ---
@@ -83,7 +83,7 @@ Do not use Grade 1 when hemorrhages, hard exudates, cotton-wool spots, or other 
 
 ## UI help text
 
-> **1 - Mild NPDR**  
+> **1 - Mild NPDR**<br>
 > Microaneurysms only. Additional DR signs move the case beyond Mild NPDR.
 
 ## ICO visual reference
@@ -124,7 +124,7 @@ Hard exudates may coexist with DME, but **DR severity grade and DME status are s
 
 ## UI help text
 
-> **2 - Moderate NPDR**  
+> **2 - Moderate NPDR**<br>
 > More than microaneurysms alone (for example hemorrhages, hard exudates, or cotton-wool spots), but below Severe NPDR criteria.
 
 ## ICO visual references
@@ -171,7 +171,7 @@ ICO describes IRMA as dilated capillary remnants following extensive capillary-n
 
 ## UI help text
 
-> **3 - Severe NPDR**  
+> **3 - Severe NPDR**<br>
 > No proliferative signs, plus at least one ICO 4-2-1 criterion: >=20 intraretinal hemorrhages in each of 4 quadrants, definite venous beading in 2 quadrants, or IRMA in 1 quadrant.
 
 ## ICO visual references
@@ -214,7 +214,7 @@ The five-level project grade should still remain Grade 4; these features may be 
 
 ## UI help text
 
-> **4 - Proliferative DR (PDR)**  
+> **4 - Proliferative DR (PDR)**<br>
 > Proliferative disease with neovascularization and/or vitreous or preretinal hemorrhage.
 
 ## ICO visual references
