@@ -579,8 +579,14 @@ def install_workflow(app, store):
             raise HTTPException(409, 'No candidate mask is available for inspection.')
         if status == 'READY':
             expected = preparation.get('derivative') or {}
+            try:
+                regenerated = app.state.derivatives.prepare_analysis(image, source_modality='UWF')
+            except (DerivativeError, RetinalFieldNeedsReview):
+                raise HTTPException(409, 'Mask overlay could not be prepared.') from None
+            audit = regenerated.audit_record()
             if (inspection.reason_code is not None
                     or expected.get('source_sha256') != image.sha256
+                    or expected.get('analysis_sha256') != audit['analysis_sha256']
                     or expected.get('valid_retina_mask_sha256') != inspection.mask_sha256
                     or expected.get('transform_id') != ANALYSIS_UWF_MASK_TRANSFORM
                     or expected.get('representation_version') != ANALYSIS_REPRESENTATION_VERSION):

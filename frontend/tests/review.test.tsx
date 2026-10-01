@@ -299,6 +299,30 @@ describe('Review responsibility boundary', () => {
     expect(screen.getByText('No explainability receipt was returned for this case.')).toBeInTheDocument();
   });
 
+  it('keeps stored UWF Workspace evidence visible while disabling new analysis', async () => {
+    const recordedUwfCase: CaseRecord = {
+      ...readyCase,
+      modality: 'UWF',
+      source_origin: 'WORKSPACE',
+      source_type: 'WORKSPACE',
+      source: 'WORKSPACE_INPUT',
+      image_url: '/v1/images/ready/display',
+    };
+    mockReviewApi(undefined, recordedUwfCase, [
+      { model_id: 'retfound-aptos5', task: 'global', status: 'REMOTE_UNREACHABLE' },
+      { model_id: 'prism-dr-5fold', task: 'lesion-roi', status: 'REMOTE_UNREACHABLE' },
+    ]);
+    renderAppAt('/review/ready');
+
+    expect(await screen.findByRole('heading', { name: 'Analysis' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Analyze again' })).toBeDisabled();
+    expect(screen.getByRole('heading', { name: 'DR assessment' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Lesion suggestions' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Moderate NPDR' })).toBeInTheDocument();
+    expect(screen.getByText('AI lesion suggestions')).toBeInTheDocument();
+    expect(screen.getByText(/Recorded model evidence remains visible/i)).toBeInTheDocument();
+  });
+
   it('keeps a legacy escalation record readable without restoring the retired action', async () => {
     const legacy = {
       ...readyCase,

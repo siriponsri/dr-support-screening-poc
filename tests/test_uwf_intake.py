@@ -184,6 +184,21 @@ def test_mask_overlay_fails_closed_when_source_hash_changes(tmp_path, monkeypatc
     assert confirmed["analysis_preparation"]["status"] == "READY"
 
 
+def test_mask_overlay_fails_closed_when_ready_analysis_hash_changes(tmp_path, monkeypatch):
+    client, case, _ = _workspace(tmp_path, monkeypatch, _uwf_bytes())
+    confirmed = _confirm(client, case, "UWF").json()
+    image_id = case["image_id"]
+    stored = client.app.state.store.get(image_id)
+    stored["analysis_preparation"]["derivative"]["analysis_sha256"] = "0" * 64
+    client.app.state.store.put(stored)
+
+    response = client.get(f"/v1/images/{image_id}/mask-overlay")
+
+    assert response.status_code == 409
+    assert "recorded preparation" in response.json()["detail"]
+    assert confirmed["analysis_preparation"]["status"] == "READY"
+
+
 def test_explicit_cfp_fixture_keeps_existing_inference_path(tmp_path):
     client = TestClient(create_app(tmp_path / "synthetic.sqlite", include_samples=False))
     case = client.get("/v1/cases/SYNTH_001").json()

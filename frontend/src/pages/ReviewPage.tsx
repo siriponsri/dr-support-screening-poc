@@ -363,10 +363,12 @@ export function ReviewPage() {
   const analysisAreaUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/analysis-area` : '';
   const maskOverlayUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/mask-overlay` : '';
   const hasRecordedEvidence = Boolean(item?.global || item?.lesion);
-  const manualOnly = item?.modality === 'UWF'
-    || item?.source_origin === 'WORKSPACE'
-    || (!hasRecordedEvidence && modelUnavailable)
-    || (models.length === 0 && !hasRecordedEvidence);
+  const manualOnly = !hasRecordedEvidence && (
+    item?.modality === 'UWF'
+      || item?.source_origin === 'WORKSPACE'
+      || modelUnavailable
+      || models.length === 0
+  );
 
   if (!imageId) {
     return (
