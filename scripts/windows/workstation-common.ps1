@@ -146,10 +146,21 @@ function Get-FrontendFiles {
     return $files
 }
 
+function Get-Sha256Hex([string] $Path) {
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        return ([System.BitConverter]::ToString($sha256.ComputeHash($stream)) -replace '-', '').ToLowerInvariant()
+    } finally {
+        $stream.Dispose()
+        $sha256.Dispose()
+    }
+}
+
 function Get-FileSignature([System.IO.FileInfo[]] $files) {
     $lines = foreach ($file in $files) {
         $relative = $file.FullName.Substring($script:RepoRoot.Length + 1).Replace('\', '/')
-        $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+        $hash = Get-Sha256Hex $file.FullName
         "$relative|$hash"
     }
     $bytes = [System.Text.Encoding]::UTF8.GetBytes(($lines -join "`n"))
@@ -164,7 +175,7 @@ function Get-FrontendSourceSignature {
 function Get-FrontendDependencySignature {
     $lock = Join-Path $script:RepoRoot "frontend\package-lock.json"
     if (-not (Test-Path -LiteralPath $lock -PathType Leaf)) { return "missing" }
-    return (Get-FileHash -LiteralPath $lock -Algorithm SHA256).Hash.ToLowerInvariant()
+    return Get-Sha256Hex $lock
 }
 
 function Invoke-Npm([object[]] $Arguments, [string] $WorkingDirectory) {
