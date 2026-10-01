@@ -148,12 +148,13 @@ function Get-FrontendFiles {
 
 function Get-Sha256Hex([string] $Path) {
     $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    $stream = [System.IO.File]::OpenRead($Path)
+    $stream = $null
     try {
+        $stream = [System.IO.File]::OpenRead($Path)
         return ([System.BitConverter]::ToString($sha256.ComputeHash($stream)) -replace '-', '').ToLowerInvariant()
     } finally {
-        $stream.Dispose()
-        $sha256.Dispose()
+        if ($null -ne $stream) { $stream.Dispose() }
+        if ($null -ne $sha256) { $sha256.Dispose() }
     }
 }
 

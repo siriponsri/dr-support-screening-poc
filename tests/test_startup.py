@@ -1,3 +1,4 @@
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -54,5 +55,7 @@ def test_windows_powershell_can_compute_frontend_signature_without_get_file_hash
     )
 
     assert result.returncode == 0, result.stderr
-    assert all(re.fullmatch(r'[0-9a-f]{64}', line) for line in result.stdout.splitlines())
-    assert len(result.stdout.splitlines()) == 2
+    signatures = result.stdout.splitlines()
+    assert all(re.fullmatch(r'[0-9a-f]{64}', line) for line in signatures)
+    assert len(signatures) == 2
+    assert signatures[1] == hashlib.sha256((ROOT / 'frontend' / 'package-lock.json').read_bytes()).hexdigest()
