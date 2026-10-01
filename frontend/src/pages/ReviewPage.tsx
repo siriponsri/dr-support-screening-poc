@@ -8,8 +8,7 @@ import {
   Button,
   Code,
   Center,
-  FormControl,
-  FormLabel,
+  Collapse,
   Grid,
   Heading,
   HStack,
@@ -17,7 +16,6 @@ import {
   Select,
   Spinner,
   Stack,
-  Switch,
   Text,
 } from '@chakra-ui/react';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -34,7 +32,7 @@ import {
   type LesionLabel,
   type ModelDescriptor,
 } from '@/lib/api';
-import { ArrowLeft, Play, UserRound } from '@/lib/icons';
+import { ArrowLeft, ChevronDown, ChevronUp, Play, UserRound } from '@/lib/icons';
 import { LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
 import { caseComplete } from '@/lib/caseProgress';
 
@@ -156,6 +154,15 @@ const LESION_DISPLAY_LABELS: Record<string, string> = {
   SOFT_EXUDATE: 'Soft exudate',
 };
 
+const MODEL_IDS = ['retfound-aptos5', 'prism-dr-5fold'];
+
+function modelCapabilityUnavailable(models: ModelDescriptor[]): boolean {
+  return models.some((model) => (
+    MODEL_IDS.includes(model.model_id)
+      && !['LOADED', 'SYNTHETIC_FIXTURE'].includes(model.status ?? '')
+  ));
+}
+
 function LesionLegend() {
   return (
     <HStack spacing={3} flexWrap="wrap" fontSize="xs" color="text.secondary">
@@ -198,7 +205,9 @@ function selectedMaskLabel(item: CaseRecord): string {
   const preparation = item.analysis_preparation;
   const audit = processingAudit(item);
   if (preparation?.status === 'NEEDS_REVIEW') {
-    return 'Unavailable - mask needs review; Original/manual review only';
+    return preparation.candidate_mask_sha256
+      ? 'Candidate mask recorded for inspection only; analysis not approved'
+      : 'Unavailable - mask needs review; Original/manual review only';
   }
   if (preparation?.status === 'FAILED') {
     return 'Unavailable - mask preparation failed; Original/manual review only';
@@ -242,8 +251,7 @@ export function ReviewPage() {
   const { imageId } = useParams<{ imageId: string }>();
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
-  const [showAi, setShowAi] = useState(true);
-  const [imageView, setImageView] = useState<'original' | 'masked-analysis' | 'overlay' | 'explainability'>('original');
+  const [imageView, setImageView] = useState<'original' | 'analysis-area' | 'mask-overlay' | 'ai-evidence' | 'explainability'>('original');
   const [lesionFilter, setLesionFilter] = useState<LesionLabel | 'ALL'>('ALL');
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -251,6 +259,7 @@ export function ReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [processingOpen, setProcessingOpen] = useState(false);
   const [confirmDialog, confirm] = useConfirmDialog();
 
   const loadCase = useCallback(async () => {
@@ -316,12 +325,22 @@ export function ReviewPage() {
   };
 
   const allWarnings = useMemo(() => item ? [...(item.global?.warnings ?? []), ...(item.lesion?.warnings ?? [])] : [], [item]);
-  const remoteNotConfigured = models.some((model) => (
-    ['retfound-aptos5', 'prism-dr-5fold'].includes(model.model_id)
-      && model.status === 'REMOTE_NOT_CONFIGURED'
-  ));
+  const modelUnavailable = modelCapabilityUnavailable(models);
   const admissionReady = admissionAllowsAnalysis(item);
-  const analysisAllowed = admissionReady && item?.modality === 'CFP' && ['PUBLIC', 'SYNTHETIC'].includes(item?.source_origin ?? item?.source_type ?? '') && !remoteNotConfigured;
+  const analysisAllowed = admissionReady && item?.modality === 'CFP' && ['PUBLIC', 'SYNTHETIC'].includes(item?.source_origin ?? item?.source_type ?? '') && !modelUnavailable;
+  const analysisPreparationStatus = item?.analysis_preparation?.status;
+  const analysisCandidateAvailable = Boolean(analysisPreparationStatus === 'READY' && item?.analysis_preparation?.derivative);
+  const maskCandidateAvailable = Boolean(
+    analysisCandidateAvailable
+      || (analysisPreparationStatus === 'NEEDS_REVIEW' && item?.analysis_preparation?.candidate_mask_sha256),
+  );
+  const analysisAreaUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/analysis-area` : '';
+  const maskOverlayUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/mask-overlay` : '';
+  const hasRecordedEvidence = Boolean(item?.global || item?.lesion);
+  const manualOnly = item?.modality === 'UWF'
+    || item?.source_origin === 'WORKSPACE'
+    || (!hasRecordedEvidence && modelUnavailable)
+    || (models.length === 0 && !hasRecordedEvidence);
 
   if (!imageId) {
     return (
@@ -369,32 +388,38 @@ export function ReviewPage() {
               <Text fontSize="sm" color={item.analysis_preparation?.status === 'READY' ? 'status.success' : 'status.warning'}>
                 {item.analysis_preparation?.status === 'READY' ? 'Masked Analysis prepared' : item.analysis_preparation?.status === 'NEEDS_REVIEW' ? 'Masked Analysis needs review' : 'Masked Analysis unavailable'}
               </Text>
-              <Text fontSize="xs" color="text.secondary">Masked Analysis is a versioned, derived view; Original remains immutable.</Text>
-              {item.analysis_preparation?.status === 'READY' && (
-                <HStack flexWrap="wrap"><Button size="sm" variant={imageView === 'original' ? 'solid' : 'outline'} aria-pressed={imageView === 'original'} onClick={() => setImageView('original')}>Original</Button><Button size="sm" variant={imageView === 'masked-analysis' ? 'solid' : 'outline'} aria-pressed={imageView === 'masked-analysis'} onClick={() => setImageView('masked-analysis')}>Masked Analysis</Button></HStack>
-              )}
+              <Text id="uwf-analysis-status" fontSize="xs" color="text.secondary">
+                {analysisPreparationStatus === 'NEEDS_REVIEW'
+                  ? maskCandidateAvailable
+                    ? 'A candidate mask is available for inspection only; it is not approved model input.'
+                    : 'No candidate mask is available; Original and manual review remain available.'
+                  : 'Analysis area is a versioned, derived view; Original remains immutable.'}
+              </Text>
             </Stack>
           )}
-          {imageView === 'explainability' ? (
-            <Alert status={item.explainability?.status === 'AVAILABLE' ? 'info' : 'warning'}>
-              <AlertIcon />
-              <Stack spacing={1}><Text fontWeight="semibold">Explainability</Text><Text fontSize="sm">{item.explainability?.note ?? 'Explainability evidence is unavailable. It is model evidence, not lesion localization or a clinical probability.'}</Text></Stack>
-            </Alert>
-          ) : item.image_url ? <RetinalCanvas item={imageView === 'masked-analysis' && item.modality === 'UWF' && item.analysis_preparation?.status === 'READY' ? { ...item, image_url: `/v1/images/${encodeURIComponent(item.image_id)}/analysis-area` } : item} showAi={showAi && imageView === 'overlay'} visibleLesionLabels={lesionFilter === 'ALL' ? undefined : [lesionFilter]} showHuman={false} /> : (
+          {item.image_url ? <RetinalCanvas
+            item={imageView === 'analysis-area' && analysisCandidateAvailable ? { ...item, image_url: analysisAreaUrl } : item}
+            maskOverlayUrl={imageView === 'mask-overlay' && maskCandidateAvailable ? maskOverlayUrl : null}
+            showAi={imageView === 'ai-evidence'}
+            visibleLesionLabels={lesionFilter === 'ALL' ? undefined : [lesionFilter]}
+            showHuman={false}
+          /> : (
             <Alert status="error"><AlertIcon /><Text>{item.admission_ui?.note ?? 'This file has no readable image preview.'}</Text></Alert>
           )}
+          {imageView === 'explainability' && <Alert status={item.explainability?.status === 'AVAILABLE' ? 'info' : 'warning'} mt={3}>
+            <AlertIcon />
+            <Stack spacing={1}><Text fontWeight="semibold">Explainability</Text><Text fontSize="sm">{item.explainability?.note ?? 'Explainability evidence is unavailable. It is model evidence, not lesion localization or a clinical probability.'}</Text></Stack>
+          </Alert>}
           {item.spatial_ai_display?.status === 'BLOCKED' && <Alert status="warning" mt={3}><AlertIcon /><Text fontSize="sm">{item.spatial_ai_display.note}</Text></Alert>}
           <Stack spacing={3} mt={4} minW={0}>
-            <HStack justify="space-between" align="center" flexWrap="wrap" gap={2}>
-              <FormControl display="flex" alignItems="center" w="auto">
-                <Switch id="show-ai-suggestions" isChecked={showAi && imageView === 'overlay'} onChange={(event) => { const enabled = event.target.checked; setShowAi(enabled); setImageView(enabled ? 'overlay' : 'original'); }} mr={2} />
-                <FormLabel htmlFor="show-ai-suggestions" mb={0} fontSize="sm">Show AI suggestions</FormLabel>
-              </FormControl>
-              <HStack spacing={1} flexWrap="wrap">
-                <Button size="sm" variant={imageView === 'original' ? 'solid' : 'outline'} aria-pressed={imageView === 'original'} onClick={() => setImageView('original')}>Original</Button>
-                <Button size="sm" variant={imageView === 'overlay' ? 'solid' : 'outline'} aria-pressed={imageView === 'overlay'} isDisabled={item.spatial_ai_display?.status !== 'AVAILABLE'} onClick={() => { setShowAi(true); setImageView('overlay'); }}>AI Overlay</Button>
-                <Button size="sm" variant={imageView === 'explainability' ? 'solid' : 'outline'} aria-pressed={imageView === 'explainability'} onClick={() => setImageView('explainability')}>Explainability</Button>
-              </HStack>
+            <HStack spacing={1} flexWrap="wrap" aria-label="Viewer modes">
+              <Button size="sm" variant={imageView === 'original' ? 'solid' : 'outline'} aria-pressed={imageView === 'original'} onClick={() => setImageView('original')}>Original</Button>
+              {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'analysis-area' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'analysis-area'} isDisabled={!analysisCandidateAvailable} onClick={() => setImageView('analysis-area')}>Analysis area</Button>}
+              {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'mask-overlay' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'mask-overlay'} isDisabled={!maskCandidateAvailable} onClick={() => setImageView('mask-overlay')}>Mask overlay</Button>}
+              <Button size="sm" variant={imageView === 'ai-evidence' ? 'solid' : 'outline'} aria-pressed={imageView === 'ai-evidence'} isDisabled={item.spatial_ai_display?.status !== 'AVAILABLE' || (!item.global && !item.lesion)} onClick={() => setImageView('ai-evidence')}>AI evidence</Button>
+              <Button size="sm" variant={imageView === 'explainability' ? 'solid' : 'outline'} aria-pressed={imageView === 'explainability'} onClick={() => setImageView('explainability')}>Explainability</Button>
+            </HStack>
+            {imageView === 'ai-evidence' && (
               <Select
                 aria-label="Filter lesion overlays"
                 size="sm"
@@ -408,10 +433,10 @@ export function ReviewPage() {
                 <option value="HARD_EXUDATE">EX · Hard exudate</option>
                 <option value="SOFT_EXUDATE">SE · Soft exudate</option>
               </Select>
-              <Text fontSize="xs" color="text.secondary">
-                {imageView === 'overlay' ? `Active overlays ${displayedLesions(item).length} of ${item.lesion_review?.raw_count ?? item.lesion?.lesions.length ?? 0} raw AI suggestions` : 'Original image remains the review source.'}
-              </Text>
-            </HStack>
+            )}
+            <Text fontSize="xs" color="text.secondary">
+              {imageView === 'ai-evidence' ? `Active overlays ${displayedLesions(item).length} of ${item.lesion_review?.raw_count ?? item.lesion?.lesions.length ?? 0} raw AI suggestions` : imageView === 'mask-overlay' ? 'Candidate mask is shown for inspection only; it is not a clinical gradability decision.' : 'Original image remains the review source.'}
+            </Text>
           <LesionLegend />
           </Stack>
           <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={3} mt={4} fontSize="sm" minW={0}>
@@ -421,43 +446,59 @@ export function ReviewPage() {
           </SimpleGrid>
         </Section>
         <Stack spacing={5} minW={0}>
-          <Section
-            title="Analysis"
-            description="Optional model evidence; manual review remains available."
-            action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
-          >
-            {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
-            {analysisError && <Alert status="error"><AlertIcon /><Stack spacing={2}><Text>{analysisError}</Text><Button size="sm" variant="outline" onClick={() => void analyze()}>Retry</Button></Stack></Alert>}
-            {item.modality === 'UWF' && (
-              <Alert status="info"><AlertIcon /><Stack spacing={1}><Text>AI evidence unavailable for this image type. Clinical review can continue.</Text><Text fontSize="sm">No qualified UWF AI model is enabled; use manual review.</Text></Stack></Alert>
-            )}
-            {item.source_origin === 'WORKSPACE' && item.modality !== 'UWF' && (
-              <Alert status="info"><AlertIcon /><Text>Manual review only. This workspace source is outside the current model approval boundary.</Text></Alert>
-            )}
-            {item.modality === 'UNKNOWN' && (
-              <Alert status="warning"><AlertIcon /><Text>Confirm the image type in Worklist before AI analysis. Clinical review can continue.</Text></Alert>
-            )}
-            {!analysisError && !analyzing && item.modality === 'CFP' && !admissionReady && (
-              <Alert status="warning">
+          {manualOnly ? (
+            <Section title="AI assistance" description="Model evidence is optional; manual review remains available.">
+              <Alert status="info" variant="subtle">
                 <AlertIcon />
-                <Stack spacing={2}>
-                  <Text fontWeight="semibold">Needs image review</Text>
-                  <Text fontSize="sm">Resolve this case from the Worklist before analysis.</Text>
-                  <Button as={Link} to="/worklist" size="sm" variant="outline" alignSelf="flex-start">Open Worklist</Button>
+                <Stack spacing={1}>
+                  <Text fontWeight="semibold">{item.modality === 'UWF' ? 'Unavailable for UWF in this configuration.' : 'Unavailable for this image and configuration.'}</Text>
+                  <Text fontSize="sm">Manual review remains available. No unqualified model result is shown.</Text>
                 </Stack>
               </Alert>
-            )}
-            {!analysisError && !analyzing && item.modality === 'CFP' && admissionReady && (
-              remoteNotConfigured ? <Text fontSize="sm" color="text.secondary">AI analysis is not available.</Text> : item.global || item.lesion ? <Text fontSize="sm" color="text.secondary">Actual returned results are shown below.</Text> : (
-                <HStack spacing={2}>
-                  <StatusBadge tone="success">Ready for analysis</StatusBadge>
-                  <Text fontSize="sm" color="text.secondary">Not analyzed</Text>
-                </HStack>
-              )
-            )}
+            </Section>
+          ) : (
+            <>
+              <Section
+                title="Analysis"
+                description="Optional model evidence; manual review remains available."
+                action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
+              >
+                {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
+                {modelUnavailable && hasRecordedEvidence && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">New analysis is unavailable. Recorded model evidence remains visible with its provenance and warnings.</Text></Alert>}
+                {analysisError && <Alert status="error"><AlertIcon /><Stack spacing={2}><Text>{analysisError}</Text><Button size="sm" variant="outline" onClick={() => void analyze()}>Retry</Button></Stack></Alert>}
+                {item.modality === 'UNKNOWN' && (
+                  <Alert status="warning"><AlertIcon /><Text>Confirm the image type in Worklist before AI analysis. Clinical review can continue.</Text></Alert>
+                )}
+                {!analysisError && !analyzing && item.modality === 'CFP' && !admissionReady && (
+                  <Alert status="warning">
+                    <AlertIcon />
+                    <Stack spacing={2}>
+                      <Text fontWeight="semibold">Needs image review</Text>
+                      <Text fontSize="sm">Resolve this case from the Worklist before analysis.</Text>
+                      <Button as={Link} to="/worklist" size="sm" variant="outline" alignSelf="flex-start">Open Worklist</Button>
+                    </Stack>
+                  </Alert>
+                )}
+                {!analysisError && !analyzing && item.modality === 'CFP' && admissionReady && (
+                  item.global || item.lesion ? <Text fontSize="sm" color="text.secondary">Actual returned results are shown below.</Text> : (
+                    <HStack spacing={2}>
+                      <StatusBadge tone="success">Ready for analysis</StatusBadge>
+                      <Text fontSize="sm" color="text.secondary">Not analyzed</Text>
+                    </HStack>
+                  )
+                )}
+              </Section>
+              {item.global && <Section title="DR assessment"><Assessment item={item} /></Section>}
+              {item.lesion && <Section title="Lesion suggestions"><LesionSuggestions item={item} /></Section>}
+            </>
+          )}
+          <Section title="Explainability" description="Case-specific model evidence, separate from processing provenance.">
+            <Text fontSize="sm" color="text.secondary">
+              {item.explainability?.status === 'AVAILABLE'
+                ? item.explainability.note
+                : 'Explainability evidence is unavailable. It is not lesion localization or a clinical probability.'}
+            </Text>
           </Section>
-          <Section title="DR assessment"><Assessment item={item} /></Section>
-          <Section title="Lesion suggestions"><LesionSuggestions item={item} /></Section>
           <Stack spacing={2}>
             <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid" alignSelf="flex-start">Continue to clinician review</Button>
             <Text fontSize="xs" color="text.secondary">No clinical decision is recorded on this page. The DR grade is confirmed in Clinician Review.</Text>
@@ -465,19 +506,27 @@ export function ReviewPage() {
         </Stack>
       </Grid>
       <Box mt={5}>
-        <Section title="Processing details" description="Read-only provenance for the source, derived representation, mapping, and model-domain state.">
-          <SimpleGrid columns={{ base: 1, tablet: 2, laptop: 4 }} spacing={3} fontSize="sm">
-            <Stack spacing={1}><Text color="text.secondary">Source origin</Text><Text>{sourceOriginLabel(item.source_origin)}</Text></Stack>
-            <Stack spacing={1}><Text color="text.secondary">Visit / capture</Text><Text>{item.visit_context?.visit_key ?? 'Unknown'}{item.visit_context?.captured_at ? ` · ${item.visit_context.captured_at}` : ''}</Text></Stack>
-            <Stack spacing={1}><Text color="text.secondary">Analysis representation</Text><Text>{item.analysis_preparation?.derivative?.representation_version ?? 'Not used or not recorded'}</Text></Stack>
-            <Stack spacing={1}><Text color="text.secondary">Spatial AI display</Text><Text>{item.spatial_ai_display?.status === 'AVAILABLE' ? 'Available in original-image pixels' : item.spatial_ai_display?.status === 'BLOCKED' ? 'Blocked until provenance matches' : 'Unavailable'}</Text></Stack>
-            <Stack spacing={1}><Text color="text.secondary">Selected mask / fallback</Text><Text>{selectedMaskLabel(item)}</Text>{processingAudit(item)?.valid_retina_mask_sha256 && <Code fontSize="xs" whiteSpace="normal">{processingAudit(item)?.valid_retina_mask_sha256}</Code>}</Stack>
-            <Stack spacing={1}><Text color="text.secondary">Analysis transform</Text><Text>{analysisTransformLabel(item)}</Text></Stack>
-            <Stack spacing={1}><Text color="text.secondary">Model transform</Text><Text>{modelTransformLabel(item)}</Text></Stack>
-            <Stack spacing={1}><Text color="text.secondary">Model / domain warning</Text><Text>{modelDomainWarningLabel(item)}</Text></Stack>
-          </SimpleGrid>
-          {item.analysis_preparation?.status === 'FAILED' && <Alert status="warning" mt={4}><AlertIcon /><Text>Masked Analysis could not be prepared. Original and manual grading remain available.</Text></Alert>}
-          {item.explainability?.status !== 'AVAILABLE' && <Text mt={4} fontSize="sm" color="text.secondary">Explainability unavailable. No attention map or clinical probability is fabricated.</Text>}
+        <Section
+          title="Processing details"
+          description="Read-only provenance for the source, derived representation, mapping, and model-domain state."
+          action={<Button size="sm" variant="ghost" rightIcon={processingOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} aria-expanded={processingOpen} aria-controls="processing-details-panel" onClick={() => setProcessingOpen((open) => !open)}>{processingOpen ? 'Hide details' : 'Show details'}</Button>}
+        >
+          <Collapse in={processingOpen} animateOpacity>
+            <Box id="processing-details-panel">
+              <SimpleGrid columns={{ base: 1, tablet: 2, laptop: 4 }} spacing={3} fontSize="sm">
+                <Stack spacing={1}><Text color="text.secondary">Source origin</Text><Text>{sourceOriginLabel(item.source_origin)}</Text></Stack>
+                <Stack spacing={1}><Text color="text.secondary">Visit / capture</Text><Text>{item.visit_context?.visit_key ?? 'Unknown'}{item.visit_context?.captured_at ? ` · ${item.visit_context.captured_at}` : ''}</Text></Stack>
+                <Stack spacing={1}><Text color="text.secondary">Analysis representation</Text><Text>{item.analysis_preparation?.derivative?.representation_version ?? 'Not used or not recorded'}</Text></Stack>
+                <Stack spacing={1}><Text color="text.secondary">Spatial AI display</Text><Text>{item.spatial_ai_display?.status === 'AVAILABLE' ? 'Available in original-image pixels' : item.spatial_ai_display?.status === 'BLOCKED' ? 'Blocked until provenance matches' : 'Unavailable'}</Text></Stack>
+                <Stack spacing={1}><Text color="text.secondary">Selected mask / fallback</Text><Text>{selectedMaskLabel(item)}</Text>{(processingAudit(item)?.valid_retina_mask_sha256 ?? item.analysis_preparation?.candidate_mask_sha256) && <Code fontSize="xs" whiteSpace="normal">{processingAudit(item)?.valid_retina_mask_sha256 ?? item.analysis_preparation?.candidate_mask_sha256}</Code>}{item.analysis_preparation?.candidate_mask_representation_version && <Text fontSize="xs" color="text.muted">{item.analysis_preparation.candidate_mask_representation_version}</Text>}</Stack>
+                <Stack spacing={1}><Text color="text.secondary">Analysis transform</Text><Text>{analysisTransformLabel(item)}</Text></Stack>
+                <Stack spacing={1}><Text color="text.secondary">Model transform</Text><Text>{modelTransformLabel(item)}</Text></Stack>
+                <Stack spacing={1}><Text color="text.secondary">Model / domain warning</Text><Text>{modelDomainWarningLabel(item)}</Text></Stack>
+              </SimpleGrid>
+              {item.analysis_preparation?.status === 'FAILED' && <Alert status="warning" mt={4}><AlertIcon /><Text>Masked Analysis could not be prepared. Original and manual grading remain available.</Text></Alert>}
+              {item.explainability?.status !== 'AVAILABLE' && <Text mt={4} fontSize="sm" color="text.secondary">Explainability unavailable. No attention map or clinical probability is fabricated.</Text>}
+            </Box>
+          </Collapse>
         </Section>
       </Box>
       <Box mt={5}><ModelStatus models={models} error={modelError} /></Box>

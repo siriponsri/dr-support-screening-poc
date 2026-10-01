@@ -6,6 +6,7 @@ import {
   Box,
   Button,
   Center,
+  Collapse,
   FormControl,
   FormLabel,
   Grid,
@@ -23,7 +24,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { RetinalCanvas } from '@/components/review/RetinalCanvas';
 import { apiJson, drGradeLabel, type CaseRecord } from '@/lib/api';
-import { ArrowLeft, CheckCircle2, Pencil } from '@/lib/icons';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Pencil } from '@/lib/icons';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { EDIT_CONFIRMED_GRADE_DIALOG, LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
 import { caseComplete, formatTimestamp, gradeConfirmed } from '@/lib/caseProgress';
@@ -31,6 +32,7 @@ import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference
 import { ReviewerField } from '@/components/common/ReviewerField';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
 import { NextActionHint } from '@/components/common/NextActionHint';
+import { GradeGuide } from '@/components/review/GradeGuide';
 
 type ReviewAction = 'ACCEPT' | 'CORRECT_GRADE' | 'MARK_UNGRADABLE' | 'REQUEST_SECOND_REVIEW' | 'ADJUDICATE_GRADE';
 
@@ -59,6 +61,7 @@ export function ClinicianReviewPage() {
   const [grade, setGrade] = useState('');
   const [remark, setRemark] = useState('');
   const [editingConfirmed, setEditingConfirmed] = useState(false);
+  const [exceptionsOpen, setExceptionsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -232,9 +235,12 @@ export function ClinicianReviewPage() {
                 <ReviewerField id="clinician-reviewer-name" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
                 <Text fontSize="sm" color="text.secondary">AI suggestion: {item.global?.grade == null ? 'Not available' : (drGradeLabel(item.global.grade) ?? 'Not available')} <Text as="span" color="text.muted">(optional evidence, not pre-selected)</Text></Text>
                 <FormControl>
-                  <FormLabel htmlFor="clinician-review-grade">Final DR grade</FormLabel>
-                  <Select id="clinician-review-grade" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Select a DR grade">
-                    {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{drGradeLabel(value)}</option>)}
+                  <HStack justify="space-between" align="center" mb={1}>
+                    <FormLabel htmlFor="clinician-review-grade" mb={0}>Final DR grade</FormLabel>
+                    <GradeGuide />
+                  </HStack>
+                  <Select id="clinician-review-grade" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Choose a DR grade">
+                    {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{value} - {drGradeLabel(value)}</option>)}
                   </Select>
                 </FormControl>
                 <FormControl>
@@ -242,12 +248,31 @@ export function ClinicianReviewPage() {
                   <Textarea id="clinician-review-remark" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Add a review remark" rows={4} />
                 </FormControl>
                 {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
-                <HStack spacing={2} flexWrap="wrap">
-                  <Button variant="solid" onClick={() => void saveGrade()} isLoading={saving} isDisabled={grade === ''}>{item.grade_status === 'NEEDS_SECOND_REVIEW' ? 'Resolve and confirm DR grade' : 'Confirm DR Grade'}</Button>
-                  <Button variant="outline" onClick={() => void saveGrade('MARK_UNGRADABLE')} isLoading={saving}>Mark Ungradable</Button>
-                  <Button variant="outline" onClick={() => void saveGrade('REQUEST_SECOND_REVIEW')} isLoading={saving}>Request Second Review</Button>
-                </HStack>
-                <Text fontSize="sm" color="text.secondary">Confirming one grade is the normal path. Use the separate actions when the image is not gradable or needs an independent review.</Text>
+                <Button variant="solid" onClick={() => void saveGrade()} isLoading={saving} isDisabled={grade === ''}>
+                  {item.grade_status === 'NEEDS_SECOND_REVIEW' ? 'Resolve and confirm DR grade' : 'Confirm grade'}
+                </Button>
+                <Box>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    rightIcon={exceptionsOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+                    aria-expanded={exceptionsOpen}
+                    aria-controls="grade-exceptions"
+                    onClick={() => setExceptionsOpen((open) => !open)}
+                  >
+                    Can't finalize this case
+                  </Button>
+                  <Collapse in={exceptionsOpen} animateOpacity>
+                    <Stack id="grade-exceptions" mt={2} spacing={2}>
+                      <Button variant="outline" onClick={() => void saveGrade('MARK_UNGRADABLE')} isLoading={saving}>
+                        Image is not gradable
+                      </Button>
+                      <Button variant="outline" onClick={() => void saveGrade('REQUEST_SECOND_REVIEW')} isLoading={saving}>
+                        Needs another review
+                      </Button>
+                    </Stack>
+                  </Collapse>
+                </Box>
               </Stack>
             </Section>
           )}

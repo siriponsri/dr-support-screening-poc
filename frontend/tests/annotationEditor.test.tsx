@@ -78,6 +78,10 @@ describe('AnnotationEditorPage human movement', () => {
       if (init?.body) annotationBody = JSON.parse(String(init.body));
     });
     const { svg } = await setupStage();
+    expect(screen.getByRole('button', { name: 'Box' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Polygon' })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'More tools' }));
+    expect(await screen.findByRole('button', { name: 'Polygon' })).toBeInTheDocument();
     fireEvent.click(svg.querySelector('[data-human-shape-id="human-1"] rect'));
 
     expect(screen.getByLabelText('Selected annotation class')).toHaveValue('SOFT_EXUDATE');

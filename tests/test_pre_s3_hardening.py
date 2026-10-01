@@ -1,9 +1,11 @@
 """Focused PRE-S3 isolation, queue, and Model Gateway contract coverage."""
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from dr_support.api import create_app as create_review_app
+from dr_support.grade import DR_GRADE_LABELS, grade_label
 from dr_support.app import create_app
 
 
@@ -101,3 +103,50 @@ def test_model_connection_never_returns_token_and_failed_save_preserves_provider
     assert "failed-secret" not in failed.text
     assert app.state.model_connection.url == "https://gateway.test"
     assert app.state.providers["retfound-aptos5"].base_url == "https://gateway.test"
+
+
+@pytest.mark.parametrize("status_code", [401, 403])
+def test_model_connection_probe_handles_unauthorized_without_echoing_token(monkeypatch, tmp_path, status_code):
+    monkeypatch.setenv("APP_PROFILE", "review")
+    monkeypatch.setenv("MODEL_RUNTIME", "remote")
+    monkeypatch.setenv("DR_SUPPORT_STATE", str(tmp_path / "review.sqlite"))
+    app = create_app()
+    app.state.model_gateway_transport = httpx.MockTransport(
+        lambda _request: httpx.Response(status_code)
+    )
+
+    response = TestClient(app).post(
+        "/v1/model-connection/test",
+        json={"name": "Hospital GPU", "url": "https://gateway.test", "token": "unauthorized-secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "UNAVAILABLE"
+    assert "unauthorized-secret" not in response.text
+    assert "Bearer" not in response.text
+
+
+def test_model_connection_probe_handles_timeout_as_bounded_unavailable_state(monkeypatch, tmp_path):
+    monkeypatch.setenv("APP_PROFILE", "review")
+    monkeypatch.setenv("MODEL_RUNTIME", "remote")
+    monkeypatch.setenv("DR_SUPPORT_STATE", str(tmp_path / "review.sqlite"))
+    app = create_app()
+
+    def timeout(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("test timeout")
+
+    app.state.model_gateway_transport = httpx.MockTransport(timeout)
+    response = TestClient(app).post(
+        "/v1/model-connection/test",
+        json={"name": "Hospital GPU", "url": "https://gateway.test", "token": "timeout-secret"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "UNAVAILABLE"
+    assert "timeout-secret" not in response.text
+
+
+def test_ico_grade_labels_keep_the_numeric_contract_and_canonical_pdr_name():
+    assert list(DR_GRADE_LABELS) == [0, 1, 2, 3, 4]
+    assert grade_label(4) == "Proliferative DR (PDR)"
+    assert grade_label(5) is None

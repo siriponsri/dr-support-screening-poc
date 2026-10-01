@@ -72,11 +72,11 @@ export function reviewState(item: CaseRecord): ReviewState {
 
 export function reviewStateLabel(state: ReviewState): string {
   switch (state) {
-    case 'complete': return 'Review complete';
+    case 'complete': return 'Complete';
     case 'reviewed': return 'Grade confirmed';
-    case 'needs-annotation': return 'Legacy correction record';
+    case 'needs-annotation': return 'Findings need review';
     case 'escalated': return 'Legacy senior review';
-    case 'legacy-unknown': return 'Historical Unknown';
+    case 'legacy-unknown': return 'Historical unknown';
     case 'needs-second-review': return 'Needs Second Review';
     case 'ungradable': return 'Ungradable';
     case 'excluded': return 'Excluded';

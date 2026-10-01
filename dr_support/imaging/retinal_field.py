@@ -18,12 +18,27 @@ from PIL import Image, ImageFilter
 class RetinalFieldNeedsReview(ValueError):
     """A bounded retinal field could not be established with confidence."""
 
+    def __init__(self, reason_code: str, *, candidate: "RetinalFieldInspection | None" = None):
+        super().__init__(reason_code)
+        self.reason_code = reason_code
+        self.candidate = candidate
+
 
 @dataclass(frozen=True)
 class RetinalField:
     mask: Image.Image
     mask_sha256: str
     valid_fraction: float
+
+
+@dataclass(frozen=True)
+class RetinalFieldInspection:
+    """Diagnostic mask output that never authorizes analysis input."""
+
+    mask: Image.Image | None
+    mask_sha256: str | None
+    valid_fraction: float | None
+    reason_code: str | None
 
 
 def _largest_component(bits: bytearray, width: int, height: int) -> tuple[bytearray, int, int]:
@@ -77,15 +92,17 @@ def _fill_enclosed_holes(bits: bytearray, width: int, height: int) -> bytearray:
     return bytearray(0 if value else 255 for value in exterior)
 
 
-def prepare_retinal_field(source: Image.Image) -> RetinalField:
-    """Return a same-canvas mask only for a single clear, bounded red field.
+def inspect_retinal_field(source: Image.Image) -> RetinalFieldInspection:
+    """Inspect a source and expose a deterministic candidate when available.
 
     Work at a fixed maximum 512-pixel side for bounded cost, then use nearest
     neighbor expansion. A 3-pixel erosion removes the uncertain edge/rim.
-    Missing, clipped, fragmented, or nearly full-frame fields need review.
+    Missing, clipped, fragmented, or nearly full-frame fields need review. A
+    candidate mask may still be returned for visual inspection, but it never
+    changes the production acceptance decision.
     """
     if min(source.size) < 128:
-        raise RetinalFieldNeedsReview("IMAGE_TOO_SMALL")
+        return RetinalFieldInspection(None, None, None, "IMAGE_TOO_SMALL")
     small = source.convert("RGB")
     small.thumbnail((512, 512), Image.Resampling.BILINEAR)
     width, height = small.size
@@ -99,22 +116,33 @@ def prepare_retinal_field(source: Image.Image) -> RetinalField:
     threshold = threshold.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.MaxFilter(3))
     bits = bytearray(1 if value else 0 for value in threshold.tobytes())
     component, count, runner_up = _largest_component(bits, width, height)
-    if count < width * height * 0.20 or runner_up > count * 0.04:
-        raise RetinalFieldNeedsReview("FIELD_NOT_ISOLATED")
-    if not component[(height // 2) * width + width // 2]:
-        raise RetinalFieldNeedsReview("FIELD_NOT_CENTERED")
+    if count < width * height * 0.20:
+        return RetinalFieldInspection(None, None, None, "FIELD_NOT_ISOLATED")
+    reason_code = "FIELD_NOT_ISOLATED" if runner_up > count * 0.04 else None
+    if not component[(height // 2) * width + width // 2] and reason_code is None:
+        reason_code = "FIELD_NOT_CENTERED"
     field = _fill_enclosed_holes(component, width, height)
     bounds = Image.frombytes("L", small.size, bytes(field)).getbbox()
-    if bounds is None or (bounds[0] < 3 or bounds[1] < 3 or bounds[2] > width - 3 or bounds[3] > height - 3):
-        raise RetinalFieldNeedsReview("FIELD_TOUCHES_CANVAS")
-    if bounds[2] - bounds[0] < width * 0.50 or bounds[3] - bounds[1] < height * 0.50:
-        raise RetinalFieldNeedsReview("FIELD_TOO_NARROW")
+    if bounds is None:
+        return RetinalFieldInspection(None, None, None, reason_code or "FIELD_TOUCHES_CANVAS")
+    if (bounds[0] < 3 or bounds[1] < 3 or bounds[2] > width - 3 or bounds[3] > height - 3) and reason_code is None:
+        reason_code = "FIELD_TOUCHES_CANVAS"
+    if (bounds[2] - bounds[0] < width * 0.50 or bounds[3] - bounds[1] < height * 0.50) and reason_code is None:
+        reason_code = "FIELD_TOO_NARROW"
     # Preserve interior detail while excluding uncertain silhouette edges.
     mask = Image.frombytes("L", small.size, bytes(field)).filter(ImageFilter.MinFilter(5))
     mask = mask.resize(source.size, Image.Resampling.NEAREST)
     mask_bytes = mask.tobytes()
     valid_fraction = mask_bytes.count(255) / (source.width * source.height)
-    if not 0.20 <= valid_fraction <= 0.85:
-        raise RetinalFieldNeedsReview("FIELD_AREA_UNCERTAIN")
+    if not 0.20 <= valid_fraction <= 0.85 and reason_code is None:
+        reason_code = "FIELD_AREA_UNCERTAIN"
     identity = struct.pack(">II", source.width, source.height) + mask_bytes
-    return RetinalField(mask, hashlib.sha256(identity).hexdigest(), valid_fraction)
+    return RetinalFieldInspection(mask, hashlib.sha256(identity).hexdigest(), valid_fraction, reason_code)
+
+
+def prepare_retinal_field(source: Image.Image) -> RetinalField:
+    """Return a same-canvas mask only for a single clear, bounded red field."""
+    inspection = inspect_retinal_field(source)
+    if inspection.reason_code or inspection.mask is None or inspection.mask_sha256 is None:
+        raise RetinalFieldNeedsReview(inspection.reason_code or "FIELD_UNAVAILABLE", candidate=inspection)
+    return RetinalField(inspection.mask, inspection.mask_sha256, inspection.valid_fraction or 0.0)

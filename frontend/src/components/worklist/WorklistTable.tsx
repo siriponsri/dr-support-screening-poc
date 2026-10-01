@@ -35,8 +35,8 @@ function PatientGroupRows({ group, onResolve, onReadiness, onConfirmImage, onQue
 export function WorklistTable({ cases, groups, onResolve, onReadiness, onConfirmImage, onQueueAction }: WorklistTableProps) {
   return (
     <TableContainer overflowX={{ base: 'auto', desktop: 'hidden' }} maxW="100%">
-      <Table variant="clinical" size="sm" layout="fixed" w="100%" minW={{ base: '720px', desktop: '0' }} sx={{ tableLayout: 'fixed' }}>
-        <Thead><Tr><Th w={{ base: '31%', desktop: '30%' }}>Image</Th><Th w={{ base: '24%', desktop: '23%' }}>Patient / eye</Th><Th w={{ base: '16%', desktop: '16%' }}>AI result</Th><Th w={{ base: '16%', desktop: '16%' }}>Review</Th><Th w={{ base: '13%', desktop: '15%' }} isNumeric>Action</Th></Tr></Thead>
+      <Table variant="clinical" size="sm" layout="fixed" w="100%" minW={{ base: '760px', desktop: '0' }} sx={{ tableLayout: 'fixed' }}>
+        <Thead><Tr><Th w={{ base: '29%', desktop: '30%' }}>Image</Th><Th w={{ base: '24%', desktop: '23%' }}>Patient / eye</Th><Th w={{ base: '15%', desktop: '15%' }}>AI result</Th><Th w={{ base: '18%', desktop: '17%' }}>Review</Th><Th w={{ base: '14%', desktop: '15%' }} isNumeric>Action</Th></Tr></Thead>
         <Tbody>{groups ? groups.map((group) => <PatientGroupRows key={group.key ?? 'unlinked'} group={group} onResolve={onResolve} onReadiness={onReadiness} onConfirmImage={onConfirmImage} onQueueAction={onQueueAction} />) : cases.map((item) => <CaseRow key={item.image_id} item={item} onResolve={onResolve} onReadiness={onReadiness} onConfirmImage={onConfirmImage} onQueueAction={onQueueAction} />)}</Tbody>
       </Table>
     </TableContainer>

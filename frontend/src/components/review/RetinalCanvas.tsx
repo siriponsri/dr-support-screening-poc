@@ -26,6 +26,8 @@ export function lesionDetectionId(lesion: Lesion, index: number): string {
 
 interface RetinalCanvasProps {
   item: CaseRecord;
+  /** Inspection-only candidate mask rendered over the immutable display image. */
+  maskOverlayUrl?: string | null;
   showAi?: boolean;
   visibleLesionLabels?: LesionLabel[];
   showHuman?: boolean;
@@ -314,6 +316,7 @@ function HumanShape({
 
 export function RetinalCanvas({
   item,
+  maskOverlayUrl,
   showAi = true,
   visibleLesionLabels,
   showHuman = true,
@@ -771,6 +774,23 @@ export function RetinalCanvas({
           draggable={false}
           onError={() => setImageLoadError(true)}
         />
+        {maskOverlayUrl && (
+          <Image
+            src={maskOverlayUrl}
+            alt="Candidate valid-retina mask overlay"
+            data-testid="mask-overlay"
+            position="absolute"
+            inset={0}
+            w="100%"
+            h="100%"
+            objectFit="fill"
+            opacity={0.45}
+            mixBlendMode="multiply"
+            userSelect="none"
+            pointerEvents="none"
+            draggable={false}
+          />
+        )}
         <Box
           as="svg"
           position="absolute"

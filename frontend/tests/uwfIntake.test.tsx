@@ -72,7 +72,18 @@ describe('UWF intake and clinical review', () => {
     const uwf = {
       ...sample('UWF'),
       admission_history: [{ action: 'CONFIRM_IMAGE' }],
-      analysis_preparation: { status: 'READY' as const },
+      analysis_preparation: {
+        status: 'READY' as const,
+        derivative: {
+          source_sha256: 'a'.repeat(64),
+          derivative_sha256: 'b'.repeat(64),
+          analysis_sha256: 'b'.repeat(64),
+          purpose: 'ANALYSIS' as const,
+          transform_id: 'analysis-uwf-retinal-mask-v1',
+          transform_description: 'Deterministic bounded retinal-field mask',
+          representation_version: 'uwf-analysis-representation-v1',
+        },
+      },
     };
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
@@ -85,11 +96,13 @@ describe('UWF intake and clinical review', () => {
     });
     renderAppAt('/review/synthetic-uwf');
     expect(await screen.findByText('Masked Analysis prepared')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Analyze' })).toBeDisabled();
-    expect(screen.getByText('AI evidence unavailable for this image type. Clinical review can continue.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
+    expect(screen.getByText('Unavailable for UWF in this configuration.')).toBeInTheDocument();
+    expect(screen.getByText('Manual review remains available. No unqualified model result is shown.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue to clinician review' })).toHaveAttribute('href', '/clinician-review/synthetic-uwf');
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Masked Analysis' }));
-    expect(screen.getByRole('button', { name: 'Masked Analysis' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Analysis area' }));
+    expect(screen.getByRole('button', { name: 'Analysis area' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('img', { name: /retinal/i })).toHaveAttribute('src', '/v1/images/synthetic-uwf/analysis-area');
   });
 });

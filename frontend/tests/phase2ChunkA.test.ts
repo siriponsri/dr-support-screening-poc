@@ -10,7 +10,7 @@ describe('Chunk A grade states', () => {
     expect(drGradeLabel(1)).toBe('Mild NPDR');
     expect(drGradeLabel(2)).toBe('Moderate NPDR');
     expect(drGradeLabel(3)).toBe('Severe NPDR');
-    expect(drGradeLabel(4)).toBe('Proliferative DR');
+    expect(drGradeLabel(4)).toBe('Proliferative DR (PDR)');
   });
 
   it('keeps Ungradable and Needs Second Review distinct from confirmed grading', () => {

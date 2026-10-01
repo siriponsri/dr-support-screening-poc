@@ -32,8 +32,10 @@ from .derivatives import (
     DerivativeError,
     DerivativePayloadTooLargeError,
     DerivativeService,
+    MASK_OVERLAY_REPRESENTATION_VERSION,
     PreparedDerivative,
     map_lesion_result_to_review,
+    render_mask_overlay,
 )
 from .dicom import (
     CompressionState,
@@ -82,6 +84,7 @@ __all__ = [
     "ImageHandler",
     "ImageHandlerRegistry",
     "IntegrityStatus",
+    "MASK_OVERLAY_REPRESENTATION_VERSION",
     "RasterImageHandler",
     "SourceDimensions",
     "SourceAlias",
@@ -100,4 +103,5 @@ __all__ = [
     "sha256_bytes",
     "validate_derivative_lineage",
     "map_lesion_result_to_review",
+    "render_mask_overlay",
 ]

@@ -26,7 +26,7 @@ from .contracts import (
     lineage_for_bytes,
 )
 from .registry import default_dicom_image_handler_registry
-from .retinal_field import RetinalFieldNeedsReview, prepare_retinal_field
+from .retinal_field import RetinalFieldInspection, RetinalFieldNeedsReview, inspect_retinal_field
 
 
 DISPLAY_SOURCE_TRANSFORM = "display-source-v1"
@@ -37,6 +37,7 @@ ANALYSIS_TIFF_PNG_TRANSFORM = "analysis-tiff-png-rgb-v1"
 ANALYSIS_DICOM_PNG_TRANSFORM = "analysis-dicom-png-rgb-v1"
 ANALYSIS_UWF_MASK_TRANSFORM = "analysis-uwf-retinal-mask-v1"
 ANALYSIS_REPRESENTATION_VERSION = "uwf-analysis-representation-v1"
+MASK_OVERLAY_REPRESENTATION_VERSION = "uwf-mask-overlay-v1"
 ORIGINAL_COORDINATE_SPACE = "original_image_pixels"
 ANALYSIS_COORDINATE_SPACE = "analysis_pixels"
 REMOTE_IMAGE_B64_LIMIT = 20_000_000
@@ -208,6 +209,22 @@ class DerivativeService:
             prepared,
         )
 
+    def inspect_analysis_mask(self, image: BridgeImage, *, source_modality: str | None = None) -> RetinalFieldInspection:
+        """Return a UWF mask candidate for inspection without authorizing inference."""
+        modality = source_modality or image.modality
+        if modality != "UWF":
+            raise DerivativeError("Mask inspection is only available for confirmed UWF images")
+        try:
+            display = self.prepare_display(image)
+            with Image.open(io.BytesIO(display.data)) as decoded:
+                decoded.load()
+                rgb = decoded.convert("RGB")
+            return inspect_retinal_field(rgb)
+        except DerivativeError:
+            raise
+        except Exception as exc:
+            raise DerivativeError("UWF retinal-field inspection failed") from exc
+
     def _prepare(self, image: BridgeImage, purpose: DerivativePurpose, *, source_modality: str | None = None) -> PreparedDerivative:
         source_sha256 = image.sha256
         modality = source_modality or image.modality
@@ -233,22 +250,26 @@ class DerivativeService:
         field_status = "NOT_APPLICABLE"
         if purpose is DerivativePurpose.ANALYSIS and modality == "UWF":
             try:
-                # Decode a display-safe representation first, without touching source bytes.
+                inspection = self.inspect_analysis_mask(image, source_modality=modality)
+                if inspection.reason_code or inspection.mask is None or inspection.mask_sha256 is None:
+                    raise RetinalFieldNeedsReview(
+                        inspection.reason_code or "FIELD_UNAVAILABLE",
+                        candidate=inspection,
+                    )
                 display = self.prepare_display(image)
                 with Image.open(io.BytesIO(display.data)) as decoded:
                     decoded.load()
                     rgb = decoded.convert("RGB")
-                field = prepare_retinal_field(rgb)
                 output = io.BytesIO()
-                Image.composite(rgb, Image.new("RGB", rgb.size, (0, 0, 0)), field.mask).save(
+                Image.composite(rgb, Image.new("RGB", rgb.size, (0, 0, 0)), inspection.mask).save(
                     output, format="PNG", optimize=False, compress_level=9,
                 )
                 data = output.getvalue()
-                mask_sha = field.mask_sha256
-                valid_fraction = field.valid_fraction
+                mask_sha = inspection.mask_sha256
+                valid_fraction = inspection.valid_fraction
                 field_status = "READY"
             except RetinalFieldNeedsReview as exc:
-                raise RetinalFieldNeedsReview(str(exc)) from exc
+                raise RetinalFieldNeedsReview(str(exc), candidate=exc.candidate) from exc
             except DerivativeError:
                 raise
             except Exception as exc:
@@ -320,6 +341,18 @@ class DerivativeService:
         )
         self._cache[key] = prepared
         return prepared
+
+
+def render_mask_overlay(mask: Image.Image) -> bytes:
+    """Render a deterministic, inspection-only retained/excluded mask overlay."""
+    mask_bytes = mask.convert("L").tobytes()
+    pixels = bytearray()
+    for value in mask_bytes:
+        pixels.extend((16, 185, 129, 78) if value else (245, 158, 11, 78))
+    overlay = Image.frombytes("RGBA", mask.size, bytes(pixels))
+    output = io.BytesIO()
+    overlay.save(output, format="PNG", optimize=False, compress_level=9)
+    return output.getvalue()
 
 
 def _dimensions(data: bytes) -> SourceDimensions:

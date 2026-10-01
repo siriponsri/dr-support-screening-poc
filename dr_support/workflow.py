@@ -26,7 +26,9 @@ from .imaging.derivatives import (
     ANALYSIS_SOURCE_TRANSFORM,
     ANALYSIS_TIFF_PNG_TRANSFORM,
     ANALYSIS_UWF_MASK_TRANSFORM,
+    MASK_OVERLAY_REPRESENTATION_VERSION,
     ORIGINAL_COORDINATE_SPACE,
+    render_mask_overlay,
 )
 from .imaging.retinal_field import RetinalFieldNeedsReview
 from .grade import (
@@ -557,6 +559,49 @@ def install_workflow(app, store):
                                  'X-Source-SHA256': image.sha256,
                                  'X-Analysis-SHA256': audit['analysis_sha256']})
 
+    @app.get('/v1/images/{image_id}/mask-overlay')
+    def mask_overlay_bytes(image_id: str):
+        """Inspect the deterministic UWF mask over the immutable source image."""
+        image = get_image(image_id)
+        record = admission_record(image_id) or {}
+        preparation = current_store().get(image_id).get('analysis_preparation') or {}
+        status = preparation.get('status')
+        if record.get('retinal_modality') != 'UWF' or status not in {'READY', 'NEEDS_REVIEW'}:
+            raise HTTPException(409, 'Mask overlay is not available for this image.')
+        expected_source = preparation.get('source_sha256') or (preparation.get('derivative') or {}).get('source_sha256')
+        if expected_source != image.sha256:
+            raise HTTPException(409, 'Mask overlay no longer matches its recorded source.')
+        try:
+            inspection = app.state.derivatives.inspect_analysis_mask(image, source_modality='UWF')
+        except DerivativeError:
+            raise HTTPException(409, 'Mask overlay could not be prepared.') from None
+        if inspection.mask is None or inspection.mask_sha256 is None:
+            raise HTTPException(409, 'No candidate mask is available for inspection.')
+        if status == 'READY':
+            expected = preparation.get('derivative') or {}
+            if (inspection.reason_code is not None
+                    or expected.get('source_sha256') != image.sha256
+                    or expected.get('valid_retina_mask_sha256') != inspection.mask_sha256
+                    or expected.get('transform_id') != ANALYSIS_UWF_MASK_TRANSFORM
+                    or expected.get('representation_version') != ANALYSIS_REPRESENTATION_VERSION):
+                raise HTTPException(409, 'Mask overlay no longer matches its recorded preparation.')
+        else:
+            if (preparation.get('reason_code') != inspection.reason_code
+                    or preparation.get('candidate_mask_sha256') != inspection.mask_sha256
+                    or preparation.get('candidate_mask_representation_version') != MASK_OVERLAY_REPRESENTATION_VERSION):
+                raise HTTPException(409, 'Mask overlay no longer matches its recorded candidate.')
+        return Response(
+            render_mask_overlay(inspection.mask),
+            media_type='image/png',
+            headers={
+                'Cache-Control': 'private, no-store',
+                'X-Source-SHA256': image.sha256,
+                'X-Mask-SHA256': inspection.mask_sha256,
+                'X-Mask-Status': status,
+                'X-Mask-Representation': MASK_OVERLAY_REPRESENTATION_VERSION,
+            },
+        )
+
     @app.post('/v1/cases/{image_id}/review')
     def review(image_id: str, request: Review):
         get_image(image_id)
@@ -1037,10 +1082,18 @@ def install_workflow(app, store):
                         'status': 'READY', 'derivative': prepared.audit_record(),
                     }
                 except RetinalFieldNeedsReview as exc:
-                    case['analysis_preparation'] = {
+                    preparation = {
                         'status': 'NEEDS_REVIEW', 'reason_code': str(exc),
                         'source_sha256': image.sha256,
                     }
+                    candidate = exc.candidate
+                    if candidate is not None and candidate.mask_sha256 is not None:
+                        preparation.update({
+                            'candidate_mask_sha256': candidate.mask_sha256,
+                            'candidate_mask_valid_fraction': candidate.valid_fraction,
+                            'candidate_mask_representation_version': MASK_OVERLAY_REPRESENTATION_VERSION,
+                        })
+                    case['analysis_preparation'] = preparation
                 except DerivativeError:
                     case['analysis_preparation'] = {
                         'status': 'FAILED', 'reason_code': 'PREPARATION_FAILED',

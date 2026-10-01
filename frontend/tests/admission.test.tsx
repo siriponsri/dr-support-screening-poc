@@ -94,11 +94,13 @@ describe('image admission UI', () => {
     mockAdmissionApi();
     renderAppAt('/review/ambiguous');
 
-    expect(await screen.findByText('Needs image review')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
     expect(screen.getByText('ambiguous · Eye not confirmed')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Analyze' })).toBeDisabled();
-    expect(screen.getByText('Resolve this case from the Worklist before analysis.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Worklist' })).toHaveAttribute('href', '/worklist');
+    expect(screen.getByText(/Image context needs confirmation\./)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
+    expect(screen.getByText('Unavailable for this image and configuration.')).toBeInTheDocument();
+    expect(screen.getByText('Manual review remains available. No unqualified model result is shown.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to Worklist' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Accept as retinal fundus image/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mark as non-fundus/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Pseudonymous patient key')).not.toBeInTheDocument();
@@ -134,7 +136,9 @@ describe('image admission UI', () => {
 
     renderAppAt('/review/ambiguous');
 
-    expect(await screen.findByRole('button', { name: 'Analyze' })).toBeDisabled();
-    expect(screen.getByText('AI analysis is not available.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
+    expect(screen.getByText('Unavailable for this image and configuration.')).toBeInTheDocument();
+    expect(screen.getByText('Manual review remains available. No unqualified model result is shown.')).toBeInTheDocument();
   });
 });

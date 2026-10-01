@@ -6,6 +6,7 @@ import {
   Box,
   Button,
   Center,
+  Collapse,
   FormControl,
   FormLabel,
   Grid,
@@ -42,7 +43,7 @@ import {
   type LesionLabel,
   type AnnotationCompletenessState,
 } from '@/lib/api';
-import { ArrowLeft, CheckCircle2, Circle, Lock, MousePointer2, Pentagon, Save, Square, Trash2, Undo2, Unlock } from '@/lib/icons';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Circle, Lock, MousePointer2, Pentagon, Save, Square, Trash2, Undo2, Unlock } from '@/lib/icons';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 
 type Tool = 'select' | 'rectangle' | 'polygon' | 'point' | 'circle';
@@ -275,7 +276,7 @@ export function AnnotationEditorPage() {
   const [history, setHistory] = useState<HumanAnnotation[][]>([]);
   const [tool, setTool] = useState<Tool>('select');
   const [isCoordinateInspector, setIsCoordinateInspector] = useState(false);
-  const [label, setLabel] = useState<LesionLabel>('MICROANEURYSM');
+  const [label, setLabel] = useState<LesionLabel | ''>('');
   const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
   const [selectedLesionId, setSelectedLesionId] = useState<string | null>(null);
@@ -296,6 +297,8 @@ export function AnnotationEditorPage() {
   const [roiSaving, setRoiSaving] = useState(false);
   const [roiError, setRoiError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [moreToolsOpen, setMoreToolsOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [confirmDialog, confirm] = useConfirmDialog();
   const toast = useToast();
   const roiDragRef = useRef<{ handle: RectangleResizeHandle | null; start: Point; base: RoiRectangle; moved: boolean } | null>(null);
@@ -356,7 +359,7 @@ export function AnnotationEditorPage() {
 
   const activateTool = (nextTool: Tool) => {
     if (readOnly) return;
-    if (tool === 'polygon' && polygonPoints.length >= 3) {
+    if (tool === 'polygon' && polygonPoints.length >= 3 && label) {
       commit([...draft, annotation('polygon', label, { points: polygonPoints })]);
       setPolygonPoints([]);
     }
@@ -380,6 +383,10 @@ export function AnnotationEditorPage() {
       return;
     }
     if (readOnly || !item || tool === 'select') return;
+    if (!label) {
+      setSaveError('Choose a finding class before drawing.');
+      return;
+    }
     event.preventDefault();
     interactionRef.current = true;
     const point = pointFromEvent(event, item);
@@ -511,6 +518,12 @@ export function AnnotationEditorPage() {
       return;
     }
     if (!item || !dragStart || (tool !== 'rectangle' && tool !== 'circle')) return;
+    if (!label) {
+      setDragStart(null);
+      setPreview(null);
+      setSaveError('Choose a finding class before drawing.');
+      return;
+    }
     const point = pointFromEvent(event, item);
     let geometry: AnnotationGeometry;
     if (tool === 'rectangle') {
@@ -550,7 +563,7 @@ export function AnnotationEditorPage() {
   };
 
   const onDoubleClick = (event: ReactMouseEvent<SVGSVGElement>) => {
-    if (readOnly || tool !== 'polygon') return;
+    if (readOnly || tool !== 'polygon' || !label) return;
     event.preventDefault();
     if (polygonPoints.length < 3) return;
     commit([...draft, annotation('polygon', label, { points: polygonPoints })]);
@@ -799,32 +812,28 @@ export function AnnotationEditorPage() {
 
   const annotationControls = (
     <Stack spacing={3}>
-      <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
-        <Stack spacing={2}>
-          <Text fontWeight="semibold" fontSize="sm">Core findings review</Text>
-          <Text fontSize="xs" color="text.secondary">AI suggestions are evidence. Confirm, correct, remove, or add findings above; an empty list is not a negative result.</Text>
-          <HStack spacing={2} flexWrap="wrap">
-            <Button size="sm" onClick={() => updateCompleteness('CORE', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Partially reviewed</Button>
-            <Button size="sm" onClick={() => updateCompleteness('CORE', draftRef.current.some((entry) => ['MICROANEURYSM', 'HEMORRHAGE', 'HARD_EXUDATE', 'SOFT_EXUDATE'].includes(entry.label)) ? 'REVIEWED_FINDINGS_RECORDED' : 'REVIEWED_NONE_FOUND')} isDisabled={readOnly || Boolean(completenessSaving)}>{draftRef.current.some((entry) => ['MICROANEURYSM', 'HEMORRHAGE', 'HARD_EXUDATE', 'SOFT_EXUDATE'].includes(entry.label)) ? 'Reviewed findings recorded' : 'Reviewed none found'}</Button>
-          </HStack>
-          <Text fontSize="xs" color="text.secondary">Status: {completeness.CORE?.state ?? 'Not reviewed'}{completeness.CORE?.reviewer ? ` · ${completeness.CORE.reviewer}` : ''}</Text>
-        </Stack>
-      </Box>
-      <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
-        <Stack spacing={2}>
-          <Text fontWeight="semibold" fontSize="sm">Advanced findings</Text>
-          <Text fontSize="xs" color="text.secondary">Optional and deferred in this workflow. Unsupported Advanced classes are not recorded or treated as negative.</Text>
-          <Button size="sm" alignSelf="flex-start" onClick={() => updateCompleteness('ADVANCED', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Record partial review</Button>
-          <Text fontSize="xs" color="text.secondary">Status: {completeness.ADVANCED?.state ?? 'Not reviewed'}</Text>
-        </Stack>
-      </Box>
       <HStack spacing={2} flexWrap="wrap">
-          <ToolButton active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector || readOnly}><MousePointer2 size={14} /> Select</ToolButton>
+        <ToolButton active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector || readOnly}><MousePointer2 size={14} /> Select</ToolButton>
         <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector || readOnly}><Square size={14} /> Box</ToolButton>
-        <ToolButton active={tool === 'polygon'} onClick={() => activateTool('polygon')} isDisabled={isCoordinateInspector || readOnly}><Pentagon size={14} /> Polygon</ToolButton>
-        <ToolButton active={tool === 'point'} onClick={() => activateTool('point')} isDisabled={isCoordinateInspector || readOnly}><Circle size={14} /> Point</ToolButton>
-        <ToolButton active={tool === 'circle'} onClick={() => activateTool('circle')} isDisabled={isCoordinateInspector || readOnly}><Circle size={14} /> Circle</ToolButton>
+        <Button
+          size="sm"
+          variant="outline"
+          rightIcon={moreToolsOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+          aria-expanded={moreToolsOpen}
+          aria-controls="annotation-more-tools"
+          onClick={() => setMoreToolsOpen((open) => !open)}
+          isDisabled={readOnly}
+        >
+          More tools
+        </Button>
       </HStack>
+      <Collapse in={moreToolsOpen} animateOpacity>
+        <HStack id="annotation-more-tools" spacing={2} flexWrap="wrap">
+          <ToolButton active={tool === 'polygon'} onClick={() => activateTool('polygon')} isDisabled={isCoordinateInspector || readOnly}><Pentagon size={14} /> Polygon</ToolButton>
+          <ToolButton active={tool === 'point'} onClick={() => activateTool('point')} isDisabled={isCoordinateInspector || readOnly}><Circle size={14} /> Point</ToolButton>
+          <ToolButton active={tool === 'circle'} onClick={() => activateTool('circle')} isDisabled={isCoordinateInspector || readOnly}><Circle size={14} /> Circle</ToolButton>
+        </HStack>
+      </Collapse>
       <HStack spacing={2}>
         <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={isCoordinateInspector || readOnly || history.length === 0}>Undo</Button>
         <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={isCoordinateInspector || readOnly || !selectedShapeId}>Delete selected</Button>
@@ -840,8 +849,9 @@ export function AnnotationEditorPage() {
       </HStack>
       <HStack spacing={4} align="end" flexWrap="wrap">
         <FormControl maxW={{ base: '100%', laptop: '250px' }}>
-          <FormLabel htmlFor="new-annotation-class" fontSize="sm">New annotation class</FormLabel>
-          <Select id="new-annotation-class" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)} isDisabled={readOnly}>
+          <FormLabel htmlFor="new-annotation-class" fontSize="sm">Finding class</FormLabel>
+          <Select id="new-annotation-class" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel | '')} isDisabled={readOnly}>
+            <option value="">Choose finding...</option>
             {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </Select>
         </FormControl>
@@ -875,21 +885,37 @@ export function AnnotationEditorPage() {
       <ToolButton ariaLabel="Box tool" active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector || readOnly}>
         <Square size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Box</Box>
       </ToolButton>
-      <ToolButton ariaLabel="Polygon tool" active={tool === 'polygon'} onClick={() => activateTool('polygon')} isDisabled={isCoordinateInspector || readOnly}>
-        <Pentagon size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Polygon</Box>
-      </ToolButton>
-      <ToolButton ariaLabel="Point tool" active={tool === 'point'} onClick={() => activateTool('point')} isDisabled={isCoordinateInspector || readOnly}>
-        <Circle size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Point</Box>
-      </ToolButton>
-      <ToolButton ariaLabel="Circle tool" active={tool === 'circle'} onClick={() => activateTool('circle')} isDisabled={isCoordinateInspector || readOnly}>
-        <Circle size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Circle</Box>
-      </ToolButton>
+      <Button
+        size="sm"
+        variant="outline"
+        rightIcon={moreToolsOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+        aria-expanded={moreToolsOpen}
+        aria-controls="fullscreen-more-tools"
+        onClick={() => setMoreToolsOpen((open) => !open)}
+        isDisabled={readOnly}
+      >
+        More tools
+      </Button>
+      <Collapse in={moreToolsOpen} animateOpacity>
+        <HStack id="fullscreen-more-tools" spacing={1}>
+          <ToolButton ariaLabel="Polygon tool" active={tool === 'polygon'} onClick={() => activateTool('polygon')} isDisabled={isCoordinateInspector || readOnly}>
+            <Pentagon size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Polygon</Box>
+          </ToolButton>
+          <ToolButton ariaLabel="Point tool" active={tool === 'point'} onClick={() => activateTool('point')} isDisabled={isCoordinateInspector || readOnly}>
+            <Circle size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Point</Box>
+          </ToolButton>
+          <ToolButton ariaLabel="Circle tool" active={tool === 'circle'} onClick={() => activateTool('circle')} isDisabled={isCoordinateInspector || readOnly}>
+            <Circle size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Circle</Box>
+          </ToolButton>
+        </HStack>
+      </Collapse>
       <Button size="sm" leftIcon={<Undo2 size={14} />} aria-label="Undo annotation change" onClick={undo} isDisabled={isCoordinateInspector || readOnly || history.length === 0}>Undo</Button>
       <Button size="sm" leftIcon={<Trash2 size={14} />} aria-label="Delete selected annotation" onClick={deleteSelected} isDisabled={isCoordinateInspector || readOnly || !selectedShapeId}>Delete</Button>
       <Button size="sm" leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />} onClick={toggleSelectedLock} isDisabled={isCoordinateInspector || readOnly || !selectedAnnotation} aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}>
         {selectedIsLocked ? 'Unlock' : 'Lock'}
       </Button>
-      <Select aria-label="Lesion class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel)} maxW={{ base: '150px', tablet: '190px' }} isDisabled={readOnly}>
+      <Select aria-label="Finding class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel | '')} maxW={{ base: '150px', tablet: '190px' }} isDisabled={readOnly}>
+        <option value="">Choose finding...</option>
         {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </Select>
       <Button size="sm" variant={showAi ? 'secondary' : 'outline'} onClick={() => setShowAi((visible) => !visible)} aria-pressed={showAi}>AI {showAi ? 'on' : 'off'}</Button>
@@ -1148,6 +1174,38 @@ export function AnnotationEditorPage() {
                 <Text>You only need to edit a region when you disagree or want to record a human annotation.</Text>
                 <Text>Confirming annotations completes this case; it does not mean every AI ROI was individually verified.</Text>
               </Stack>
+              <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
+                <Stack spacing={2}>
+                  <Text fontWeight="semibold" fontSize="sm">Core findings review</Text>
+                  <Text fontSize="xs" color="text.secondary">Choose the review state deliberately at the finish boundary. An empty AI result or empty annotation list is not a negative result.</Text>
+                  <HStack spacing={2} flexWrap="wrap">
+                    <Button size="sm" onClick={() => updateCompleteness('CORE', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Review in progress</Button>
+                    <Button size="sm" onClick={() => updateCompleteness('CORE', 'REVIEWED_FINDINGS_RECORDED')} isDisabled={readOnly || Boolean(completenessSaving)}>Reviewed findings recorded</Button>
+                    <Button size="sm" onClick={() => updateCompleteness('CORE', 'REVIEWED_NONE_FOUND')} isDisabled={readOnly || Boolean(completenessSaving)}>Reviewed none found</Button>
+                  </HStack>
+                  <Text fontSize="xs" color="text.secondary">Status: {completeness.CORE?.state ?? 'Not finished yet'}{completeness.CORE?.reviewer ? ` · ${completeness.CORE.reviewer}` : ''}</Text>
+                </Stack>
+              </Box>
+              <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  px={0}
+                  rightIcon={advancedOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+                  aria-expanded={advancedOpen}
+                  aria-controls="advanced-findings-review"
+                  onClick={() => setAdvancedOpen((open) => !open)}
+                >
+                  Advanced findings
+                </Button>
+                <Collapse in={advancedOpen} animateOpacity>
+                  <Stack id="advanced-findings-review" spacing={2} mt={2}>
+                    <Text fontSize="xs" color="text.secondary">Skip for now. Advanced review is optional and deferred in this workflow.</Text>
+                    <Button size="sm" alignSelf="flex-start" onClick={() => updateCompleteness('ADVANCED', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Record partial review</Button>
+                    <Text fontSize="xs" color="text.secondary">Status: {completeness.ADVANCED?.state ?? 'Not finished yet'}</Text>
+                  </Stack>
+                </Collapse>
+              </Box>
               <ReviewerField id="annotation-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
               {saveError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
               {readOnly && hasConfirmedGrade ? (

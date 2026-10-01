@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { CaseRecord } from '@/lib/api';
+import type { CaseRecord, ModelDescriptor } from '@/lib/api';
 import { renderAppAt } from './testUtils';
 
 const readyCase: CaseRecord = {
@@ -150,7 +150,7 @@ function requestPath(input: RequestInfo | URL) {
   return new URL(input.url, window.location.origin).pathname;
 }
 
-function mockReviewApi(onReview?: (request: Record<string, unknown>) => void, currentCase: CaseRecord = readyCase) {
+function mockReviewApi(onReview?: (request: Record<string, unknown>) => void, currentCase: CaseRecord = readyCase, models: ModelDescriptor[] = []) {
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const path = requestPath(input);
     if (path === '/v1/cases/ready') return jsonResponse(currentCase);
@@ -173,7 +173,7 @@ function mockReviewApi(onReview?: (request: Record<string, unknown>) => void, cu
         },
       });
     }
-    if (path === '/v1/models') return jsonResponse([]);
+    if (path === '/v1/models') return jsonResponse(models);
     return jsonResponse({ detail: `Unexpected test request: ${path}` }, 404);
   });
 }
@@ -198,7 +198,7 @@ describe('Review responsibility boundary', () => {
     await user.selectOptions(screen.getByLabelText('Final DR grade'), '2');
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Send for senior review' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Confirm DR Grade' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm grade' }));
     expect(reviewRequest).toMatchObject({ action: 'ACCEPT', grade: 2, reviewer: 'Review clinician' });
     expect(await screen.findByRole('button', { name: 'Confirm Annotation' })).toBeInTheDocument();
   });
@@ -227,6 +227,68 @@ describe('Review responsibility boundary', () => {
     expect(await screen.findByText('Unavailable - mask preparation failed; Original/manual review only')).toBeInTheDocument();
     expect(screen.getByText('Unavailable - no transform recorded')).toBeInTheDocument();
     expect(screen.getAllByText('Unavailable - no model result recorded')).toHaveLength(2);
+  });
+
+  it('keeps a needs-review UWF candidate inspectable while disabling analysis input', async () => {
+    const needsReviewCase: CaseRecord = {
+      ...readyCase,
+      modality: 'UWF',
+      source_origin: 'WORKSPACE',
+      source_type: 'WORKSPACE',
+      source: 'WORKSPACE_INPUT',
+      image_url: '/v1/images/ready/display',
+      global: null,
+      lesion: null,
+      lesion_review: null,
+      analysis_preparation: { status: 'NEEDS_REVIEW', candidate_mask_sha256: 'c'.repeat(64) },
+    };
+    mockReviewApi(undefined, needsReviewCase);
+    renderAppAt('/review/ready');
+
+    expect(await screen.findByText('Masked Analysis needs review')).toBeInTheDocument();
+    expect(screen.getByText(/candidate mask is available for inspection only/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Analysis area' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Mask overlay' })).toBeEnabled();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Mask overlay' }));
+    expect(screen.getByTestId('mask-overlay')).toHaveAttribute('src', '/v1/images/ready/mask-overlay');
+  });
+
+  it('collapses unavailable model states into the manual-review path', async () => {
+    const unavailableCase: CaseRecord = { ...readyCase, global: null, lesion: null, lesion_review: null };
+    mockReviewApi(undefined, unavailableCase, [
+      { model_id: 'retfound-aptos5', task: 'global', status: 'REMOTE_AUTH_FAILED' },
+      { model_id: 'prism-dr-5fold', task: 'lesion-roi', status: 'REMOTE_UNREACHABLE' },
+    ]);
+    renderAppAt('/review/ready');
+
+    expect(await screen.findByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
+    expect(screen.getAllByText(/Manual review remains available/i)).not.toHaveLength(0);
+    expect(screen.queryByRole('heading', { name: 'Analysis' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'DR assessment' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Lesion suggestions' })).not.toBeInTheDocument();
+  });
+
+  it('keeps recorded evidence visible when new model analysis is unavailable', async () => {
+    const recordedCase: CaseRecord = {
+      ...readyCase,
+      image_url: '/v1/images/ready/display',
+      explainability: { status: 'UNAVAILABLE', note: 'No explainability receipt was returned for this case.' },
+    };
+    mockReviewApi(undefined, recordedCase, [
+      { model_id: 'retfound-aptos5', task: 'global', status: 'REMOTE_UNREACHABLE' },
+      { model_id: 'prism-dr-5fold', task: 'lesion-roi', status: 'REMOTE_UNREACHABLE' },
+    ]);
+    renderAppAt('/review/ready');
+
+    expect(await screen.findByRole('heading', { name: 'Analysis' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Analyze again' })).toBeDisabled();
+    expect(screen.getByRole('heading', { name: 'DR assessment' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Lesion suggestions' })).toBeInTheDocument();
+    expect(screen.getByText(/Recorded model evidence remains visible/i)).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Explainability' }));
+    expect(screen.getByLabelText('Retinal image viewer stage')).toBeInTheDocument();
+    expect(screen.getByText('No explainability receipt was returned for this case.')).toBeInTheDocument();
   });
 
   it('keeps a legacy escalation record readable without restoring the retired action', async () => {

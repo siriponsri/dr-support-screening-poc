@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+from dataclasses import replace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -91,6 +92,14 @@ def test_workspace_intake_unknown_then_manual_uwf_persists_and_blocks_cfp(tmp_pa
         assert masked.size == (512, 384)
         assert masked.getpixel((0, 0)) == (0, 0, 0)
         assert masked.getpixel((256, 192)) != (0, 0, 0)
+    mask = client.get(f"/v1/images/{image_id}/mask-overlay")
+    assert mask.status_code == 200
+    assert mask.headers["x-mask-status"] == "READY"
+    assert mask.headers["x-mask-sha256"] == audit["valid_retina_mask_sha256"]
+    assert mask.content != area.content
+    with Image.open(io.BytesIO(mask.content)) as overlay:
+        assert overlay.mode == "RGBA"
+        assert overlay.size == (512, 384)
     assert path.read_bytes() == source
     assert client.get(f"/v1/images/{image_id}").content == source
     assert client.post("/v1/infer/global", json={"image_id": image_id, "modality": "CFP", "model_id": "retfound-aptos5"}).status_code == 409
@@ -135,6 +144,12 @@ def test_ambiguous_field_needs_review_without_source_fallback(tmp_path, monkeypa
     assert confirmed["analysis_preparation"]["status"] == "NEEDS_REVIEW"
     assert "derivative" not in confirmed["analysis_preparation"]
     assert client.get(f"/v1/images/{case['image_id']}/analysis-area").status_code == 409
+    preparation = confirmed["analysis_preparation"]
+    assert len(preparation["candidate_mask_sha256"]) == 64
+    mask = client.get(f"/v1/images/{case['image_id']}/mask-overlay")
+    assert mask.status_code == 200
+    assert mask.headers["x-mask-status"] == "NEEDS_REVIEW"
+    assert mask.headers["x-mask-sha256"] == preparation["candidate_mask_sha256"]
     assert client.post("/v1/infer/global", json={
         "image_id": case["image_id"], "modality": "CFP", "model_id": "retfound-aptos5",
     }).status_code == 409
@@ -143,6 +158,30 @@ def test_ambiguous_field_needs_review_without_source_fallback(tmp_path, monkeypa
         with pytest.raises(RetinalFieldNeedsReview):
             from dr_support.imaging.retinal_field import prepare_retinal_field
             prepare_retinal_field(image)
+
+
+def test_mask_overlay_fails_closed_when_no_candidate_exists(tmp_path, monkeypatch):
+    image = Image.new("RGB", (128, 128), (8, 8, 8))
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    client, case, _ = _workspace(tmp_path, monkeypatch, output.getvalue())
+    confirmed = _confirm(client, case, "UWF").json()
+    assert confirmed["analysis_preparation"]["status"] == "NEEDS_REVIEW"
+    assert "candidate_mask_sha256" not in confirmed["analysis_preparation"]
+    assert client.get(f"/v1/images/{case['image_id']}/mask-overlay").status_code == 409
+
+
+def test_mask_overlay_fails_closed_when_source_hash_changes(tmp_path, monkeypatch):
+    source = _uwf_bytes()
+    client, case, _ = _workspace(tmp_path, monkeypatch, source)
+    confirmed = _confirm(client, case, "UWF").json()
+    image_id = case["image_id"]
+    original = client.app.state.images[image_id]
+    client.app.state.images[image_id] = replace(original, data=_uwf_bytes(bounded=False))
+    response = client.get(f"/v1/images/{image_id}/mask-overlay")
+    assert response.status_code == 409
+    assert "recorded source" in response.json()["detail"]
+    assert confirmed["analysis_preparation"]["status"] == "READY"
 
 
 def test_explicit_cfp_fixture_keeps_existing_inference_path(tmp_path):

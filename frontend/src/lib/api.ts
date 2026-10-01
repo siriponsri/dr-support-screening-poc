@@ -248,6 +248,9 @@ export interface CaseRecord {
     status: 'READY' | 'NEEDS_REVIEW' | 'FAILED' | 'NOT_APPLICABLE';
     reason_code?: string;
     source_sha256?: string;
+    candidate_mask_sha256?: string | null;
+    candidate_mask_valid_fraction?: number | null;
+    candidate_mask_representation_version?: string | null;
     derivative?: AnalysisDerivativeAudit;
   } | null;
   spatial_ai_display?: SpatialAiDisplay;
@@ -409,7 +412,7 @@ export const DR_GRADE_LABELS: Record<number, string> = {
   1: 'Mild NPDR',
   2: 'Moderate NPDR',
   3: 'Severe NPDR',
-  4: 'Proliferative DR',
+  4: 'Proliferative DR (PDR)',
 };
 
 export function drGradeLabel(grade: number | null | undefined): string | null {

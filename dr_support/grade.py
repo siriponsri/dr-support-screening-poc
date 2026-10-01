@@ -5,7 +5,7 @@ DR_GRADE_LABELS = {
     1: "Mild NPDR",
     2: "Moderate NPDR",
     3: "Severe NPDR",
-    4: "Proliferative DR",
+    4: "Proliferative DR (PDR)",
 }
 
 GRADE_STATUS_NOT_REVIEWED = "NOT_REVIEWED"
