@@ -28,6 +28,7 @@ interface RetinalCanvasProps {
   item: CaseRecord;
   /** Inspection-only candidate mask rendered over the immutable display image. */
   maskOverlayUrl?: string | null;
+  onMaskOverlayError?: () => void;
   showAi?: boolean;
   visibleLesionLabels?: LesionLabel[];
   showHuman?: boolean;
@@ -317,6 +318,7 @@ function HumanShape({
 export function RetinalCanvas({
   item,
   maskOverlayUrl,
+  onMaskOverlayError,
   showAi = true,
   visibleLesionLabels,
   showHuman = true,
@@ -789,6 +791,7 @@ export function RetinalCanvas({
             userSelect="none"
             pointerEvents="none"
             draggable={false}
+            onError={() => onMaskOverlayError?.()}
           />
         )}
         <Box

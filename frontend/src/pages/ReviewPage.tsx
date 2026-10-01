@@ -176,6 +176,24 @@ function LesionLegend() {
   );
 }
 
+function MaskLegend() {
+  return (
+    <Stack spacing={1} aria-label="Mask overlay key">
+      <Text fontSize="xs" fontWeight="semibold" color="text.primary">Mask overlay key</Text>
+      <HStack spacing={3} flexWrap="wrap" fontSize="xs" color="text.secondary">
+        <HStack spacing={1}>
+          <Box w="9px" h="9px" borderRadius="sm" bg="#10B981" />
+          <Text>Retained retina</Text>
+        </HStack>
+        <HStack spacing={1}>
+          <Box w="9px" h="9px" borderRadius="sm" bg="#F59E0B" />
+          <Text>Excluded area</Text>
+        </HStack>
+      </HStack>
+    </Stack>
+  );
+}
+
 function admissionAllowsAnalysis(item: CaseRecord | null) {
   return Boolean(
     item?.admission
@@ -259,6 +277,7 @@ export function ReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [maskOverlayLoadError, setMaskOverlayLoadError] = useState(false);
   const [processingOpen, setProcessingOpen] = useState(false);
   const [confirmDialog, confirm] = useConfirmDialog();
 
@@ -288,7 +307,13 @@ export function ReviewPage() {
     void loadCase();
     void loadModels();
     setImageView('original');
+    setMaskOverlayLoadError(false);
   }, [loadCase, loadModels]);
+
+  const handleMaskOverlayError = useCallback(() => {
+    setMaskOverlayLoadError(true);
+    setImageView((current) => current === 'mask-overlay' ? 'original' : current);
+  }, []);
 
   const leaveToWorklist = async () => {
     if (item && !caseComplete(item) && !(await confirm(LEAVE_CASE_DIALOG))) return;
@@ -334,6 +359,7 @@ export function ReviewPage() {
     analysisCandidateAvailable
       || (analysisPreparationStatus === 'NEEDS_REVIEW' && item?.analysis_preparation?.candidate_mask_sha256),
   );
+  const maskOverlayAvailable = maskCandidateAvailable && !maskOverlayLoadError;
   const analysisAreaUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/analysis-area` : '';
   const maskOverlayUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/mask-overlay` : '';
   const hasRecordedEvidence = Boolean(item?.global || item?.lesion);
@@ -399,7 +425,8 @@ export function ReviewPage() {
           )}
           {item.image_url ? <RetinalCanvas
             item={imageView === 'analysis-area' && analysisCandidateAvailable ? { ...item, image_url: analysisAreaUrl } : item}
-            maskOverlayUrl={imageView === 'mask-overlay' && maskCandidateAvailable ? maskOverlayUrl : null}
+            maskOverlayUrl={imageView === 'mask-overlay' && maskOverlayAvailable ? maskOverlayUrl : null}
+            onMaskOverlayError={handleMaskOverlayError}
             showAi={imageView === 'ai-evidence'}
             visibleLesionLabels={lesionFilter === 'ALL' ? undefined : [lesionFilter]}
             showHuman={false}
@@ -415,7 +442,7 @@ export function ReviewPage() {
             <HStack spacing={1} flexWrap="wrap" aria-label="Viewer modes">
               <Button size="sm" variant={imageView === 'original' ? 'solid' : 'outline'} aria-pressed={imageView === 'original'} onClick={() => setImageView('original')}>Original</Button>
               {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'analysis-area' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'analysis-area'} isDisabled={!analysisCandidateAvailable} onClick={() => setImageView('analysis-area')}>Analysis area</Button>}
-              {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'mask-overlay' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'mask-overlay'} isDisabled={!maskCandidateAvailable} onClick={() => setImageView('mask-overlay')}>Mask overlay</Button>}
+              {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'mask-overlay' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'mask-overlay'} isDisabled={!maskOverlayAvailable} onClick={() => setImageView('mask-overlay')}>Mask overlay</Button>}
               <Button size="sm" variant={imageView === 'ai-evidence' ? 'solid' : 'outline'} aria-pressed={imageView === 'ai-evidence'} isDisabled={item.spatial_ai_display?.status !== 'AVAILABLE' || (!item.global && !item.lesion)} onClick={() => setImageView('ai-evidence')}>AI evidence</Button>
               <Button size="sm" variant={imageView === 'explainability' ? 'solid' : 'outline'} aria-pressed={imageView === 'explainability'} onClick={() => setImageView('explainability')}>Explainability</Button>
             </HStack>
@@ -434,10 +461,17 @@ export function ReviewPage() {
                 <option value="SOFT_EXUDATE">SE · Soft exudate</option>
               </Select>
             )}
+            {maskOverlayLoadError && (
+              <Alert status="warning" mt={1}>
+                <AlertIcon />
+                <Text fontSize="sm">Mask overlay unavailable. This candidate could not be loaded for this source. The original image remains available for review.</Text>
+              </Alert>
+            )}
             <Text fontSize="xs" color="text.secondary">
               {imageView === 'ai-evidence' ? `Active overlays ${displayedLesions(item).length} of ${item.lesion_review?.raw_count ?? item.lesion?.lesions.length ?? 0} raw AI suggestions` : imageView === 'mask-overlay' ? 'Candidate mask is shown for inspection only; it is not a clinical gradability decision.' : 'Original image remains the review source.'}
             </Text>
-          <LesionLegend />
+            {imageView === 'mask-overlay' && <MaskLegend />}
+            <LesionLegend />
           </Stack>
           <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={3} mt={4} fontSize="sm" minW={0}>
             <Stack spacing={1}><Text color="text.secondary">Image ID</Text><Code fontSize="xs" whiteSpace="normal">{item.image_id}</Code></Stack>

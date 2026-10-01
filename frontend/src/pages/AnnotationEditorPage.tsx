@@ -58,6 +58,17 @@ const LABEL_OPTIONS: Array<{ value: LesionLabel; label: string }> = [
   { value: 'SOFT_EXUDATE', label: 'Soft exudate' },
 ];
 
+const COMPLETENESS_STATE_LABELS: Record<AnnotationCompletenessState, string> = {
+  NOT_REVIEWED: 'Not reviewed',
+  PARTIALLY_REVIEWED: 'Review in progress',
+  REVIEWED_NONE_FOUND: 'Reviewed - none found',
+  REVIEWED_FINDINGS_RECORDED: 'Reviewed - findings recorded',
+};
+
+function completenessStateLabel(state?: AnnotationCompletenessState | null): string {
+  return state ? COMPLETENESS_STATE_LABELS[state] : 'Not finished yet';
+}
+
 function errorText(err: unknown) {
   return err instanceof Error ? err.message : 'The request could not be completed.';
 }
@@ -1183,7 +1194,7 @@ export function AnnotationEditorPage() {
                     <Button size="sm" onClick={() => updateCompleteness('CORE', 'REVIEWED_FINDINGS_RECORDED')} isDisabled={readOnly || Boolean(completenessSaving)}>Reviewed findings recorded</Button>
                     <Button size="sm" onClick={() => updateCompleteness('CORE', 'REVIEWED_NONE_FOUND')} isDisabled={readOnly || Boolean(completenessSaving)}>Reviewed none found</Button>
                   </HStack>
-                  <Text fontSize="xs" color="text.secondary">Status: {completeness.CORE?.state ?? 'Not finished yet'}{completeness.CORE?.reviewer ? ` · ${completeness.CORE.reviewer}` : ''}</Text>
+                  <Text fontSize="xs" color="text.secondary">Status: {completenessStateLabel(completeness.CORE?.state)}{completeness.CORE?.reviewer ? ` · ${completeness.CORE.reviewer}` : ''}</Text>
                 </Stack>
               </Box>
               <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
@@ -1202,7 +1213,7 @@ export function AnnotationEditorPage() {
                   <Stack id="advanced-findings-review" spacing={2} mt={2}>
                     <Text fontSize="xs" color="text.secondary">Skip for now. Advanced review is optional and deferred in this workflow.</Text>
                     <Button size="sm" alignSelf="flex-start" onClick={() => updateCompleteness('ADVANCED', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Record partial review</Button>
-                    <Text fontSize="xs" color="text.secondary">Status: {completeness.ADVANCED?.state ?? 'Not finished yet'}</Text>
+                    <Text fontSize="xs" color="text.secondary">Status: {completenessStateLabel(completeness.ADVANCED?.state)}</Text>
                   </Stack>
                 </Collapse>
               </Box>

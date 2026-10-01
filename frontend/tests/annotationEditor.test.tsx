@@ -266,7 +266,8 @@ describe('AnnotationEditorPage human movement', () => {
     await waitFor(() => expect(completenessRequest).toMatchObject({
       group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician', taxonomy_version: 'core-lesions-v1',
     }));
-    expect(screen.getByText(/Status: REVIEWED_NONE_FOUND/)).toBeInTheDocument();
+    expect(screen.getByText(/Status: Reviewed - none found/)).toBeInTheDocument();
+    expect(screen.queryByText(/REVIEWED_NONE_FOUND/)).not.toBeInTheDocument();
   });
 
   it('moves editable human geometry, records undo, and respects lock state', async () => {

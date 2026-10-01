@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { CaseRecord, ModelDescriptor } from '@/lib/api';
 import { renderAppAt } from './testUtils';
@@ -251,6 +251,14 @@ describe('Review responsibility boundary', () => {
     expect(screen.getByRole('button', { name: 'Mask overlay' })).toBeEnabled();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Mask overlay' }));
     expect(screen.getByTestId('mask-overlay')).toHaveAttribute('src', '/v1/images/ready/mask-overlay');
+    expect(screen.getByText('Retained retina')).toBeInTheDocument();
+    expect(screen.getByText('Excluded area')).toBeInTheDocument();
+
+    fireEvent.error(screen.getByTestId('mask-overlay'));
+    expect(screen.queryByTestId('mask-overlay')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Original' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Mask overlay' })).toBeDisabled();
+    expect(screen.getByText(/Mask overlay unavailable.*original image remains available/i)).toBeInTheDocument();
   });
 
   it('collapses unavailable model states into the manual-review path', async () => {
