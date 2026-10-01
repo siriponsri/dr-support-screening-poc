@@ -340,6 +340,33 @@ def test_case_update_transaction_rolls_back(postgres_database: PostgresDatabase)
     assert store.get("case_rollback")["state"] == "PENDING"
 
 
+def test_same_revision_case_enrichment_after_revision_change_is_persisted(
+    postgres_database: PostgresDatabase,
+):
+    SchemaMigrator(postgres_database).migrate()
+    store = PostgresCaseStore(postgres_database, "ws_same_revision_enrichment")
+    case = store.get("case_same_revision")
+    store.put(case)
+
+    reviewed = store.get("case_same_revision")
+    reviewed["revision"] += 1
+    reviewed["events"].append({"action": "REVIEW_CONFIRMED"})
+    store.put(reviewed)
+
+    enriched = store.get("case_same_revision")
+    enriched["events"].append({"action": "AUTOMATIC_ADMISSION"})
+    store.put(enriched)
+
+    current = PostgresCaseStore(postgres_database, "ws_same_revision_enrichment").get(
+        "case_same_revision"
+    )
+    assert current["revision"] == 1
+    assert current["events"] == [
+        {"action": "REVIEW_CONFIRMED"},
+        {"action": "AUTOMATIC_ADMISSION"},
+    ]
+
+
 def test_independent_postgres_connections_reject_stale_case_update(
     postgres_database: PostgresDatabase,
 ):
