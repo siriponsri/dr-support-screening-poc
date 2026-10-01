@@ -163,6 +163,22 @@ class PostgresCaseStore:
                         ),
                     ).rowcount
                     if updated != 1:
+                        # Startup admission enrichment can preserve the current revision.
+                        updated = connection.execute(
+                            sql.SQL(
+                                "UPDATE {}.review_cases SET payload = %s, "
+                                "updated_at = CURRENT_TIMESTAMP WHERE workspace_id = %s "
+                                "AND case_id = %s AND revision = %s AND payload = %s"
+                            ).format(self._schema),
+                            (
+                                payload,
+                                self.workspace_id,
+                                image_id,
+                                revision,
+                                Jsonb(json.loads(observed)),
+                            ),
+                        ).rowcount
+                    if updated != 1:
                         raise CaseConflictError("Case changed; reload")
             self._observed[image_id] = payload_text
 
