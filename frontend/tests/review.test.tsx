@@ -223,6 +223,8 @@ describe('Review responsibility boundary', () => {
   it('states when processing and model provenance are unavailable', async () => {
     const unavailableCase: CaseRecord = {
       ...readyCase,
+      modality: 'UWF',
+      image_url: '/v1/images/ready/display',
       global: null,
       lesion: null,
       analysis_preparation: { status: 'FAILED' },
@@ -231,6 +233,12 @@ describe('Review responsibility boundary', () => {
     renderAppAt('/review/ready');
 
     expect(await screen.findByText('Unavailable - mask preparation failed; Original/manual review only')).toBeInTheDocument();
+    expect(screen.getByLabelText('Mask status')).toHaveTextContent('Unavailable');
+    expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Mask preview' }));
+    expect(screen.getByText(/A safe analysis mask could not be produced/i)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Continue with original' }));
+    expect(screen.getByRole('button', { name: 'Original' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Unavailable - no transform recorded')).toBeInTheDocument();
     expect(screen.getAllByText('Unavailable - no model result recorded')).toHaveLength(2);
   });
@@ -251,7 +259,7 @@ describe('Review responsibility boundary', () => {
     mockReviewApi(undefined, needsReviewCase);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByText('Masked Analysis needs review')).toBeInTheDocument();
+    expect(await screen.findByText('Candidate - review only')).toBeInTheDocument();
     expect(screen.getByText('A candidate mask is available in Mask preview for inspection only; it is not approved model input.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Analysis area' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
@@ -268,7 +276,7 @@ describe('Review responsibility boundary', () => {
     fireEvent.error(screen.getByTestId('mask-overlay'));
     expect(screen.queryByTestId('mask-overlay')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Original' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Mask preview' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
     expect(screen.getByText(/Mask preview unavailable.*original image remains available/i)).toBeInTheDocument();
   });
 

@@ -26,17 +26,23 @@ OCRStatus = Literal[
 
 
 _PATIENT_TOKEN = r"[A-Za-z]{1,12}\d{2,12}"
+_FILENAME_SEPARATOR = r"[\s_-]"
+_EYE_TOKEN = r"LEFT|RIGHT|OD|OS|L|R"
 _FILENAME_WITH_EYE = re.compile(
-    rf"^(?P<patient>{_PATIENT_TOKEN})[_-](?P<eye>LEFT|RIGHT|L|R)"
-    rf"(?:[_-]?(?P<capture>\d{{1,4}}))?(?:[_-][A-Za-z0-9]+)*$",
+    rf"^(?P<patient>{_PATIENT_TOKEN}){_FILENAME_SEPARATOR}(?P<eye>{_EYE_TOKEN})"
+    rf"(?:{_FILENAME_SEPARATOR}?(?P<capture>\d{{1,4}}))?(?:{_FILENAME_SEPARATOR}[A-Za-z0-9]+)*$",
     re.IGNORECASE,
 )
 _PATIENT_ONLY = re.compile(
-    rf"^(?P<patient>{_PATIENT_TOKEN})(?:[_-](?:CAPTURE|IMAGE|IMG)[_-]?\d{{1,4}})?$",
+    rf"^(?P<patient>{_PATIENT_TOKEN})(?:{_FILENAME_SEPARATOR}(?:CAPTURE|IMAGE|IMG){_FILENAME_SEPARATOR}?(?P<capture>\d{{1,4}}))?$",
     re.IGNORECASE,
 )
 _AMBIGUOUS_PATIENT = re.compile(
-    rf"^(?P<patient>{_PATIENT_TOKEN})[_-][A-Za-z0-9][A-Za-z0-9_-]*$",
+    rf"^(?P<patient>{_PATIENT_TOKEN}){_FILENAME_SEPARATOR}[A-Za-z0-9][A-Za-z0-9_ -]*$",
+    re.IGNORECASE,
+)
+_TRAILING_EYE_TOKEN = re.compile(
+    rf"(?:^|{_FILENAME_SEPARATOR})(?P<eye>{_EYE_TOKEN})(?:\d{{1,4}})?(?=$|{_FILENAME_SEPARATOR})",
     re.IGNORECASE,
 )
 _PATIENT_KEY = re.compile(r"^(?=[A-Z0-9_-]{3,32}$)(?=.*\d)[A-Z][A-Z0-9_-]*$")
@@ -46,6 +52,7 @@ _PATIENT_KEY = re.compile(r"^(?=[A-Z0-9_-]{3,32}$)(?=.*\d)[A-Z][A-Z0-9_-]*$")
 class FilenameEvidence:
     patient_candidate: str | None
     laterality: Laterality
+    capture_sequence: int | None
     parser_status: Literal["MATCHED", "AMBIGUOUS", "NO_MATCH"]
     pattern: str | None
 
@@ -94,7 +101,7 @@ def _normalize_eye(value: str | None) -> Laterality:
     if not value:
         return "UNKNOWN"
     normalized = value.strip().upper()
-    return {"L": "LEFT", "LEFT": "LEFT", "R": "RIGHT", "RIGHT": "RIGHT"}.get(
+    return {"L": "LEFT", "LEFT": "LEFT", "OS": "LEFT", "R": "RIGHT", "RIGHT": "RIGHT", "OD": "RIGHT"}.get(
         normalized, "UNKNOWN"
     )  # type: ignore[return-value]
 
@@ -104,9 +111,25 @@ def parse_filename(filename: str) -> FilenameEvidence:
     stem = Path(filename).stem
     match = _FILENAME_WITH_EYE.fullmatch(stem)
     if match:
+        suffix_start = match.end("eye") if match.group("capture") is None else match.end("capture")
+        trailing = stem[suffix_start:]
+        initial_eye = _normalize_eye(match.group("eye"))
+        trailing_eyes = {
+            _normalize_eye(token.group("eye"))
+            for token in _TRAILING_EYE_TOKEN.finditer(trailing)
+        } - {"UNKNOWN", initial_eye}
+        if trailing_eyes:
+            return FilenameEvidence(
+                patient_candidate=_normalize_patient(match.group("patient")),
+                laterality="UNKNOWN",
+                capture_sequence=None,
+                parser_status="AMBIGUOUS",
+                pattern="PATIENT_EYE_CONFLICTING_SUFFIX",
+            )
         return FilenameEvidence(
             patient_candidate=_normalize_patient(match.group("patient")),
-            laterality=_normalize_eye(match.group("eye")),
+            laterality=initial_eye,
+            capture_sequence=int(match.group("capture")) if match.group("capture") else None,
             parser_status="MATCHED",
             pattern="PATIENT_EYE_CAPTURE",
         )
@@ -116,6 +139,7 @@ def parse_filename(filename: str) -> FilenameEvidence:
         return FilenameEvidence(
             patient_candidate=_normalize_patient(match.group("patient")),
             laterality="UNKNOWN",
+            capture_sequence=int(match.group("capture")) if match.group("capture") else None,
             parser_status="MATCHED",
             pattern="PATIENT_ONLY",
         )
@@ -125,11 +149,12 @@ def parse_filename(filename: str) -> FilenameEvidence:
         return FilenameEvidence(
             patient_candidate=_normalize_patient(match.group("patient")),
             laterality="UNKNOWN",
+            capture_sequence=None,
             parser_status="AMBIGUOUS",
             pattern="PATIENT_PREFIX_AMBIGUOUS_SUFFIX",
         )
 
-    return FilenameEvidence(None, "UNKNOWN", "NO_MATCH", None)
+    return FilenameEvidence(None, "UNKNOWN", None, "NO_MATCH", None)
 
 
 def _usable_ocr(ocr: OCREvidence | None) -> OCREvidence | None:
@@ -239,6 +264,7 @@ def reconcile(filename: FilenameEvidence, ocr: OCREvidence | None = None) -> dic
             "filename": {
                 "patient_candidate": filename.patient_candidate,
                 "laterality": filename.laterality,
+                "capture_sequence": filename.capture_sequence,
                 "parser_status": filename.parser_status,
                 "pattern": filename.pattern,
             },

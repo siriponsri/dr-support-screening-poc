@@ -230,6 +230,22 @@ export interface ExplainabilityState {
   [key: string]: unknown;
 }
 
+export interface ResolverEvidence {
+  filename?: {
+    patient_candidate?: string | null;
+    laterality?: Laterality;
+    capture_sequence?: number | null;
+    parser_status?: 'MATCHED' | 'AMBIGUOUS' | 'NO_MATCH' | string;
+    pattern?: string | null;
+  };
+  ocr?: {
+    status?: string;
+    patient_candidate?: string | null;
+    laterality?: Laterality;
+    strength?: string | null;
+  };
+}
+
 export interface CaseRecord {
   image_id: string;
   display_name: string;
@@ -305,6 +321,7 @@ export interface CaseRecord {
   laterality_reason_code?: string;
   laterality_candidate?: Laterality | null;
   resolver_state?: ResolverState;
+  resolver_evidence?: ResolverEvidence | null;
   resolver_ui?: ResolverUi;
   resolution_history?: Array<Record<string, unknown>>;
   queue_state?: 'INCLUDED' | 'EXCLUDED';

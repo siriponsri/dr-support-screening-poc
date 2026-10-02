@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderAppAt } from './testUtils';
 import type { CaseRecord, RetinalModality } from '@/lib/api';
@@ -24,6 +24,15 @@ function sample(modality: RetinalModality = 'UNKNOWN'): CaseRecord {
     },
     admission_ui: { label: 'Image type needs confirmation', note: 'Confirm the image type.', tone: 'warning', action_required: true },
     admission_history: [],
+    resolver_evidence: {
+      filename: {
+        patient_candidate: 'PAT001',
+        laterality: 'LEFT',
+        capture_sequence: 1,
+        parser_status: 'MATCHED',
+        pattern: 'PATIENT_EYE_CAPTURE',
+      },
+    },
   };
 }
 
@@ -61,11 +70,25 @@ describe('UWF intake and clinical review', () => {
     await userEvent.setup().click(within(row).getByRole('button', { name: 'Confirm Image' }));
     const type = await screen.findByLabelText('Image type');
     expect(type).toHaveValue('UNKNOWN');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Edit patient' }));
+    const patient = screen.getByLabelText('Patient');
+    await userEvent.setup().clear(patient);
+    await userEvent.setup().type(patient, 'PAT009');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Done' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Edit eye' }));
+    await userEvent.setup().selectOptions(screen.getByLabelText('Eye'), 'UNKNOWN');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByText('Unknown', { exact: true })).toBeInTheDocument();
+    expect(screen.getByLabelText('Visit key (optional)')).not.toBeVisible();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Additional metadata' }));
+    expect(screen.getByLabelText('Visit key (optional)')).toBeInTheDocument();
+    expect((screen.getByLabelText('Capture sequence (optional)') as HTMLInputElement).value).toBe('');
+    expect(screen.getByText(/Sequence 1 was derived from the supported filename pattern/i)).toBeInTheDocument();
     await userEvent.setup().selectOptions(type, 'UWF');
     await userEvent.setup().type(screen.getByPlaceholderText('Reviewer name'), 'Synthetic Reviewer');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Confirm image & continue' }));
-    expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({ retinal_modality: 'UWF', reviewer: expect.any(String) });
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ patient_key: 'PAT009', laterality: 'UNKNOWN', capture_sequence: null, retinal_modality: 'UWF', reviewer: expect.any(String) });
   });
 
   it('shows the prepared same-canvas analysis area while keeping UWF AI unavailable', async () => {
@@ -82,6 +105,8 @@ describe('UWF intake and clinical review', () => {
           transform_id: 'analysis-uwf-retinal-mask-v1',
           transform_description: 'Deterministic bounded retinal-field mask',
           representation_version: 'uwf-analysis-representation-v1',
+          valid_retina_mask_sha256: 'c'.repeat(64),
+          retinal_field_status: 'READY' as const,
         },
       },
     };
@@ -95,13 +120,11 @@ describe('UWF intake and clinical review', () => {
       return reply([]);
     });
     renderAppAt('/review/synthetic-uwf');
-    expect(await screen.findByText('Masked Analysis prepared')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Mask status')).toHaveTextContent('Ready');
     expect(screen.getByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
     expect(screen.getByText('Unavailable for UWF in this configuration.')).toBeInTheDocument();
     expect(screen.getByText('Manual review remains available. No unqualified model result is shown.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mask preview' })).toBeDisabled();
-    expect(screen.getByText(/No safe mask representation is recorded/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue to clinician review' })).toHaveAttribute('href', '/clinician-review/synthetic-uwf');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Analysis area' }));
     expect(screen.getByRole('button', { name: 'Analysis area' })).toHaveAttribute('aria-pressed', 'true');
