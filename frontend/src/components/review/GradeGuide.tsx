@@ -1,6 +1,18 @@
-import { useId, useState } from 'react';
-import { Box, Button, Collapse, HStack, Stack, Text } from '@chakra-ui/react';
-import { ChevronDown, Info } from '@/lib/icons';
+import { useState } from 'react';
+import {
+  Box,
+  Button,
+  HStack,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalHeader,
+  ModalOverlay,
+  Stack,
+  Text,
+} from '@chakra-ui/react';
+import { Info } from '@/lib/icons';
 import { drGradeLabel } from '@/lib/api';
 
 export interface GradeGuideEntry {
@@ -35,12 +47,12 @@ export const DR_GRADE_GUIDE: GradeGuideEntry[] = [
     grade: 4,
     name: 'Proliferative DR (PDR)',
     summary: 'Proliferative disease with neovascularization and/or vitreous or preretinal hemorrhage.',
+    detail: 'Proliferative findings include new vessels at the disc (NVD), new vessels elsewhere (NVE), new vessels at other sites such as the iris or anterior segment, and fibrous proliferation. These remain Grade 4 findings.',
   },
 ];
 
 export function GradeGuide() {
   const [open, setOpen] = useState(false);
-  const contentId = useId();
 
   return (
     <Box>
@@ -48,43 +60,37 @@ export function GradeGuide() {
         size="sm"
         variant="ghost"
         leftIcon={<Info size={15} aria-hidden="true" />}
-        rightIcon={<ChevronDown size={14} aria-hidden="true" />}
         aria-expanded={open}
-        aria-controls={contentId}
+        aria-haspopup="dialog"
         onClick={() => setOpen((current) => !current)}
       >
         Grade guide
       </Button>
-      <Collapse in={open} animateOpacity>
-        <Box
-          id={contentId}
-          role="region"
-          aria-label="ICO diabetic retinopathy grade guide"
-          mt={3}
-          p={3}
-          borderWidth="1px"
-          borderColor="border.default"
-          borderRadius="md"
-          bg="surface.subtle"
-        >
-          <Stack spacing={3}>
-            {DR_GRADE_GUIDE.map((entry) => (
-              <Box key={entry.grade}>
-                <Text fontWeight="semibold" fontSize="sm">
-                  {entry.grade} - {drGradeLabel(entry.grade) ?? entry.name}
+      <Modal isOpen={open} onClose={() => setOpen(false)} isCentered size="lg" scrollBehavior="inside">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>ICO diabetic retinopathy grade guide</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody pb={6}>
+            <Stack spacing={4}>
+              {DR_GRADE_GUIDE.map((entry) => (
+                <Box key={entry.grade}>
+                  <Text fontWeight="semibold" fontSize="sm">
+                    {entry.grade} - {drGradeLabel(entry.grade) ?? entry.name}
+                  </Text>
+                  <Text fontSize="sm" color="text.secondary">{entry.summary}</Text>
+                  {entry.detail && <Text mt={1} fontSize="xs" color="text.secondary">{entry.detail}</Text>}
+                </Box>
+              ))}
+              <HStack align="flex-start" spacing={2} pt={3} borderTopWidth="1px" borderColor="border.subtle">
+                <Text fontSize="xs" color="text.secondary">
+                  Ungradable and Needs Second Review are workflow states outside the 0-4 severity grades. DME is a separate classification from DR grade.
                 </Text>
-                <Text fontSize="sm" color="text.secondary">{entry.summary}</Text>
-                {entry.detail && <Text mt={1} fontSize="xs" color="text.secondary">{entry.detail}</Text>}
-              </Box>
-            ))}
-            <HStack align="flex-start" spacing={2} pt={2} borderTopWidth="1px" borderColor="border.subtle">
-              <Text fontSize="xs" color="text.secondary">
-                Ungradable and Needs Second Review are workflow states outside the 0-4 severity grades. DME is a separate classification from DR grade.
-              </Text>
-            </HStack>
-          </Stack>
-        </Box>
-      </Collapse>
+              </HStack>
+            </Stack>
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 }

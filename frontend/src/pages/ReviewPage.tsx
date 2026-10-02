@@ -178,16 +178,20 @@ function LesionLegend() {
 
 function MaskLegend() {
   return (
-    <Stack spacing={1} aria-label="Mask overlay key">
-      <Text fontSize="xs" fontWeight="semibold" color="text.primary">Mask overlay key</Text>
+    <Stack spacing={1} aria-label="Mask preview key">
+      <Text fontSize="xs" fontWeight="semibold" color="text.primary">Mask preview key</Text>
       <HStack spacing={3} flexWrap="wrap" fontSize="xs" color="text.secondary">
         <HStack spacing={1}>
-          <Box w="9px" h="9px" borderRadius="sm" bg="#10B981" />
-          <Text>Retained retina</Text>
+          <Box w="9px" h="9px" borderRadius="sm" bg="#A9D5BE" />
+          <Text>Retained retinal area</Text>
         </HStack>
         <HStack spacing={1}>
-          <Box w="9px" h="9px" borderRadius="sm" bg="#F59E0B" />
-          <Text>Excluded area</Text>
+          <Box w="9px" h="9px" borderRadius="sm" bg="#D7BF87" />
+          <Text>Excluded border / artifact area</Text>
+        </HStack>
+        <HStack spacing={1}>
+          <Box w="9px" h="9px" borderWidth="2px" borderColor="text.secondary" borderRadius="sm" />
+          <Text>Mask boundary (retained / excluded edge)</Text>
         </HStack>
       </HStack>
     </Stack>
@@ -240,6 +244,24 @@ function selectedMaskLabel(item: CaseRecord): string {
     return 'Unavailable - no mask record; Original/manual review only';
   }
   return 'Not applicable for this case';
+}
+
+function analysisPreparationNote(item: CaseRecord): string {
+  switch (item.analysis_preparation?.status) {
+    case 'READY':
+      if (processingAudit(item)?.retinal_field_status === 'NOT_APPLICABLE') {
+        return 'No mask was recorded; the source representation is the analysis area. Original remains immutable.';
+      }
+      return 'Analysis area is a versioned, derived view; Original remains immutable.';
+    case 'NEEDS_REVIEW':
+      return item.analysis_preparation.candidate_mask_sha256
+        ? 'A candidate mask is available in Mask preview for inspection only; it is not approved model input.'
+        : 'No candidate mask is available; Original and manual review remain available.';
+    case 'FAILED':
+      return 'Mask preparation failed; Original and manual review remain available.';
+    default:
+      return 'No recorded analysis-area or mask representation is available; Original remains the review source.';
+  }
 }
 
 function analysisTransformLabel(item: CaseRecord): string {
@@ -355,8 +377,9 @@ export function ReviewPage() {
   const analysisAllowed = admissionReady && item?.modality === 'CFP' && ['PUBLIC', 'SYNTHETIC'].includes(item?.source_origin ?? item?.source_type ?? '') && !modelUnavailable;
   const analysisPreparationStatus = item?.analysis_preparation?.status;
   const analysisCandidateAvailable = Boolean(analysisPreparationStatus === 'READY' && item?.analysis_preparation?.derivative);
+  const analysisAudit = item ? processingAudit(item) : null;
   const maskCandidateAvailable = Boolean(
-    analysisCandidateAvailable
+    (analysisPreparationStatus === 'READY' && analysisAudit?.valid_retina_mask_sha256)
       || (analysisPreparationStatus === 'NEEDS_REVIEW' && item?.analysis_preparation?.candidate_mask_sha256),
   );
   const maskOverlayAvailable = maskCandidateAvailable && !maskOverlayLoadError;
@@ -417,11 +440,7 @@ export function ReviewPage() {
                 {item.analysis_preparation?.status === 'READY' ? 'Masked Analysis prepared' : item.analysis_preparation?.status === 'NEEDS_REVIEW' ? 'Masked Analysis needs review' : 'Masked Analysis unavailable'}
               </Text>
               <Text id="uwf-analysis-status" fontSize="xs" color="text.secondary">
-                {analysisPreparationStatus === 'NEEDS_REVIEW'
-                  ? maskCandidateAvailable
-                    ? 'A candidate mask is available for inspection only; it is not approved model input.'
-                    : 'No candidate mask is available; Original and manual review remain available.'
-                  : 'Analysis area is a versioned, derived view; Original remains immutable.'}
+                {analysisPreparationNote(item)}
               </Text>
             </Stack>
           )}
@@ -444,7 +463,7 @@ export function ReviewPage() {
             <HStack spacing={1} flexWrap="wrap" aria-label="Viewer modes">
               <Button size="sm" variant={imageView === 'original' ? 'solid' : 'outline'} aria-pressed={imageView === 'original'} onClick={() => setImageView('original')}>Original</Button>
               {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'analysis-area' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'analysis-area'} isDisabled={!analysisCandidateAvailable} onClick={() => setImageView('analysis-area')}>Analysis area</Button>}
-              {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'mask-overlay' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'mask-overlay'} isDisabled={!maskOverlayAvailable} onClick={() => setImageView('mask-overlay')}>Mask overlay</Button>}
+              {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'mask-overlay' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'mask-overlay'} isDisabled={!maskOverlayAvailable} onClick={() => setImageView('mask-overlay')}>Mask preview</Button>}
               <Button size="sm" variant={imageView === 'ai-evidence' ? 'solid' : 'outline'} aria-pressed={imageView === 'ai-evidence'} isDisabled={item.spatial_ai_display?.status !== 'AVAILABLE' || (!item.global && !item.lesion)} onClick={() => setImageView('ai-evidence')}>AI evidence</Button>
               <Button size="sm" variant={imageView === 'explainability' ? 'solid' : 'outline'} aria-pressed={imageView === 'explainability'} onClick={() => setImageView('explainability')}>Explainability</Button>
             </HStack>
@@ -466,11 +485,17 @@ export function ReviewPage() {
             {maskOverlayLoadError && (
               <Alert status="warning" mt={1}>
                 <AlertIcon />
-                <Text fontSize="sm">Mask overlay unavailable. This candidate could not be loaded for this source. The original image remains available for review.</Text>
+                <Text fontSize="sm">Mask preview unavailable. This candidate could not be loaded for this source. The original image remains available for review.</Text>
+              </Alert>
+            )}
+            {item.modality === 'UWF' && !maskCandidateAvailable && !maskOverlayLoadError && (
+              <Alert status="warning" mt={1}>
+                <AlertIcon />
+                <Text fontSize="sm">Mask preview unavailable. No safe mask representation is recorded for this case; the original image remains available for manual review.</Text>
               </Alert>
             )}
             <Text fontSize="xs" color="text.secondary">
-              {imageView === 'ai-evidence' ? `Active overlays ${displayedLesions(item).length} of ${item.lesion_review?.raw_count ?? item.lesion?.lesions.length ?? 0} raw AI suggestions` : imageView === 'mask-overlay' ? 'Candidate mask is shown for inspection only; it is not a clinical gradability decision.' : 'Original image remains the review source.'}
+              {imageView === 'ai-evidence' ? `Active overlays ${displayedLesions(item).length} of ${item.lesion_review?.raw_count ?? item.lesion?.lesions.length ?? 0} raw AI suggestions` : imageView === 'mask-overlay' ? 'Mask preview is processing evidence only; it is not a clinical gradability decision or approval of model input.' : 'Original image remains the review source.'}
             </Text>
             {imageView === 'mask-overlay' && <MaskLegend />}
             <LesionLegend />
@@ -529,11 +554,20 @@ export function ReviewPage() {
             </>
           )}
           <Section title="Explainability" description="Case-specific model evidence, separate from processing provenance.">
-            <Text fontSize="sm" color="text.secondary">
-              {item.explainability?.status === 'AVAILABLE'
-                ? item.explainability.note
-                : 'Explainability evidence is unavailable. It is not lesion localization or a clinical probability.'}
-            </Text>
+            <Stack spacing={3}>
+              <Text fontSize="sm" color="text.secondary">
+                {item.explainability?.status === 'AVAILABLE'
+                  ? item.explainability.note
+                  : 'Explainability evidence is unavailable. It is not lesion localization or a clinical probability.'}
+              </Text>
+              <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3} bg="surface.subtle">
+                <Stack spacing={1}>
+                  <Text fontSize="xs" fontWeight="semibold">Recorded processing path</Text>
+                  <Text fontSize="sm">Original -&gt; Analysis area -&gt; provider transform -&gt; actual model input</Text>
+                  <Text fontSize="xs" color="text.secondary">Analysis area and Mask preview are case-local processing evidence. Provider-specific transforms may still change the actual model input.</Text>
+                </Stack>
+              </Box>
+            </Stack>
           </Section>
           <Stack spacing={2}>
             <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid" alignSelf="flex-start">Continue to clinician review</Button>

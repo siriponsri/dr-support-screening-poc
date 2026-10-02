@@ -196,6 +196,11 @@ describe('Review responsibility boundary', () => {
     expect(await screen.findByRole('heading', { name: 'Clinician decision' })).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText('Reviewer name'), 'Review clinician');
     await user.selectOptions(screen.getByLabelText('Final DR grade'), '2');
+    await user.click(screen.getByRole('button', { name: 'Grade guide' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('3 - Severe NPDR');
+    await user.keyboard('{Escape}');
+    expect(screen.getByPlaceholderText('Reviewer name')).toHaveValue('Review clinician');
+    expect(screen.getByLabelText('Final DR grade')).toHaveValue('2');
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Send for senior review' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Confirm grade' }));
@@ -246,19 +251,21 @@ describe('Review responsibility boundary', () => {
     renderAppAt('/review/ready');
 
     expect(await screen.findByText('Masked Analysis needs review')).toBeInTheDocument();
-    expect(screen.getByText(/candidate mask is available for inspection only/i)).toBeInTheDocument();
+    expect(screen.getByText('A candidate mask is available in Mask preview for inspection only; it is not approved model input.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Analysis area' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Mask overlay' })).toBeEnabled();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Mask overlay' }));
+    expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Mask preview' }));
     expect(screen.getByTestId('mask-overlay')).toHaveAttribute('src', '/v1/images/ready/mask-overlay');
-    expect(screen.getByText('Retained retina')).toBeInTheDocument();
-    expect(screen.getByText('Excluded area')).toBeInTheDocument();
+    expect(screen.getByText('Retained retinal area')).toBeInTheDocument();
+    expect(screen.getByText('Excluded border / artifact area')).toBeInTheDocument();
+    expect(screen.getByText('Mask boundary (retained / excluded edge)')).toBeInTheDocument();
+    expect(screen.getByText('Original -> Analysis area -> provider transform -> actual model input')).toBeInTheDocument();
 
     fireEvent.error(screen.getByTestId('mask-overlay'));
     expect(screen.queryByTestId('mask-overlay')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Original' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Mask overlay' })).toBeDisabled();
-    expect(screen.getByText(/Mask overlay unavailable.*original image remains available/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mask preview' })).toBeDisabled();
+    expect(screen.getByText(/Mask preview unavailable.*original image remains available/i)).toBeInTheDocument();
   });
 
   it('collapses unavailable model states into the manual-review path', async () => {

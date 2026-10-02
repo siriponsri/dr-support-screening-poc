@@ -1189,10 +1189,25 @@ export function AnnotationEditorPage() {
                 <Stack spacing={2}>
                   <Text fontWeight="semibold" fontSize="sm">Core findings review</Text>
                   <Text fontSize="xs" color="text.secondary">Choose the review state deliberately at the finish boundary. An empty AI result or empty annotation list is not a negative result.</Text>
-                  <HStack spacing={2} flexWrap="wrap">
-                    <Button size="sm" onClick={() => updateCompleteness('CORE', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Review in progress</Button>
-                    <Button size="sm" onClick={() => updateCompleteness('CORE', 'REVIEWED_FINDINGS_RECORDED')} isDisabled={readOnly || Boolean(completenessSaving)}>Reviewed findings recorded</Button>
-                    <Button size="sm" onClick={() => updateCompleteness('CORE', 'REVIEWED_NONE_FOUND')} isDisabled={readOnly || Boolean(completenessSaving)}>Reviewed none found</Button>
+                  <HStack spacing={2} flexWrap="wrap" role="group" aria-label="Core findings review choice">
+                    <Button
+                      size="sm"
+                      variant={completeness.CORE?.state === 'REVIEWED_FINDINGS_RECORDED' ? 'secondary' : 'outline'}
+                      aria-pressed={completeness.CORE?.state === 'REVIEWED_FINDINGS_RECORDED'}
+                      onClick={() => updateCompleteness('CORE', 'REVIEWED_FINDINGS_RECORDED')}
+                      isDisabled={readOnly || Boolean(completenessSaving)}
+                    >
+                      Reviewed findings recorded
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={completeness.CORE?.state === 'REVIEWED_NONE_FOUND' ? 'secondary' : 'outline'}
+                      aria-pressed={completeness.CORE?.state === 'REVIEWED_NONE_FOUND'}
+                      onClick={() => updateCompleteness('CORE', 'REVIEWED_NONE_FOUND')}
+                      isDisabled={readOnly || Boolean(completenessSaving)}
+                    >
+                      Reviewed none found
+                    </Button>
                   </HStack>
                   <Text fontSize="xs" color="text.secondary">Status: {completenessStateLabel(completeness.CORE?.state)}{completeness.CORE?.reviewer ? ` · ${completeness.CORE.reviewer}` : ''}</Text>
                 </Stack>

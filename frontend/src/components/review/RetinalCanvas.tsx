@@ -304,12 +304,15 @@ function HumanShape({
       <text
         x={annotationLabelPoint(annotation).x}
         y={annotationLabelPoint(annotation).y}
-        fill="var(--chakra-colors-text-primary)"
+        fill={color}
+        stroke="var(--chakra-colors-viewer-background)"
+        strokeWidth="4"
+        paintOrder="stroke"
         fontSize="14"
         fontWeight="700"
         pointerEvents="none"
       >
-        HUMAN - {LESION_SHORT_LABELS[annotation.label]}
+        Human · {LESION_SHORT_LABELS[annotation.label]}
       </text>
     </g>
   );
@@ -779,7 +782,7 @@ export function RetinalCanvas({
         {maskOverlayUrl && (
           <Image
             src={maskOverlayUrl}
-            alt="Candidate valid-retina mask overlay"
+            alt="Mask preview showing retained retinal area and excluded border or artifact area"
             data-testid="mask-overlay"
             position="absolute"
             inset={0}

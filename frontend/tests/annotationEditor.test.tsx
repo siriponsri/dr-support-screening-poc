@@ -262,6 +262,12 @@ describe('AnnotationEditorPage human movement', () => {
     const reviewerInput = screen.getByPlaceholderText('Reviewer name');
     await user.clear(reviewerInput);
     await user.type(reviewerInput, 'Clinician');
+    expect(screen.queryByRole('button', { name: 'Review in progress' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record partial review' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Advanced findings' }));
+    expect(await screen.findByRole('button', { name: 'Record partial review' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Reviewed none found' }));
     await waitFor(() => expect(completenessRequest).toMatchObject({
       group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician', taxonomy_version: 'core-lesions-v1',
