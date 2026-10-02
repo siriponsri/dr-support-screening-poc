@@ -1036,7 +1036,7 @@ export function AnnotationEditorPage() {
 
   /** Confirm Annotation finishes this image and opens the next Worklist image. */
   const completeCase = async () => {
-    if (!item || completing) return;
+    if (!item || completing || completenessSaving) return;
     setCompleting(true);
     try {
       if (!(await confirmAnnotations())) return;
@@ -1240,7 +1240,7 @@ export function AnnotationEditorPage() {
                   <Button variant="outline" onClick={() => void beginAnnotationEdit()}>Edit confirmed annotations</Button>
                 </HStack>
               ) : (
-                <Button variant="solid" onClick={() => void completeCase()} isLoading={completing || saving} loadingText="Confirming" isDisabled={!hasConfirmedGrade || roiSaving}>Confirm Annotation</Button>
+                <Button variant="solid" onClick={() => void completeCase()} isLoading={completing || saving} loadingText="Confirming" isDisabled={!hasConfirmedGrade || roiSaving || Boolean(completenessSaving)}>Confirm Annotation</Button>
               )}
             </Stack>
           </Section>

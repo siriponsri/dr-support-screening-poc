@@ -1,11 +1,11 @@
 # DR Screening M1 — Phase 2.1 Owner UAT UX Patch
 
-**Document revision:** Patch r1.0  
-**Prepared:** 2026-10-02  
-**Status:** `OWNER_DIRECTED_BOUNDED_PATCH`  
-**Parent:** `M1_PHASE2_1_UX_HARDENING_SERVER_CONNECTION.md`  
-**Repository baseline:** `50618f25fd088ce6c981e85120c1fd24780f1c3a`  
-**Phase 2 state:** `READY_FOR_REVIEW`  
+**Document revision:** Patch r1.0
+**Prepared:** 2026-10-02
+**Status:** `OWNER_DIRECTED_BOUNDED_PATCH`
+**Parent:** `M1_PHASE2_1_UX_HARDENING_SERVER_CONNECTION.md`
+**Repository baseline:** `50618f25fd088ce6c981e85120c1fd24780f1c3a`
+**Phase 2 state:** `READY_FOR_REVIEW`
 **Phase 3 state:** `NOT_STARTED`
 
 > This patch records Owner UAT feedback after the Phase 2.1 integration. It is a bounded UX refinement only. It must not reopen accepted Phase 1 / Phase 2 engineering work broadly, start Phase 3, or change clinical grading semantics beyond the already approved ICO reference.
