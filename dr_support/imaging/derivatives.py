@@ -12,7 +12,7 @@ import base64
 from dataclasses import dataclass
 from typing import Literal
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageFilter
 from pydantic import Field
 
 from ..images import BridgeImage
@@ -346,33 +346,14 @@ class DerivativeService:
 def render_mask_overlay(mask: Image.Image) -> bytes:
     """Render a deterministic, inspection-only retained/excluded mask overlay."""
     mask_image = mask.convert("L")
-    width, height = mask_image.size
-    mask_bytes = mask_image.tobytes()
-    pixels = bytearray()
     boundary_radius = 8
-    for index, value in enumerate(mask_bytes):
-        if value:
-            x = index % width
-            y = index // width
-            boundary = False
-            for distance in range(1, boundary_radius + 1):
-                for neighbor_x, neighbor_y in (
-                    (x - distance, y), (x + distance, y),
-                    (x, y - distance), (x, y + distance),
-                ):
-                    if (
-                        neighbor_x < 0 or neighbor_x >= width
-                        or neighbor_y < 0 or neighbor_y >= height
-                        or not mask_bytes[neighbor_y * width + neighbor_x]
-                    ):
-                        boundary = True
-                        break
-                if boundary:
-                    break
-            pixels.extend((65, 92, 78, 210) if boundary else (16, 185, 129, 78))
-        else:
-            pixels.extend((245, 158, 11, 78))
-    overlay = Image.frombytes("RGBA", mask.size, bytes(pixels))
+    eroded = mask_image.filter(ImageFilter.MinFilter(size=boundary_radius * 2 + 1))
+    boundary = ImageChops.subtract(mask_image, eroded)
+    overlay = Image.new("RGBA", mask.size, (245, 158, 11, 78))
+    retained = Image.new("RGBA", mask.size, (16, 185, 129, 78))
+    boundary_color = Image.new("RGBA", mask.size, (65, 92, 78, 210))
+    overlay = Image.composite(retained, overlay, mask_image)
+    overlay = Image.composite(boundary_color, overlay, boundary)
     output = io.BytesIO()
     overlay.save(output, format="PNG", optimize=False, compress_level=9)
     return output.getvalue()

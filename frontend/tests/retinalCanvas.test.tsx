@@ -1,6 +1,6 @@
 import { ChakraProvider } from '@chakra-ui/react';
 import { createEvent, fireEvent, render, screen } from '@testing-library/react';
-import { LESION_COLORS, RetinalCanvas } from '@/components/review/RetinalCanvas';
+import { LESION_COLORS, LESION_LABEL_COLORS, RetinalCanvas } from '@/components/review/RetinalCanvas';
 import type { CaseRecord } from '@/lib/api';
 import { theme } from '@/theme';
 
@@ -81,6 +81,25 @@ describe('RetinalCanvas navigation', () => {
     expect(label).toHaveAttribute('fill', LESION_COLORS.MICROANEURYSM);
     expect(shape).toHaveAttribute('stroke', LESION_COLORS.MICROANEURYSM);
     expect(label).toHaveAttribute('stroke', 'var(--chakra-colors-viewer-background)');
+  });
+
+  it('uses a contrast-safe tint for the soft-exudate Human label while preserving class identity', () => {
+    renderCanvas({
+      ...item,
+      human_annotations: [{
+        shape_id: 'human-se',
+        type: 'rectangle',
+        label: 'SOFT_EXUDATE',
+        geometry: { x: 100, y: 100, width: 80, height: 60 },
+        source: 'HUMAN',
+        reviewer: 'Clinician',
+        created_at: '2026-01-01T00:00:00Z',
+      }],
+    });
+
+    const label = document.querySelector('[data-human-shape-id="human-se"] text')!;
+    expect(label).toHaveAttribute('fill', LESION_LABEL_COLORS.SOFT_EXUDATE);
+    expect(LESION_LABEL_COLORS.SOFT_EXUDATE).not.toBe(LESION_COLORS.SOFT_EXUDATE);
   });
 
   it('keeps the image and SVG overlays inside one transformed stage', () => {

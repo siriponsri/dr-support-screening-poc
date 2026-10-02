@@ -11,6 +11,11 @@ export const LESION_COLORS: Record<LesionLabel, string> = {
   SOFT_EXUDATE: '#6366F1',
 };
 
+export const LESION_LABEL_COLORS: Record<LesionLabel, string> = {
+  ...LESION_COLORS,
+  SOFT_EXUDATE: '#C4B5FD',
+};
+
 export const LESION_SHORT_LABELS: Record<LesionLabel, string> = {
   MICROANEURYSM: 'MA',
   HEMORRHAGE: 'HE',
@@ -304,7 +309,7 @@ function HumanShape({
       <text
         x={annotationLabelPoint(annotation).x}
         y={annotationLabelPoint(annotation).y}
-        fill={color}
+        fill={LESION_LABEL_COLORS[annotation.label]}
         stroke="var(--chakra-colors-viewer-background)"
         strokeWidth="4"
         paintOrder="stroke"
