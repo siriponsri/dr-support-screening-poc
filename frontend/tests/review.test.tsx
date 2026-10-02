@@ -257,6 +257,7 @@ describe('Review responsibility boundary', () => {
     expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Mask preview' }));
     expect(screen.getByTestId('mask-overlay')).toHaveAttribute('src', '/v1/images/ready/mask-overlay');
+    expect(screen.getByTestId('mask-overlay')).toHaveStyle({ opacity: '0.6', mixBlendMode: 'normal' });
     expect(screen.getByText('Retained retinal area')).toBeInTheDocument();
     expect(screen.getByText('Excluded border / artifact area')).toBeInTheDocument();
     expect(screen.getByText('Mask boundary (retained / excluded edge)')).toBeInTheDocument();

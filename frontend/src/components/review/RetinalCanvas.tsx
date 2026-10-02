@@ -789,8 +789,8 @@ export function RetinalCanvas({
             w="100%"
             h="100%"
             objectFit="fill"
-            opacity={0.45}
-            mixBlendMode="multiply"
+            opacity={0.6}
+            mixBlendMode="normal"
             userSelect="none"
             pointerEvents="none"
             draggable={false}
