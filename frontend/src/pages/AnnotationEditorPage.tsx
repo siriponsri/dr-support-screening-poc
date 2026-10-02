@@ -666,7 +666,7 @@ export function AnnotationEditorPage() {
         taxonomy_version: group === 'CORE' ? 'core-lesions-v1' : 'advanced-deferred-v1',
       });
       setItem(savedCase);
-      toast({ id: `completeness-${group}`, status: 'success', title: `${group === 'CORE' ? 'Core' : 'Advanced'} review state saved`, duration: 1800, position: 'bottom' });
+      toast({ id: `completeness-${group}-${state}`, status: 'success', title: `${group === 'CORE' ? 'Core' : 'Advanced'} review state saved`, duration: 1800, position: 'bottom' });
     } catch (err) {
       setSaveError(errorText(err));
     } finally {
@@ -1210,6 +1210,17 @@ export function AnnotationEditorPage() {
                     </Button>
                   </HStack>
                   <Text fontSize="xs" color="text.secondary">Status: {completenessStateLabel(completeness.CORE?.state)}{completeness.CORE?.reviewer ? ` · ${completeness.CORE.reviewer}` : ''}</Text>
+                  {completeness.CORE?.state === 'REVIEWED_NONE_FOUND' || completeness.CORE?.state === 'REVIEWED_FINDINGS_RECORDED' ? (
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      alignSelf="flex-start"
+                      onClick={() => updateCompleteness('CORE', 'PARTIALLY_REVIEWED')}
+                      isDisabled={readOnly || Boolean(completenessSaving)}
+                    >
+                      Continue reviewing
+                    </Button>
+                  ) : null}
                 </Stack>
               </Box>
               <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
