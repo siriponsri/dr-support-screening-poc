@@ -380,7 +380,8 @@ export function ReviewPage() {
   const analysisAudit = item ? processingAudit(item) : null;
   const analysisPreparationRecorded = Boolean(analysisPreparationStatus === 'READY' && analysisAudit);
   const modelProvenanceRecorded = Boolean(item?.global?.provenance?.preprocessing || item?.lesion?.provenance?.preprocessing);
-  const processingPathRecorded = analysisPreparationRecorded && modelProvenanceRecorded;
+  const spatialAiProvenanceVerified = item?.spatial_ai_display?.status === 'AVAILABLE';
+  const processingPathRecorded = analysisPreparationRecorded && modelProvenanceRecorded && spatialAiProvenanceVerified;
   const maskCandidateAvailable = Boolean(
     (analysisPreparationStatus === 'READY' && analysisAudit?.valid_retina_mask_sha256)
       || (analysisPreparationStatus === 'NEEDS_REVIEW' && item?.analysis_preparation?.candidate_mask_sha256),
@@ -565,11 +566,13 @@ export function ReviewPage() {
               </Text>
               <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3} bg="surface.subtle">
                 <Stack spacing={1}>
-                  <Text fontSize="xs" fontWeight="semibold">{processingPathRecorded ? 'Recorded analysis and model provenance' : analysisPreparationRecorded ? 'Recorded analysis path; model transform not recorded' : 'Documented processing path (when approved)'}</Text>
+                  <Text fontSize="xs" fontWeight="semibold">{processingPathRecorded ? 'Verified processing path' : analysisPreparationRecorded && modelProvenanceRecorded ? 'Separate records; linkage not verified' : analysisPreparationRecorded ? 'Recorded analysis path; model transform not recorded' : 'Documented processing path (when approved)'}</Text>
                   <Text fontSize="sm">Original -&gt; Analysis area -&gt; provider transform -&gt; actual model input</Text>
                   <Text fontSize="xs" color="text.secondary">
                     {processingPathRecorded
-                      ? 'Analysis area, provider preprocessing, and Mask preview are recorded case-local processing evidence. The actual model input remains provider-defined.'
+                      ? 'Backend provenance confirms matching source and transform evidence for the displayed model result. The actual model input remains provider-defined.'
+                      : analysisPreparationRecorded && modelProvenanceRecorded
+                        ? 'Separate analysis and model records exist, but their connection is not verified for this case. Do not treat them as one approved processing chain.'
                       : analysisPreparationRecorded
                         ? 'Analysis area and Mask preview are recorded case-local processing evidence. The provider-specific transform and actual model input are not recorded for this case.'
                         : item?.analysis_preparation?.status === 'NEEDS_REVIEW' && item.analysis_preparation.candidate_mask_sha256

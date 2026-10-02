@@ -137,14 +137,14 @@ def test_mask_is_deterministic_and_preserves_original_dimensions():
 
 
 def test_mask_overlay_marks_the_retained_excluded_boundary():
-    mask = Image.new("L", (5, 5), 0)
-    ImageDraw.Draw(mask).rectangle((1, 1, 3, 3), fill=255)
+    mask = Image.new("L", (15, 15), 0)
+    ImageDraw.Draw(mask).rectangle((2, 2, 12, 12), fill=255)
 
     from dr_support.imaging.derivatives import render_mask_overlay
 
     with Image.open(io.BytesIO(render_mask_overlay(mask))) as overlay:
-        assert overlay.getpixel((2, 2)) == (16, 185, 129, 78)
-        assert overlay.getpixel((1, 2)) == (65, 92, 78, 210)
+        assert overlay.getpixel((7, 7)) == (16, 185, 129, 78)
+        assert overlay.getpixel((3, 7)) == (65, 92, 78, 210)
         assert overlay.getpixel((0, 0)) == (245, 158, 11, 78)
 
 

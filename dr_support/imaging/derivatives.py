@@ -349,17 +349,27 @@ def render_mask_overlay(mask: Image.Image) -> bytes:
     width, height = mask_image.size
     mask_bytes = mask_image.tobytes()
     pixels = bytearray()
+    boundary_radius = 2
     for index, value in enumerate(mask_bytes):
         if value:
             x = index % width
             y = index // width
-            boundary = (
-                x == 0 or x == width - 1 or y == 0 or y == height - 1
-                or not mask_bytes[index - 1]
-                or not mask_bytes[index + 1]
-                or not mask_bytes[index - width]
-                or not mask_bytes[index + width]
-            )
+            boundary = False
+            for offset_y in range(-boundary_radius, boundary_radius + 1):
+                for offset_x in range(-boundary_radius, boundary_radius + 1):
+                    if not offset_x and not offset_y:
+                        continue
+                    neighbor_x = x + offset_x
+                    neighbor_y = y + offset_y
+                    if (
+                        neighbor_x < 0 or neighbor_x >= width
+                        or neighbor_y < 0 or neighbor_y >= height
+                        or not mask_bytes[neighbor_y * width + neighbor_x]
+                    ):
+                        boundary = True
+                        break
+                if boundary:
+                    break
             pixels.extend((65, 92, 78, 210) if boundary else (16, 185, 129, 78))
         else:
             pixels.extend((245, 158, 11, 78))
