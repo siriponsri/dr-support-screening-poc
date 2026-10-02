@@ -349,9 +349,11 @@ def render_mask_overlay(mask: Image.Image) -> bytes:
     boundary_radius = 8
     eroded = mask_image.filter(ImageFilter.MinFilter(size=boundary_radius * 2 + 1))
     boundary = ImageChops.subtract(mask_image, eroded)
-    overlay = Image.new("RGBA", mask.size, (245, 158, 11, 78))
-    retained = Image.new("RGBA", mask.size, (16, 185, 129, 78))
-    boundary_color = Image.new("RGBA", mask.size, (65, 92, 78, 210))
+    # Keep retained tissue calm, while making excluded pixels and the boundary
+    # readable at normal workstation zoom without implying clinical severity.
+    overlay = Image.new("RGBA", mask.size, (52, 64, 84, 156))
+    retained = Image.new("RGBA", mask.size, (18, 126, 106, 104))
+    boundary_color = Image.new("RGBA", mask.size, (20, 88, 92, 230))
     overlay = Image.composite(retained, overlay, mask_image)
     overlay = Image.composite(boundary_color, overlay, boundary)
     output = io.BytesIO()

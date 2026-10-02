@@ -35,6 +35,17 @@ def test_explicit_filename_patterns(filename, patient, eye):
     assert parsed.parser_status == "MATCHED"
 
 
+def test_filename_capture_sequence_is_evidence_not_chronology():
+    parsed = parse_filename("FC8804_L1.jpg")
+    assert parsed.capture_sequence == 1
+    assert parse_filename("FC8804_L2.jpg").capture_sequence == 2
+    assert parse_filename("FC8804_LEFT.jpg").capture_sequence is None
+    assert parse_filename("FC8804 L1.jpg").laterality == "LEFT"
+    assert parse_filename("FC8804 L1.jpg").capture_sequence == 1
+    assert parse_filename("FC8804_OS2.jpg").laterality == "LEFT"
+    assert parse_filename("FC8804 OD2.jpg").laterality == "RIGHT"
+
+
 def test_filename_parser_keeps_unknown_and_ambiguous_names_conservative():
     assert parse_filename("PAT0001.jpg").patient_candidate == "PAT0001"
     assert parse_filename("PAT0001.jpg").laterality == "UNKNOWN"

@@ -143,9 +143,9 @@ def test_mask_overlay_marks_the_retained_excluded_boundary():
     from dr_support.imaging.derivatives import render_mask_overlay
 
     with Image.open(io.BytesIO(render_mask_overlay(mask))) as overlay:
-        assert overlay.getpixel((15, 15)) == (16, 185, 129, 78)
-        assert overlay.getpixel((10, 15)) == (65, 92, 78, 210)
-        assert overlay.getpixel((0, 0)) == (245, 158, 11, 78)
+        assert overlay.getpixel((15, 15)) == (18, 126, 106, 104)
+        assert overlay.getpixel((10, 15)) == (20, 88, 92, 230)
+        assert overlay.getpixel((0, 0)) == (52, 64, 84, 156)
 
 
 def test_ambiguous_field_needs_review_without_source_fallback(tmp_path, monkeypatch):
