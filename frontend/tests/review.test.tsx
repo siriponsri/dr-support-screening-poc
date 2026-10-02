@@ -215,6 +215,7 @@ describe('Review responsibility boundary', () => {
     expect(await screen.findByText('Retinal-field mask recorded; no fallback used')).toBeInTheDocument();
     expect(screen.getByText('Deterministic bounded retinal-field mask')).toBeInTheDocument();
     expect(screen.getByText('RGB model transform fixture')).toBeInTheDocument();
+    expect(screen.getByText('Separate records; linkage not verified')).toBeInTheDocument();
     expect(screen.getByText('CFP-trained AI - not validated for UWF.')).toBeInTheDocument();
     expect(screen.getByText('Public source')).toBeInTheDocument();
   });
