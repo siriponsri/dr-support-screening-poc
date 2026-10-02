@@ -75,6 +75,10 @@ describe('UWF intake and clinical review', () => {
     await userEvent.setup().clear(patient);
     await userEvent.setup().type(patient, 'PAT009');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Done' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Edit eye' }));
+    await userEvent.setup().selectOptions(screen.getByLabelText('Eye'), 'UNKNOWN');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByText('Unknown', { exact: true })).toBeInTheDocument();
     expect(screen.getByLabelText('Visit key (optional)')).not.toBeVisible();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Additional metadata' }));
     expect(screen.getByLabelText('Visit key (optional)')).toBeInTheDocument();
@@ -84,7 +88,7 @@ describe('UWF intake and clinical review', () => {
     await userEvent.setup().type(screen.getByPlaceholderText('Reviewer name'), 'Synthetic Reviewer');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Confirm image & continue' }));
     await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]).toMatchObject({ patient_key: 'PAT009', capture_sequence: null, retinal_modality: 'UWF', reviewer: expect.any(String) });
+    expect(sent[0]).toMatchObject({ patient_key: 'PAT009', laterality: 'UNKNOWN', capture_sequence: null, retinal_modality: 'UWF', reviewer: expect.any(String) });
   });
 
   it('shows the prepared same-canvas analysis area while keeping UWF AI unavailable', async () => {

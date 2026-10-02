@@ -177,7 +177,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
               </FormControl>
             )}
             {eyeResolved && !editEye ? (
-              <SummaryRow label="Eye" value={laterality === 'LEFT' ? 'Left' : 'Right'} note={eyeSource} onEdit={() => setEditEye(true)} />
+              <SummaryRow label="Eye" value={laterality === 'LEFT' ? 'Left' : laterality === 'RIGHT' ? 'Right' : 'Unknown'} note={eyeSource} onEdit={() => setEditEye(true)} />
             ) : (
               <FormControl>
                 <FormLabel htmlFor="confirm-image-eye">Eye</FormLabel>

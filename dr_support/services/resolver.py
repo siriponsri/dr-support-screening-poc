@@ -42,7 +42,7 @@ _AMBIGUOUS_PATIENT = re.compile(
     re.IGNORECASE,
 )
 _TRAILING_EYE_TOKEN = re.compile(
-    rf"(?:^|{_FILENAME_SEPARATOR})(?P<eye>{_EYE_TOKEN})(?:\d{{1,4}})?(?:$|{_FILENAME_SEPARATOR})",
+    rf"(?:^|{_FILENAME_SEPARATOR})(?P<eye>{_EYE_TOKEN})(?:\d{{1,4}})?(?=$|{_FILENAME_SEPARATOR})",
     re.IGNORECASE,
 )
 _PATIENT_KEY = re.compile(r"^(?=[A-Z0-9_-]{3,32}$)(?=.*\d)[A-Z][A-Z0-9_-]*$")
