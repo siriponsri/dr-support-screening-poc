@@ -31,13 +31,13 @@ def _uwf_bytes(*, bounded=True):
     return output.getvalue()
 
 
-def _workspace(tmp_path, monkeypatch, source):
+def _workspace(tmp_path, monkeypatch, source, *, filename="synthetic-uwf.png"):
     monkeypatch.setenv("DR_SUPPORT_WORKSPACE_CATALOG", str(tmp_path / "catalog.sqlite"))
     folder = tmp_path / "input"
     folder.mkdir()
     out = tmp_path / "output"
     out.mkdir()
-    path = folder / "synthetic-uwf.png"
+    path = folder / filename
     path.write_bytes(source)
     client = TestClient(create_app(tmp_path / "fallback.sqlite", include_samples=False))
     response = client.post("/v1/workspaces", json={
@@ -146,6 +146,17 @@ def test_mask_overlay_marks_the_retained_excluded_boundary():
         assert overlay.getpixel((15, 15)) == (18, 126, 106, 104)
         assert overlay.getpixel((10, 15)) == (20, 88, 92, 230)
         assert overlay.getpixel((0, 0)) == (52, 64, 84, 156)
+
+
+def test_filename_sequence_is_not_recorded_without_explicit_metadata_acceptance(tmp_path, monkeypatch):
+    source = _uwf_bytes()
+    client, case, _ = _workspace(tmp_path, monkeypatch, source, filename="PAT001_L1.png")
+    response = client.post(f"/v1/cases/{case['image_id']}/confirm-image", json={
+        "revision": case["revision"], "reviewer": "Synthetic Reviewer",
+        "patient_key": "PAT001", "laterality": "LEFT", "retinal_modality": "UWF",
+    })
+    assert response.status_code == 200
+    assert response.json()["visit_context"]["capture_sequence"] is None
 
 
 def test_ambiguous_field_needs_review_without_source_fallback(tmp_path, monkeypatch):

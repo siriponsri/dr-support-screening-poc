@@ -182,15 +182,15 @@ function MaskLegend() {
       <Text fontSize="xs" fontWeight="semibold" color="text.primary">Mask preview key</Text>
       <HStack spacing={3} flexWrap="wrap" fontSize="xs" color="text.secondary">
         <HStack spacing={1}>
-          <Box w="9px" h="9px" borderRadius="sm" bg="#A9D5BE" />
+          <Box w="9px" h="9px" borderRadius="sm" bg="#127E6A" />
           <Text>Retained retinal area</Text>
         </HStack>
         <HStack spacing={1}>
-          <Box w="9px" h="9px" borderRadius="sm" bg="#D7BF87" />
+          <Box w="9px" h="9px" borderRadius="sm" bg="#344054" />
           <Text>Excluded border / artifact area</Text>
         </HStack>
         <HStack spacing={1}>
-          <Box w="9px" h="9px" borderWidth="2px" borderColor="text.secondary" borderRadius="sm" />
+          <Box w="9px" h="9px" borderWidth="2px" borderColor="#14585C" borderRadius="sm" />
           <Text>Mask boundary (retained / excluded edge)</Text>
         </HStack>
       </HStack>

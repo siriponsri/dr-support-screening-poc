@@ -25,20 +25,32 @@ import type { CaseRecord, Laterality, RetinalModality } from '@/lib/api';
 import { admissionApi } from '@/lib/api';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 import { ReviewerField } from '@/components/common/ReviewerField';
-import { ChevronDown, ChevronUp } from '@/lib/icons';
+import { ChevronDown, ChevronUp, Pencil } from '@/lib/icons';
 
 function filenameMethod(method?: string): boolean {
   return method === 'FILENAME' || method === 'FILENAME_AND_OCR';
 }
 
-function SummaryRow({ label, value, note }: { label: string; value: string; note: string }) {
+function SummaryRow({ label, value, note, onEdit }: { label: string; value: string; note: string; onEdit: () => void }) {
   return (
     <HStack justify="space-between" align="flex-start" borderWidth="1px" borderColor="border.subtle" borderRadius="md" px={3} py={2}>
       <Stack spacing={0} minW={0}>
         <Text fontSize="sm" color="text.secondary">{label}</Text>
         <Text fontWeight="semibold" noOfLines={1}>{value || 'Unknown'}</Text>
       </Stack>
-      <Badge colorScheme="blue" variant="subtle" flexShrink={0}>{note}</Badge>
+      <HStack spacing={2} flexShrink={0}>
+        <Badge colorScheme="blue" variant="subtle">{note}</Badge>
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          leftIcon={<Pencil size={12} aria-hidden="true" />}
+          aria-label={`Edit ${label.toLowerCase()}`}
+          onClick={onEdit}
+        >
+          Edit
+        </Button>
+      </HStack>
     </HStack>
   );
 }
@@ -56,6 +68,9 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [metadataOpen, setMetadataOpen] = useState(false);
+  const [editImageType, setEditImageType] = useState(false);
+  const [editPatient, setEditPatient] = useState(false);
+  const [editEye, setEditEye] = useState(false);
   const initialFocusRef = useRef<HTMLElement | null>(null);
 
   const filenameEvidence = item?.resolver_evidence?.filename;
@@ -79,13 +94,15 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
     setImageType(item.admission?.retinal_modality ?? item.modality ?? 'UNKNOWN');
     setVisitKey(item.visit_context?.visit_key ?? '');
     setCapturedAt(item.visit_context?.captured_at ?? '');
-    setCaptureSequence(item.visit_context?.capture_sequence == null
-      ? item.resolver_evidence?.filename?.capture_sequence == null ? '' : String(item.resolver_evidence.filename.capture_sequence)
-      : String(item.visit_context.capture_sequence));
+    // Filename sequence stays evidence until the operator explicitly accepts or enters it.
+    setCaptureSequence(item.visit_context?.capture_sequence == null ? '' : String(item.visit_context.capture_sequence));
     setDevice(item.visit_context?.device ?? '');
     setReviewer(defaultReviewer);
     setUseAsDefault(Boolean(defaultReviewer));
     setMetadataOpen(false);
+    setEditImageType(false);
+    setEditPatient(false);
+    setEditEye(false);
     setError(null);
   }, [item]);
 
@@ -135,38 +152,41 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
               <Text fontWeight="semibold">{item?.filename ?? item?.display_name}</Text>
               <Text fontSize="sm" color="text.secondary">Only uncertain context needs confirmation. Filename and source metadata are evidence, not clinical truth.</Text>
             </Stack>
-            {imageTypeResolved ? (
-              <SummaryRow label="Image type" value={imageType === 'UWF' ? 'Ultra-widefield' : 'Conventional fundus photograph'} note={imageTypeSource} />
+            {imageTypeResolved && !editImageType ? (
+              <SummaryRow label="Image type" value={imageType === 'UWF' ? 'Ultra-widefield' : 'Conventional fundus photograph'} note={imageTypeSource} onEdit={() => setEditImageType(true)} />
             ) : (
               <FormControl>
                 <FormLabel htmlFor="confirm-image-type">Image type</FormLabel>
-                <Select ref={!imageTypeResolved ? (node) => { initialFocusRef.current = node; } : undefined} id="confirm-image-type" value={imageType} onChange={(event) => setImageType(event.target.value as RetinalModality)}>
+                <Select ref={!imageTypeResolved || editImageType ? (node) => { initialFocusRef.current = node; } : undefined} id="confirm-image-type" value={imageType} onChange={(event) => setImageType(event.target.value as RetinalModality)}>
                   <option value="UNKNOWN">Not sure yet</option>
                   <option value="CFP">Conventional fundus photograph</option>
                   <option value="UWF">Ultra-widefield</option>
                 </Select>
                 <Text fontSize="xs" color="text.secondary" mt={1}>If unsure, keep Not sure yet. AI analysis requires a confirmed supported image type.</Text>
+                {editImageType && imageTypeResolved && <Button type="button" size="xs" variant="ghost" mt={1} onClick={() => setEditImageType(false)}>Done</Button>}
               </FormControl>
             )}
-            {patientResolved ? (
-              <SummaryRow label="Patient" value={patientKey} note={patientSource} />
+            {patientResolved && !editPatient ? (
+              <SummaryRow label="Patient" value={patientKey} note={patientSource} onEdit={() => setEditPatient(true)} />
             ) : (
               <FormControl>
                 <FormLabel htmlFor="confirm-image-patient-key">Patient</FormLabel>
-                <Input ref={imageTypeResolved ? (node) => { initialFocusRef.current = node; } : undefined} id="confirm-image-patient-key" value={patientKey} onChange={(event) => setPatientKey(event.target.value.toUpperCase())} placeholder="Enter a pseudonymous key or leave blank" />
+                <Input ref={imageTypeResolved && (editPatient || !patientResolved) ? (node) => { initialFocusRef.current = node; } : undefined} id="confirm-image-patient-key" value={patientKey} onChange={(event) => setPatientKey(event.target.value.toUpperCase())} placeholder="Enter a pseudonymous key or leave blank" />
                 <Text fontSize="xs" color="text.secondary" mt={1}>{item?.patient_candidate ? 'Suggested from available evidence; confirm or correct it.' : 'Unknown is allowed when no supported evidence is available.'}</Text>
+                {editPatient && patientResolved && <Button type="button" size="xs" variant="ghost" mt={1} onClick={() => setEditPatient(false)}>Done</Button>}
               </FormControl>
             )}
-            {eyeResolved ? (
-              <SummaryRow label="Eye" value={laterality === 'LEFT' ? 'Left' : 'Right'} note={eyeSource} />
+            {eyeResolved && !editEye ? (
+              <SummaryRow label="Eye" value={laterality === 'LEFT' ? 'Left' : 'Right'} note={eyeSource} onEdit={() => setEditEye(true)} />
             ) : (
               <FormControl>
                 <FormLabel htmlFor="confirm-image-eye">Eye</FormLabel>
-                <Select ref={imageTypeResolved && patientResolved ? (node) => { initialFocusRef.current = node; } : undefined} id="confirm-image-eye" value={laterality} onChange={(event) => setLaterality(event.target.value as Laterality)}>
+                <Select ref={imageTypeResolved && patientResolved && (editEye || !eyeResolved) ? (node) => { initialFocusRef.current = node; } : undefined} id="confirm-image-eye" value={laterality} onChange={(event) => setLaterality(event.target.value as Laterality)}>
                   <option value="LEFT">Left</option>
                   <option value="RIGHT">Right</option>
                   <option value="UNKNOWN">Unknown</option>
                 </Select>
+                {editEye && eyeResolved && <Button type="button" size="xs" variant="ghost" mt={1} onClick={() => setEditEye(false)}>Done</Button>}
               </FormControl>
             )}
             <ReviewerField id="confirm-image-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
@@ -189,7 +209,12 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
                   <FormControl><FormLabel htmlFor="confirm-image-visit">Visit key (optional)</FormLabel><Input id="confirm-image-visit" value={visitKey} onChange={(event) => setVisitKey(event.target.value)} placeholder="Leave blank when unknown" /></FormControl>
                   <FormControl><FormLabel htmlFor="confirm-image-capture">Capture date/time (optional)</FormLabel><Input id="confirm-image-capture" value={capturedAt} onChange={(event) => setCapturedAt(event.target.value)} placeholder="Leave blank when unknown" /></FormControl>
                   <FormControl><FormLabel htmlFor="confirm-image-sequence">Capture sequence (optional)</FormLabel><Input id="confirm-image-sequence" type="number" min={0} value={captureSequence} onChange={(event) => setCaptureSequence(event.target.value)} placeholder="Leave blank when unknown" /></FormControl>
-                  {filenameEvidence?.capture_sequence != null && <Text fontSize="xs" color="text.secondary">Sequence {filenameEvidence.capture_sequence} was derived from the supported filename pattern. It is not a before/after claim.</Text>}
+                  {filenameEvidence?.capture_sequence != null && (
+                    <HStack align="flex-start" spacing={2}>
+                      <Text fontSize="xs" color="text.secondary">Sequence {filenameEvidence.capture_sequence} was derived from the supported filename pattern. It is not a before/after claim.</Text>
+                      {!captureSequence && <Button type="button" size="xs" variant="outline" flexShrink={0} onClick={() => setCaptureSequence(String(filenameEvidence.capture_sequence))}>Use sequence</Button>}
+                    </HStack>
+                  )}
                   <FormControl><FormLabel htmlFor="confirm-image-device">Camera / device (optional)</FormLabel><Input id="confirm-image-device" value={device} onChange={(event) => setDevice(event.target.value)} placeholder="Leave blank when unknown" /></FormControl>
                 </Stack>
               </Collapse>

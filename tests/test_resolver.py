@@ -46,6 +46,15 @@ def test_filename_capture_sequence_is_evidence_not_chronology():
     assert parse_filename("FC8804 OD2.jpg").laterality == "RIGHT"
 
 
+def test_filename_with_conflicting_trailing_eye_token_stays_ambiguous():
+    parsed = parse_filename("FC8804 L1 R2.jpg")
+    assert parsed.patient_candidate == "FC8804"
+    assert parsed.laterality == "UNKNOWN"
+    assert parsed.capture_sequence is None
+    assert parsed.parser_status == "AMBIGUOUS"
+    assert parsed.pattern == "PATIENT_EYE_CONFLICTING_SUFFIX"
+
+
 def test_filename_parser_keeps_unknown_and_ambiguous_names_conservative():
     assert parse_filename("PAT0001.jpg").patient_candidate == "PAT0001"
     assert parse_filename("PAT0001.jpg").laterality == "UNKNOWN"
