@@ -345,10 +345,24 @@ class DerivativeService:
 
 def render_mask_overlay(mask: Image.Image) -> bytes:
     """Render a deterministic, inspection-only retained/excluded mask overlay."""
-    mask_bytes = mask.convert("L").tobytes()
+    mask_image = mask.convert("L")
+    width, height = mask_image.size
+    mask_bytes = mask_image.tobytes()
     pixels = bytearray()
-    for value in mask_bytes:
-        pixels.extend((16, 185, 129, 78) if value else (245, 158, 11, 78))
+    for index, value in enumerate(mask_bytes):
+        if value:
+            x = index % width
+            y = index // width
+            boundary = (
+                x == 0 or x == width - 1 or y == 0 or y == height - 1
+                or not mask_bytes[index - 1]
+                or not mask_bytes[index + 1]
+                or not mask_bytes[index - width]
+                or not mask_bytes[index + width]
+            )
+            pixels.extend((65, 92, 78, 210) if boundary else (16, 185, 129, 78))
+        else:
+            pixels.extend((245, 158, 11, 78))
     overlay = Image.frombytes("RGBA", mask.size, bytes(pixels))
     output = io.BytesIO()
     overlay.save(output, format="PNG", optimize=False, compress_level=9)

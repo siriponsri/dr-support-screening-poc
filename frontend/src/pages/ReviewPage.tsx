@@ -378,6 +378,7 @@ export function ReviewPage() {
   const analysisPreparationStatus = item?.analysis_preparation?.status;
   const analysisCandidateAvailable = Boolean(analysisPreparationStatus === 'READY' && item?.analysis_preparation?.derivative);
   const analysisAudit = item ? processingAudit(item) : null;
+  const processingPathRecorded = Boolean(analysisPreparationStatus === 'READY' && analysisAudit);
   const maskCandidateAvailable = Boolean(
     (analysisPreparationStatus === 'READY' && analysisAudit?.valid_retina_mask_sha256)
       || (analysisPreparationStatus === 'NEEDS_REVIEW' && item?.analysis_preparation?.candidate_mask_sha256),
@@ -562,9 +563,13 @@ export function ReviewPage() {
               </Text>
               <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3} bg="surface.subtle">
                 <Stack spacing={1}>
-                  <Text fontSize="xs" fontWeight="semibold">Recorded processing path</Text>
+                  <Text fontSize="xs" fontWeight="semibold">{processingPathRecorded ? 'Recorded processing path' : 'Documented processing path (when approved)'}</Text>
                   <Text fontSize="sm">Original -&gt; Analysis area -&gt; provider transform -&gt; actual model input</Text>
-                  <Text fontSize="xs" color="text.secondary">Analysis area and Mask preview are case-local processing evidence. Provider-specific transforms may still change the actual model input.</Text>
+                  <Text fontSize="xs" color="text.secondary">
+                    {processingPathRecorded
+                      ? 'Analysis area and Mask preview are case-local processing evidence. Provider-specific transforms may still change the actual model input.'
+                      : 'This case does not have an approved analysis preparation recorded. A candidate mask remains inspection-only; Original and manual review remain available.'}
+                  </Text>
                 </Stack>
               </Box>
             </Stack>

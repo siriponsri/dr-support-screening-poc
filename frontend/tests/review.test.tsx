@@ -259,7 +259,9 @@ describe('Review responsibility boundary', () => {
     expect(screen.getByText('Retained retinal area')).toBeInTheDocument();
     expect(screen.getByText('Excluded border / artifact area')).toBeInTheDocument();
     expect(screen.getByText('Mask boundary (retained / excluded edge)')).toBeInTheDocument();
+    expect(screen.getByText('Documented processing path (when approved)')).toBeInTheDocument();
     expect(screen.getByText('Original -> Analysis area -> provider transform -> actual model input')).toBeInTheDocument();
+    expect(screen.getByText(/candidate mask remains inspection-only/i)).toBeInTheDocument();
 
     fireEvent.error(screen.getByTestId('mask-overlay'));
     expect(screen.queryByTestId('mask-overlay')).not.toBeInTheDocument();
