@@ -11,6 +11,11 @@ export const LESION_COLORS: Record<LesionLabel, string> = {
   SOFT_EXUDATE: '#6366F1',
 };
 
+export const LESION_LABEL_COLORS: Record<LesionLabel, string> = {
+  ...LESION_COLORS,
+  SOFT_EXUDATE: '#C4B5FD',
+};
+
 export const LESION_SHORT_LABELS: Record<LesionLabel, string> = {
   MICROANEURYSM: 'MA',
   HEMORRHAGE: 'HE',
@@ -304,12 +309,15 @@ function HumanShape({
       <text
         x={annotationLabelPoint(annotation).x}
         y={annotationLabelPoint(annotation).y}
-        fill="var(--chakra-colors-text-primary)"
+        fill={LESION_LABEL_COLORS[annotation.label]}
+        stroke="var(--chakra-colors-viewer-background)"
+        strokeWidth="4"
+        paintOrder="stroke"
         fontSize="14"
         fontWeight="700"
         pointerEvents="none"
       >
-        HUMAN - {LESION_SHORT_LABELS[annotation.label]}
+        Human · {LESION_SHORT_LABELS[annotation.label]}
       </text>
     </g>
   );
@@ -779,15 +787,15 @@ export function RetinalCanvas({
         {maskOverlayUrl && (
           <Image
             src={maskOverlayUrl}
-            alt="Candidate valid-retina mask overlay"
+            alt="Mask preview showing retained retinal area and excluded border or artifact area"
             data-testid="mask-overlay"
             position="absolute"
             inset={0}
             w="100%"
             h="100%"
             objectFit="fill"
-            opacity={0.45}
-            mixBlendMode="multiply"
+            opacity={0.6}
+            mixBlendMode="normal"
             userSelect="none"
             pointerEvents="none"
             draggable={false}

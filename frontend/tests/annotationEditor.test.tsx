@@ -239,21 +239,25 @@ describe('AnnotationEditorPage human movement', () => {
       clinician_review: { reviewer: 'Clinician', final_grade: 2, review_action: 'CORRECT_GRADE', remark: '', timestamp: '2026-01-01T00:00:00Z', revision: 1 },
     };
     let completenessRequest: Record<string, unknown> | undefined;
+    let releaseCompleteness: (() => void) | undefined;
     renderEditor(current, (input, init) => {
       const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
       if (path === '/v1/cases' || path === '/v1/cases/CASE-001') return current;
       if (path.endsWith('/annotation-completeness')) {
         completenessRequest = JSON.parse(String(init?.body));
-        return {
-          ...current,
-          revision: 1,
-          annotation_completeness: {
-            CORE: {
-              group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician',
-              timestamp: '2026-01-01T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
+        const request = completenessRequest as { state: 'REVIEWED_NONE_FOUND' | 'PARTIALLY_REVIEWED' };
+        return new Promise<CaseRecord>((resolve) => {
+          releaseCompleteness = () => resolve({
+            ...current,
+            revision: 1,
+            annotation_completeness: {
+              CORE: {
+                group: 'CORE', state: request.state, reviewer: 'Clinician',
+                timestamp: '2026-01-01T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
+              },
             },
-          },
-        };
+          });
+        });
       }
       return current;
     });
@@ -262,12 +266,30 @@ describe('AnnotationEditorPage human movement', () => {
     const reviewerInput = screen.getByPlaceholderText('Reviewer name');
     await user.clear(reviewerInput);
     await user.type(reviewerInput, 'Clinician');
+    expect(screen.queryByRole('button', { name: 'Review in progress' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record partial review' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Continue reviewing' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Advanced findings' }));
+    expect(await screen.findByRole('button', { name: 'Record partial review' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeEnabled();
     await user.click(screen.getByRole('button', { name: 'Reviewed none found' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeDisabled());
+    releaseCompleteness?.();
     await waitFor(() => expect(completenessRequest).toMatchObject({
       group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician', taxonomy_version: 'core-lesions-v1',
     }));
     expect(screen.getByText(/Status: Reviewed - none found/)).toBeInTheDocument();
     expect(screen.queryByText(/REVIEWED_NONE_FOUND/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue reviewing' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Continue reviewing' }));
+    await waitFor(() => expect(completenessRequest).toMatchObject({
+      group: 'CORE', state: 'PARTIALLY_REVIEWED', reviewer: 'Clinician', taxonomy_version: 'core-lesions-v1',
+    }));
+    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeDisabled();
+    releaseCompleteness?.();
+    await waitFor(() => expect(screen.getByText(/Status: Review in progress/)).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Continue reviewing' })).not.toBeInTheDocument();
   });
 
   it('moves editable human geometry, records undo, and respects lock state', async () => {

@@ -136,6 +136,18 @@ def test_mask_is_deterministic_and_preserves_original_dimensions():
     assert image.data == source
 
 
+def test_mask_overlay_marks_the_retained_excluded_boundary():
+    mask = Image.new("L", (31, 31), 0)
+    ImageDraw.Draw(mask).rectangle((4, 4, 26, 26), fill=255)
+
+    from dr_support.imaging.derivatives import render_mask_overlay
+
+    with Image.open(io.BytesIO(render_mask_overlay(mask))) as overlay:
+        assert overlay.getpixel((15, 15)) == (16, 185, 129, 78)
+        assert overlay.getpixel((10, 15)) == (65, 92, 78, 210)
+        assert overlay.getpixel((0, 0)) == (245, 158, 11, 78)
+
+
 def test_ambiguous_field_needs_review_without_source_fallback(tmp_path, monkeypatch):
     source = _uwf_bytes(bounded=False)
     client, case, path = _workspace(tmp_path, monkeypatch, source)

@@ -12,7 +12,7 @@ import base64
 from dataclasses import dataclass
 from typing import Literal
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageFilter
 from pydantic import Field
 
 from ..images import BridgeImage
@@ -345,11 +345,15 @@ class DerivativeService:
 
 def render_mask_overlay(mask: Image.Image) -> bytes:
     """Render a deterministic, inspection-only retained/excluded mask overlay."""
-    mask_bytes = mask.convert("L").tobytes()
-    pixels = bytearray()
-    for value in mask_bytes:
-        pixels.extend((16, 185, 129, 78) if value else (245, 158, 11, 78))
-    overlay = Image.frombytes("RGBA", mask.size, bytes(pixels))
+    mask_image = mask.convert("L")
+    boundary_radius = 8
+    eroded = mask_image.filter(ImageFilter.MinFilter(size=boundary_radius * 2 + 1))
+    boundary = ImageChops.subtract(mask_image, eroded)
+    overlay = Image.new("RGBA", mask.size, (245, 158, 11, 78))
+    retained = Image.new("RGBA", mask.size, (16, 185, 129, 78))
+    boundary_color = Image.new("RGBA", mask.size, (65, 92, 78, 210))
+    overlay = Image.composite(retained, overlay, mask_image)
+    overlay = Image.composite(boundary_color, overlay, boundary)
     output = io.BytesIO()
     overlay.save(output, format="PNG", optimize=False, compress_level=9)
     return output.getvalue()

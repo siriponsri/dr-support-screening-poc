@@ -1,5 +1,6 @@
 import { ChakraProvider } from '@chakra-ui/react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen, waitForElementToBeRemoved } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { GradeGuide } from '@/components/review/GradeGuide';
 import { ReviewStatusCell } from '@/components/worklist/ReviewStatusCell';
 import { NextActionHint, contextWarnings, nextAction } from '@/components/common/NextActionHint';
@@ -31,14 +32,18 @@ function makeCase(overrides: Partial<CaseRecord> = {}): CaseRecord {
 }
 
 describe('M1 Phase 2.1 clinician UX contracts', () => {
-  it('exposes the ICO guide progressively with the explicit severe and proliferative criteria', async () => {
+  it('opens the ICO guide as a focus-managed dialog with the explicit severe and proliferative criteria', async () => {
+    const user = userEvent.setup();
     render(<ChakraProvider theme={theme}><GradeGuide /></ChakraProvider>);
 
     const trigger = screen.getByRole('button', { name: /Grade guide/i });
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.click(trigger);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await user.click(trigger);
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('ICO diabetic retinopathy grade guide');
     expect(await screen.findByText('0 - No apparent DR')).toBeInTheDocument();
     expect(await screen.findByText('1 - Mild NPDR')).toBeInTheDocument();
     expect(await screen.findByText('2 - Moderate NPDR')).toBeInTheDocument();
@@ -46,8 +51,13 @@ describe('M1 Phase 2.1 clinician UX contracts', () => {
     expect(await screen.findByText('4 - Proliferative DR (PDR)')).toBeInTheDocument();
     expect(await screen.findByText(/>=20 intraretinal hemorrhages in each of 4 quadrants/i)).toBeInTheDocument();
     expect(await screen.findByText(/neovascularization and\/or vitreous or preretinal hemorrhage/i)).toBeInTheDocument();
+    expect(await screen.findByText(/NVD.*NVE.*iris or anterior segment.*fibrous proliferation/i)).toBeInTheDocument();
     expect(await screen.findByText(/Ungradable and Needs Second Review are workflow states outside the 0-4 severity grades/i)).toBeInTheDocument();
     expect(await screen.findByText(/DME is a separate classification from DR grade/i)).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    await waitForElementToBeRemoved(() => screen.queryByRole('dialog'));
+    expect(trigger).toHaveFocus();
   });
 
   it('separates workflow guidance from context warnings after the grade milestone', () => {

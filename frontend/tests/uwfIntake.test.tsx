@@ -100,6 +100,8 @@ describe('UWF intake and clinical review', () => {
     expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
     expect(screen.getByText('Unavailable for UWF in this configuration.')).toBeInTheDocument();
     expect(screen.getByText('Manual review remains available. No unqualified model result is shown.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mask preview' })).toBeDisabled();
+    expect(screen.getByText(/No safe mask representation is recorded/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue to clinician review' })).toHaveAttribute('href', '/clinician-review/synthetic-uwf');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Analysis area' }));
     expect(screen.getByRole('button', { name: 'Analysis area' })).toHaveAttribute('aria-pressed', 'true');

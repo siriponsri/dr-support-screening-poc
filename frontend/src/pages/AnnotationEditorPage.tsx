@@ -666,7 +666,7 @@ export function AnnotationEditorPage() {
         taxonomy_version: group === 'CORE' ? 'core-lesions-v1' : 'advanced-deferred-v1',
       });
       setItem(savedCase);
-      toast({ id: `completeness-${group}`, status: 'success', title: `${group === 'CORE' ? 'Core' : 'Advanced'} review state saved`, duration: 1800, position: 'bottom' });
+      toast({ id: `completeness-${group}-${state}`, status: 'success', title: `${group === 'CORE' ? 'Core' : 'Advanced'} review state saved`, duration: 1800, position: 'bottom' });
     } catch (err) {
       setSaveError(errorText(err));
     } finally {
@@ -1036,7 +1036,7 @@ export function AnnotationEditorPage() {
 
   /** Confirm Annotation finishes this image and opens the next Worklist image. */
   const completeCase = async () => {
-    if (!item || completing) return;
+    if (!item || completing || completenessSaving) return;
     setCompleting(true);
     try {
       if (!(await confirmAnnotations())) return;
@@ -1189,12 +1189,38 @@ export function AnnotationEditorPage() {
                 <Stack spacing={2}>
                   <Text fontWeight="semibold" fontSize="sm">Core findings review</Text>
                   <Text fontSize="xs" color="text.secondary">Choose the review state deliberately at the finish boundary. An empty AI result or empty annotation list is not a negative result.</Text>
-                  <HStack spacing={2} flexWrap="wrap">
-                    <Button size="sm" onClick={() => updateCompleteness('CORE', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Review in progress</Button>
-                    <Button size="sm" onClick={() => updateCompleteness('CORE', 'REVIEWED_FINDINGS_RECORDED')} isDisabled={readOnly || Boolean(completenessSaving)}>Reviewed findings recorded</Button>
-                    <Button size="sm" onClick={() => updateCompleteness('CORE', 'REVIEWED_NONE_FOUND')} isDisabled={readOnly || Boolean(completenessSaving)}>Reviewed none found</Button>
+                  <HStack spacing={2} flexWrap="wrap" role="group" aria-label="Core findings review choice">
+                    <Button
+                      size="sm"
+                      variant={completeness.CORE?.state === 'REVIEWED_FINDINGS_RECORDED' ? 'secondary' : 'outline'}
+                      aria-pressed={completeness.CORE?.state === 'REVIEWED_FINDINGS_RECORDED'}
+                      onClick={() => updateCompleteness('CORE', 'REVIEWED_FINDINGS_RECORDED')}
+                      isDisabled={readOnly || Boolean(completenessSaving)}
+                    >
+                      Reviewed findings recorded
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={completeness.CORE?.state === 'REVIEWED_NONE_FOUND' ? 'secondary' : 'outline'}
+                      aria-pressed={completeness.CORE?.state === 'REVIEWED_NONE_FOUND'}
+                      onClick={() => updateCompleteness('CORE', 'REVIEWED_NONE_FOUND')}
+                      isDisabled={readOnly || Boolean(completenessSaving)}
+                    >
+                      Reviewed none found
+                    </Button>
                   </HStack>
                   <Text fontSize="xs" color="text.secondary">Status: {completenessStateLabel(completeness.CORE?.state)}{completeness.CORE?.reviewer ? ` · ${completeness.CORE.reviewer}` : ''}</Text>
+                  {completeness.CORE?.state === 'REVIEWED_NONE_FOUND' || completeness.CORE?.state === 'REVIEWED_FINDINGS_RECORDED' ? (
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      alignSelf="flex-start"
+                      onClick={() => updateCompleteness('CORE', 'PARTIALLY_REVIEWED')}
+                      isDisabled={readOnly || Boolean(completenessSaving)}
+                    >
+                      Continue reviewing
+                    </Button>
+                  ) : null}
                 </Stack>
               </Box>
               <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
@@ -1225,7 +1251,7 @@ export function AnnotationEditorPage() {
                   <Button variant="outline" onClick={() => void beginAnnotationEdit()}>Edit confirmed annotations</Button>
                 </HStack>
               ) : (
-                <Button variant="solid" onClick={() => void completeCase()} isLoading={completing || saving} loadingText="Confirming" isDisabled={!hasConfirmedGrade || roiSaving}>Confirm Annotation</Button>
+                <Button variant="solid" onClick={() => void completeCase()} isLoading={completing || saving} loadingText="Confirming" isDisabled={!hasConfirmedGrade || roiSaving || Boolean(completenessSaving)}>Confirm Annotation</Button>
               )}
             </Stack>
           </Section>
