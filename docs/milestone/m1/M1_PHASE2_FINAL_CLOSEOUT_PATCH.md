@@ -5,9 +5,9 @@
 **Status:** `OWNER_DIRECTED_FINAL_PHASE2_PATCH`  
 **Repository:** `siriponsri/dr-support-screening-poc`  
 **Audited baseline:** `dded17ee035464255b77a3206ccb00b6068db60a`  
-**Current Phase 2 state:** `READY_FOR_REVIEW`  
+**Current Phase 2 state:** `DONE` (owner-approved 2026-10-03)  
 **Current Phase 3 state:** `NOT_STARTED`  
-**Owner closeout:** `PENDING`  
+**Owner closeout:** `APPROVED`  
 
 **Normative parents, in priority order:**
 
@@ -1725,5 +1725,38 @@ READY
 Final marker:
 PHASE 2 FINAL PATCH READY_FOR_OWNER_CLOSEOUT
 ```
+
+# 18. Formal owner closeout record
+
+Owner accepted the Phase 2 UAT and authorized formal Phase 2 closeout on
+2026-10-03. Phase 2 is `DONE` at final integrated implementation SHA
+`bde3e673169fa6de2f1ecee6373c22c7d46a04de`. The accepted independent O1
+changed-diff review and MAIN self-audit remain the evidence for the exact
+candidate. The pre-approval receipt above is historical evidence and remains
+unchanged in substance.
+
+Accepted limitations:
+
+- the feature-worktree `.venv` was unavailable in the final audit environment;
+- no PostgreSQL DSN/server was available for that final audit run;
+- the 1920px audit was not run;
+- reviewer account independence remained unverified;
+- the previously documented legacy root-smoke limitation remains historical
+  evidence, not a fabricated PASS;
+- live Model API success remains deferred to Phase 3.
+
+Owner-accepted UX observations are `NON-BLOCKING / DEFERRED TO PRE-PHASE-3`
+and were not implemented in this closeout:
+
+- compress the Annotation Editor toolbar toward one row, moving secondary
+  tools to a compact popover/progressive disclosure where appropriate;
+- replace the implementation-oriented/confusing `Record partial review`
+  wording in a future UX pass by deriving completeness from clinical actions
+  rather than exposing backend state-management terminology.
+
+Phase 3 remains `NOT_STARTED`. This closeout does not authorize
+production/clinical deployment, real hospital-data use, native UWF model
+qualification, live Model API success, Phase 3 start, or Phase 4 export-policy
+approval.
 
 # End of M1 Phase 2 Final Closeout Patch

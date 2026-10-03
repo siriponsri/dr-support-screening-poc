@@ -1,14 +1,17 @@
 # DR Screening M1 — Phase 2 UWF Labeling Workflow
 
-**Document revision:** Execution r3.0 (owner-directed Phase 2 execution specification)
+**Document revision:** Execution r3.1 (owner-approved Phase 2 closeout)
 **Prepared:** 2026-09-29
-**Document status:** `OWNER_DIRECTED_EXECUTION_SPEC`
-**Implementation status:** `READY_FOR_REVIEW` — bounded Phase 2 implementation is integrated; owner closeout is pending.
+**Document status:** `OWNER_APPROVED_CLOSEOUT`
+**Implementation status:** `DONE` — bounded Phase 2 implementation is integrated, independently reviewed, self-audited, and accepted by Owner UAT on 2026-10-03.
 **Phase 1 dependency:** `SATISFIED` — Phase 1 is `DONE` as of 2026-09-29.
 **Repository baseline at preparation:** `20726efcb8aa6ce857eb9b8537810fea5175b42e` (`main` / `origin/main`)
 **Primary repository:** `siriponsri/dr-support-screening-poc`
 **Normative parent:** `docs/milestone/m1/M1_MASTER_PLAN.md`, especially §§2–10, 17, 20, 23–24
 **Research evidence retained:** `DR_M1_DELIVERY_20260928_r1/`, notebook/code-reading copies, prepared model bundles and masking research. Research assets are evidence, not clinical or production approval.
+**Final integrated implementation:** `bde3e673169fa6de2f1ecee6373c22c7d46a04de`
+**Phase 3 status:** `NOT_STARTED`
+**Owner closeout:** `APPROVED` on 2026-10-03 after Phase 2 UAT
 
 > This document expands the Master Plan; it does not replace it. `AGENTS.md`, `DESIGN.md`, accepted ADRs, the Phase 1 persistence contract, and approved owner decisions remain authoritative. If this file conflicts with a frozen safety/privacy/clinical/data-integrity contract, stop only the affected work, preserve completed unaffected work, and report the exact conflict.
 
@@ -828,8 +831,8 @@ Do not force-push or delete an unrelated branch/worktree.
 | P2-7 Manual/failure | `DONE` | Chunk A candidate `6bfa782`; AI/mask unavailable manual continuation tests |
 | Chunk A REVIEW | `DONE` | Independent O1 exact-candidate review PASS; candidate `6bfa782` |
 | Chunk B REVIEW | `DONE` | Independent O1 exact-candidate review PASS after bounded fix; candidate `6c33255` |
-| Final integration validation | `READY_FOR_REVIEW` | Main `5b300f7`; full backend/frontend validation and diff check pass; owner closeout remains |
-| Owner Phase 2 closeout | `TODO` | owner reviews final evidence and decides `DONE` |
+| Final integration validation | `DONE` | Final integrated implementation `bde3e67`; accepted full backend/frontend validation, self-audit, independent review and diff check remain recorded in the closeout receipt |
+| Owner Phase 2 closeout | `DONE` | Owner UAT accepted and formal closeout authorized 2026-10-03 |
 
 Allowed execution states:
 
@@ -961,10 +964,43 @@ because no designated DSN/server was available.
 Independent review: configured O1 changed-diff review PASS for candidate 732cad5;
 the prior O1 review's four REQUIRED FIX findings were corrected. The fallback
 host exposes no account selector, so account-level independence is unverified.
-Phase 2: READY_FOR_REVIEW
+Phase 2: READY_FOR_REVIEW (historical pre-closeout receipt)
 Phase 3: NOT_STARTED
 Owner UAT: READY
 ```
+
+### 2026-10-03 formal owner closeout receipt
+
+Owner accepted the Phase 2 UAT and authorized formal closeout. Phase 2 is
+`DONE` at final integrated implementation SHA
+`bde3e673169fa6de2f1ecee6373c22c7d46a04de`. The accepted independent O1
+changed-diff review and MAIN self-audit remain the evidence for the exact
+candidate. Historical Chunk A, Chunk B, and Phase 2.1 evidence above is
+preserved; this receipt records the subsequent owner decision only.
+
+Accepted limitations:
+
+- the feature-worktree `.venv` was unavailable in the final audit environment;
+- no PostgreSQL DSN/server was available for that final audit run;
+- the 1920px audit was not run;
+- reviewer account independence remained unverified;
+- the previously documented legacy root-smoke limitation remains historical
+  evidence, not a fabricated PASS;
+- live Model API success remains deferred to Phase 3.
+
+Owner-accepted UX observations are `NON-BLOCKING / DEFERRED TO PRE-PHASE-3` and
+were not implemented in this closeout:
+
+- compress the Annotation Editor toolbar toward one row, moving secondary
+  tools to a compact popover/progressive disclosure where appropriate;
+- replace the implementation-oriented/confusing `Record partial review`
+  wording in a future UX pass by deriving completeness from clinical actions
+  rather than exposing backend state-management terminology.
+
+Phase 3 remains `NOT_STARTED`. This closeout does not authorize
+production/clinical deployment, real hospital-data use, native UWF model
+qualification, live Model API success, Phase 3 start, or Phase 4 export-policy
+approval.
 
 ---
 
@@ -1053,5 +1089,6 @@ This adoption pass is preparation only. It must not silently start P2-1 through 
 **2026-09-29 Execution r3.0:** owner-directed execution rewrite after Phase 1 closeout. Rebased Phase 2 on completed PostgreSQL foundation; reduced review-loop intensity; made MAIN/IMPLEMENT autonomous for ordinary implementation details; introduced a low-burden physician grading contract with descriptive five-class labels, separate `Ungradable`, explicit `Needs Second Review`, disagreement/adjudication preservation, and optional calibration; kept Advanced/completeness/model/hospital-data uncertainties from blocking unrelated Core work; moved negative-export authority to Phase 4; replaced pre-test coordinate approval ceremony with implementation-plus-review evidence; retained Master safety, provenance, coordinate, UWF/CFP-domain, manual-fallback and human-authority boundaries.
 
 **2026-10-01 implementation receipt:** Phase 2 began from integrated main `5a4e9721ddfa8d5613db8932aa0e07d13fda6f97`, which contains the adopted r3.0 specification and Chunk A integration. Chunk A candidate `6bfa7825da7175694373e6b3661abc7d53d7d5f7` received independent O1 review PASS and is integrated in main history. Chunk B candidate `6c33255741b1b43a42b1474a05a3db6cfcbce021` received independent O1 review PASS after a bounded completeness synchronization fix. Final integrated main is `5b300f70d8ab6a5433d2066d24a8706fe044a696`. Full main validation: backend `198 passed, 27 skipped, 42 warnings`; Ruff PASS; frontend `17 files / 105 tests PASS`; typecheck PASS; build PASS with existing chunk-size warning; `git diff --check` PASS. Advanced class-specific annotation semantics remain deferred; the UI records Advanced partial review only. Reviewed-none remains completeness evidence, not Phase 2 training/export-negative authority. This receipt sets Phase 2 to `READY_FOR_REVIEW`, not `DONE`; owner closeout remains required.
+**2026-10-03 owner closeout:** Owner accepted Phase 2 UAT and authorized formal closeout. The final integrated implementation is `bde3e673169fa6de2f1ecee6373c22c7d46a04de`; Phase 2 is `DONE` and Phase 3 remains `NOT_STARTED`. The closeout preserves the accepted limitations and deferred Pre-Phase-3 UX observations recorded in the formal owner closeout receipt above. No production, hospital-data, native-UWF-model, live-Model-API, Phase 3, or Phase 4 export-policy authorization is implied.
 
 # End of M1 Phase 2 Execution Specification
