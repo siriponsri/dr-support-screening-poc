@@ -925,7 +925,7 @@ final integration review:
 ```text
 Starting SHA: dded17ee035464255b77a3206ccb00b6068db60a
 Candidate SHA: 732cad50cf47cf89afa337f5cab5081f57f6aa33
-Final main SHA: pending integration
+Final main SHA: ea329f400c6ed55f4ab5c8dc6c832da78f1969ed
 
 Resolver refresh: PASS; unresolved legacy filename evidence refreshes per field,
 manual/confirmed identity remains protected, sequence remains evidence rather
@@ -947,8 +947,10 @@ Dataset/no-negative audit: REVIEWED_NONE_FOUND and empty human sets do not creat
 negative lesion annotations; empty AI output is not reviewed-none; untouched AI
 rows remain AI evidence; lesion_training_ready remains the pre-existing
 task-specific readiness baseline and Phase 4 owns reviewed-negative policy.
-Documentation: PASS; source clinician/developer workflow docs and docs/README.md
-are aligned; docs QA passed for 88 sources.
+Documentation: source clinician/developer workflow docs and docs/README.md are
+aligned; docs QA passed for 88 sources from the bounded feature worktree. The
+authoritative outer-main invocation reports only the preserved nested `main/`
+worktree's duplicate generated PDFs as a workspace-layout limitation.
 Validation: full backend 213 passed / 28 skipped / 50 warnings; focused resolver
 and workflow tests 36 passed; Ruff PASS; frontend 19 files / 121 tests PASS;
 typecheck PASS; build PASS with existing large-chunk warning; overlay/API root
