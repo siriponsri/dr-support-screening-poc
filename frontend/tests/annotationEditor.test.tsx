@@ -130,6 +130,12 @@ describe('AnnotationEditorPage human movement', () => {
 
     await user.click(trigger);
     expect(await screen.findByRole('dialog', { name: 'Annotation tools' })).toBeInTheDocument();
+    await user.click(screen.getByLabelText('Retinal image viewer stage'));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Annotation tools' })).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+
+    await user.click(trigger);
+    expect(await screen.findByRole('dialog', { name: 'Annotation tools' })).toBeInTheDocument();
     const fullScreenButton = screen.getByRole('button', { name: 'Open full-screen review' });
     fullScreenButton.focus();
     await user.keyboard('{Enter}');

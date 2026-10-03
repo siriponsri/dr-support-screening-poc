@@ -329,7 +329,7 @@ function MoreToolsPopover({
     const onPointerDown = (event: PointerEvent) => {
       if (event.target instanceof Node && !containerRef.current?.contains(event.target) && !popupRef.current?.contains(event.target)) {
         const clickedControl = event.target instanceof Element
-          && Boolean(event.target.closest('button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])'));
+          && Boolean(event.target.closest('button, a, input, select, textarea, [role="button"], [role="link"], [role="checkbox"], [role="combobox"], [role="menuitem"], [role="option"], [role="switch"], [role="tab"], [contenteditable="true"]'));
         close(!clickedControl);
       }
     };
@@ -1392,11 +1392,11 @@ export function AnnotationEditorPage() {
                   aria-controls="advanced-findings-review"
                   onClick={() => setAdvancedOpen((open) => !open)}
                 >
-                  More review options
+                  Advanced findings (optional)
                 </Button>
                 <Collapse in={advancedOpen} animateOpacity>
                   <Stack id="advanced-findings-review" spacing={2} mt={2}>
-                    <Text fontSize="sm" color="text.secondary">Complete the Core review above before finishing this image.</Text>
+                    <Text fontSize="sm" color="text.secondary">Advanced findings are optional and deferred to a later phase. Complete the Core review above before finishing this image.</Text>
                   </Stack>
               </Collapse>
               </Box>
