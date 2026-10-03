@@ -1,13 +1,13 @@
 # DR Screening M1 — Pre-Phase 3 Clinical UX & Design Freeze
 
-**Document revision:** r1.0  
-**Prepared:** 2026-10-03  
-**Document status:** `OWNER_DIRECTED_PRE_PHASE3_EXECUTION_SPEC`  
+**Document revision:** r1.0
+**Prepared:** 2026-10-03
+**Document status:** `OWNER_DIRECTED_PRE_PHASE3_EXECUTION_SPEC`
 **Implementation status:** `OPEN / NOT_RUN / NOT_READY_FOR_OWNER_UAT` — the exact candidate still has unrun runtime gates and blocked test collection; owner UAT and freeze acceptance remain open.
-**Repository:** `siriponsri/dr-support-screening-poc`  
-**Authoritative baseline:** `f288ae5e8a527f124aaa99eedc6f3d6f7a3e32cb`  
-**Phase 1:** `DONE`  
-**Phase 2:** `DONE`  
+**Repository:** `siriponsri/dr-support-screening-poc`
+**Authoritative baseline:** `f288ae5e8a527f124aaa99eedc6f3d6f7a3e32cb`
+**Phase 1:** `DONE`
+**Phase 2:** `DONE`
 **Phase 3–5:** `NOT_STARTED`
 
 **Execution name:** `P3-0 — Clinical UX & Design System Freeze`

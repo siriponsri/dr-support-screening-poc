@@ -2,7 +2,7 @@
 
 **Status:** `OPEN / NOT_RUN / NOT_READY_FOR_OWNER_UAT` — the exact candidate still has unrun runtime gates; no owner-UAT readiness or freeze acceptance is claimed.
 **Baseline:** `f288ae5e8a527f124aaa99eedc6f3d6f7a3e32cb`
-**Candidate:** `2413b00` (`feat/pre-phase3-clinical-ux-freeze`); final feature candidate before integration review
+**Candidate:** `f05ab3fc78c9258c60d8bca20da076b9f4212ab9` (`feat/pre-phase3-clinical-ux-freeze`); final feature candidate before integration review
 **Phase 1:** `DONE`
 **Phase 2:** `DONE`
 **Phase 3:** `NOT_STARTED`
@@ -68,7 +68,7 @@ The before/after values below are source-level interaction proxies, not clinicia
 | Backend/Ruff | NOT_RUN; no backend files changed | Not required for source-only frontend iteration; report final decision |
 | Documentation QA | PASS | `python scripts/docs/check_docs.py`; 90 Markdown/Quarto sources |
 | Root smoke | NOT_RUN | Not run for this exact candidate; backend-backed UI smoke requires the unavailable feature-worktree `.venv` |
-| `git diff --check` | PASS | Candidate worktree |
+| `git diff --check` | PASS | Repaired feature branch; base-to-candidate whitespace check rerun after documentation repair |
 | Playwright viewport audit | OPEN / NOT_RUN | No authorized running workstation/browser evidence in this pass |
 | Stagehand exploratory audit | OPEN / NOT_RUN | Exploratory only; never substitutes deterministic evidence |
 | 10-case continuous audit | OPEN / NOT_RUN | Requires authorized synthetic/public runtime data |
@@ -88,7 +88,8 @@ The before/after values below are source-level interaction proxies, not clinicia
 - Follow-up bounded repair: fullscreen entry now closes any inline More tools popup before the Modal opens; outside-pointer close restores the stable trigger; Advanced copy is truthful. Focused MAIN tests pass 16/16; owner UAT remains open.
 - Fresh configured O1 changed-diff review of candidate `e9436ba`: REQUIRED FIX findings covered focus classification for the viewer, Advanced wording, and exact-SHA evidence.
 - Follow-up repair commit `2413b00`: viewer clicks now restore the More tools trigger, Advanced is explicitly optional/deferred, and the focused regression covers viewer dismissal; focused MAIN tests remain 16/16.
-- Fresh exact-candidate O1 re-review: pending against `2413b00`; no approval is claimed until that review completes. O1's earlier read-only test collection remained limited by sandbox access denial.
+- Fresh exact-candidate O1 re-review of `f05ab3f`: REQUIRED FIX findings identified stale candidate wording and trailing whitespace in the base-to-candidate documentation diff; no approval is claimed for that revision.
+- Follow-up documentation repair: candidate identity is reconciled to `f05ab3f` and the normative spec's trailing whitespace is removed; a fresh exact-candidate O1 review remains required.
 
 ## Runtime UAT boundary
 
