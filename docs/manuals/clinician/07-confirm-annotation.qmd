@@ -1,4 +1,4 @@
-# Confirm Annotation {#sec-confirm-annotation}
+# Finish Image and Next {#sec-confirm-annotation}
 
 **Purpose.** Finish this image. This is the third confirmation milestone.
 
@@ -7,10 +7,19 @@
 **Steps.**
 
 1. Make any optional ROI changes. You do not need to inspect every AI ROI.
-2. Check **Reviewer name** in **Finish this image**.
-3. Choose **Confirm Annotation**.
+2. Check the **Reviewer** summary in **Complete review**. The remembered
+   reviewer is a convenience, not authentication.
+3. Choose **Finish image & next**. If there are no Core human findings, the
+   action explicitly says **reviewed none found**.
 
-**Expected result.** Any pending draft is saved, then the reviewer, timestamp, and a hash of the active annotation set are recorded. *Case complete · Opening next image* appears, the Worklist shows **Review complete** for this image, and **Confirm Image** opens for the next unfinished Worklist image. When every image is complete, the Worklist says so.
+**Expected result.** Any pending draft is saved, then Core completeness is
+recorded deliberately, the internal annotation-confirmation milestone stores
+the reviewer, timestamp, and hash of the active annotation set, and *Case
+complete · Opening next image* appears. The Worklist shows **Review complete**
+for this image, and **Confirm Image** opens for the next unfinished Worklist
+image. When every image is complete, the Worklist says so. Reviewed-none is
+review-completeness evidence only; it does not create a negative lesion
+annotation or authorize a Phase 4 negative export.
 ::::
 :::: {}
 ![Finish this image.](screenshots/12-confirm-annotation.png){#fig-confirm-annotation width=100%}
@@ -21,7 +30,7 @@
 
 ## Change confirmed annotations
 
-A confirmed image shows **Annotations confirmed** with the reviewer and time, and the editor is read-only. Choose **Edit confirmed annotations** (or click an AI ROI) to reopen it; one warning appears per edit session. Any later edit changes the hash, so the image needs **Confirm Annotation** again before it is Lesion-ready.
+A confirmed image shows **Annotations confirmed** with the reviewer and time, and the editor is read-only. Choose **Edit confirmed annotations** (or click an AI ROI) to reopen it; one warning appears per edit session. Any later edit changes the hash, so the image needs **Finish image & next** again before it is Lesion-ready.
 
 ![One warning before reopening confirmed annotations.](screenshots/18-edit-annotations-warning.png){#fig-edit-annotations width=52%}
 

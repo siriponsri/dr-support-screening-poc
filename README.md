@@ -4,7 +4,7 @@
 
 # Retinal Review Workbench
 
-A clinician-controlled workspace for retinal image review and research dataset preparation. Reviewers confirm image context, make the final diabetic retinopathy (DR) grade decision, and confirm annotations. AI suggestions can assist, but the clinician remains responsible for the final result.
+A clinician-controlled workspace for retinal image review and research dataset preparation. Reviewers confirm image context, make the final diabetic retinopathy (DR) grade decision, and finish the Core findings review. AI suggestions can assist, but the clinician remains responsible for the final result.
 
 This project supports public or approved synthetic research and clinical-support workflows. It is **not** an autonomous diagnostic or regulated medical device.
 
@@ -43,18 +43,18 @@ On later days, use `.\OPEN_APP.cmd` to reopen or start the app. When finished, r
 
 ## 3. Review an image
 
-1. In **Worklist**, select **Confirm Image**. Check the pseudonymous patient key, eye, and reviewer; confirm the image context.
+1. In **Worklist**, select **Confirm Image**. Review the progressive-disclosure context summary, including supported filename/source evidence when available, then confirm the pseudonymous patient key, eye, and reviewer.
 2. In **Review**, inspect the source image and any available model evidence. Open **Clinician Review**.
 3. Select the final DR grade and choose **Confirm DR Grade**. The human decision is authoritative, whether or not an AI suggestion exists.
-4. In **Annotation Editor**, inspect the suggested regions of interest (ROIs). Correct or remove an AI ROI if needed, or add a human annotation. Untouched AI ROIs remain AI suggestions.
-5. Choose **Confirm Annotation** to finish the case. Individual AI ROIs do not need separate confirmation to complete the case.
+4. In **Annotation Editor**, start with the image-first **Box** tool. Inspect the suggested regions of interest (ROIs); correct or remove an AI ROI if needed, or add a human annotation. Untouched AI ROIs remain AI suggestions.
+5. Choose **Finish image & next**. With no Core human findings, the button explicitly records **reviewed none found**; it does not create a negative lesion annotation. Individual AI ROIs do not need separate confirmation to complete the case, and Advanced findings remain optional/deferred.
 6. Continue to the next incomplete Worklist image. If its image context was already confirmed, it opens in Review; otherwise, confirm its image context first.
 
 The supported image inputs are JPEG, PNG, TIFF, and supported single-frame ophthalmic fundus DICOM. Consult the [image selection guide](docs/clinician/IMAGE_SELECTION_GUIDE.html) before admitting data. AI scores are model evidence, not calibrated clinical probabilities. The [clinician manual](docs/manuals/clinician/index.qmd) explains the controls, editing, and repeated review in detail.
 
 ## 4. Check readiness and export
 
-Open **Datasets** to check **DR-ready** and **Lesion-ready** separately. DR readiness depends on a confirmed final grade; lesion readiness depends on a current confirmed annotation set. Review the status before exporting. The export includes a manifest and task-specific data files; [dataset manifest reference](docs/reference/DATASET_MANIFEST.md) defines their fields and grouping rules. Original admitted images remain immutable.
+Open **Datasets** to check **DR-ready** and **Lesion-ready** separately. DR readiness depends on a confirmed final grade; lesion readiness depends on a current confirmed annotation set. A reviewed-empty Core set is review-completeness evidence, not a gold-negative label. Review the status before exporting. The export includes a manifest and task-specific data files; [dataset manifest reference](docs/reference/DATASET_MANIFEST.md) defines their fields and grouping rules. Original admitted images remain immutable.
 
 ## 5. Connect the optional Model API
 

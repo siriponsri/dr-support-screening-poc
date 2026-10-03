@@ -216,6 +216,76 @@ def test_manual_resolution_is_independent_auditable_and_persistent(tmp_path):
     assert unlinked.json()["laterality"] == "LEFT"
 
 
+def test_stale_automatic_resolution_refreshes_once_and_survives_restart(tmp_path):
+    image_path = tmp_path / "HN5071 L1.jpg"
+    _demo_image(image_path, (120, 80, 40))
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv("DR_DEMO_FOLDER", str(tmp_path))
+    try:
+        path = tmp_path / "refresh.sqlite"
+        app = create_app(path, include_samples=False)
+        client = TestClient(app)
+        image_id = next(case["image_id"] for case in client.get("/v1/cases").json()
+                         if case["filename"] == image_path.name)
+        legacy = app.state.store.get(image_id)
+        legacy["patient_key"] = None
+        legacy["patient_resolution_state"] = "UNLINKED"
+        legacy["patient_resolution_method"] = "NONE"
+        legacy["patient_candidate"] = None
+        legacy["laterality"] = "UNKNOWN"
+        legacy["laterality_resolution_state"] = "UNLINKED"
+        legacy["laterality_resolution_method"] = "NONE"
+        legacy["laterality_candidate"] = None
+        legacy["resolver_state"] = "UNLINKED"
+        legacy["resolver_evidence"] = {"version": "filename-resolver-v1", "filename": {}}
+        legacy["resolution_history"] = []
+        app.state.store.put(legacy)
+
+        refreshed = client.get(f"/v1/cases/{image_id}").json()
+        assert refreshed["patient_key"] == "HN5071"
+        assert refreshed["laterality"] == "LEFT"
+        assert refreshed["resolver_evidence"]["filename"]["capture_sequence"] == 1
+        assert [event["action"] for event in refreshed["resolution_history"]] == [
+            "AUTOMATIC_RESOLUTION_REFRESH",
+        ]
+        revision = refreshed["revision"]
+
+        repeated = client.get(f"/v1/cases/{image_id}").json()
+        assert repeated["revision"] == revision
+        assert repeated["resolution_history"] == refreshed["resolution_history"]
+
+        restored = TestClient(create_app(path, include_samples=False)).get(f"/v1/cases/{image_id}").json()
+        assert restored["patient_key"] == "HN5071"
+        assert restored["laterality"] == "LEFT"
+        assert restored["resolution_history"] == refreshed["resolution_history"]
+    finally:
+        monkeypatch.undo()
+
+
+def test_confirm_image_in_any_history_protects_identity_from_refresh():
+    case = {
+        "patient_key": "MANUAL01",
+        "patient_resolution_state": "RESOLVED",
+        "patient_resolution_method": "MANUAL",
+        "patient_candidate": "MANUAL01",
+        "laterality": "RIGHT",
+        "laterality_resolution_state": "RESOLVED",
+        "laterality_resolution_method": "MANUAL",
+        "laterality_candidate": "RIGHT",
+        "resolver_state": "RESOLVED",
+        "resolver_evidence": {"version": "filename-resolver-v1"},
+        "admission_history": [{"action": "CONFIRM_IMAGE"}],
+        "resolution_history": [],
+        "events": [],
+    }
+    decision = ResolverService().resolve(object(), "HN5071 L1.jpg")
+    from dr_support.services.resolver import apply_automatic_resolution
+
+    assert apply_automatic_resolution(case, decision, timestamp="2026-10-03T00:00:00Z") is True
+    assert case["patient_key"] == "MANUAL01"
+    assert case["laterality"] == "RIGHT"
+
+
 def test_explicit_unknown_eye_is_a_valid_manual_decision(tmp_path):
     client = TestClient(create_app(tmp_path / "state.sqlite", include_samples=False))
     base = "/v1/cases/SYNTH_001"

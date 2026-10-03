@@ -205,7 +205,7 @@ describe('AnnotationEditorPage human movement', () => {
     expect(current.lesion?.lesions[0]).toMatchObject({ canonical_label: 'MICROANEURYSM', score: 0.9 });
     expect(await screen.findByText('Draft saved')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Confirm Annotation' }));
+    await user.click(screen.getByRole('button', { name: 'Finish image & next' }));
     await waitFor(() => expect(confirmationRequest).toMatchObject({ revision: 2, action: 'CONFIRM_ANNOTATIONS' }));
   });
 
@@ -225,7 +225,7 @@ describe('AnnotationEditorPage human movement', () => {
     });
     await waitFor(() => expect(screen.getByText('0 human annotations')).toBeInTheDocument());
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Confirm Annotation' }));
+    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
 
     expect(requests).not.toContain('/v1/cases/CASE-001/annotations');
     expect(requests).toContain('/v1/cases/CASE-001/review');
@@ -239,57 +239,213 @@ describe('AnnotationEditorPage human movement', () => {
       clinician_review: { reviewer: 'Clinician', final_grade: 2, review_action: 'CORRECT_GRADE', remark: '', timestamp: '2026-01-01T00:00:00Z', revision: 1 },
     };
     let completenessRequest: Record<string, unknown> | undefined;
-    let releaseCompleteness: (() => void) | undefined;
+    let confirmationRequest: Record<string, unknown> | undefined;
+    window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'Clinician');
     renderEditor(current, (input, init) => {
       const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
       if (path === '/v1/cases' || path === '/v1/cases/CASE-001') return current;
       if (path.endsWith('/annotation-completeness')) {
         completenessRequest = JSON.parse(String(init?.body));
         const request = completenessRequest as { state: 'REVIEWED_NONE_FOUND' | 'PARTIALLY_REVIEWED' };
-        return new Promise<CaseRecord>((resolve) => {
-          releaseCompleteness = () => resolve({
-            ...current,
-            revision: 1,
-            annotation_completeness: {
-              CORE: {
-                group: 'CORE', state: request.state, reviewer: 'Clinician',
-                timestamp: '2026-01-01T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
-              },
+        return {
+          ...current,
+          revision: 2,
+          annotation_completeness: {
+            CORE: {
+              group: 'CORE', state: request.state, reviewer: 'Clinician',
+              timestamp: '2026-01-01T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
             },
-          });
-        });
+          },
+        };
+      }
+      if (path.endsWith('/review') && init?.method === 'POST') {
+        confirmationRequest = JSON.parse(String(init.body));
+        return { ...current, revision: 3, annotation_confirmation_status: 'CONFIRMED' };
       }
       return current;
     });
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText('0 human annotations')).toBeInTheDocument());
-    const reviewerInput = screen.getByPlaceholderText('Reviewer name');
-    await user.clear(reviewerInput);
-    await user.type(reviewerInput, 'Clinician');
-    expect(screen.queryByRole('button', { name: 'Review in progress' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Record partial review' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Continue reviewing' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeEnabled();
-    await user.click(screen.getByRole('button', { name: 'Advanced findings' }));
-    expect(await screen.findByRole('button', { name: 'Record partial review' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeEnabled();
-    await user.click(screen.getByRole('button', { name: 'Reviewed none found' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeDisabled());
-    releaseCompleteness?.();
+    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
     await waitFor(() => expect(completenessRequest).toMatchObject({
       group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician', taxonomy_version: 'core-lesions-v1',
     }));
-    expect(screen.getByText(/Status: Reviewed - none found/)).toBeInTheDocument();
-    expect(screen.queryByText(/REVIEWED_NONE_FOUND/)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Continue reviewing' })).toBeEnabled();
-    await user.click(screen.getByRole('button', { name: 'Continue reviewing' }));
+    await waitFor(() => expect(confirmationRequest).toMatchObject({ revision: 2, action: 'CONFIRM_ANNOTATIONS', reviewer: 'Clinician' }));
+    expect(screen.queryByRole('button', { name: 'Confirm Annotation' })).not.toBeInTheDocument();
+  });
+
+  it('counts imported findings as recorded Core findings at Finish', async () => {
+    const imported: CaseRecord = {
+      ...item,
+      human_annotations: [],
+      annotations: [{ remote_id: 'cvat-1', canonical_label: 'HEMORRHAGE', geometry: {} }],
+      annotation_completeness: {},
+      clinician_review: { reviewer: 'Clinician', final_grade: 2, review_action: 'CORRECT_GRADE', remark: '', timestamp: '2026-01-01T00:00:00Z', revision: 1 },
+    };
+    let completenessRequest: Record<string, unknown> | undefined;
+    window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'Clinician');
+    renderEditor(imported, (input, init) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
+      if (path === '/v1/cases' || path === '/v1/cases/CASE-001') return imported;
+      if (path.endsWith('/annotation-completeness')) {
+        completenessRequest = JSON.parse(String(init?.body));
+        return { ...imported, revision: 2, annotation_completeness: { CORE: {
+          group: 'CORE', state: 'REVIEWED_FINDINGS_RECORDED', reviewer: 'Clinician',
+          timestamp: '2026-01-01T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
+        } } };
+      }
+      if (path.endsWith('/review')) return { ...imported, revision: 3, annotation_confirmation_status: 'CONFIRMED' };
+      return imported;
+    });
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('1 finding recorded.')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Finish image & next' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Finish image & next' }));
     await waitFor(() => expect(completenessRequest).toMatchObject({
-      group: 'CORE', state: 'PARTIALLY_REVIEWED', reviewer: 'Clinician', taxonomy_version: 'core-lesions-v1',
+      state: 'REVIEWED_FINDINGS_RECORDED',
     }));
-    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeDisabled();
-    releaseCompleteness?.();
-    await waitFor(() => expect(screen.getByText(/Status: Review in progress/)).toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: 'Continue reviewing' })).not.toBeInTheDocument();
+  });
+
+  it('reloads a committed completeness update and lets Finish retry confirmation', async () => {
+    const initial: CaseRecord = {
+      ...item,
+      human_annotations: [],
+      annotation_completeness: {},
+      clinician_review: { reviewer: 'Clinician', final_grade: 2, review_action: 'CORRECT_GRADE', remark: '', timestamp: '2026-01-01T00:00:00Z', revision: 1 },
+    };
+    let current = initial;
+    let completenessAttempts = 0;
+    let confirmationRequest: Record<string, unknown> | undefined;
+    window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'Clinician');
+    renderEditor(initial, (input, init) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
+      if (path === '/v1/cases' || path === '/v1/cases/CASE-001') return current;
+      if (path.endsWith('/annotation-completeness')) {
+        completenessAttempts += 1;
+        current = {
+          ...current,
+          revision: 2,
+          annotation_completeness: {
+            CORE: {
+              group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician',
+              timestamp: '2026-01-01T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
+            },
+          },
+        };
+        if (completenessAttempts === 1) throw new Error('Connection lost after save');
+        return current;
+      }
+      if (path.endsWith('/annotations') && init?.method === 'PUT') return current;
+      if (path.endsWith('/review') && init?.method === 'POST') {
+        confirmationRequest = JSON.parse(String(init.body));
+        current = { ...current, revision: 3, annotation_confirmation_status: 'CONFIRMED' };
+        return current;
+      }
+      return current;
+    });
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Finish - reviewed none found' })).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
+    expect(await screen.findByText('Connection lost after save')).toBeInTheDocument();
+    expect(screen.queryByText(/Case complete/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
+    await waitFor(() => expect(confirmationRequest).toMatchObject({ revision: 2, action: 'CONFIRM_ANNOTATIONS', reviewer: 'Clinician' }));
+    expect(completenessAttempts).toBe(1);
+  });
+
+  it('refreshes Core completeness when an edited case keeps the same finding state', async () => {
+    const current: CaseRecord = {
+      ...item,
+      human_annotations: [{
+        shape_id: 'human-1', type: 'rectangle', label: 'MICROANEURYSM',
+        geometry: { x: 20, y: 20, width: 30, height: 30 }, locked: false,
+        source: 'HUMAN', reviewer: 'Clinician', created_at: '2026-01-01T00:00:00Z',
+      }],
+      annotation_confirmation_status: 'CONFIRMED',
+      annotation_completeness: {
+        CORE: {
+          group: 'CORE', state: 'REVIEWED_FINDINGS_RECORDED', reviewer: 'Previous reviewer',
+          timestamp: '2026-01-01T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
+        },
+      },
+      clinician_review: { reviewer: 'Clinician', final_grade: 2, review_action: 'CORRECT_GRADE', remark: '', timestamp: '2026-01-01T00:00:00Z', revision: 1 },
+    };
+    let completenessRequest: Record<string, unknown> | undefined;
+    let confirmationRequest: Record<string, unknown> | undefined;
+    window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'Clinician');
+    renderEditor(current, (input, init) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
+      if (path === '/v1/cases' || path === '/v1/cases/CASE-001') return current;
+      if (path.endsWith('/annotations') && init?.method === 'PUT') {
+        return { ...current, revision: 2, annotation_confirmation_status: 'DRAFT' };
+      }
+      if (path.endsWith('/annotation-completeness')) {
+        completenessRequest = JSON.parse(String(init?.body));
+        return {
+          ...current,
+          revision: 3,
+          annotation_confirmation_status: 'DRAFT',
+          annotation_completeness: {
+            CORE: {
+              group: 'CORE', state: 'REVIEWED_FINDINGS_RECORDED', reviewer: 'Clinician',
+              timestamp: '2026-10-03T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
+            },
+          },
+        };
+      }
+      if (path.endsWith('/review') && init?.method === 'POST') {
+        confirmationRequest = JSON.parse(String(init.body));
+        return { ...current, revision: 4, annotation_confirmation_status: 'CONFIRMED' };
+      }
+      return current;
+    });
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('1 human annotation')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Edit confirmed annotations' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Continue editing' }));
+    await user.click(screen.getByRole('button', { name: 'Finish image & next' }));
+    await waitFor(() => expect(completenessRequest).toMatchObject({
+      group: 'CORE', state: 'REVIEWED_FINDINGS_RECORDED', reviewer: 'Clinician',
+    }));
+    expect(confirmationRequest).toMatchObject({ action: 'CONFIRM_ANNOTATIONS', reviewer: 'Clinician' });
+  });
+
+  it('rewrites completeness after a confirmation failure instead of trusting stale metadata', async () => {
+    const current: CaseRecord = {
+      ...item,
+      human_annotations: [],
+      annotation_completeness: {
+        CORE: {
+          group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Previous reviewer',
+          timestamp: '2026-01-01T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
+        },
+      },
+      clinician_review: { reviewer: 'Clinician', final_grade: 2, review_action: 'CORRECT_GRADE', remark: '', timestamp: '2026-01-01T00:00:00Z', revision: 1 },
+    };
+    let completenessAttempts = 0;
+    window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'Clinician');
+    renderEditor(current, (input, init) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
+      if (path === '/v1/cases' || path === '/v1/cases/CASE-001') return current;
+      if (path.endsWith('/annotation-completeness')) {
+        completenessAttempts += 1;
+        return { ...current, revision: 2, annotation_completeness: { CORE: {
+          group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician',
+          timestamp: '2026-10-03T00:00:00Z', taxonomy_version: 'core-lesions-v1', note: '',
+        } } };
+      }
+      if (path.endsWith('/review')) throw new Error('Confirmation failed');
+      return current;
+    });
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Finish - reviewed none found' })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
+    await waitFor(() => expect(screen.getByText('Confirmation failed')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
+    await waitFor(() => expect(completenessAttempts).toBe(2));
   });
 
   it('moves editable human geometry, records undo, and respects lock state', async () => {

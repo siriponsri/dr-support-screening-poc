@@ -2,11 +2,11 @@
 
 **Purpose.** Record human annotations only where you disagree with the AI suggestions or want to add a finding. The Annotation Editor opens automatically after **Confirm DR Grade**.
 
-AI suggestions are optional visual evidence. You only need to edit a region when you disagree or want to record a human annotation. Confirming annotations completes this case; it does not mean every AI ROI was individually verified. Untouched AI suggestions stay AI suggestions; they never become human labels by themselves.
+AI suggestions are optional visual evidence. The normal workflow is image-first and **Box**-first: edit a region when you disagree with an AI suggestion or want to record a human annotation. **Finish image & next** completes the Core review; it does not mean every AI ROI was individually verified. Untouched AI suggestions stay AI suggestions; they never become human labels by themselves. Advanced findings are optional and deferred.
 
-![Annotation Editor after grade confirmation: canvas, **Finish this image** panel, and optional editor tools.](screenshots/07-annotation-editor.png){#fig-editor width=90%}
+![Annotation Editor after grade confirmation: image-first canvas and the **Complete review** panel.](screenshots/07-annotation-editor.png){#fig-editor width=90%}
 
-If an image is opened here before its grade is confirmed, a warning with **Open Clinician Review** appears and **Confirm Annotation** stays disabled. Your draft is kept.
+If an image is opened here before its grade is confirmed, a warning with **Open Clinician Review** appears and **Finish image & next** stays disabled. Your draft is kept.
 
 ## Correct or remove an AI ROI
 
@@ -32,4 +32,4 @@ A model score belongs to the class and box the model predicted. If PRISM suggest
 
 ## Draw human annotations
 
-Under **Editor tools**, choose **Box**, **Polygon**, **Point**, or **Circle** and a **New annotation class**, then draw. Double-click to finish a polygon. **Select**, **Undo**, **Delete selected**, and **Lock selected** adjust your own annotations. Human annotations are stored in original image pixels and remain separate from the AI evidence. Dense geometry work can use the optional CVAT round trip (@sec-cvat).
+Under **Editor tools**, **Box** is the primary tool. Choose **Polygon**, **Point**, or **Circle** only when needed, select a **New annotation class**, then draw. Geometry-specific help appears when Polygon is active. **Select**, **Undo**, **Delete selected**, and **Lock selected** adjust your own annotations. Human annotations are stored in original image pixels and remain separate from the AI evidence. Dense geometry work can use the optional CVAT round trip (@sec-cvat).

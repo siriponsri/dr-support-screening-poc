@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1060" height="400" viewBox="0 0 1060 400" role="img" aria-labelledby="title desc">
   <title id="title">Retinal Review Workbench clinician workflow</title>
-  <desc id="desc">Worklist, Confirm Image (milestone 1), Review, optional RETFound and PRISM assistance, Confirm DR Grade (milestone 2), optional Annotation Editor edits, Confirm Annotation (milestone 3), then the next Worklist image. No per-lesion confirmation queue.</desc>
+  <desc id="desc">Worklist, Confirm Image (milestone 1), Review, optional RETFound and PRISM assistance, Confirm DR Grade (milestone 2), optional Annotation Editor edits, Finish image and next (milestone 3; internal annotation confirmation), then the next Worklist image. No per-lesion confirmation queue.</desc>
   <!-- Generated layout; edit node text here and re-run scripts/manual/render_workflow_asset.py. -->
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -62,8 +62,8 @@
   <g transform="translate(546,210)">
     <rect class="milestone" width="232" height="112" rx="12"/>
     <text class="k-m" x="18" y="30">STEP 7 · MILESTONE 3</text>
-    <text class="t-m" x="18" y="62">Confirm Annotation</text>
-    <text class="s-m" x="18" y="88">Case complete · next image</text>
+    <text class="t-m" x="18" y="62">Finish image &amp; next</text>
+    <text class="s-m" x="18" y="88">Core review · next image</text>
   </g>
   <g transform="translate(812,210)">
     <rect class="step" width="232" height="112" rx="12"/>

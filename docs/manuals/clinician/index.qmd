@@ -12,11 +12,11 @@ The whole review is one forward line for one image at a time:
 2. **Confirm Image** -- check the pseudonymous patient key, the eye, and your reviewer name, then choose **Confirm image & continue**. Review opens.
 3. **Review** -- inspect the retinal image and the optional RETFound grade and PRISM-DR lesion suggestions. Choose **Continue to clinician review**; nothing is decided on this page.
 4. **Clinician Review** -- select the **Final DR grade** and choose **Confirm DR Grade**. *Grading complete* appears and the Annotation Editor opens.
-5. **Annotation Editor** -- optional: click an AI ROI only where you disagree, change its class or box, and choose **Confirm** or **Remove**.
-6. **Confirm Annotation** -- finishes the image. *Case complete · Opening next image* appears and Confirm Image opens for the next unfinished Worklist image.
+5. **Annotation Editor** -- optional: use the image-first **Box** workflow; click an AI ROI only where you disagree, change its class or box, and choose **Confirm** or **Remove**.
+6. **Finish image & next** -- records the Core review deliberately. With no Core human findings, the action says **reviewed none found**. *Case complete · Opening next image* appears and Confirm Image opens for the next unfinished Worklist image.
 
 There is no separate "not confirmed" or senior-review button: a grade is simply *Not confirmed* until you choose **Confirm DR Grade**. Datasets (@sec-datasets) shows DR-ready and Lesion-ready separately whenever you need them.
 
 ::: {.callout-important title="Important -- three confirmations"}
-**Confirm Image**, **Confirm DR Grade**, and **Confirm Annotation** are the only case-level confirmations. AI suggestions never need to be accepted or rejected one by one before the review can be completed.
+**Confirm Image**, **Confirm DR Grade**, and **Finish image & next** are the only case-level confirmations. AI suggestions never need to be accepted or rejected one by one before the review can be completed; the internal third milestone remains annotation confirmation.
 :::

@@ -14,6 +14,7 @@ from .presentation import annotation_set_hash, lesion_review_view, review_eviden
 from .services.admission import clinician_view, legacy_admission
 from .services.resolver import (
     apply_automatic_resolution,
+    automatic_resolution_needs_refresh,
     combined_resolution_state,
     normalize_patient_key,
     resolver_clinician_view,
@@ -318,21 +319,22 @@ def install_workflow(app, store):
         return case, record
 
     def ensure_resolution(image_id, case, record):
-        """Resolve once from local evidence, preserving later manual decisions."""
-        if case.get('resolver_evidence') is not None:
-            return case
-        if any(event.get('action') == 'MANUAL_RESOLUTION'
-               for event in case.get('resolution_history', [])):
+        """Resolve local evidence, refreshing only unresolved automatic state."""
+        if any(event.get('action') in {'MANUAL_RESOLUTION', 'CONFIRM_IMAGE'}
+               for event in case.get('resolution_history', [])
+               if isinstance(event, dict)):
             return case
         image = app.state.images.get(image_id)
         filename = (image.filename if image is not None else None) or (record or {}).get('filename') or image_id
         decision = app.state.resolver.resolve(image, filename)
-        apply_automatic_resolution(
-            case,
-            decision,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-        )
-        current_store().put(case)
+        if case.get('resolver_evidence') is None or automatic_resolution_needs_refresh(case, decision):
+            changed = apply_automatic_resolution(
+                case,
+                decision,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
+            if changed:
+                current_store().put(case)
         return case
 
     def get_image(image_id):
@@ -622,6 +624,15 @@ def install_workflow(app, store):
                           and current_source_origin in {'PUBLIC', 'SYNTHETIC'}
                           else None)
             if request.revision != case['revision']:
+                already_confirmed = (
+                    request.action == 'CONFIRM_ANNOTATIONS'
+                    and case.get('lesion_review_state') == 'REVIEWED'
+                    and case.get('confirmed_annotation_hash') == annotation_set_hash(case)
+                    and (case.get('annotation_confirmation') or {}).get('reviewer', '').strip().casefold()
+                    == request.reviewer.strip().casefold()
+                )
+                if already_confirmed:
+                    return detail(image_id)
                 raise HTTPException(409, 'Case changed; reload before reviewing')
             if not request.reviewer.strip():
                 raise HTTPException(422, 'Reviewer name required')

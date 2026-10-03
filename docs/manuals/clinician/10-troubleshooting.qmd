@@ -9,7 +9,7 @@
 | No PRISM overlays | Check **Show AI suggestions**, the lesion filter, and whether a result exists. An empty result does not prove lesion absence. |
 | **Save failed** | Stay on the page, check the reviewer name and connection, then choose **Save draft** again. |
 | Case is not DR-ready | Check **Confirm Image**, the final grade, the reviewer, and the timestamp. |
-| Case is not Lesion-ready | Check whether the annotation set changed after **Confirm Annotation**; confirm it again. |
+| Case is not Lesion-ready | Check whether the annotation set changed after **Finish image & next**; finish it again. |
 | Wrong reviewer prefilled | Edit the field, or change **Default reviewer** in **Settings**. |
 | CVAT is unavailable | Continue local review. Retry once the operator confirms URL, project, credentials, and network. |
 
@@ -34,7 +34,7 @@ Use only approved public, synthetic, or authorized data. Never put PHI, private 
 | Term | Meaning |
 |:-----|:--------|
 | AI suggestion | A model output shown to support inspection. |
-| Confirmation milestone | One of **Confirm Image**, **Confirm DR Grade**, **Confirm Annotation**. |
+| Confirmation milestone | One of **Confirm Image**, **Confirm DR Grade**, **Finish image & next** (the internal third milestone is annotation confirmation). |
 | DR-ready | The case meets the dataset rules for the DR-grade task. |
 | Lesion-ready | The case meets the dataset rules for the lesion-annotation task. |
 | Model score | A value returned by a model; not a calibrated clinical probability. |

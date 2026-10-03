@@ -16,6 +16,7 @@ from typing import Literal, Protocol
 
 Laterality = Literal["LEFT", "RIGHT", "UNKNOWN"]
 ResolutionState = Literal["RESOLVED", "NEEDS_CONFIRMATION", "UNLINKED", "CONFLICT"]
+RESOLVER_EVIDENCE_VERSION = "filename-resolver-v2"
 OCRStatus = Literal[
     "USABLE_CANDIDATE",
     "NO_TEXT_DETECTED",
@@ -261,6 +262,7 @@ def reconcile(filename: FilenameEvidence, ocr: OCREvidence | None = None) -> dic
         "laterality_candidate": laterality_candidate,
         "resolver_state": overall_state,
         "resolver_evidence": {
+            "version": RESOLVER_EVIDENCE_VERSION,
             "filename": {
                 "patient_candidate": filename.patient_candidate,
                 "laterality": filename.laterality,
@@ -302,41 +304,111 @@ class ResolverService:
         return reconcile(parsed, ocr)
 
 
-def apply_automatic_resolution(case: dict, decision: dict, *, timestamp: str) -> dict:
-    """Persist first-pass evidence while keeping the audit event compact."""
-    fields = (
+def _resolution_snapshot(case: dict) -> dict:
+    return {
+        "patient": {
+            "key": case.get("patient_key"),
+            "candidate": case.get("patient_candidate"),
+            "state": case.get("patient_resolution_state"),
+            "method": case.get("patient_resolution_method"),
+        },
+        "laterality": {
+            "value": case.get("laterality"),
+            "candidate": case.get("laterality_candidate"),
+            "state": case.get("laterality_resolution_state"),
+            "method": case.get("laterality_resolution_method"),
+        },
+    }
+
+
+def _has_confirmed_identity(case: dict) -> bool:
+    histories = (
+        case.get("resolution_history", []),
+        case.get("admission_history", []),
+        case.get("events", []),
+    )
+    return any(
+        event.get("action") == "CONFIRM_IMAGE"
+        for history in histories
+        for event in history
+        if isinstance(event, dict)
+    )
+
+
+def automatic_resolution_needs_refresh(case: dict, decision: dict) -> bool:
+    """Return whether current automatic evidence is stronger than stored data."""
+    protected = _has_confirmed_identity(case)
+    patient_protected = protected or case.get("patient_resolution_method") == "MANUAL"
+    laterality_protected = protected or case.get("laterality_resolution_method") == "MANUAL"
+    patient_fields = (
         "patient_key",
         "patient_resolution_state",
         "patient_resolution_method",
         "patient_reason_code",
         "patient_candidate",
         "patient_confidence_or_strength",
+    )
+    laterality_fields = (
         "laterality",
         "laterality_resolution_state",
         "laterality_resolution_method",
         "laterality_reason_code",
         "laterality_candidate",
-        "resolver_state",
-        "resolver_evidence",
     )
-    for field in fields:
-        case[field] = decision[field]
-    case.setdefault("resolution_history", []).append(
-        {
-            "action": "AUTOMATIC_RESOLUTION",
-            "method": decision["patient_resolution_method"],
-            "timestamp": timestamp,
-            "patient": {
-                "new": decision["patient_key"],
-                "state": decision["patient_resolution_state"],
-            },
-            "laterality": {
-                "new": decision["laterality"],
-                "state": decision["laterality_resolution_state"],
-            },
-        }
+    if not patient_protected and any(case.get(field) != decision.get(field) for field in patient_fields):
+        return True
+    if not laterality_protected and any(case.get(field) != decision.get(field) for field in laterality_fields):
+        return True
+    return case.get("resolver_evidence", {}).get("version") != decision.get("resolver_evidence", {}).get("version")
+
+
+def apply_automatic_resolution(case: dict, decision: dict, *, timestamp: str) -> bool:
+    """Persist automatic evidence without replacing manual identity decisions."""
+    before = _resolution_snapshot(case)
+    before_evidence = case.get("resolver_evidence")
+    protected = _has_confirmed_identity(case)
+    patient_protected = protected or case.get("patient_resolution_method") == "MANUAL"
+    laterality_protected = protected or case.get("laterality_resolution_method") == "MANUAL"
+    patient_fields = (
+        "patient_key",
+        "patient_resolution_state",
+        "patient_resolution_method",
+        "patient_reason_code",
+        "patient_candidate",
+        "patient_confidence_or_strength",
     )
-    return case
+    laterality_fields = (
+        "laterality",
+        "laterality_resolution_state",
+        "laterality_resolution_method",
+        "laterality_reason_code",
+        "laterality_candidate",
+    )
+    if not patient_protected:
+        for field in patient_fields:
+            case[field] = decision[field]
+    if not laterality_protected:
+        for field in laterality_fields:
+            case[field] = decision[field]
+    case["resolver_state"] = combined_resolution_state(
+        case.get("patient_resolution_state", "UNLINKED"),
+        case.get("laterality_resolution_state", "UNLINKED"),
+    )
+    case["resolver_evidence"] = decision["resolver_evidence"]
+    after = _resolution_snapshot(case)
+    evidence_changed = before_evidence != decision.get("resolver_evidence")
+    if before == after and not evidence_changed:
+        return False
+    action = "AUTOMATIC_RESOLUTION_REFRESH" if before_evidence is not None else "AUTOMATIC_RESOLUTION"
+    event = {
+        "action": action,
+        "timestamp": timestamp,
+        "previous": before,
+        "new": after,
+        "evidence_version": decision["resolver_evidence"].get("version"),
+    }
+    case.setdefault("resolution_history", []).append(event)
+    return True
 
 
 def resolver_clinician_view(case: dict) -> dict:
