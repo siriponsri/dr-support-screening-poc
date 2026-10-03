@@ -2,7 +2,7 @@
 
 **Status:** `OPEN / NOT_RUN / NOT_READY_FOR_OWNER_UAT` — the exact candidate still has unrun runtime gates; no owner-UAT readiness or freeze acceptance is claimed.
 **Baseline:** `f288ae5e8a527f124aaa99eedc6f3d6f7a3e32cb`
-**Candidate:** `d3a0031fa50b00470ca2b8e2fe670a9b418ce60f` (`feat/pre-phase3-clinical-ux-freeze`); final feature candidate before integration review
+**Candidate:** `8ba18ebfb68021136315a3ff4b128c56fdbce3b8` (`feat/pre-phase3-clinical-ux-freeze`); exact implementation candidate reviewed before integration
 **Phase 1:** `DONE`
 **Phase 2:** `DONE`
 **Phase 3:** `NOT_STARTED`
@@ -89,7 +89,7 @@ The before/after values below are source-level interaction proxies, not clinicia
 - Fresh configured O1 changed-diff review of candidate `e9436ba`: REQUIRED FIX findings covered focus classification for the viewer, Advanced wording, and exact-SHA evidence.
 - Follow-up repair commit `2413b00`: viewer clicks now restore the More tools trigger, Advanced is explicitly optional/deferred, and the focused regression covers viewer dismissal; focused MAIN tests remain 16/16.
 - Fresh exact-candidate O1 re-review of `f05ab3f`: REQUIRED FIX findings identified stale candidate wording and trailing whitespace in the base-to-candidate documentation diff; no approval is claimed for that revision.
-- Follow-up documentation repair: candidate identity is reconciled to `d3a0031f`; the normative spec's trailing whitespace is removed; the historical `f05ab3f` review findings remain preserved. A fresh exact-candidate O1 review remains required.
+- Follow-up documentation repair for exact candidate `8ba18eb`: the normative spec's trailing whitespace is removed; the historical `f05ab3f` and `d3a0031f` review findings remain preserved. This documentation-only correction is included in the final pre-integration review.
 
 ## Runtime UAT boundary
 
