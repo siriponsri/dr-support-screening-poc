@@ -3,7 +3,9 @@
 **Status:** `READY_FOR_OWNER_UAT` — deterministic browser and synthetic 10-case runtime gates are recorded below; Owner UAT and any freeze acceptance remain pending.
 **Baseline:** `f288ae5e8a527f124aaa99eedc6f3d6f7a3e32cb`
 **Candidate:** `8ba18ebfb68021136315a3ff4b128c56fdbce3b8` (`feat/pre-phase3-clinical-ux-freeze`); exact implementation candidate reviewed before integration
-**Final main:** `580bd9a2112dd8b552a361f9fadde4d6e16fb13c` (`main` / `origin/main`)
+**Integrated P3-0:** `580bd9a2112dd8b552a361f9fadde4d6e16fb13c`
+**Documentation evidence closeout:** `dc281a7821fd11c8b6da0f0aa48cc4cc534d1c97`
+**Final main state:** clean and synchronized (`main` / `origin/main`)
 **Phase 1:** `DONE`
 **Phase 2:** `DONE`
 **Phase 3:** `NOT_STARTED`
