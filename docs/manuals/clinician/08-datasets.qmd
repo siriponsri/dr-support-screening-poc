@@ -18,7 +18,9 @@
 **Expected result.**
 
 - **DR-ready** needs valid source provenance, an included fundus image, and a final clinician grade with reviewer and timestamp.
-- **Lesion-ready** needs valid source provenance, an included fundus image, and a current **Confirm Annotation** whose hash matches the active set.
+- **Lesion-ready** needs valid source provenance, an included fundus image, and a current **Finish image & next** confirmation whose internal annotation-confirmation hash matches the active set.
+
+A reviewed-empty Core set is completeness evidence only. It does not create a negative lesion annotation or authorize a Phase 4 reviewed-negative export.
 
 One task can be ready while the other is not. AI-only evidence is never promoted to ground truth by itself.
 

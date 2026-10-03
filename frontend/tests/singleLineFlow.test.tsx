@@ -280,7 +280,7 @@ describe('Annotation Editor single-line completion', () => {
     expect(backend.cases.get('case-1')!.lesion!.lesions).toHaveLength(2);
 
     // DET_A was never inspected: case-level confirmation does not require it.
-    await user.click(screen.getByRole('button', { name: 'Confirm Annotation' }));
+    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
     expect(await screen.findByText(/Case complete/, { selector: 'div' })).toBeInTheDocument();
     const dialog = await screen.findByRole('dialog', { name: 'Confirm Image' });
     expect(dialog).toHaveTextContent('b.jpg');
@@ -294,7 +294,7 @@ describe('Annotation Editor single-line completion', () => {
       baseCase('case-2', 'b.jpg'),
     ]);
     renderAppAt('/edit/case-1');
-    await user.click(await screen.findByRole('button', { name: 'Confirm Annotation' }));
+    await user.click(await screen.findByRole('button', { name: 'Finish - reviewed none found' }));
     expect(await screen.findByRole('link', { name: 'Continue to clinician review' })).toHaveAttribute('href', '/clinician-review/case-2');
     expect(screen.queryByRole('dialog', { name: 'Confirm Image' })).not.toBeInTheDocument();
     expect(backend.log.some((entry) => entry.body?.action === 'CONFIRM_ANNOTATIONS')).toBe(true);
@@ -310,7 +310,7 @@ describe('Annotation Editor single-line completion', () => {
     await user.click(screen.getByRole('button', { name: 'Back to Review' }));
     expect(await screen.findByRole('alertdialog')).toHaveTextContent('Leave this image?');
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Stay on this image' }));
-    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Finish - reviewed none found' })).toBeInTheDocument();
   });
 
   it('keeps a pre-grade deep link read-only without deleting a saved annotation draft', async () => {
@@ -322,7 +322,7 @@ describe('Annotation Editor single-line completion', () => {
     expect(screen.getByRole('link', { name: 'Open Clinician Review' })).toHaveAttribute('href', '/clinician-review/case-1');
     expect(screen.getByRole('button', { name: 'Box', exact: true })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Delete selected' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Finish image & next' })).toBeDisabled();
     const svg = await stageSvg();
     fireEvent.click(svg.querySelector(`[data-ai-detection-id="${DET_A}"] rect`)!);
     expect(screen.queryByRole('dialog', { name: 'AI suggestion' })).not.toBeInTheDocument();
@@ -360,7 +360,7 @@ describe('Annotation Editor single-line completion', () => {
     const svg = await stageSvg();
     expect(await screen.findByText('Annotations confirmed')).toBeInTheDocument();
     expect(screen.getByText('Reviewer: Dr. Example')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Confirm Annotation' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Finish - reviewed none found' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Edit confirmed annotations' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveTextContent('Edit confirmed annotations?');
@@ -369,7 +369,7 @@ describe('Annotation Editor single-line completion', () => {
     fireEvent.click(svg.querySelector(`[data-ai-detection-id="${DET_A}"] rect`)!);
     expect(await screen.findByRole('dialog', { name: 'AI suggestion' })).toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirm Annotation' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Finish - reviewed none found' })).toBeInTheDocument();
   });
 });
 

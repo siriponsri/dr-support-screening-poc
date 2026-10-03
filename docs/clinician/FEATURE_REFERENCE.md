@@ -8,11 +8,11 @@ is the canonical source for implementation ownership and contracts.
 | Surface | Current responsibility | Canonical detail |
 |:--|:--|:--|
 | Worklist | Start each image with **Confirm Image**; status shows **Grade confirmed** or **Review complete**. | [Worklist](../manuals/clinician/02-workflow.qmd) |
-| Confirm Image | Confirm pseudonymous patient key, eye, and reviewer attribution. | [Confirm Image](../manuals/clinician/02-workflow.qmd) |
+| Confirm Image | Progressive-disclosure context review; confirm pseudonymous patient key, eye, and reviewer attribution. Supported filename/source suggestions remain evidence until confirmed. | [Confirm Image](../manuals/clinician/02-workflow.qmd) |
 | Review | Inspect the image and optional RETFound/PRISM-DR evidence; one forward action, **Continue to clinician review**. | [Review](../manuals/clinician/03-review.qmd) |
 | Clinician Review | Select and confirm the final DR grade; *Not confirmed* until **Confirm DR Grade**. | [DR grade](../manuals/clinician/04-confirm-grade.qmd) |
-| Annotation Editor | Optional: correct an AI ROI in place (class dropdown, drag/resize) with **Confirm / Remove / Close**, or draw human annotations. | [Annotations](../manuals/clinician/05-annotations.qmd) |
-| Confirm Annotation | Finish the image (active set and hash recorded); opens the next unfinished Worklist image. | [Annotation confirmation](../manuals/clinician/07-confirm-annotation.qmd) |
+| Annotation Editor | Image-first **Box** workflow; correct an AI ROI in place (class dropdown, drag/resize) with **Confirm / Remove / Close**, or draw human annotations. Advanced findings are optional/deferred. | [Annotations](../manuals/clinician/05-annotations.qmd) |
+| Finish image & next | Third human confirmation; records Core findings or deliberate reviewed-none, preserves the internal annotation-confirmation milestone/hash, and opens the next unfinished Worklist image. | [Annotation confirmation](../manuals/clinician/07-confirm-annotation.qmd) |
 | Datasets | Check task-specific readiness and export the current Workspace state. | [Datasets](../manuals/clinician/08-datasets.qmd) |
 | Reviewer default | Prefill new forms in this browser; never authentication and never a rewrite of history. | [Repeated review](../manuals/clinician/06-repeated-review.qmd) |
 
@@ -27,5 +27,5 @@ is the canonical source for implementation ownership and contracts.
   edits create a new revision.
 - Previous/Next warns once while the current image is incomplete; a complete
   image switches without a warning.
-- Confirm Annotation completes the case; it does not mean every AI ROI was
-  individually verified.
+- Finish image & next completes the case; it does not mean every AI ROI was
+  individually verified. Reviewed-none is not a negative lesion label.

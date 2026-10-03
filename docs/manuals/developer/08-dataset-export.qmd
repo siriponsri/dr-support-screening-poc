@@ -19,7 +19,7 @@ On top of that, each task has one extra requirement:
 | Task | Extra requirement | Reason code when missing |
 |:-----|:------------------|:-------------------------|
 | **DR-ready** (`dr_grade_training_ready`) | A final grade with source `AI_ACCEPTED` / `AI_CORRECTED` / `MANUAL`, plus reviewer and timestamp | `NO_FINAL_CLINICIAN_GRADE`, `MISSING_PROVENANCE` |
-| **Lesion-ready** (`lesion_training_ready`) | A current Confirm Annotation whose hash equals the active-set hash, plus reviewer and timestamp | `NO_ANNOTATION_CONFIRMATION` |
+| **Lesion-ready** (`lesion_training_ready`) | A current **Finish image & next** action whose internal annotation-confirmation hash equals the active-set hash, plus reviewer and timestamp | `NO_ANNOTATION_CONFIRMATION` |
 
 : Readiness rules. {#tbl-readiness tbl-colwidths="[28,46,26]"}
 

@@ -6,7 +6,7 @@ Write for clinicians and reviewers using the local workstation. Include operator
 
 ## Terminology
 
-Use the exact UI labels **Worklist**, **Review**, **Clinician Review**, **Annotation Editor**, **Confirm Image**, **Confirm DR Grade**, **Confirm Annotation**, **Datasets**, **Models & Audit**, and **Settings**. Use **AI suggestion**, **model score**, **DR-ready**, and **Lesion-ready** consistently.
+Use the exact UI labels **Worklist**, **Review**, **Clinician Review**, **Annotation Editor**, **Confirm Image**, **Confirm DR Grade**, **Finish image & next**, **Datasets**, **Models & Audit**, and **Settings**. Use **AI suggestion**, **model score**, **DR-ready**, and **Lesion-ready** consistently. The backend action remains `CONFIRM_ANNOTATIONS`.
 
 ## Safety language
 

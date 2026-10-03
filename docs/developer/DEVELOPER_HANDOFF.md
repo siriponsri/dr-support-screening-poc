@@ -52,7 +52,7 @@ Baseline on `main` `ec74af8` (2026-09-23):
 
 ## 4. Protected behaviour (do not change without a spec)
 
-- The single-line clinician flow: Worklist → Confirm Image → Review → Clinician Review → Confirm DR Grade → Annotation Editor → Confirm Annotation → next Worklist image, with no senior-review action in the normal UI and legacy `ESCALATED` records kept read-only.
+- The single-line clinician flow: Worklist → Confirm Image → Review → Clinician Review → Confirm DR Grade → Annotation Editor → Finish image & next (internal `CONFIRM_ANNOTATIONS`) → next Worklist image, with no senior-review action in the normal UI and legacy `ESCALATED` records kept read-only.
 
 - Admission semantics.
 - Patient/eye resolver semantics.

@@ -84,7 +84,7 @@ STALE_CONSUMERS = (
     ("save & next", "the current UI exposes Save draft and explicit confirmation"),
     ("edit annotations", "the current UI page is Annotation Editor"),
     ("use as human annotation", "the AI ROI card exposes only Confirm / Remove / Close"),
-    ("save draft only", "autosave runs in the background; Confirm Annotation finishes the image"),
+    ("save draft only", "autosave runs in the background; Finish image & next finishes the image"),
     ("confirm dr grade & next", "Confirm DR Grade continues to the Annotation Editor"),
     ("confirm final dr grade & next", "Confirm DR Grade continues to the Annotation Editor"),
 )

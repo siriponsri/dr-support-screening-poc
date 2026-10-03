@@ -20,7 +20,7 @@ All request bodies are Pydantic `Contract` models: `extra="forbid"`, with explic
 | `POST /v1/cases/{id}/admission` | Admission override | `AdmissionReview` |
 | `POST /v1/cases/{id}/queue` | Exclude or restore | `QueueAction` |
 | `POST /v1/infer/global`, `/v1/infer/lesion-roi` | Optional inference | `InferenceRequest` → `GlobalResult` / `LesionResult` |
-| `POST /v1/cases/{id}/review` | Confirm DR Grade, escalate, Confirm Annotation | `Review` |
+| `POST /v1/cases/{id}/review` | Confirm DR Grade, legacy escalation, or the internal `CONFIRM_ANNOTATIONS` milestone used by **Finish image & next** | `Review` |
 | `PUT /v1/cases/{id}/annotations` | Save human annotation set | `HumanAnnotationSave` |
 | `POST /v1/cases/{id}/lesion-review` | AI ROI correction or removal | `LesionReviewAction` |
 | `POST /v1/cases/{id}/cvat/{send,sync}`, `.../manual-sync` | Optional CVAT round trip | `Sync`, `ManualImport` |

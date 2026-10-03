@@ -738,7 +738,7 @@ export const humanAnnotationApi = {
 export const annotationCompletenessApi = {
   update: (imageId: string, request: AnnotationCompletenessUpdateRequest) => apiJson<CaseRecord>(
     `/v1/cases/${encodeURIComponent(imageId)}/annotation-completeness`,
-    { method: 'PUT', body: JSON.stringify(request) },
+    jsonRequest({ method: 'PUT', body: JSON.stringify(request) }),
   ),
 };
 
@@ -759,9 +759,27 @@ export const modelConnectionApi = {
 
 export async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
-  const body = await response.json().catch(() => null) as { detail?: string } | null;
+  const body = await response.json().catch(() => null) as { detail?: unknown } | null;
   if (!response.ok) {
-    throw new Error(body?.detail || `Request failed with HTTP ${response.status}`);
+    throw new Error(normalizeApiDetail(body?.detail) || `Request failed with HTTP ${response.status}`);
   }
   return body as T;
+}
+
+export function normalizeApiDetail(detail: unknown): string {
+  if (typeof detail === 'string' && detail.trim()) return detail.trim();
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((entry) => (entry && typeof entry === 'object' && 'msg' in entry ? entry.msg : entry))
+      .filter((entry): entry is string => typeof entry === 'string' && Boolean(entry.trim()))
+      .map((entry) => entry.trim());
+    if (messages.length) return messages.join(' ');
+  }
+  if (detail && typeof detail === 'object') {
+    const record = detail as Record<string, unknown>;
+    for (const key of ['message', 'msg', 'error']) {
+      if (typeof record[key] === 'string' && record[key].trim()) return record[key].trim();
+    }
+  }
+  return '';
 }

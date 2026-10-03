@@ -205,7 +205,7 @@ describe('Review responsibility boundary', () => {
     expect(screen.queryByRole('button', { name: 'Send for senior review' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Confirm grade' }));
     expect(reviewRequest).toMatchObject({ action: 'ACCEPT', grade: 2, reviewer: 'Review clinician' });
-    expect(await screen.findByRole('button', { name: 'Confirm Annotation' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Finish - reviewed none found' })).toBeInTheDocument();
   });
 
   it('shows recorded mask, transforms, and model-domain warning in Processing details', async () => {

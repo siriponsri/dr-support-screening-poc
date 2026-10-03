@@ -920,6 +920,50 @@ independent Chunk B review:
 final integration review:
 ```
 
+### 2026-10-03 final closeout candidate receipt
+
+```text
+Starting SHA: dded17ee035464255b77a3206ccb00b6068db60a
+Candidate SHA: 732cad50cf47cf89afa337f5cab5081f57f6aa33
+Final main SHA: pending integration
+
+Resolver refresh: PASS; unresolved legacy filename evidence refreshes per field,
+manual/confirmed identity remains protected, sequence remains evidence rather
+than chronology, and refresh events include compact prior/new parser evidence
+without raw OCR text. Repeated reads do not duplicate events.
+Annotation completion: PASS; one Finish action records Core findings-recorded or
+explicit reviewed-none, confirms the current set, preserves untouched AI and
+unopened Advanced provenance, and retries lost/conflicted requests from a
+refreshed record. Finish locks edits, navigation and autosave during the
+multi-request persistence sequence.
+Annotation layout/browser: PASS at 1366, 1024 and 800 pixels with no horizontal
+overflow; Lighthouse accessibility 100 and best practices 100; AI-off manual
+flow completed through grade, Finish and Worklist completion; restart preserved
+grade, completeness, reviewer, timestamp and annotation hash. 1920-pixel visual
+inspection was not run.
+Error handling: PASS for structured 422, string detail, 409 and non-JSON/500
+fallbacks; completeness mutations send JSON; no [object Object] regression.
+Dataset/no-negative audit: REVIEWED_NONE_FOUND and empty human sets do not create
+negative lesion annotations; empty AI output is not reviewed-none; untouched AI
+rows remain AI evidence; lesion_training_ready remains the pre-existing
+task-specific readiness baseline and Phase 4 owns reviewed-negative policy.
+Documentation: PASS; source clinician/developer workflow docs and docs/README.md
+are aligned; docs QA passed for 88 sources.
+Validation: full backend 213 passed / 28 skipped / 50 warnings; focused resolver
+and workflow tests 36 passed; Ruff PASS; frontend 19 files / 121 tests PASS;
+typecheck PASS; build PASS with existing large-chunk warning; overlay/API root
+smoke checks PASS, then legacy runner stopped because this feature worktree has
+no .venv/Scripts/python.exe (KNOWN ENVIRONMENT LIMITATION, not a product pass);
+git diff --check PASS; PostgreSQL persistence/restart file 8 passed / 26 skipped
+because no designated DSN/server was available.
+Independent review: configured O1 changed-diff review PASS for candidate 732cad5;
+the prior O1 review's four REQUIRED FIX findings were corrected. The fallback
+host exposes no account selector, so account-level independence is unverified.
+Phase 2: READY_FOR_REVIEW
+Phase 3: NOT_STARTED
+Owner UAT: READY
+```
+
 ---
 
 ## 20. Handoff to later phases

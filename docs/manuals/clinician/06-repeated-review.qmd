@@ -24,11 +24,11 @@ In the Annotation Editor, edits are saved in the background about one second aft
 
 ![Draft status below the canvas.](screenshots/11-draft-status.png){#fig-draft width=68%}
 
-A draft is not a confirmation; only **Confirm Annotation** completes the image.
+A draft is not a confirmation; only **Finish image & next** completes the image.
 
 ## Next action hint
 
-The blue **Next action** line suggests the next step, for example **Confirm image**, **Clinician review - confirm DR grade**, **Confirm annotation**, or **Review complete**. It is guidance only. Choose **Dismiss** to hide hints on this workstation; turn them back on with **Show next action hints** in **Settings**.
+The blue **Next action** line suggests the next step, for example **Confirm image**, **Clinician review - confirm DR grade**, **Finish image & next**, or **Review complete**. It is guidance only. Choose **Dismiss** to hide hints on this workstation; turn them back on with **Show next action hints** in **Settings**.
 
 ```{=latex}
 \Needspace{30\baselineskip}

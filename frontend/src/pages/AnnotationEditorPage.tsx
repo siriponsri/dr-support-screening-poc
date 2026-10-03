@@ -69,6 +69,11 @@ function completenessStateLabel(state?: AnnotationCompletenessState | null): str
   return state ? COMPLETENESS_STATE_LABELS[state] : 'Not finished yet';
 }
 
+function coreFinishState(record: CaseRecord): Exclude<AnnotationCompletenessState, 'NOT_REVIEWED'> {
+  const findingCount = (record.human_annotations?.length ?? 0) + (record.annotations?.length ?? 0);
+  return findingCount > 0 ? 'REVIEWED_FINDINGS_RECORDED' : 'REVIEWED_NONE_FOUND';
+}
+
 function errorText(err: unknown) {
   return err instanceof Error ? err.message : 'The request could not be completed.';
 }
@@ -315,6 +320,7 @@ export function AnnotationEditorPage() {
   const roiDragRef = useRef<{ handle: RectangleResizeHandle | null; start: Point; base: RoiRectangle; moved: boolean } | null>(null);
   const interactionRef = useRef(false);
   const skipAutosaveRef = useRef(true);
+  const completenessWrittenForFinishRef = useRef(false);
   const draftRef = useRef<HumanAnnotation[]>(draft);
   const shapeDragRef = useRef<{
     shapeId: string;
@@ -356,7 +362,10 @@ export function AnnotationEditorPage() {
 
   const annotationConfirmed = annotationsConfirmed(item);
   const hasConfirmedGrade = gradeConfirmed(item);
-  const readOnly = !hasConfirmedGrade || Boolean(annotationConfirmed && !editingConfirmed);
+  const readOnly = !hasConfirmedGrade || completing || Boolean(annotationConfirmed && !editingConfirmed);
+  const importedFindingCount = item?.annotations?.length ?? 0;
+  const recordedFindingCount = draft.length + importedFindingCount;
+  const hasRecordedFindings = recordedFindingCount > 0;
 
   const commit = (next: HumanAnnotation[], nextSelection: string | null = null) => {
     if (readOnly) return;
@@ -366,6 +375,7 @@ export function AnnotationEditorPage() {
     setSelectedShapeId(nextSelection);
     setSaved(false);
     setDraftStatus('unsaved');
+    completenessWrittenForFinishRef.current = false;
   };
 
   const activateTool = (nextTool: Tool) => {
@@ -653,7 +663,7 @@ export function AnnotationEditorPage() {
   const [completenessSaving, setCompletenessSaving] = useState<string | null>(null);
 
   const updateCompleteness = async (group: 'CORE' | 'ADVANCED', state: Exclude<AnnotationCompletenessState, 'NOT_REVIEWED'>) => {
-    if (!item || !reviewer.trim() || completenessSaving) return;
+    if (!item || readOnly || !reviewer.trim() || completenessSaving) return;
     setCompletenessSaving(group);
     try {
       const persisted = await persistDraft();
@@ -1013,7 +1023,7 @@ export function AnnotationEditorPage() {
       : draftStatus === 'unsaved' ? (reviewer.trim() ? 'Saving...' : 'Enter a reviewer name to save')
         : 'Draft saved';
 
-  const guarded = Boolean(item && (!caseComplete(item) || draftStatus !== 'saved' || editingConfirmed));
+  const guarded = Boolean(item && (completing || !caseComplete(item) || draftStatus !== 'saved' || editingConfirmed));
 
   const saveBeforeLeaving = async (): Promise<boolean> => {
     if (draftStatus === 'saved') return true;
@@ -1021,6 +1031,7 @@ export function AnnotationEditorPage() {
   };
 
   const leaveTo = async (destination: string) => {
+    if (completing) return;
     if (guarded && !(await confirm(LEAVE_CASE_DIALOG))) return;
     if (!(await saveBeforeLeaving())) return;
     navigate(destination);
@@ -1034,27 +1045,110 @@ export function AnnotationEditorPage() {
     else navigate('/worklist', { state: { caseComplete: completedId, openConfirmImage: nextId } });
   };
 
-  /** Confirm Annotation finishes this image and opens the next Worklist image. */
+  const advanceAfterCompletion = async (completedId: string) => {
+    const cases = await loadCaseList();
+    const nextId = nextIncompleteCaseId(cases, completedId);
+    const next = cases.find((entry) => entry.image_id === nextId);
+    toast({
+      id: 'case-complete',
+      status: 'success',
+      title: nextId ? 'Case complete · Opening next image' : 'Case complete · Every Worklist image is complete',
+      duration: 3500,
+      position: 'top',
+      isClosable: true,
+    });
+    if (next && imageContextConfirmed(next)) navigate(`/review/${encodeURIComponent(next.image_id)}`);
+    else navigate('/worklist', { state: { caseComplete: completedId, openConfirmImage: nextId } });
+  };
+
+  const refreshAfterFinishFailure = async (completenessRequestLost: boolean): Promise<CaseRecord | null> => {
+    if (!item) return null;
+    try {
+      // Re-read after a failed mutation so a committed request with a lost
+      // response can be retried from the current revision.
+      const refreshed = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(item.image_id)}`);
+      setItem(refreshed);
+      draftRef.current = refreshed.human_annotations ?? [];
+      setDraft(draftRef.current);
+      setHistory([]);
+      setDraftStatus('saved');
+      setSaved(true);
+      const refreshedTargetState = coreFinishState(refreshed);
+      completenessWrittenForFinishRef.current = completenessRequestLost
+        && refreshed.annotation_completeness?.CORE?.state === refreshedTargetState;
+      return refreshed;
+    } catch {
+      completenessWrittenForFinishRef.current = false;
+      return null;
+    }
+  };
+
+  /** Finish records Core completeness, confirms the current set, then advances. */
   const completeCase = async () => {
     if (!item || completing || completenessSaving) return;
+    if (!reviewer.trim()) {
+      setSaveError('Reviewer name is required to finish this image.');
+      return;
+    }
     setCompleting(true);
+    let completenessRequestLost = false;
+    let targetState: Exclude<AnnotationCompletenessState, 'NOT_REVIEWED'> | null = null;
     try {
-      if (!(await confirmAnnotations())) return;
-      clearRoiSelection();
-      const cases = await loadCaseList();
-      const nextId = nextIncompleteCaseId(cases, item.image_id);
-      const next = cases.find((entry) => entry.image_id === nextId);
-      toast({
-        id: 'case-complete',
-        status: 'success',
-        title: nextId ? 'Case complete · Opening next image' : 'Case complete · Every Worklist image is complete',
-        duration: 3500,
-        position: 'top',
-        isClosable: true,
+      let persisted = await persistDraft();
+      if (!persisted) return;
+      targetState = coreFinishState(persisted);
+      const completenessAlreadyWritten = completenessWrittenForFinishRef.current
+        && persisted.annotation_completeness?.CORE?.state === targetState;
+      const completenessNeedsWrite = !completenessAlreadyWritten
+        && (persisted.annotation_completeness?.CORE?.state !== targetState
+        || !annotationsConfirmed(persisted)
+        || editingConfirmed);
+      if (completenessNeedsWrite) {
+        setCompletenessSaving('CORE');
+        try {
+          persisted = await annotationCompletenessApi.update(item.image_id, {
+            revision: persisted.revision,
+            reviewer: reviewer.trim(),
+            group: 'CORE',
+            state: targetState,
+            taxonomy_version: 'core-lesions-v1',
+          });
+          setItem(persisted);
+          completenessWrittenForFinishRef.current = true;
+        } catch (err) {
+          completenessRequestLost = true;
+          throw err;
+        } finally {
+          setCompletenessSaving(null);
+        }
+      }
+      setSaving(true);
+      const confirmed = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(item.image_id)}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ revision: persisted.revision, action: 'CONFIRM_ANNOTATIONS', reviewer: reviewer.trim(), grade: null, comment: '' }),
       });
-      if (next && imageContextConfirmed(next)) navigate(`/review/${encodeURIComponent(next.image_id)}`);
-      else navigate('/worklist', { state: { caseComplete: item.image_id, openConfirmImage: nextId } });
+      setItem(confirmed);
+      setSaved(true);
+      setDraftStatus('saved');
+      completenessWrittenForFinishRef.current = false;
+      clearRoiSelection();
+      await advanceAfterCompletion(item.image_id);
+    } catch (err) {
+      const refreshed = await refreshAfterFinishFailure(completenessRequestLost);
+      const refreshedTargetState = refreshed ? coreFinishState(refreshed) : null;
+      if (refreshed
+        && annotationsConfirmed(refreshed)
+        && refreshedTargetState
+        && refreshed.annotation_completeness?.CORE?.state === refreshedTargetState) {
+        clearRoiSelection();
+        await advanceAfterCompletion(refreshed.image_id);
+        return;
+      }
+      setSaveError(errorText(err));
+      setDraftStatus('failed');
     } finally {
+      setSaving(false);
       setCompleting(false);
     }
   };
@@ -1064,10 +1158,10 @@ export function AnnotationEditorPage() {
       skipAutosaveRef.current = false;
       return;
     }
-    if (draftStatus !== 'unsaved' || interactionRef.current || !reviewer.trim()) return;
+    if (completing || draftStatus !== 'unsaved' || interactionRef.current || !reviewer.trim()) return;
     const timer = window.setTimeout(() => { void persistDraft(); }, 900);
     return () => window.clearTimeout(timer);
-  }, [draft, draftStatus, reviewer]);
+  }, [completing, draft, draftStatus, reviewer]);
 
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
@@ -1099,7 +1193,7 @@ export function AnnotationEditorPage() {
         <Text>{hasConfirmedGrade ? `DR grade confirmed · ${drGradeLabel(item.clinician_review?.final_grade) ?? 'Grade confirmed'}` : 'DR grade not confirmed'}</Text>
       </HStack>
       {Boolean((location.state as { gradingComplete?: boolean } | null)?.gradingComplete) && hasConfirmedGrade && (
-        <Alert status="success" mb={4}><AlertIcon /><Text><strong>Grading complete.</strong> Correct AI regions only where you disagree, then Confirm Annotation to finish this image.</Text></Alert>
+          <Alert status="success" mb={4}><AlertIcon /><Text><strong>Grading complete.</strong> Correct AI regions only where you disagree, then finish this image.</Text></Alert>
       )}
       {!hasConfirmedGrade && (
         <Alert status="warning" mb={4}>
@@ -1110,7 +1204,7 @@ export function AnnotationEditorPage() {
           </Stack>
         </Alert>
       )}
-      {readOnly && (
+      {readOnly && !completing && (
         <Alert status="info" mb={4}>
           <AlertIcon />
           <Stack spacing={1}>
@@ -1129,8 +1223,12 @@ export function AnnotationEditorPage() {
         />
         <NextActionHint item={item} />
       </Stack>
-      <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.4fr) minmax(300px, 0.6fr)' }} gap={5} alignItems="start">
-        <Section title="Retinal annotation canvas" description="Coordinates are stored in original image pixel space. Double-click to finish a polygon.">
+      <Grid minW={0} templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.4fr) minmax(300px, 0.6fr)' }} gap={5} alignItems="start">
+        <Stack minW={0} spacing={4}>
+        <Section title="Review findings" description={tool === 'polygon' ? 'Draw a polygon, then double-click to finish it.' : 'Box is the primary finding tool. AI suggestions remain optional evidence.'}>
+          {annotationControls}
+        </Section>
+        <Section title="Retinal image" description="Inspect the image and record only the findings you choose to keep.">
           <RetinalCanvas
             item={item}
             showAi={showAi}
@@ -1177,53 +1275,31 @@ export function AnnotationEditorPage() {
             {!readOnly && <Button size="xs" variant="ghost" leftIcon={<Save size={12} />} onClick={() => void persistDraft()} isDisabled={saving || draftStatus === 'saved'}>Save draft</Button>}
           </HStack>
         </Section>
-        <Stack spacing={5}>
-          <Section title="Finish this image" description="Confirming annotations completes this case and opens the next Worklist image.">
+        <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={3} fontSize="sm">
+          {LABEL_OPTIONS.map((option) => <HStack key={option.value} spacing={2}><Box w="10px" h="10px" borderRadius="sm" bg={LESION_COLORS[option.value]} /><Text>{LESION_SHORT_LABELS[option.value]} - {option.label}</Text></HStack>)}
+        </SimpleGrid>
+        </Stack>
+        <Stack minW={0} spacing={5}>
+          <Section title="Complete review" description={hasRecordedFindings ? `${recordedFindingCount} finding${recordedFindingCount === 1 ? '' : 's'} recorded.` : 'No Core findings recorded.'}>
             <Stack spacing={3}>
               <Stack spacing={1} fontSize="sm" color="text.secondary">
-                <Text>AI suggestions are optional visual evidence.</Text>
-                <Text>You only need to edit a region when you disagree or want to record a human annotation.</Text>
-                <Text>Confirming annotations completes this case; it does not mean every AI ROI was individually verified.</Text>
+                <Text>Draft status: {draftStatusText}</Text>
+                {!hasRecordedFindings && <Text>Finishing records that Core findings were reviewed and none were found. It does not create a negative lesion annotation.</Text>}
+                <Text>AI suggestions are optional evidence; they do not become human findings unless you record them.</Text>
               </Stack>
-              <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
-                <Stack spacing={2}>
-                  <Text fontWeight="semibold" fontSize="sm">Core findings review</Text>
-                  <Text fontSize="xs" color="text.secondary">Choose the review state deliberately at the finish boundary. An empty AI result or empty annotation list is not a negative result.</Text>
-                  <HStack spacing={2} flexWrap="wrap" role="group" aria-label="Core findings review choice">
-                    <Button
-                      size="sm"
-                      variant={completeness.CORE?.state === 'REVIEWED_FINDINGS_RECORDED' ? 'secondary' : 'outline'}
-                      aria-pressed={completeness.CORE?.state === 'REVIEWED_FINDINGS_RECORDED'}
-                      onClick={() => updateCompleteness('CORE', 'REVIEWED_FINDINGS_RECORDED')}
-                      isDisabled={readOnly || Boolean(completenessSaving)}
-                    >
-                      Reviewed findings recorded
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={completeness.CORE?.state === 'REVIEWED_NONE_FOUND' ? 'secondary' : 'outline'}
-                      aria-pressed={completeness.CORE?.state === 'REVIEWED_NONE_FOUND'}
-                      onClick={() => updateCompleteness('CORE', 'REVIEWED_NONE_FOUND')}
-                      isDisabled={readOnly || Boolean(completenessSaving)}
-                    >
-                      Reviewed none found
-                    </Button>
-                  </HStack>
-                  <Text fontSize="xs" color="text.secondary">Status: {completenessStateLabel(completeness.CORE?.state)}{completeness.CORE?.reviewer ? ` · ${completeness.CORE.reviewer}` : ''}</Text>
-                  {completeness.CORE?.state === 'REVIEWED_NONE_FOUND' || completeness.CORE?.state === 'REVIEWED_FINDINGS_RECORDED' ? (
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      alignSelf="flex-start"
-                      onClick={() => updateCompleteness('CORE', 'PARTIALLY_REVIEWED')}
-                      isDisabled={readOnly || Boolean(completenessSaving)}
-                    >
-                      Continue reviewing
-                    </Button>
-                  ) : null}
-                </Stack>
-              </Box>
-              <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
+              <ReviewerField compact id="annotation-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
+              {saveError && <Alert status="error" aria-live="assertive"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
+              {readOnly && hasConfirmedGrade && !completing ? (
+                <HStack spacing={2} flexWrap="wrap">
+                  <Button variant="solid" onClick={() => void openNextImage(item.image_id)}>Open next image</Button>
+                  <Button variant="outline" onClick={() => void beginAnnotationEdit()}>Edit confirmed annotations</Button>
+                </HStack>
+              ) : (
+                <Button variant="solid" onClick={() => void completeCase()} isLoading={completing || saving || Boolean(completenessSaving)} loadingText="Finishing" isDisabled={!hasConfirmedGrade || roiSaving}>Finish {hasRecordedFindings ? 'image & next' : '- reviewed none found'}</Button>
+              )}
+            </Stack>
+          </Section>
+          <Box borderWidth="1px" borderColor="border.default" borderRadius="md" p={3}>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1233,34 +1309,16 @@ export function AnnotationEditorPage() {
                   aria-controls="advanced-findings-review"
                   onClick={() => setAdvancedOpen((open) => !open)}
                 >
-                  Advanced findings
+                  More review options
                 </Button>
                 <Collapse in={advancedOpen} animateOpacity>
                   <Stack id="advanced-findings-review" spacing={2} mt={2}>
-                    <Text fontSize="xs" color="text.secondary">Skip for now. Advanced review is optional and deferred in this workflow.</Text>
+                    <Text fontSize="xs" color="text.secondary">Advanced findings are optional and deferred. Leaving them closed keeps Advanced = Not reviewed.</Text>
                     <Button size="sm" alignSelf="flex-start" onClick={() => updateCompleteness('ADVANCED', 'PARTIALLY_REVIEWED')} isDisabled={readOnly || Boolean(completenessSaving)}>Record partial review</Button>
                     <Text fontSize="xs" color="text.secondary">Status: {completenessStateLabel(completeness.ADVANCED?.state)}</Text>
                   </Stack>
-                </Collapse>
+              </Collapse>
               </Box>
-              <ReviewerField id="annotation-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
-              {saveError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
-              {readOnly && hasConfirmedGrade ? (
-                <HStack spacing={2} flexWrap="wrap">
-                  <Button variant="solid" onClick={() => void openNextImage(item.image_id)}>Open next image</Button>
-                  <Button variant="outline" onClick={() => void beginAnnotationEdit()}>Edit confirmed annotations</Button>
-                </HStack>
-              ) : (
-                <Button variant="solid" onClick={() => void completeCase()} isLoading={completing || saving} loadingText="Confirming" isDisabled={!hasConfirmedGrade || roiSaving || Boolean(completenessSaving)}>Confirm Annotation</Button>
-              )}
-            </Stack>
-          </Section>
-          <Section title="Editor tools" description="Optional: draw or edit human annotations. Select a tool, choose a lesion class, then draw.">
-            {annotationControls}
-          </Section>
-          <SimpleGrid columns={2} spacing={3} fontSize="sm">
-            {LABEL_OPTIONS.map((option) => <HStack key={option.value} spacing={2}><Box w="10px" h="10px" borderRadius="sm" bg={LESION_COLORS[option.value]} /><Text>{LESION_SHORT_LABELS[option.value]} - {option.label}</Text></HStack>)}
-          </SimpleGrid>
         </Stack>
       </Grid>
       {confirmDialog}

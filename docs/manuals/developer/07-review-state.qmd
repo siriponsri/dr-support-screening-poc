@@ -23,15 +23,25 @@ The UI sends `ACCEPT` when the chosen grade equals the suggestion and `CORRECT_G
 
 The request replaces the whole human set (maximum 500 shapes). Shapes are `rectangle`, `polygon`, `point`, or `circle`, with labels `MICROANEURYSM`, `HEMORRHAGE`, `HARD_EXUDATE`, or `SOFT_EXUDATE`. `clean_geometry` validates finite numbers inside the original image bounds. The saved event records added, removed, and changed shape IDs.
 
-In the UI, `AnnotationEditorPage` autosaves 900 ms after the last edit when a reviewer is set. It shows **Saving... / Draft saved / Save failed**, flushes a pending draft before any ROI decision or **Confirm Annotation** (so revisions never race), and guards page unload (`beforeunload`) while changes are unsaved, saving, or failed.
+In the UI, `AnnotationEditorPage` autosaves 900 ms after the last edit when a reviewer is set. It shows **Saving... / Draft saved / Save failed**, flushes a pending draft before any ROI decision or **Finish image & next** (so revisions never race), and guards page unload (`beforeunload`) while changes are unsaved, saving, or failed.
 
 ## AI ROI correction and removal (`POST /v1/cases/{id}/lesion-review`)
 
 The `LesionReviewAction` contract has `detection_id` (`ai-[a-f0-9]{20}`), `action` (`CONFIRM` / `REJECT` / `CORRECT`), and an optional corrected label or rectangle. The UI (`AiRoiPopover` inside the viewer, inline and full-screen) exposes only **Confirm / Remove / Close**. The class dropdown and an in-place correction box (`editRoiRectangle`) change the draft correction; **Confirm** sends `CONFIRM` when unchanged or `CORRECT` with label and rectangle, then derives (or updates) the linked HUMAN annotation without a score. **Remove** sends `REJECT` and drops a linked human copy from the draft. Each decision is appended to `ai_annotation_reviews` with the **original** label, rectangle, score, and model identity. Raw model output is never modified. `lesionPresentation.ts` shows any class **or geometry** correction as "*class* -- clinician corrected" **without** a score, because the score belongs to the original class and box.
 
-## Confirm Annotation
+## Finish image and annotation confirmation
 
-`annotation_set_hash(case)` (`presentation.py`) hashes the active set: human shapes, AI decisions, and CVAT-imported shapes. `CONFIRM_ANNOTATIONS` stores that hash with reviewer and time, and sets `lesion_review_state = REVIEWED`. Any later annotation save, AI-ROI decision, or import changes the hash and moves the case back to `REQUIRES_CONFIRMATION` or `IMPORTED_REQUIRES_REVIEW`. Confirming an empty set is allowed. It means "reviewed", not "no lesions".
+The clinician-facing **Finish image & next** action first persists the deliberate
+Core completeness state (`REVIEWED_FINDINGS_RECORDED` when human findings are
+present, otherwise `REVIEWED_NONE_FOUND`) using the JSON mutation contract, then
+sends the existing `CONFIRM_ANNOTATIONS` milestone. `annotation_set_hash(case)`
+(`presentation.py`) hashes the active set: human shapes, AI decisions, and
+CVAT-imported shapes. `CONFIRM_ANNOTATIONS` stores that hash with reviewer and
+time, and sets `lesion_review_state = REVIEWED`. Any later annotation save,
+AI-ROI decision, or import changes the hash and moves the case back to
+`REQUIRES_CONFIRMATION` or `IMPORTED_REQUIRES_REVIEW`. Confirming an empty set
+is allowed. It means "reviewed", not "no lesions"; empty AI output or an empty
+human array alone never infers `REVIEWED_NONE_FOUND`.
 
 ## UI conveniences (no clinical state)
 
@@ -40,6 +50,6 @@ The `LesionReviewAction` contract has `detection_id` (`ai-[a-f0-9]{20}`), `actio
 | Reviewer default | `frontend/src/lib/reviewerPreference.ts` (`localStorage` key `dr-support-screening.default-reviewer.v1`) | Prefills empty or unattributed forms only; never rewrites history. |
 | Next-action hints | `components/common/NextActionHint.tsx`, `lib/hintPreference.ts` | Guidance only. |
 | Previous / Next | `lib/caseNavigation.ts`, `components/common/CaseNavigation.tsx` | Filename order, excluding excluded cases; opens the other image at Review. One `ConfirmDialog` warning while the current image is incomplete or dirty; none when complete. Never saves a confirmation. |
-| Confirm DR Grade / Confirm Annotation | `ClinicianReviewPage.tsx`, `AnnotationEditorPage.tsx`, `WorklistPage.tsx` | Confirm DR Grade → Annotation Editor; Confirm Annotation → Worklist opens Confirm Image for `nextIncompleteCaseId`. No navigation silently confirms a milestone. |
+| Confirm DR Grade / Finish image & next | `ClinicianReviewPage.tsx`, `AnnotationEditorPage.tsx`, `WorklistPage.tsx` | Confirm DR Grade → Annotation Editor; Finish image & next → Worklist opens Confirm Image for `nextIncompleteCaseId`. No navigation silently confirms a milestone. |
 
 : Conveniences. {#tbl-conveniences tbl-colwidths="[24,44,32]"}
