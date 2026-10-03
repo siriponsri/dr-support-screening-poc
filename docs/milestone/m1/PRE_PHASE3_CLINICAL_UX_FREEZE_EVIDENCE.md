@@ -1,8 +1,8 @@
 # P3-0 Clinical UX & Design System Freeze Evidence
 
-**Status:** `OPEN / NOT_RUN / NOT_READY_FOR_OWNER_UAT` — the exact candidate still has unrun runtime gates and blocked test collection; no owner-UAT readiness or freeze acceptance is claimed.
+**Status:** `OPEN / NOT_RUN / NOT_READY_FOR_OWNER_UAT` — the exact candidate still has unrun runtime gates; no owner-UAT readiness or freeze acceptance is claimed.
 **Baseline:** `f288ae5e8a527f124aaa99eedc6f3d6f7a3e32cb`
-**Candidate:** `52b0370` (`feat/pre-phase3-clinical-ux-freeze`); final feature candidate before integration review
+**Candidate:** `2413b00` (`feat/pre-phase3-clinical-ux-freeze`); final feature candidate before integration review
 **Phase 1:** `DONE`
 **Phase 2:** `DONE`
 **Phase 3:** `NOT_STARTED`
@@ -61,12 +61,12 @@ The before/after values below are source-level interaction proxies, not clinicia
 
 | Check | Result | Evidence |
 |---|---|---|
-| Focused Annotation Editor tests | PASS, 16 tests in MAIN local run; O1 read-only collection limitation remains recorded separately | `npm.cmd test -- --run tests/annotationEditor.test.tsx`; MAIN passed on candidate `52b0370` |
+| Focused Annotation Editor tests | PASS, 16 tests in MAIN local run; O1 read-only collection limitation remains recorded separately | `npm.cmd test -- --run tests/annotationEditor.test.tsx`; MAIN passed on candidate `2413b00` |
 | Frontend typecheck | PASS | `npm.cmd run typecheck` |
 | Full frontend test suite | NOT_RUN | Not run for this exact candidate; only the focused Annotation Editor suite was executed |
 | Frontend build | NOT_RUN | Not run for this exact candidate; no build PASS is claimed while the Vite/esbuild startup boundary remains unresolved |
 | Backend/Ruff | NOT_RUN; no backend files changed | Not required for source-only frontend iteration; report final decision |
-| Documentation QA | NOT_RUN | Not run for this exact candidate; the feature-worktree Python environment is unavailable |
+| Documentation QA | PASS | `python scripts/docs/check_docs.py`; 90 Markdown/Quarto sources |
 | Root smoke | NOT_RUN | Not run for this exact candidate; backend-backed UI smoke requires the unavailable feature-worktree `.venv` |
 | `git diff --check` | PASS | Candidate worktree |
 | Playwright viewport audit | OPEN / NOT_RUN | No authorized running workstation/browser evidence in this pass |
@@ -86,7 +86,9 @@ The before/after values below are source-level interaction proxies, not clinicia
 - MAIN self-audit: BOUNDED SOURCE CHECKS REVIEWED; focused annotation tests PASS (16/16), while the full suite and browser-audit/freeze acceptance remain OPEN / NOT_RUN. No frozen clinical, persistence, provenance, geometry, model, or phase-boundary contract was changed.
 - Fresh configured O1 review of the first candidate: REQUIRED FIX findings included fullscreen popover DOM/focus/viewport behavior, completed reviewed-none copy, and stale readiness evidence.
 - Follow-up bounded repair: fullscreen entry now closes any inline More tools popup before the Modal opens; outside-pointer close restores the stable trigger; Advanced copy is truthful. Focused MAIN tests pass 16/16; owner UAT remains open.
-- Fresh configured O1 changed-diff review: pending against exact candidate `52b0370`; no approval is claimed until that review completes. O1's earlier read-only test collection remained blocked by sandbox access denial.
+- Fresh configured O1 changed-diff review of candidate `e9436ba`: REQUIRED FIX findings covered focus classification for the viewer, Advanced wording, and exact-SHA evidence.
+- Follow-up repair commit `2413b00`: viewer clicks now restore the More tools trigger, Advanced is explicitly optional/deferred, and the focused regression covers viewer dismissal; focused MAIN tests remain 16/16.
+- Fresh exact-candidate O1 re-review: pending against `2413b00`; no approval is claimed until that review completes. O1's earlier read-only test collection remained limited by sandbox access denial.
 
 ## Runtime UAT boundary
 
