@@ -286,6 +286,40 @@ def test_confirm_image_in_any_history_protects_identity_from_refresh():
     assert case["laterality"] == "RIGHT"
 
 
+def test_partial_manual_resolution_refreshes_only_unprotected_identity_and_audits_evidence():
+    case = {
+        "patient_key": "MANUAL01",
+        "patient_resolution_state": "RESOLVED",
+        "patient_resolution_method": "MANUAL",
+        "patient_reason_code": "MANUAL_ASSIGNED",
+        "patient_candidate": "MANUAL01",
+        "patient_confidence_or_strength": "HIGH",
+        "laterality": "UNKNOWN",
+        "laterality_resolution_state": "UNLINKED",
+        "laterality_resolution_method": "NONE",
+        "laterality_reason_code": "NO_LATERALITY_EVIDENCE",
+        "laterality_candidate": None,
+        "resolver_state": "RESOLVED",
+        "resolver_evidence": {"version": "filename-resolver-v1", "filename": {}},
+        "resolution_history": [],
+        "events": [],
+    }
+    decision = ResolverService().resolve(object(), "HN5071 L1.jpg")
+    from dr_support.services.resolver import apply_automatic_resolution
+
+    assert apply_automatic_resolution(case, decision, timestamp="2026-10-03T00:00:00Z") is True
+    assert case["patient_key"] == "MANUAL01"
+    assert case["patient_resolution_method"] == "MANUAL"
+    assert case["laterality"] == "LEFT"
+    event = case["resolution_history"][-1]
+    assert event["previous_evidence"]["version"] == "filename-resolver-v1"
+    assert event["new_evidence"]["filename"]["pattern"] == "PATIENT_EYE_CAPTURE"
+    assert event["new_evidence"]["filename"]["parser_status"] == "MATCHED"
+    assert event["new_evidence"]["filename"]["capture_sequence"] == 1
+    assert event["new_evidence"]["patient_method"] == "MANUAL"
+    assert "raw_text" not in event["new_evidence"]
+
+
 def test_explicit_unknown_eye_is_a_valid_manual_decision(tmp_path):
     client = TestClient(create_app(tmp_path / "state.sqlite", include_samples=False))
     base = "/v1/cases/SYNTH_001"

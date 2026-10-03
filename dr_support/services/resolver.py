@@ -335,6 +335,32 @@ def _has_confirmed_identity(case: dict) -> bool:
     )
 
 
+def _resolution_evidence_summary(evidence: dict | None, snapshot: dict) -> dict | None:
+    """Keep resolver refresh audit entries compact and free of raw OCR text."""
+    if not isinstance(evidence, dict):
+        return None
+    filename = evidence.get("filename") or {}
+    ocr = evidence.get("ocr") or {}
+    return {
+        "version": evidence.get("version"),
+        "patient_method": (snapshot.get("patient") or {}).get("method"),
+        "laterality_method": (snapshot.get("laterality") or {}).get("method"),
+        "filename": {
+            "patient_candidate": filename.get("patient_candidate"),
+            "laterality": filename.get("laterality"),
+            "capture_sequence": filename.get("capture_sequence"),
+            "parser_status": filename.get("parser_status"),
+            "pattern": filename.get("pattern"),
+        },
+        "ocr": {
+            "status": ocr.get("status"),
+            "patient_candidate": ocr.get("patient_candidate"),
+            "laterality": ocr.get("laterality"),
+            "strength": ocr.get("strength"),
+        },
+    }
+
+
 def automatic_resolution_needs_refresh(case: dict, decision: dict) -> bool:
     """Return whether current automatic evidence is stronger than stored data."""
     protected = _has_confirmed_identity(case)
@@ -405,6 +431,10 @@ def apply_automatic_resolution(case: dict, decision: dict, *, timestamp: str) ->
         "timestamp": timestamp,
         "previous": before,
         "new": after,
+        "previous_evidence": _resolution_evidence_summary(before_evidence, before),
+        "new_evidence": _resolution_evidence_summary(
+            decision.get("resolver_evidence"), after,
+        ),
         "evidence_version": decision["resolver_evidence"].get("version"),
     }
     case.setdefault("resolution_history", []).append(event)

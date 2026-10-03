@@ -69,6 +69,11 @@ function completenessStateLabel(state?: AnnotationCompletenessState | null): str
   return state ? COMPLETENESS_STATE_LABELS[state] : 'Not finished yet';
 }
 
+function coreFinishState(record: CaseRecord): Exclude<AnnotationCompletenessState, 'NOT_REVIEWED'> {
+  const findingCount = (record.human_annotations?.length ?? 0) + (record.annotations?.length ?? 0);
+  return findingCount > 0 ? 'REVIEWED_FINDINGS_RECORDED' : 'REVIEWED_NONE_FOUND';
+}
+
 function errorText(err: unknown) {
   return err instanceof Error ? err.message : 'The request could not be completed.';
 }
@@ -357,7 +362,7 @@ export function AnnotationEditorPage() {
 
   const annotationConfirmed = annotationsConfirmed(item);
   const hasConfirmedGrade = gradeConfirmed(item);
-  const readOnly = !hasConfirmedGrade || Boolean(annotationConfirmed && !editingConfirmed);
+  const readOnly = !hasConfirmedGrade || completing || Boolean(annotationConfirmed && !editingConfirmed);
   const importedFindingCount = item?.annotations?.length ?? 0;
   const recordedFindingCount = draft.length + importedFindingCount;
   const hasRecordedFindings = recordedFindingCount > 0;
@@ -658,7 +663,7 @@ export function AnnotationEditorPage() {
   const [completenessSaving, setCompletenessSaving] = useState<string | null>(null);
 
   const updateCompleteness = async (group: 'CORE' | 'ADVANCED', state: Exclude<AnnotationCompletenessState, 'NOT_REVIEWED'>) => {
-    if (!item || !reviewer.trim() || completenessSaving) return;
+    if (!item || readOnly || !reviewer.trim() || completenessSaving) return;
     setCompletenessSaving(group);
     try {
       const persisted = await persistDraft();
@@ -1018,7 +1023,7 @@ export function AnnotationEditorPage() {
       : draftStatus === 'unsaved' ? (reviewer.trim() ? 'Saving...' : 'Enter a reviewer name to save')
         : 'Draft saved';
 
-  const guarded = Boolean(item && (!caseComplete(item) || draftStatus !== 'saved' || editingConfirmed));
+  const guarded = Boolean(item && (completing || !caseComplete(item) || draftStatus !== 'saved' || editingConfirmed));
 
   const saveBeforeLeaving = async (): Promise<boolean> => {
     if (draftStatus === 'saved') return true;
@@ -1026,6 +1031,7 @@ export function AnnotationEditorPage() {
   };
 
   const leaveTo = async (destination: string) => {
+    if (completing) return;
     if (guarded && !(await confirm(LEAVE_CASE_DIALOG))) return;
     if (!(await saveBeforeLeaving())) return;
     navigate(destination);
@@ -1055,7 +1061,7 @@ export function AnnotationEditorPage() {
     else navigate('/worklist', { state: { caseComplete: completedId, openConfirmImage: nextId } });
   };
 
-  const refreshAfterFinishFailure = async (targetState: AnnotationCompletenessState, completenessRequestLost: boolean): Promise<CaseRecord | null> => {
+  const refreshAfterFinishFailure = async (completenessRequestLost: boolean): Promise<CaseRecord | null> => {
     if (!item) return null;
     try {
       // Re-read after a failed mutation so a committed request with a lost
@@ -1067,8 +1073,9 @@ export function AnnotationEditorPage() {
       setHistory([]);
       setDraftStatus('saved');
       setSaved(true);
+      const refreshedTargetState = coreFinishState(refreshed);
       completenessWrittenForFinishRef.current = completenessRequestLost
-        && refreshed.annotation_completeness?.CORE?.state === targetState;
+        && refreshed.annotation_completeness?.CORE?.state === refreshedTargetState;
       return refreshed;
     } catch {
       completenessWrittenForFinishRef.current = false;
@@ -1083,14 +1090,13 @@ export function AnnotationEditorPage() {
       setSaveError('Reviewer name is required to finish this image.');
       return;
     }
-      const targetState: AnnotationCompletenessState = draftRef.current.length > 0 || (item.annotations?.length ?? 0) > 0
-        ? 'REVIEWED_FINDINGS_RECORDED'
-        : 'REVIEWED_NONE_FOUND';
     setCompleting(true);
     let completenessRequestLost = false;
+    let targetState: Exclude<AnnotationCompletenessState, 'NOT_REVIEWED'> | null = null;
     try {
       let persisted = await persistDraft();
       if (!persisted) return;
+      targetState = coreFinishState(persisted);
       const completenessAlreadyWritten = completenessWrittenForFinishRef.current
         && persisted.annotation_completeness?.CORE?.state === targetState;
       const completenessNeedsWrite = !completenessAlreadyWritten
@@ -1129,10 +1135,12 @@ export function AnnotationEditorPage() {
       clearRoiSelection();
       await advanceAfterCompletion(item.image_id);
     } catch (err) {
-      const refreshed = await refreshAfterFinishFailure(targetState, completenessRequestLost);
+      const refreshed = await refreshAfterFinishFailure(completenessRequestLost);
+      const refreshedTargetState = refreshed ? coreFinishState(refreshed) : null;
       if (refreshed
         && annotationsConfirmed(refreshed)
-        && refreshed.annotation_completeness?.CORE?.state === targetState) {
+        && refreshedTargetState
+        && refreshed.annotation_completeness?.CORE?.state === refreshedTargetState) {
         clearRoiSelection();
         await advanceAfterCompletion(refreshed.image_id);
         return;
@@ -1150,10 +1158,10 @@ export function AnnotationEditorPage() {
       skipAutosaveRef.current = false;
       return;
     }
-    if (draftStatus !== 'unsaved' || interactionRef.current || !reviewer.trim()) return;
+    if (completing || draftStatus !== 'unsaved' || interactionRef.current || !reviewer.trim()) return;
     const timer = window.setTimeout(() => { void persistDraft(); }, 900);
     return () => window.clearTimeout(timer);
-  }, [draft, draftStatus, reviewer]);
+  }, [completing, draft, draftStatus, reviewer]);
 
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
@@ -1196,7 +1204,7 @@ export function AnnotationEditorPage() {
           </Stack>
         </Alert>
       )}
-      {readOnly && (
+      {readOnly && !completing && (
         <Alert status="info" mb={4}>
           <AlertIcon />
           <Stack spacing={1}>
@@ -1281,7 +1289,7 @@ export function AnnotationEditorPage() {
               </Stack>
               <ReviewerField compact id="annotation-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
               {saveError && <Alert status="error" aria-live="assertive"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
-              {readOnly && hasConfirmedGrade ? (
+              {readOnly && hasConfirmedGrade && !completing ? (
                 <HStack spacing={2} flexWrap="wrap">
                   <Button variant="solid" onClick={() => void openNextImage(item.image_id)}>Open next image</Button>
                   <Button variant="outline" onClick={() => void beginAnnotationEdit()}>Edit confirmed annotations</Button>

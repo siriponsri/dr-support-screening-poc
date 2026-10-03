@@ -320,10 +320,6 @@ def install_workflow(app, store):
 
     def ensure_resolution(image_id, case, record):
         """Resolve local evidence, refreshing only unresolved automatic state."""
-        if any(event.get('action') in {'MANUAL_RESOLUTION', 'CONFIRM_IMAGE'}
-               for event in case.get('resolution_history', [])
-               if isinstance(event, dict)):
-            return case
         image = app.state.images.get(image_id)
         filename = (image.filename if image is not None else None) or (record or {}).get('filename') or image_id
         decision = app.state.resolver.resolve(image, filename)
