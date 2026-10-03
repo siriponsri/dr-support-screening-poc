@@ -32,4 +32,8 @@ A model score belongs to the class and box the model predicted. If PRISM suggest
 
 ## Draw human annotations
 
-Under **Editor tools**, **Box** is the primary tool. Choose **Polygon**, **Point**, or **Circle** only when needed, select a **New annotation class**, then draw. Geometry-specific help appears when Polygon is active. **Select**, **Undo**, **Delete selected**, and **Lock selected** adjust your own annotations. Human annotations are stored in original image pixels and remain separate from the AI evidence. Dense geometry work can use the optional CVAT round trip (@sec-cvat).
+Under **Review findings**, **Box** is the primary tool. Choose **Polygon**, **Point**, or **Circle** from **More tools** only when needed, select a **Finding class**, then draw. The compact toolbar keeps **Select**, **Box**, **Undo**, **Delete selected**, the finding class, and visibility controls together; the active geometry tool shows its short drawing instruction. **Select**, **Undo**, **Delete selected**, and **Lock selected** adjust your own annotations. Human annotations are stored in original image pixels and remain separate from the AI evidence. Dense geometry work can use the optional CVAT round trip (@sec-cvat).
+
+The same active tool label and drawing guidance remain visible inside the full-screen review surface; Escape closes an open **More tools** popup without exiting full-screen review.
+
+The **Complete review** panel keeps the remembered reviewer and one forward action. With no Core human findings, **Finish - reviewed none found** records deliberate review completeness; it does not create a negative lesion annotation. Advanced findings remain optional and deferred, and opening the optional explanation does not ask the clinician to manage an internal partial-review state.

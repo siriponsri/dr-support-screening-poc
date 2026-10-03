@@ -92,6 +92,117 @@ describe('AnnotationEditorPage human movement', () => {
     expect(annotationBody).toMatchObject({ annotations: [{ label: 'HEMORRHAGE' }] });
   });
 
+  it('keeps secondary tools in an accessible popover with contextual help', async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByText('1 human annotation')).toBeInTheDocument());
+    const user = userEvent.setup();
+    const trigger = screen.getByRole('button', { name: 'More tools' });
+
+    expect(screen.queryByRole('button', { name: 'Polygon' })).not.toBeInTheDocument();
+    await user.click(trigger);
+    const dialog = await screen.findByRole('dialog', { name: 'Annotation tools' });
+    expect(within(dialog).getByRole('button', { name: 'Polygon' })).toHaveAttribute('aria-pressed', 'false');
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Polygon' })).toHaveFocus());
+    await user.keyboard('{Tab}');
+    expect(within(dialog).getByRole('button', { name: 'Point' })).toHaveFocus();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Polygon' }));
+    expect(screen.queryByRole('dialog', { name: 'Annotation tools' })).not.toBeInTheDocument();
+    expect(screen.getByText('Active tool: Polygon')).toBeInTheDocument();
+    expect(screen.getByText('Click points; double-click to finish.')).toBeInTheDocument();
+
+    await user.click(trigger);
+    expect(await screen.findByRole('button', { name: 'Polygon' })).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Polygon' })).toHaveFocus());
+    await user.keyboard('{Tab}');
+    await user.keyboard('{Tab}');
+    await user.keyboard('{Tab}');
+    expect(screen.getByRole('combobox', { name: 'Finding class' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Annotation tools' })).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+
+    await user.click(trigger);
+    expect(await screen.findByRole('dialog', { name: 'Annotation tools' })).toBeInTheDocument();
+    await user.click(screen.getByLabelText('Finding class'));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Annotation tools' })).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+
+    await user.click(trigger);
+    expect(await screen.findByRole('dialog', { name: 'Annotation tools' })).toBeInTheDocument();
+    const fullScreenButton = screen.getByRole('button', { name: 'Open full-screen review' });
+    fullScreenButton.focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByText('Annotation controls')).toBeInTheDocument());
+    expect(screen.queryByRole('dialog', { name: 'Annotation tools' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Exit full-screen' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Open full-screen review' })).toBeInTheDocument());
+
+    await user.click(trigger);
+    expect(await screen.findByRole('dialog', { name: 'Annotation tools' })).toBeInTheDocument();
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Annotation tools' })).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it('keeps the full-screen More tools popup in the Modal focus scope', async () => {
+    renderEditor();
+    await waitFor(() => expect(screen.getByText('1 human annotation')).toBeInTheDocument());
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Open full-screen review' }));
+    const fullScreenControls = await screen.findByText('Annotation controls');
+    expect(fullScreenControls).toBeInTheDocument();
+    const modal = fullScreenControls.closest('[role="dialog"]');
+    expect(modal).not.toBeNull();
+    const fullScreenTrigger = within(modal!).getByRole('button', { name: 'More tools' });
+    await user.click(fullScreenTrigger);
+    const dialog = await screen.findByRole('dialog', { name: 'Annotation tools' });
+    expect(modal).toContainElement(dialog);
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Polygon tool' })).toHaveFocus());
+    await user.click(within(dialog).getByRole('button', { name: 'Circle tool' }));
+
+    expect(within(modal!).getByText('Active tool: Circle')).toBeInTheDocument();
+    expect(within(modal!).getByText('Drag to size a circle.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Annotation tools' })).not.toBeInTheDocument();
+
+    await user.click(fullScreenTrigger);
+    const reopenedDialog = await screen.findByRole('dialog', { name: 'Annotation tools' });
+    await waitFor(() => expect(within(reopenedDialog).getByRole('button', { name: 'Polygon tool' })).toHaveFocus());
+    await user.keyboard('{Tab}');
+    await user.keyboard('{Tab}');
+    await user.keyboard('{Tab}');
+    expect(within(modal!).getByRole('combobox', { name: 'Finding class' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Annotation tools' })).not.toBeInTheDocument();
+      expect(screen.getByText('Annotation controls')).toBeInTheDocument();
+      expect(fullScreenTrigger).toHaveFocus();
+    });
+  });
+
+  it('removes reviewed-none finishing guidance after completion', async () => {
+    const completed: CaseRecord = {
+      ...item,
+      human_annotations: [],
+      annotation_confirmation_status: 'CONFIRMED',
+      clinician_review: { reviewer: 'Clinician', final_grade: 1, review_action: 'CORRECT_GRADE', remark: '', timestamp: '2026-01-01T00:00:00Z', revision: 1 },
+    };
+    window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'Clinician');
+    renderEditor(completed, (input) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
+      return path === '/v1/cases' ? [] : completed;
+    });
+    await waitFor(() => expect(screen.getByText('0 human annotations')).toBeInTheDocument());
+
+    expect(screen.getByRole('heading', { name: 'Review complete' })).toBeInTheDocument();
+    expect(screen.getByText('No Core findings recorded.')).toBeInTheDocument();
+    expect(screen.queryByText('Finishing confirms Core findings were reviewed and none were found.')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Reviewer name')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open next image' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit confirmed annotations' })).toBeInTheDocument();
+  });
+
   it('opens the AI ROI action panel without starting a pan and supports keyboard selection', async () => {
     const detectionId = 'ai-aaaaaaaaaaaaaaaaaaaa';
     const aiCase: CaseRecord = {

@@ -51,6 +51,7 @@ interface RetinalCanvasProps {
   onPointerUp?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onPointerCancel?: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onDoubleClick?: (event: ReactMouseEvent<SVGSVGElement>) => void;
+  onBeforeFullScreen?: () => void;
   fullScreenControls?: ReactNode;
   /**
    * Viewport-level overlay (for example the selected AI ROI card). Rendered
@@ -344,6 +345,7 @@ export function RetinalCanvas({
   onPointerUp,
   onPointerCancel,
   onDoubleClick,
+  onBeforeFullScreen,
   fullScreenControls,
   renderOverlay,
   renderInStage,
@@ -717,7 +719,10 @@ export function RetinalCanvas({
           icon={<Maximize2 size={15} />}
           size="sm"
           variant="outline"
-          onClick={() => setIsFullScreen(true)}
+          onClick={() => {
+            onBeforeFullScreen?.();
+            setIsFullScreen(true);
+          }}
         />
       )}
     </HStack>
@@ -889,7 +894,7 @@ export function RetinalCanvas({
             <ModalCloseButton aria-label="Close full-screen review" />
             <ModalBody p={4} pt={0} display="flex" flexDirection="column" gap={3} overflow="hidden">
               {fullScreenControls && (
-                <Box p={2} flexShrink={0} bg="surface.panel" borderWidth="1px" borderColor="border.subtle" borderRadius="md" color="text.primary" maxH={{ base: '88px', tablet: '72px' }} overflowY="auto">
+                <Box p={2} flexShrink={0} bg="surface.panel" borderWidth="1px" borderColor="border.subtle" borderRadius="md" color="text.primary">
                   <Text fontSize="xs" color="text.secondary" mb={2}>Annotation controls</Text>
                   {fullScreenControls}
                 </Box>

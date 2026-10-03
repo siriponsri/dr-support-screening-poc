@@ -144,6 +144,10 @@ const themeOverride: ThemeOverride = {
   semanticTokens: {
     colors: {
       // Semantic role aliases. Components should not consume raw primitives.
+      // These are project tokens; no exact official Faculty brand value is
+      // claimed until an authoritative institutional source is verified.
+      'brand.universityAccent': kkuColors.redSoil,
+      'brand.medicinePrimary': kkuColors.medicineGreen,
       'action.primary': kkuColors.medicineGreen,
       'action.primaryHover': kkuColors.medicineGreenHover,
       'action.primaryPressed': kkuColors.medicineGreenPressed,
