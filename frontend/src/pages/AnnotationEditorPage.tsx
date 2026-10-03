@@ -328,7 +328,9 @@ function MoreToolsPopover({
     };
     const onPointerDown = (event: PointerEvent) => {
       if (event.target instanceof Node && !containerRef.current?.contains(event.target) && !popupRef.current?.contains(event.target)) {
-        close();
+        const clickedControl = event.target instanceof Element
+          && Boolean(event.target.closest('button, a, input, select, textarea, [tabindex]:not([tabindex="-1"])'));
+        close(!clickedControl);
       }
     };
     // Capture before Chakra's Modal handler so Escape only closes this popup.

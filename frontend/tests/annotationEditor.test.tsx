@@ -126,7 +126,7 @@ describe('AnnotationEditorPage human movement', () => {
     expect(await screen.findByRole('dialog', { name: 'Annotation tools' })).toBeInTheDocument();
     await user.click(screen.getByLabelText('Finding class'));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Annotation tools' })).not.toBeInTheDocument());
-    expect(trigger).toHaveFocus();
+    expect(screen.getByLabelText('Finding class')).toHaveFocus();
 
     await user.click(trigger);
     expect(await screen.findByRole('dialog', { name: 'Annotation tools' })).toBeInTheDocument();
