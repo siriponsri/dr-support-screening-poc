@@ -2,7 +2,7 @@
 
 **Status:** `OPEN / NOT_RUN / NOT_READY_FOR_OWNER_UAT` — the exact candidate still has unrun runtime gates and blocked test collection; no owner-UAT readiness or freeze acceptance is claimed.
 **Baseline:** `f288ae5e8a527f124aaa99eedc6f3d6f7a3e32cb`
-**Candidate:** uncommitted feature-worktree changes; no candidate SHA is claimed
+**Candidate:** `52b0370` (`feat/pre-phase3-clinical-ux-freeze`); final feature candidate before integration review
 **Phase 1:** `DONE`
 **Phase 2:** `DONE`
 **Phase 3:** `NOT_STARTED`
@@ -61,7 +61,7 @@ The before/after values below are source-level interaction proxies, not clinicia
 
 | Check | Result | Evidence |
 |---|---|---|
-| Focused Annotation Editor tests | PASS, 16 tests in MAIN local run; O1 read-only collection BLOCKED by sandbox access denial | `npm.cmd test -- --run tests/annotationEditor.test.tsx`; MAIN passed on this exact candidate, while O1 could not collect the same command in its restricted environment |
+| Focused Annotation Editor tests | PASS, 16 tests in MAIN local run; O1 read-only collection limitation remains recorded separately | `npm.cmd test -- --run tests/annotationEditor.test.tsx`; MAIN passed on candidate `52b0370` |
 | Frontend typecheck | PASS | `npm.cmd run typecheck` |
 | Full frontend test suite | NOT_RUN | Not run for this exact candidate; only the focused Annotation Editor suite was executed |
 | Frontend build | NOT_RUN | Not run for this exact candidate; no build PASS is claimed while the Vite/esbuild startup boundary remains unresolved |
@@ -86,7 +86,7 @@ The before/after values below are source-level interaction proxies, not clinicia
 - MAIN self-audit: BOUNDED SOURCE CHECKS REVIEWED; focused annotation tests PASS (16/16), while the full suite and browser-audit/freeze acceptance remain OPEN / NOT_RUN. No frozen clinical, persistence, provenance, geometry, model, or phase-boundary contract was changed.
 - Fresh configured O1 review of the first candidate: REQUIRED FIX findings included fullscreen popover DOM/focus/viewport behavior, completed reviewed-none copy, and stale readiness evidence.
 - Follow-up bounded repair: fullscreen entry now closes any inline More tools popup before the Modal opens; outside-pointer close restores the stable trigger; Advanced copy is truthful. Focused MAIN tests pass 16/16; owner UAT remains open.
-- Fresh configured O1 changed-diff review: pending against the exact repaired candidate; no approval is claimed until that review completes. O1's earlier read-only test collection remained blocked by sandbox access denial.
+- Fresh configured O1 changed-diff review: pending against exact candidate `52b0370`; no approval is claimed until that review completes. O1's earlier read-only test collection remained blocked by sandbox access denial.
 
 ## Runtime UAT boundary
 
