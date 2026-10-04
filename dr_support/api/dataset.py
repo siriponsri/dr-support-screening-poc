@@ -45,3 +45,74 @@ def install_dataset_routes(app) -> None:
             raise HTTPException(status_code=409, detail=str(error)) from None
         except OSError:
             raise HTTPException(status_code=503, detail="The Workspace output folder is not available.") from None
+
+    @app.get("/v2/workspace-data/records")
+    def workspace_data_records(
+        page: int = Query(default=1, ge=1),
+        limit: int = Query(default=25, ge=1, le=100),
+        readiness: str = Query(default="all"),
+        review_status: str | None = Query(default=None),
+        laterality: str | None = Query(default=None),
+        modality: str | None = Query(default=None),
+        source_origin: str | None = Query(default=None),
+        patient_grouped: bool | None = Query(default=None),
+        q: str | None = Query(default=None, max_length=120),
+    ):
+        try:
+            return service.workspace_data_records(
+                page=page,
+                limit=limit,
+                readiness=readiness,
+                review_status=review_status,
+                laterality=laterality,
+                modality=modality,
+                source_origin=source_origin,
+                patient_grouped=patient_grouped,
+                q=q,
+            )
+        except DatasetManifestError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from None
+
+    @app.get("/v2/workspace-data/records/{image_id}")
+    def workspace_data_record(image_id: str):
+        try:
+            return service.workspace_data_detail(image_id)
+        except DatasetManifestError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from None
+
+    @app.get("/v2/workspace-data/records/{image_id}/processing")
+    def workspace_data_processing(image_id: str):
+        try:
+            return service.workspace_data_processing(image_id)
+        except DatasetManifestError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from None
+
+    @app.get("/v2/workspace-data/records/{image_id}/explainability")
+    def workspace_data_explainability(image_id: str):
+        try:
+            return service.workspace_data_explainability(image_id)
+        except DatasetManifestError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from None
+
+    @app.get("/v2/dataset/snapshot/preview")
+    def dataset_snapshot_preview():
+        try:
+            return service.snapshot_preview()
+        except DatasetManifestError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from None
+
+    @app.post("/v2/dataset/snapshot")
+    def dataset_snapshot():
+        try:
+            return service.export_snapshot()
+        except DatasetManifestError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from None
+        except OSError:
+            raise HTTPException(status_code=503, detail="The Workspace output folder is not available.") from None
+
+    @app.get("/v2/dataset/snapshots/{snapshot_id}")
+    def dataset_snapshot_detail(snapshot_id: str):
+        try:
+            return service.snapshot_detail(snapshot_id)
+        except DatasetManifestError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from None
