@@ -3,12 +3,14 @@
 **Execution revision:** r3.0
 **Execution date:** 2026-10-04
 **Starting SHA:** `50cf7124ec95c56b9821d34e57141a1d8d3919a4`
-**Current execution state:** `READY_FOR_OWNER_REVIEW`
+**Current execution state:** `DONE / OWNER_ACCEPTED`
 
 This receipt records the bounded Phase 3 execution against the owner-directed
-`M1_PHASE3_EXECUTION_R3.md`. It does not mark Phase 3 `DONE` and does not
-authorize production/clinical deployment, hospital-data use, native UWF model
-qualification, or Phase 4 work.
+`M1_PHASE3_EXECUTION_R3.md`. The execution evidence historically stopped at
+`READY_FOR_OWNER_REVIEW`; the owner has now accepted that evidence and this
+documentation-only closeout records Phase 3 as `DONE / OWNER_ACCEPTED`. It does
+not authorize production/clinical deployment, hospital-data use, native UWF
+model qualification, or Phase 4 work.
 
 ## Integrated foundation
 
@@ -81,13 +83,54 @@ This is reported explicitly rather than simulated. Owner decisions remain
 pending for artifact access/trust, exact loader security, target-host profile,
 live Model API Gate C, UWF release policy, rights, and clinical validation.
 
+## Formal owner closeout
+
+On 2026-10-04, the owner accepted the Phase 3 execution evidence and authorized
+formal closeout. The integrated Phase 3 implementation/merge evidence remains
+`857f048da76e438c04422b8c0978daa780c19879`; owner acceptance was recorded against the clean, synchronized
+pre-closeout `main` at `90724222ab2cd1ccf1a993484776649296cd0937`. The
+historical `READY_FOR_OWNER_REVIEW` execution marker is retained above and in
+the final execution receipt; it is not rewritten as a historical test result.
+
+The accepted terminal states are:
+
+```text
+USPEC = BLOCKED_ARTIFACT / runtime NOT_RUN / disabled
+Native UWF lesion = DEFERRED_NO_QUALIFIED_CANDIDATE
+PRISM = CFP comparator only / NOT_VALIDATED_FOR_UWF
+MONAI = EVALUATED_DEFERRED
+Clef = comparator deferred
+Longitudinal learned model = DISABLED
+Live Model API Gate C = NOT_RUN
+Target GPU/performance/VRAM/recovery = NOT_RUN
+Phase 3 PostgreSQL runtime = NOT_RUN
+Playwright Phase 3 browser matrix = NOT_RUN
+Independent review = unavailable; MAIN self-audit only
+```
+
+The owner accepted these limitations without treating them as qualification
+passes: the feature-worktree `.venv` was unavailable in the final audit
+environment; no PostgreSQL DSN/server was available; the Phase 3 browser matrix
+was not run; and the recorded legacy root-smoke limitation remains historical
+evidence rather than a fabricated PASS. No USPEC artifact/runtime
+qualification, live Model API success, target GPU/performance qualification,
+native UWF lesion model, PRISM UWF validation, hospital-data authorization, or
+production/clinical deployment approval is implied.
+
+`P3.1 Runtime Qualification / Model Host Qualification` is recorded as
+`DEFERRED / NON-BLOCKING`. P3.1 is not implemented here and does not block
+Phase 4.
+
 ## Authoritative phase state
 
 ```text
 Phase 1 = DONE
 Phase 2 = DONE
 P3-0 = DONE / UX FREEZE ACCEPTED
-Phase 3 = READY_FOR_OWNER_REVIEW
+Phase 3 = DONE / OWNER_ACCEPTED
+P3.1 Runtime Qualification / Model Host Qualification = DEFERRED / NON-BLOCKING
 Phase 4 = NOT_STARTED
 Phase 5 = NOT_STARTED
 ```
+
+**Final closeout marker:** `PHASE 3 CLOSED — READY FOR PHASE 4 RECONCILIATION`

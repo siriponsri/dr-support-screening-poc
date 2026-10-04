@@ -45,3 +45,41 @@ Phase 3: READY_FOR_OWNER_REVIEW
 Phase 4: NOT_STARTED
 Final marker: PHASE 3 READY_FOR_OWNER_REVIEW
 ```
+
+## Formal owner closeout
+
+The receipt above is the historical Phase 3 execution evidence and retains its
+`READY_FOR_OWNER_REVIEW` marker. On 2026-10-04, the owner accepted that evidence
+with its limitations and authorized formal closeout.
+
+```text
+Phase 3: DONE / OWNER_ACCEPTED
+Owner decision: ACCEPTED
+Integrated Phase 3 implementation/merge evidence: 857f048da76e438c04422b8c0978daa780c19879
+Owner-accepted pre-closeout main: 90724222ab2cd1ccf1a993484776649296cd0937
+
+USPEC: BLOCKED_ARTIFACT / runtime NOT_RUN / disabled
+Native UWF lesion: DEFERRED_NO_QUALIFIED_CANDIDATE
+PRISM: CFP comparator only / NOT_VALIDATED_FOR_UWF
+MONAI: EVALUATED_DEFERRED
+Clef: comparator deferred
+Longitudinal learned model: DISABLED
+Live Model API Gate C: NOT_RUN
+Target GPU/performance/VRAM/recovery: NOT_RUN
+Phase 3 PostgreSQL runtime: NOT_RUN
+Playwright Phase 3 browser matrix: NOT_RUN
+Independent review: unavailable; MAIN self-audit only
+
+P3.1 Runtime Qualification / Model Host Qualification:
+DEFERRED / NON-BLOCKING
+Phase 4: NOT_STARTED
+Phase 5: NOT_STARTED
+Final marker: PHASE 3 CLOSED — READY FOR PHASE 4 RECONCILIATION
+```
+
+This closeout does not claim USPEC artifact/runtime qualification, live Model API
+Gate C success, GPU/performance/VRAM/recovery qualification, PostgreSQL Phase 3
+runtime qualification, native UWF lesion localization, PRISM UWF validation,
+hospital-data authorization, or production/clinical deployment approval. It does
+not implement P3.1, access a Tailscale/GPU server, load weights, or start Phase
+4.

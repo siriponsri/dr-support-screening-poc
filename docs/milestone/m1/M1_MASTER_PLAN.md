@@ -1,16 +1,16 @@
 # DR Screening — Milestone 1 Master Plan
 
 **Document path in repository:** `docs/milestone/m1/M1_MASTER_PLAN.md`
-**Document revision:** Closeout r2.9 (Phase 3 execution receipt)
+**Document revision:** Closeout r3.0 (Phase 3 owner acceptance)
 **Prepared:** 2026-09-29
 **Document status:** `OWNER_APPROVED_CLOSEOUT`
-**Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted), Phase 2 `DONE` (owner-approved on 2026-10-03 after UAT; independent O1 review/self-audit and final integrated evidence accepted), P3-0 `DONE / UX FREEZE ACCEPTED` (owner UAT PASS on 2026-10-04), and Phase 3 `READY_FOR_OWNER_REVIEW` (execution receipt recorded on 2026-10-04); see the phase trackers, which are independent of later-phase authorization.
+**Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted), Phase 2 `DONE` (owner-approved on 2026-10-03 after UAT; independent O1 review/self-audit and final integrated evidence accepted), P3-0 `DONE / UX FREEZE ACCEPTED` (owner UAT PASS on 2026-10-04), and Phase 3 `DONE / OWNER_ACCEPTED` (owner accepted the execution evidence on 2026-10-04); see the phase trackers, which are independent of later-phase authorization.
 **Source baseline commit:** `20726efcb8aa6ce857eb9b8537810fea5175b42e`
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.
 **Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; unresolved optional items follow the Phase 2 safe-defer boundary in §24.
 **Primary repository:** `siriponsri/dr-support-screening-poc`
 
-**Current reading guide (closeout r2.9):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29, Phase 2 `DONE` on 2026-10-03, and P3-0 `DONE / UX FREEZE ACCEPTED` on 2026-10-04 based on the recorded implementation/evidence, accepted UAT, independent O1 review/self-audit, and final integrated receipts. Phase 3 execution is now `READY_FOR_OWNER_REVIEW`; this does not authorize production, hospital-data use, clinical/model semantic changes, or Phase 3 acceptance.
+**Current reading guide (closeout r3.0):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29, Phase 2 `DONE` on 2026-10-03, P3-0 `DONE / UX FREEZE ACCEPTED` on 2026-10-04, and Phase 3 `DONE / OWNER_ACCEPTED` on 2026-10-04 based on the recorded execution evidence and owner acceptance. Phase 3 terminal capability states remain limited as recorded; P3.1 runtime/model-host qualification is deferred and non-blocking for Phase 4. This does not authorize production, hospital-data use, clinical/model semantic changes, or Phase 4 implementation.
 
 ---
 
@@ -729,6 +729,52 @@ Phase 4 work.
 **Accepted limitations:** feature-worktree `.venv` unavailable in the final audit environment; PostgreSQL DSN unavailable for the final audit run; 1920px audit not run as an owner-workstation qualification; reviewer account independence unverified; historical legacy root-smoke limitation preserved as historical evidence, not a fabricated PASS; live Model API success deferred to Phase 3; Thai-label live browser coverage not run; and narrow mobile header title wrap/truncation deferred as non-blocking UX follow-up.
 **Owner decision:** P3-0 is closed as `DONE / UX FREEZE ACCEPTED`. Phase 3 remains `NOT_STARTED`. This does not authorize model integration, MONAI adoption, Clef integration, hospital-data use, production/clinical deployment, Phase 3 start, or Phase 4 changes.
 
+# Phase 3 closeout
+
+Phase 3 is formally closed as `DONE / OWNER_ACCEPTED` on 2026-10-04. The owner
+accepted the existing Phase 3 execution evidence and its recorded limitations;
+the historical execution stop marker `READY_FOR_OWNER_REVIEW` remains preserved
+in the Phase 3 execution specification and receipt.
+
+**Evidence / commit(s):** Integrated Phase 3 implementation and merge evidence
+remain recorded at `857f048da76e438c04422b8c0978daa780c19879`; owner acceptance was recorded against the clean,
+synchronized pre-closeout main at `90724222ab2cd1ccf1a993484776649296cd0937`.
+The documentation-only closeout commit is separate from the integrated
+implementation evidence.
+
+**Terminal capability states:** USPEC is `BLOCKED_ARTIFACT`, runtime `NOT_RUN`,
+and disabled; native UWF lesion localization is
+`DEFERRED_NO_QUALIFIED_CANDIDATE`; PRISM is CFP comparator only and
+`NOT_VALIDATED_FOR_UWF`; MONAI is `EVALUATED_DEFERRED`; Clef is comparator
+deferred; and the longitudinal learned model is `DISABLED`.
+
+**Accepted limitations:** live Model API Gate C is `NOT_RUN`; target
+GPU/performance/VRAM/recovery qualification is `NOT_RUN`; Phase 3 PostgreSQL
+runtime is `NOT_RUN`; the Phase 3 Playwright browser matrix is `NOT_RUN`; the
+feature-worktree `.venv` was unavailable in the final audit environment; and
+independent review was unavailable, so MAIN self-audit is the only review
+recorded. No USPEC artifact/runtime qualification, native UWF lesion model,
+PRISM UWF validation, hospital-data authorization, or production/clinical
+deployment approval is implied.
+
+**Deferred follow-up:** `P3.1 Runtime Qualification / Model Host Qualification`
+is `DEFERRED / NON-BLOCKING`. It is not implemented here and does not block
+Phase 4.
+
+```text
+Phase 1 = DONE
+Phase 2 = DONE
+P3-0 = DONE / UX FREEZE ACCEPTED
+Phase 3 = DONE / OWNER_ACCEPTED
+P3.1 Runtime Qualification / Model Host Qualification = DEFERRED / NON-BLOCKING
+Phase 4 = NOT_STARTED
+Phase 5 = NOT_STARTED
+```
+
+This closeout does not authorize USPEC/runtime qualification, live Model API
+success, GPU access or weight loading, hospital-data use, production/clinical
+deployment, or Phase 4 implementation.
+
 # Phase 3 — AI Models & Model API Integration
 
 ## Goal
@@ -1126,6 +1172,7 @@ Do not edit past decisions silently. Add new rows when the owner changes scope.
 | 2026-09-29 | Phase 2 uses Chunk A and Chunk B substantive review gates followed by final integration validation; O1 or O2 may provide independent read-only review, and optional unresolved clinical/model capabilities are safely deferred. | Reduce review burden, preserve independence, and keep unrelated Core workflow moving without weakening safety contracts. | Owner-directed |
 | 2026-10-01 | Phase 2 completed bounded Chunk A and Chunk B implementation and independent review. Chunk A covered intake, named grading, disagreement-safe persistence, shared analysis representation, viewer/evidence states, and manual failure paths; Chunk B added persisted Core/Advanced completeness with reviewer/time/taxonomy provenance and explicit no-negative behavior. | Record actual implementation evidence without claiming native UWF model qualification, full Advanced taxonomy, production readiness, or Phase 2 owner closeout. | Owner-directed execution; O1 reviews accepted |
 | 2026-10-03 | Owner accepted the integrated Phase 2 UAT and authorized formal Phase 2 closeout as `DONE` at final integrated implementation SHA `bde3e673169fa6de2f1ecee6373c22c7d46a04de`. | Close Phase 2 while preserving accepted limitations and deferred Pre-Phase-3 UX items; Phase 3 remains `NOT_STARTED` and later clinical/model/export permissions remain separate. | Owner-approved |
+| 2026-10-04 | Owner accepted the Phase 3 execution evidence and authorized formal closeout as `DONE / OWNER_ACCEPTED`; P3.1 runtime/model-host qualification is deferred and non-blocking. | Preserve the recorded terminal capability states and validation limitations; Phase 4 remains `NOT_STARTED` and no model-runtime, hospital-data, or production authorization is inferred. | Owner-approved |
 
 ---
 

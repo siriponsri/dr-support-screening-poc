@@ -3,16 +3,22 @@
 
 **Document revision:** Execution r3.0
 **Prepared:** 2026-10-04
-**Document status:** `OWNER_DIRECTED_EXECUTION_SPEC`
-**Implementation status:** `READY_FOR_OWNER_REVIEW` (execution receipt recorded; owner acceptance pending)
+**Document status:** `OWNER_ACCEPTED_EXECUTION_CLOSEOUT`
+**Implementation status:** `DONE / OWNER_ACCEPTED` (formal closeout recorded; the historical execution marker remains `READY_FOR_OWNER_REVIEW`)
 **Repository:** `siriponsri/dr-support-screening-poc`
 **Authoritative repository baseline:** `50cf7124ec95c56b9821d34e57141a1d8d3919a4`
 **Phase 1:** `DONE`
 **Phase 2:** `DONE`
 **P3-0 Clinical UX & Design System Freeze:** `DONE / UX FREEZE ACCEPTED`
-**Phase 3:** `NOT_STARTED`
+**Phase 3:** `DONE / OWNER_ACCEPTED`
 **Phase 4:** `NOT_STARTED`
 **Phase 5:** `NOT_STARTED`
+
+**Formal owner closeout:** The owner accepted the Phase 3 execution evidence on
+2026-10-04. This closes Phase 3 at the documentation/evidence boundary only;
+the terminal capability states and limitations below remain authoritative, and
+P3.1 Runtime Qualification / Model Host Qualification is deferred and
+non-blocking for Phase 4.
 
 **Supersedes for execution:** `docs/milestone/m1/M1_PHASE3_MODELS_MODEL_API.md` Candidate r2.2 as the active Phase 3 execution plan.
 **Historical r2.2 remains evidence:** do not delete or rewrite its historical claims/evidence.
@@ -2733,6 +2739,39 @@ NOT_STARTED
 Final marker:
 PHASE 3 READY_FOR_OWNER_REVIEW
 ```
+
+## 40.1 Formal owner closeout addendum
+
+The receipt template and final execution marker in §40 are preserved as the
+historical execution record. Owner acceptance is recorded separately here.
+
+```text
+Phase 3 = DONE / OWNER_ACCEPTED
+Integrated Phase 3 implementation/merge evidence = 857f048da76e438c04422b8c0978daa780c19879
+Owner-accepted pre-closeout main = 90724222ab2cd1ccf1a993484776649296cd0937
+
+USPEC = BLOCKED_ARTIFACT / runtime NOT_RUN / disabled
+Native UWF lesion = DEFERRED_NO_QUALIFIED_CANDIDATE
+PRISM = CFP comparator only / NOT_VALIDATED_FOR_UWF
+MONAI = EVALUATED_DEFERRED
+Clef = comparator deferred
+Longitudinal learned model = DISABLED
+Live Model API Gate C = NOT_RUN
+Target GPU/performance/VRAM/recovery = NOT_RUN
+Phase 3 PostgreSQL runtime = NOT_RUN
+Playwright Phase 3 browser matrix = NOT_RUN
+Independent review = unavailable; MAIN self-audit only
+
+P3.1 Runtime Qualification / Model Host Qualification = DEFERRED / NON-BLOCKING
+Phase 4 = NOT_STARTED
+Phase 5 = NOT_STARTED
+```
+
+The closeout does not implement P3.1, access a Tailscale/GPU server, load
+weights, qualify a USPEC artifact/runtime, claim live Model API Gate C success,
+qualify GPU/performance/VRAM/recovery or PostgreSQL Phase 3 runtime, establish
+native UWF lesion localization or PRISM UWF validation, authorize hospital data,
+approve production/clinical deployment, or start Phase 4.
 
 ---
 
