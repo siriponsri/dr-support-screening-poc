@@ -3,7 +3,9 @@
 **Execution revision:** r3.0  
 **Execution date:** 2026-10-04  
 **Starting SHA:** `80e7460252518a63c88f4ae7d73fb6f0bb5a4d37`  
-**Feature candidate SHA:** `398098955494193ffe5b64b5d85691173b36a179`  
+**Feature candidate SHA:** `1dca82d8cb6818f5457c85d928772190be816bf2`
+**Integrated main SHA:** `8a001b1c4d957dade0c887c5b3105af125ae60d3`
+**Final evidence SHA:** `PENDING_FINAL_EVIDENCE_COMMIT`
 **Current state:** `READY_FOR_OWNER_REVIEW`
 
 This document records the Phase 4 execution candidate against the owner-directed

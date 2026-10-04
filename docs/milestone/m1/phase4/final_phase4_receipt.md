@@ -2,9 +2,9 @@
 
 ```text
 Starting SHA: 80e7460252518a63c88f4ae7d73fb6f0bb5a4d37
-Feature candidate SHA: 398098955494193ffe5b64b5d85691173b36a179
-Integrated main SHA: pending integration
-Final evidence SHA: pending documentation closeout integration
+Feature candidate SHA: 1dca82d8cb6818f5457c85d928772190be816bf2
+Integrated main SHA: 8a001b1c4d957dade0c887c5b3105af125ae60d3
+Final evidence SHA: PENDING_FINAL_EVIDENCE_COMMIT
 
 Chunk A: PASS - policy, digest, authorization, grouping, completeness, and AI-contamination invariants
 Chunk B: PASS - PostgreSQL-aware read model, bounded Workspace Data API, detail projections, and UI

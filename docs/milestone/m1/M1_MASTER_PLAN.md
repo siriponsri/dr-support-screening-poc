@@ -900,7 +900,7 @@ Turn reviewed PostgreSQL data into transparent, queryable, exportable, training-
 **Start date:** 2026-10-04
 **Completion date:**
 **Reviewed by:** MAIN self-audit; independent review unavailable in this runtime
-**Evidence / commit(s):** Feature candidate `398098955494193ffe5b64b5d85691173b36a179`; evidence candidate `docs/milestone/m1/M1_PHASE4_EVIDENCE.md`; receipt candidate `docs/milestone/m1/phase4/final_phase4_receipt.md`; integration pending
+**Evidence / commit(s):** Final feature candidate `1dca82d8cb6818f5457c85d928772190be816bf2`; integrated main `8a001b1c4d957dade0c887c5b3105af125ae60d3`; evidence `docs/milestone/m1/M1_PHASE4_EVIDENCE.md`; receipt `docs/milestone/m1/phase4/final_phase4_receipt.md`
 **Export sample / schema:** `s4.dataset-snapshot.v3`; canonical package and `receipt.json` defined in the Phase 4 evidence
 **Open blockers:** Owner UAT pending; live PostgreSQL qualification, Playwright/browser matrix, and 1920px inspection are `NOT_RUN`
 **Owner decisions:** Owner acceptance pending; hospital/workspace export authorization and negative-label expansion remain outside this candidate
