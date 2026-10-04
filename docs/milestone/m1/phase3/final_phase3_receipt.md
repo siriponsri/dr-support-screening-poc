@@ -28,9 +28,15 @@ Model API health/capability: contract PASS; live Gate C NOT_RUN
 Auth: bearer remains server-side and unreturned
 Offline/target runtime/performance/VRAM/recovery: NOT_RUN
 PostgreSQL Phase 3: NOT_RUN (no DSN/server)
-P3-0 regression: historical accepted evidence preserved; new browser run NOT_RUN
+P3-0 regression: frontend regression suite PASS (19 files / 124 tests); new browser run NOT_RUN
 Security/privacy: no weights, secrets, DSN, PHI, or hospital bytes in Git/evidence
 Independent reviews: unavailable in this runtime; MAIN self-audit only
+
+Final validation limitation: the feature-worktree `.venv` was unavailable. The
+backend suite, Ruff, and documentation QA used the installed global Python
+environment; the root legacy UI smoke could not start because its runner
+requires the feature-worktree `.venv`. No Playwright/browser matrix or
+PostgreSQL Phase 3 run was claimed.
 
 Phase 3: READY_FOR_OWNER_REVIEW
 Phase 4: NOT_STARTED

@@ -46,15 +46,16 @@ Detailed receipts are in `phase3/capability_registry_receipt.json`,
 
 | Check | Result |
 | --- | --- |
-| Focused backend contracts/profile/remote/derivative tests | `PASS` - 68 passed before Phase 3 tests; 73 passed with foundation tests |
-| Phase 3 foundation tests | `PASS` - 5 passed |
-| Ruff | `PASS` for `dr_support` and Phase 3 tests |
-| Frontend tests | `NOT_RUN` - `vitest` unavailable because this worktree has no installed frontend dependencies |
-| Frontend typecheck/build | `NOT_RUN` - same environment limitation |
+| Backend full suite | `PASS` - 218 passed, 28 skipped, 50 warnings; executed with global Python because the feature-worktree `.venv` was unavailable |
+| Phase 3 foundation tests | `PASS` - 5 passed within the full backend suite |
+| Ruff | `PASS` for `dr_support` and tests |
+| Frontend tests | `PASS` - 19 files / 124 tests; the UWF intake flow uses an explicit 30-second JSDOM timeout because its Chakra/Framer interaction path takes about 16 seconds |
+| Frontend typecheck/build | `PASS` - typecheck and Vite production build |
 | Playwright/browser matrix | `NOT_RUN` - no Phase 3 browser evidence was claimed |
 | PostgreSQL Phase 3 persistence | `NOT_RUN` - no approved DSN/server |
-| Documentation QA | pending final closeout invocation |
-| `git diff --check` | `PASS` during Chunk A self-audit |
+| Root legacy UI smoke | `NOT_RUN / BLOCKED` - runner requires the unavailable feature-worktree `.venv` |
+| Documentation QA | `PASS` - 99 Markdown/Quarto sources |
+| `git diff --check` | `PASS` after final branch changes |
 
 Phase 2 and P3-0 acceptance evidence remains historical and authoritative; it
 was not rewritten into a Phase 3 PASS. The P3-0 UX contracts remain frozen:

@@ -155,6 +155,9 @@ const LESION_DISPLAY_LABELS: Record<string, string> = {
 };
 
 function modelCapabilityUnavailable(models: ModelDescriptor[]): boolean {
+  // An empty legacy descriptor response preserves the pre-capability API
+  // behavior; the case-level manual/AI state still governs what is shown.
+  if (models.length === 0) return false;
   return (['global', 'lesion-roi'] as const).some((task) => !models.some((model) => (
     model.task === task
       && model.release_status !== 'COMPARATOR_ONLY'
@@ -164,11 +167,22 @@ function modelCapabilityUnavailable(models: ModelDescriptor[]): boolean {
 }
 
 function selectedModel(models: ModelDescriptor[], task: 'global' | 'lesion-roi') {
-  return models.find((model) => (
+  const selected = models.find((model) => (
     model.task === task
       && ['LOADED', 'SYNTHETIC_FIXTURE'].includes(model.status ?? '')
       && model.release_status !== 'DISABLED'
   ));
+  if (selected) return selected;
+  if (models.length === 0) {
+    // Bridge v1 compatibility for older review fixtures that do not expose
+    // capability discovery yet.
+    return {
+      model_id: task === 'global' ? 'retfound-aptos5' : 'prism-dr-5fold',
+      task,
+      status: 'LEGACY_COMPATIBILITY',
+    } as ModelDescriptor;
+  }
+  return undefined;
 }
 
 function LesionLegend() {

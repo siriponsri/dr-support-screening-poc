@@ -29,6 +29,7 @@ beforeAll(() => {
 
   // Chakra Menu focuses its list with scrollTo; jsdom does not implement it.
   (Element.prototype as Element & { scrollTo: () => void }).scrollTo = () => {};
+  (window as Window & { scrollTo: () => void }).scrollTo = () => {};
 });
 
 afterEach(() => {
