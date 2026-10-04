@@ -1,5 +1,21 @@
 # Release Checklist
 
+This checklist covers release-engineering evidence. A package marked ready here
+is not production, clinical, hospital-data, model, or training authorization.
+
+## No-code package gates
+
+- [ ] `FIRST_RUN.bat`, `START_DR_SCREENING.bat`, `STOP_DR_SCREENING.bat`, and
+      `CHECK_SYSTEM.bat` work from an extracted workstation package.
+- [ ] Workstation package includes a prebuilt `frontend/dist` and normal users
+      do not run npm commands.
+- [ ] Model API package contains software/contracts only; no weights, secrets,
+      databases, patient data, or runtime state.
+- [ ] `RELEASE_MANIFEST.json` records source version/commit and
+      `SHA256SUMS.txt` is verified after package creation.
+- [ ] USPEC artifact manifest records expected identity only; acquisition and
+      runtime qualification remain deferred.
+
 ## Product tree
 
 - [ ] README describes the current product and links resolve.

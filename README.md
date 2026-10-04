@@ -21,7 +21,12 @@ This project supports public or approved synthetic research and clinical-support
 
 **Requirements:** Windows 10 or 11, Git, and approved internet access for the initial setup. The supported setup does not require machine-wide Administrator access or a workstation GPU. Model serving is a separate optional deployment.
 
-Open PowerShell in a folder where the repository should live:
+For the no-code workstation release, extract `DR-Screening-Workstation-<version>.zip`
+and follow [README_START_HERE.md](README_START_HERE.md): run `FIRST_RUN.bat` once,
+then use `START_DR_SCREENING.bat`, `CHECK_SYSTEM.bat`, and
+`STOP_DR_SCREENING.bat`. Normal workstation use does not require npm commands.
+
+For a developer checkout, open PowerShell in a folder where the repository should live:
 
 ```powershell
 git clone https://github.com/siriponsri/dr-support-screening-poc.git
@@ -104,4 +109,9 @@ The frontend commands cover browser code and type checks; the root `npm.cmd test
 | `docs/` | Clinician, operator, developer, and dataset guides |
 | `DESIGN.md` | Accepted visual and interaction rules |
 
-The [documentation portal](docs/README.md) lists the canonical guides. Use approved public or synthetic examples in tests and documentation. Never commit protected health information, secrets, credentials, model weights, runtime databases, or `local-state/` contents. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).
+The [documentation portal](docs/README.md) lists current operating guides first.
+Milestone specifications and receipts under `docs/milestone/` preserve historical
+evidence and are not a substitute for the current operating guides. Use approved
+public or synthetic examples in tests and documentation. Never commit protected
+health information, secrets, credentials, model weights, runtime databases, or
+`local-state/` contents. See [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md).

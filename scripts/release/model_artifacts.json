@@ -1,0 +1,8 @@
+{
+  "model_id": "uspec-uwf-grading",
+  "artifact": "grading_state.pt",
+  "expected_bytes": 1213535294,
+  "expected_sha256": "8f07eb11859f638faee368a56c7c532ca946fee320f92f030a0cf25c63b769ac",
+  "status": "IDENTITY_ONLY_NOT_ACQUIRED",
+  "policy": "Do not download, include, load, or infer with this artifact in the release package."
+}

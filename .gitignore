@@ -23,3 +23,7 @@ server_*.log
 
 # Generated documentation site
 dist/
+
+# Local release staging and archives
+local-state/release/
+release-artifacts/

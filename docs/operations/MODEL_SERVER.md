@@ -2,6 +2,21 @@
 
 # Model Server
 
+## Release-package boundary
+
+The no-code workstation release has a separate contract-only Model API
+package. Its `scripts/release/model-api-start.sh` helper deliberately exits
+`BLOCKED`; `model-api-health.sh` reports `NOT_RUN`; and
+`model-api-verify.sh` checks only software/identity boundaries. Those helpers
+do not download or load weights. The package records the expected USPEC
+`grading_state.pt` identity without acquiring it. P3.1 Runtime Qualification /
+Model Host Qualification remains deferred and non-blocking.
+
+The existing `scripts/model-server/setup.sh` and `start.sh` flow below is the
+separate later GPU-host deployment path. It is not included in the current
+contract-only release archive and must not be treated as executed evidence for
+this release.
+
 The Model API is the hospital-side inference service. Bridge v1 remains the
 legacy provider-neutral contract. Phase 3 adds an additive, versioned v2
 context/result contract and capability discovery; neither contract adds MRI,

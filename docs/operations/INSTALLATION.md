@@ -20,6 +20,14 @@ clean clone -> SETUP.cmd -> START.cmd -> browser opens
 
 `SETUP.cmd` bootstraps `uv` when needed, provisions project-managed Python 3.12, installs workstation dependencies, uses compatible system Node.js or an official no-admin Node.js fallback under ignored `local-state/tools/`, installs the lockfile-defined npm dependencies, and builds the frontend once. Use `SETUP.cmd --dev` to add test/DICOM/browser extras. Use `SETUP.cmd --check` for a read-only diagnostic.
 
+## No-code release path
+
+For a packaged workstation, use `README_START_HERE.md` and the root
+`FIRST_RUN.bat`, `START_DR_SCREENING.bat`, `CHECK_SYSTEM.bat`, and
+`STOP_DR_SCREENING.bat` files. `FIRST_RUN.bat` provisions Python dependencies
+but requires the release's prebuilt `frontend/dist`; normal startup never runs
+npm or rebuilds the frontend. `SETUP.cmd` remains the developer-checkout path.
+
 `START.cmd` sets the safe workstation invariants (`APP_PROFILE=review`, `MODEL_RUNTIME=remote`, `HOST=127.0.0.1`, `PORT=8000`, `WORKERS=1`), reuses a healthy managed process, rebuilds only when the frontend signature is stale, waits for `/health`, and opens `/app/`. It does not reinstall dependencies on daily starts. `OPEN_APP.cmd` opens or delegates to `START.cmd`; `STOP.cmd` stops only the process recorded in `local-state/run/workstation.json`.
 
 Logs and runtime metadata are under ignored `local-state/logs/`, `local-state/run/`, and `local-state/setup/`. A port-8000 conflict is reported with process information and is never killed automatically. Private `.env` values such as `REMOTE_MODEL_URL` and `REMOTE_MODEL_TOKEN` are loaded without being printed; launcher role variables are forced to the safe workstation values.
