@@ -4,7 +4,7 @@
 **Document revision:** Execution r3.0  
 **Prepared:** 2026-10-04  
 **Document status:** `OWNER_DIRECTED_EXECUTION_SPEC`  
-**Implementation status:** `NOT_STARTED`  
+**Implementation status:** `READY_FOR_OWNER_REVIEW` (execution receipt recorded; owner acceptance pending)  
 **Repository:** `siriponsri/dr-support-screening-poc`  
 **Authoritative repository baseline:** `50cf7124ec95c56b9821d34e57141a1d8d3919a4`  
 **Phase 1:** `DONE`  
@@ -321,7 +321,8 @@ Current PyTorch security advisory GHSA-63cw-57p8-fm3p reports affected PyTorch v
 
 Historical r2.2 already required a pre-deserialization security gate.
 
-**Decision:** no Phase 3 checkpoint may be loaded merely because `pip install -e .[models]` succeeds.
+**Decision:** no Phase 3 checkpoint may be loaded merely because the optional
+model dependencies install successfully.
 
 Phase 3 must qualify a dedicated Model API runtime and exact transitive loader paths before first load.
 

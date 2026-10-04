@@ -1,0 +1,91 @@
+# M1 Phase 3 Execution Evidence
+
+**Execution revision:** r3.0
+**Execution date:** 2026-10-04
+**Starting SHA:** `50cf7124ec95c56b9821d34e57141a1d8d3919a4`
+**Current execution state:** `READY_FOR_OWNER_REVIEW`
+
+This receipt records the bounded Phase 3 execution against the owner-directed
+`M1_PHASE3_EXECUTION_R3.md`. It does not mark Phase 3 `DONE` and does not
+authorize production/clinical deployment, hospital-data use, native UWF model
+qualification, or Phase 4 work.
+
+## Integrated foundation
+
+Chunk A is integrated in feature commit `8830608`:
+
+- Bridge v1 remains strict and unchanged; Phase 3 adds a versioned `bridge.v2` context/result envelope.
+- Capability discovery is deterministic and separates provider identity, artifact, runtime, domain, rights, and release status.
+- `/v1/models` retains the legacy response shape; `/v1/capabilities` exposes the full registry, including blocked/deferred capabilities.
+- Model Gateway accepts a valid capability descriptor set without requiring the historical RETFound/PRISM pair.
+- Remote capability construction preserves specialized legacy providers and supports task-declared generic providers.
+- `PUBLIC` and `SYNTHETIC` are the only origins allowed across the current Model API lane. `WORKSPACE` and `UNKNOWN` remain blocked.
+- Review inference history records invocation, capability, source/analysis hashes, transform, request revision, raw result, and status.
+- Duplicate invocation IDs do not create duplicate authoritative runs. Stale runs are retained as `STALE_RESULT` and cannot replace a current projection or human decision.
+- Review and Models & Audit select/display capability metadata without adding a model-debug console to the primary workflow. Raw outputs are described as model scores, not calibrated probabilities.
+
+## Capability terminal states
+
+| Capability | Artifact | Runtime/API | Domain | Rights/clinical | Release |
+| --- | --- | --- | --- | --- | --- |
+| USPEC UWF grading | `BLOCKED_ARTIFACT`; expected identity recorded, observed bytes unavailable | contract `PASS`; load/fixture/live API `NOT_RUN` | `UWF_RESEARCH_CANDIDATE` | rights `UNVERIFIED`; clinical validation not established | `DISABLED` |
+| RETFound CFP grading | historical/provider identity preserved | legacy contract regression `PASS`; target runtime not requalified here | `CFP_DOMAIN`, not UWF validated | research/non-commercial and no clinical claim | `RESEARCH_ONLY` |
+| PRISM CFP localization | historical 21/21 byte evidence preserved; no new load | legacy contract regression `PASS`; target runtime not requalified here | `CFP_DOMAIN`, not UWF validated | academic-use review required; no clinical claim | `COMPARATOR_ONLY` |
+| Native UWF lesion localization | no qualified candidate | `NOT_PRESENT` | `DEFERRED_NO_QUALIFIED_CANDIDATE` | not established | `DEFERRED` |
+| Longitudinal change | no model | `DISABLED` | not established | not established | `DISABLED` |
+| MONAI | framework-only evaluation | no runtime adoption | not a model qualification | no wrapped-model rights transfer | `EVALUATED_DEFERRED` |
+| Clef/Clef-Flash | comparator not run | resource/runtime receipt absent | not validated for UWF | not established | `COMPARATOR_ONLY` / deferred |
+
+Detailed receipts are in `phase3/capability_registry_receipt.json`,
+`phase3/artifact_receipt.md`, `phase3/security_runtime_receipt.md`,
+`phase3/monai_decision.md`, `phase3/comparator_decision.md`, and
+`phase3/performance_profile.md`.
+
+## Validation evidence
+
+| Check | Result |
+| --- | --- |
+| Focused backend contracts/profile/remote/derivative tests | `PASS` - 68 passed before Phase 3 tests; 73 passed with foundation tests |
+| Phase 3 foundation tests | `PASS` - 5 passed |
+| Ruff | `PASS` for `dr_support` and Phase 3 tests |
+| Frontend tests | `NOT_RUN` - `vitest` unavailable because this worktree has no installed frontend dependencies |
+| Frontend typecheck/build | `NOT_RUN` - same environment limitation |
+| Playwright/browser matrix | `NOT_RUN` - no Phase 3 browser evidence was claimed |
+| PostgreSQL Phase 3 persistence | `NOT_RUN` - no approved DSN/server |
+| Documentation QA | pending final closeout invocation |
+| `git diff --check` | `PASS` during Chunk A self-audit |
+
+Phase 2 and P3-0 acceptance evidence remains historical and authoritative; it
+was not rewritten into a Phase 3 PASS. The P3-0 UX contracts remain frozen:
+one-primary-action, image-first hierarchy, compact/progressive annotation
+controls, hidden backend terminology, optional Advanced behavior, compact
+reviewer treatment, color-role separation, responsive/accessibility baseline,
+and manual AI-off operation.
+
+## Security, privacy, and scientific limitations
+
+- No weights, secrets, bearer tokens, DSNs, PHI, or runtime databases were added to Git.
+- No checkpoint was loaded under the legacy optional PyTorch environment.
+- No hospital-origin bytes were sent to a model endpoint; no hospital-data authorization was inferred.
+- Raw score/confidence fields remain compatibility data and are not presented as calibrated clinical probabilities.
+- CFP providers are not promoted to native UWF models. Empty lesion output is not a negative finding, and attention evidence is not lesion localization.
+- Historical external package evidence remains historical; it does not establish runtime, L4, clinical, rights, or production readiness.
+- Reviewer account independence is unavailable in this runtime; all Phase 3 review activity here is MAIN self-audit, not independent review.
+
+## Reviews and owner decisions
+
+Independent Chunk A/B/C/D reviews: `NOT_RUN / unavailable in this runtime`.
+This is reported explicitly rather than simulated. Owner decisions remain
+pending for artifact access/trust, exact loader security, target-host profile,
+live Model API Gate C, UWF release policy, rights, and clinical validation.
+
+## Authoritative phase state
+
+```text
+Phase 1 = DONE
+Phase 2 = DONE
+P3-0 = DONE / UX FREEZE ACCEPTED
+Phase 3 = READY_FOR_OWNER_REVIEW
+Phase 4 = NOT_STARTED
+Phase 5 = NOT_STARTED
+```

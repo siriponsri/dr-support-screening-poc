@@ -21,7 +21,7 @@
    - no redirects;
    - responses are validated against the result schemas.
 6. Lesion boxes are mapped back to original-image pixels (`map_lesion_result_to_review`).
-7. `save_result` stores the raw result and the `analysis_derivative` audit record, and appends an `INFERENCE` event with `source_sha256`, `analysis_sha256`, `transform_id`, runtime, and latency. A new **global** result resets the grade decision to `PENDING` so that a stale human grade never sits beside a new suggestion.
+7. `save_result` stores the raw result and the `analysis_derivative` audit record, and appends an `INFERENCE` event with `invocation_id`, capability, `source_sha256`, `analysis_sha256`, `transform_id`, request revision, runtime, and latency. Results are also retained in append-only `inference_history`; duplicate invocation IDs are idempotent and stale results are recorded without changing the current projection. A later AI result never resets a confirmed human grade or human annotation state.
 
 Errors are mapped to plain HTTP codes: `503` (remote not configured), `504` (timeout), `502` (remote error), `409` / `413` (derivative problems).
 
