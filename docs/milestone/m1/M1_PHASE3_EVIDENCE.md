@@ -53,7 +53,7 @@ Detailed receipts are in `phase3/capability_registry_receipt.json`,
 | Frontend typecheck/build | `PASS` - typecheck and Vite production build |
 | Playwright/browser matrix | `NOT_RUN` - no Phase 3 browser evidence was claimed |
 | PostgreSQL Phase 3 persistence | `NOT_RUN` - no approved DSN/server |
-| Root legacy UI smoke | `NOT_RUN / BLOCKED` - runner requires the unavailable feature-worktree `.venv` |
+| Root legacy UI smoke | `NOT_RUN / BLOCKED` - the runner starts with the available `main` `.venv`, but the ten public HRF sample files required for its historical 11-row DOM assertion are not present; this remains a historical fixture limitation, not a fabricated PASS |
 | Documentation QA | `PASS` - 99 Markdown/Quarto sources |
 | `git diff --check` | `PASS` after final branch changes |
 
