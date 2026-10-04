@@ -6,6 +6,7 @@ Feature candidate SHA: 1dca82d8cb6818f5457c85d928772190be816bf2
 Integrated main SHA: 8a001b1c4d957dade0c887c5b3105af125ae60d3
 Final evidence SHA: d09d748a2a1ad20ac97a962e80f364e036a36fa7
 Corrected current main SHA: 85c4325b5fab87925ef3c1e877c5ff6aefc9c57e
+Final documentation closeout SHA: 60300dfff4911385b20e3a0c47b26a043fda51fc
 
 Chunk A: PASS - policy, digest, authorization, grouping, completeness, and AI-contamination invariants
 Chunk B: PASS - PostgreSQL-aware read model, bounded Workspace Data API, detail projections, and UI
@@ -48,7 +49,7 @@ Follow-up correction evidence:
 
 Phase 4: READY_FOR_OWNER_REVIEW
 Phase 5: NOT_STARTED
-Git/main/origin status: synchronized at corrected current main candidate before documentation closeout
+Git/main/origin status: synchronized at final documentation closeout SHA; corrected implementation merge is 85c4325
 Project Brain status: refresh after documentation closeout
 ```
 

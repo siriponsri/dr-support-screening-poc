@@ -7,6 +7,7 @@
 **Integrated main SHA:** `8a001b1c4d957dade0c887c5b3105af125ae60d3`
 **Final evidence SHA:** `d09d748a2a1ad20ac97a962e80f364e036a36fa7` (historical r3.0 documentation evidence)
 **Corrected current main SHA:** `85c4325b5fab87925ef3c1e877c5ff6aefc9c57e`
+**Final documentation closeout SHA:** `60300dfff4911385b20e3a0c47b26a043fda51fc`
 **Current state:** `READY_FOR_OWNER_REVIEW`
 
 This document records the Phase 4 execution candidate against the owner-directed
