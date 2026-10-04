@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from threading import RLock
 from typing import Any
 
@@ -86,6 +87,30 @@ class PostgresCaseStore:
                 self._observed[case_id] = _serialized_payload(dict(raw_case))
                 cases.append(case)
             return cases
+
+    @contextmanager
+    def repeatable_read_cases(self):
+        """Materialize one short-lived PostgreSQL read-only snapshot."""
+        with self.database.session(autocommit=False) as connection:
+            with connection.transaction():
+                connection.execute(
+                    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
+                )
+                rows = connection.execute(
+                    sql.SQL(
+                        "SELECT case_id, revision, payload FROM {}.review_cases "
+                        "WHERE workspace_id = %s ORDER BY case_id"
+                    ).format(self._schema),
+                    (self.workspace_id,),
+                ).fetchall()
+                cases = []
+                for case_id, stored_revision, raw_case in rows:
+                    case = apply_case_defaults(dict(raw_case))
+                    case["image_id"] = case_id
+                    case["revision"] = stored_revision
+                    self._observed[case_id] = _serialized_payload(dict(raw_case))
+                    cases.append(case)
+                yield cases
 
     def put(self, case: dict[str, Any]) -> None:
         """Persist a case with an atomic revision check across connections."""

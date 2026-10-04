@@ -576,6 +576,19 @@ export interface DatasetImageRow {
   lesion_training_ready?: boolean;
   lesion_eligibility_reason?: string;
   training_group_key?: string | null;
+  source_sha256?: string | null;
+  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'UNKNOWN';
+  source_available?: boolean;
+  source_integrity_status?: string | null;
+  export_authorization?: string;
+  core_completeness_state?: string;
+  advanced_completeness_state?: string;
+  negative_training_authorized?: boolean;
+  negative_eligibility_reason?: string;
+  case_revision?: number;
+  visit_evidence_state?: string;
+  ai_evidence_status?: string;
+  lesion_positive_training_ready?: boolean;
 }
 
 export interface DatasetAnnotationRow {
@@ -632,6 +645,59 @@ export interface DatasetExportResponse {
   annotation_count: number;
   training_ready_count: number;
   files: string[];
+}
+
+export interface WorkspaceDataResponse {
+  schema_version: string;
+  workspace_id: string | null;
+  workspace_name: string | null;
+  page: number;
+  limit: number;
+  total: number;
+  has_next: boolean;
+  source_state_digest: string | null;
+  source_state_digest_version: string;
+  source_origin_summary: Record<string, number>;
+  export_authorization_summary: Record<string, number>;
+  records: DatasetImageRow[];
+}
+
+export interface WorkspaceDataDetail {
+  schema_version: string;
+  workspace_id: string | null;
+  workspace_name: string | null;
+  source_state_digest: string;
+  record: DatasetImageRow;
+  review_milestones: Record<string, { status?: string | null; reviewer?: string | null; timestamp?: string | null; provenance?: string | null; hash?: string | null; action?: string | null }>;
+  completeness: Array<{ group: string; state: string; reviewer?: string | null; timestamp?: string | null; taxonomy_version?: string | null; negative_training_authorized: boolean; negative_eligibility_reason: string }>;
+  gold_label_counts: { dr_grade: number; lesion_positive: number; lesion_negative: number };
+  ai_evidence_counts: { items: number; unresolved: number };
+  processing: Record<string, unknown>;
+  explainability: { status: string; evidence_identity?: string | null; note?: string; ai_evidence?: unknown };
+}
+
+export interface DatasetSnapshotPreview {
+  schema_version: string;
+  workspace_id: string | null;
+  workspace_name: string | null;
+  source_state_digest: { digest: string; case_count: number };
+  case_count: number;
+  row_counts: Record<string, number>;
+  source_origin_summary: Record<string, number>;
+  export_authorization_summary: Record<string, number>;
+  blocked_record_count: number;
+  negative_policy_version: string;
+  can_export: boolean;
+}
+
+export interface DatasetSnapshotResponse {
+  schema_version: string;
+  snapshot_id: string;
+  workspace_id: string;
+  workspace_name: string;
+  directory_name: string;
+  manifest: Record<string, unknown>;
+  receipt: Record<string, unknown>;
 }
 
 export interface GroupedGradeExportResponse {
@@ -757,6 +823,17 @@ export const annotationCompletenessApi = {
 export const datasetApi = {
   manifest: () => apiJson<DatasetManifestResponse>('/v1/dataset/manifest?include_annotations=false'),
   export: () => apiJson<DatasetExportResponse>('/v1/dataset/export', jsonRequest({ method: 'POST' })),
+  workspaceData: (params: { page: number; limit: number; readiness: string; laterality?: string; modality?: string; sourceOrigin?: string; q?: string }) => {
+    const query = new URLSearchParams({ page: String(params.page), limit: String(params.limit), readiness: params.readiness });
+    if (params.laterality) query.set('laterality', params.laterality);
+    if (params.modality) query.set('modality', params.modality);
+    if (params.sourceOrigin) query.set('source_origin', params.sourceOrigin);
+    if (params.q) query.set('q', params.q);
+    return apiJson<WorkspaceDataResponse>(`/v2/workspace-data/records?${query.toString()}`);
+  },
+  workspaceDataDetail: (imageId: string) => apiJson<WorkspaceDataDetail>(`/v2/workspace-data/records/${encodeURIComponent(imageId)}`),
+  snapshotPreview: () => apiJson<DatasetSnapshotPreview>('/v2/dataset/snapshot/preview'),
+  snapshot: () => apiJson<DatasetSnapshotResponse>('/v2/dataset/snapshot', jsonRequest({ method: 'POST' })),
   exportGrouped: (imageFormat: 'PNG' | 'JPEG', jpegQuality: number) => apiJson<GroupedGradeExportResponse>(
     '/v1/dataset/export/grouped-by-grade',
     jsonRequest({ method: 'POST', body: JSON.stringify({ image_format: imageFormat, jpeg_quality: jpegQuality }) }),

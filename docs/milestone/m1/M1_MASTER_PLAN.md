@@ -10,7 +10,7 @@
 **Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; unresolved optional items follow the Phase 2 safe-defer boundary in §24.
 **Primary repository:** `siriponsri/dr-support-screening-poc`
 
-**Current reading guide (closeout r3.0):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29, Phase 2 `DONE` on 2026-10-03, P3-0 `DONE / UX FREEZE ACCEPTED` on 2026-10-04, and Phase 3 `DONE / OWNER_ACCEPTED` on 2026-10-04 based on the recorded execution evidence and owner acceptance. Phase 3 terminal capability states remain limited as recorded; P3.1 runtime/model-host qualification is deferred and non-blocking for Phase 4. This does not authorize production, hospital-data use, clinical/model semantic changes, or Phase 4 implementation.
+**Current reading guide (closeout r3.0):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29, Phase 2 `DONE` on 2026-10-03, P3-0 `DONE / UX FREEZE ACCEPTED` on 2026-10-04, and Phase 3 `DONE / OWNER_ACCEPTED` on 2026-10-04 based on the recorded execution evidence and owner acceptance. Phase 3 terminal capability states remain limited as recorded; P3.1 runtime/model-host qualification is deferred and non-blocking for Phase 4. Phase 4 is now `READY_FOR_OWNER_REVIEW` at the recorded execution candidate, with live PostgreSQL/browser/UAT qualification explicitly not claimed. This does not authorize production, hospital-data use, clinical/model semantic changes, hospital export, or Phase 5 implementation.
 
 ---
 
@@ -896,14 +896,14 @@ Turn reviewed PostgreSQL data into transparent, queryable, exportable, training-
 
 ## Phase 4 status tracker
 
-**Status:** `NOT_STARTED`
-**Start date:**
+**Status:** `READY_FOR_OWNER_REVIEW`
+**Start date:** 2026-10-04
 **Completion date:**
-**Reviewed by:**
-**Evidence / commit(s):**
-**Export sample / schema:**
-**Open blockers:**
-**Owner decisions:**
+**Reviewed by:** MAIN self-audit; independent review unavailable in this runtime
+**Evidence / commit(s):** Feature candidate `398098955494193ffe5b64b5d85691173b36a179`; evidence candidate `docs/milestone/m1/M1_PHASE4_EVIDENCE.md`; receipt candidate `docs/milestone/m1/phase4/final_phase4_receipt.md`; integration pending
+**Export sample / schema:** `s4.dataset-snapshot.v3`; canonical package and `receipt.json` defined in the Phase 4 evidence
+**Open blockers:** Owner UAT pending; live PostgreSQL qualification, Playwright/browser matrix, and 1920px inspection are `NOT_RUN`
+**Owner decisions:** Owner acceptance pending; hospital/workspace export authorization and negative-label expansion remain outside this candidate
 
 ---
 
@@ -1122,8 +1122,8 @@ Update this table after each phase review.
 | 0 | Baseline & Scope Freeze | `NOT_STARTED` |  |  |
 | 1 | Data Foundation & PostgreSQL | `DONE` | Owner-approved implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c`; detailed receipt in `docs/milestone/m1/M1_PHASE1_POSTGRES.md` | Public/synthetic-only scope; accepted UI/documentation validation limitations remain; Phase 2 not started |
 | 2 | UWF Labeling Workflow | `DONE` | Chunk A `6bfa782`; Chunk B `6c33255`; final integrated implementation `bde3e67`; full validation, accepted UAT, and limitations recorded in §10 | Owner-approved 2026-10-03; Advanced taxonomy/geometry and native UWF model capabilities remain safely deferred |
-| 3 | AI Models & Model API Integration | `NOT_STARTED` |  | Native UWF work may use explicit CFP fallback temporarily |
-| 4 | Dataset & Review Tools | `NOT_STARTED` |  |  |
+| 3 | AI Models & Model API Integration | `DONE / OWNER_ACCEPTED` | Integrated implementation/evidence recorded in Phase 3 closeout; P3.1 runtime qualification remains deferred/non-blocking | Terminal model/runtime states and limitations preserved |
+| 4 | Dataset & Review Tools | `READY_FOR_OWNER_REVIEW` | Feature candidate `3980989`; evidence/receipt in `docs/milestone/m1/M1_PHASE4_EVIDENCE.md` and `docs/milestone/m1/phase4/final_phase4_receipt.md` | Owner UAT pending; live PostgreSQL/browser qualification not run |
 | 5 | End-to-End Validation & M1 Review | `NOT_STARTED` |  |  |
 
 ---
