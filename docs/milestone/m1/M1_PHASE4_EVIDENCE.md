@@ -5,13 +5,21 @@
 **Starting SHA:** `80e7460252518a63c88f4ae7d73fb6f0bb5a4d37`  
 **Feature candidate SHA:** `1dca82d8cb6818f5457c85d928772190be816bf2`
 **Integrated main SHA:** `8a001b1c4d957dade0c887c5b3105af125ae60d3`
-**Final evidence SHA:** `d09d748a2a1ad20ac97a962e80f364e036a36fa7`
+**Final evidence SHA:** `d09d748a2a1ad20ac97a962e80f364e036a36fa7` (historical r3.0 documentation evidence)
+**Corrected current main SHA:** `efef25bfa3992e2271f7f24add3b38b75e78b3a4`
 **Current state:** `READY_FOR_OWNER_REVIEW`
 
 This document records the Phase 4 execution candidate against the owner-directed
 `M1_PHASE4_EXECUTION_R3.md`. It is an implementation/evidence candidate, not
 owner acceptance. Phase 4 does not authorize training, hospital-data export,
 production/clinical deployment, model qualification, or Phase 5.
+
+The original r3.0 candidate and integrated-main evidence remain historical. Before
+owner review, two bounded corrections were integrated into the synchronized main
+candidate `efef25b`: imported lesion readiness now remains independent of DR-grade
+readiness, and the legacy v1 manifest/grouped export compatibility paths enforce
+the same `PUBLIC`/`SYNTHETIC` engineering authorization boundary as the canonical
+Phase 4 snapshot path.
 
 ## Implemented scope
 
@@ -61,10 +69,10 @@ Coordinate system: original_image_pixels
 
 | Check | Result |
 | --- | --- |
-| Phase 4 focused backend tests | `PASS` - 6 passed |
-| Backend full suite | `PASS` - 224 passed, 28 skipped, 50 warnings |
+| Phase 4 focused backend tests | `PASS` - 23 passed, 2 warnings |
+| Backend full suite | `PASS` - 229 passed, 28 skipped, 50 warnings |
 | Ruff | `PASS` - `python -m ruff check dr_support tests` |
-| Frontend tests | `PASS` - 19 files / 124 tests |
+| Frontend tests | `PASS` - 19 files / 125 tests |
 | Frontend typecheck | `PASS` |
 | Frontend production build | `PASS` - existing large-chunk warning remains |
 | `git diff --check` | `PASS` |
@@ -93,6 +101,19 @@ were changed by Phase 4.
   unique snapshot identifier and a manifest/receipt containing row counts,
   source-state identity, authorization summaries, and file hashes.
 
+## Follow-up correction evidence
+
+- `20e5f6d` / merge `9d0ea21`: imported CVAT-confirmed lesion rows use the
+  lesion-readiness gate rather than the independent DR-case gate; regression
+  coverage includes an imported lesion with no final DR grade, blocked origins,
+  completeness-only reviewed-none handling, missing-source metadata, and the
+  snapshot AI-evidence row count.
+- `d7d980b` / merge `efef25b`: legacy `/v1/dataset/export` and
+  `/v1/dataset/export/grouped-by-grade` now reject `WORKSPACE` and `UNKNOWN`
+  origins, with regression coverage alongside the canonical snapshot block.
+- The frontend Datasets regression now explicitly opens the Processing tab before
+  asserting the recorded-evidence wording; no application UX behavior changed.
+
 ## Known limitations
 
 - Live PostgreSQL repeatable-read/concurrent-revision qualification is `NOT_RUN`
@@ -108,6 +129,8 @@ were changed by Phase 4.
 - No hospital-origin data, model weights, GPU/Tailscale host, training job, or
   production/clinical deployment was accessed or authorized.
 - P3.1 runtime/model-host qualification remains deferred and non-blocking.
+- The owner-review candidate has not been accepted yet; Phase 4 remains
+  `READY_FOR_OWNER_REVIEW`.
 
 ## Phase handoff
 

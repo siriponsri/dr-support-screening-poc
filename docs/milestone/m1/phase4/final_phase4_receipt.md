@@ -5,6 +5,7 @@ Starting SHA: 80e7460252518a63c88f4ae7d73fb6f0bb5a4d37
 Feature candidate SHA: 1dca82d8cb6818f5457c85d928772190be816bf2
 Integrated main SHA: 8a001b1c4d957dade0c887c5b3105af125ae60d3
 Final evidence SHA: d09d748a2a1ad20ac97a962e80f364e036a36fa7
+Corrected current main SHA: efef25bfa3992e2271f7f24add3b38b75e78b3a4
 
 Chunk A: PASS - policy, digest, authorization, grouping, completeness, and AI-contamination invariants
 Chunk B: PASS - PostgreSQL-aware read model, bounded Workspace Data API, detail projections, and UI
@@ -23,9 +24,9 @@ Snapshot consistency mechanism: short-lived PostgreSQL REPEATABLE READ READ ONLY
 Source-state digest: p4-source-state-v1, sorted case/revision/payload digest material
 Export receipt: receipt.json plus manifest file hashes and row counts
 
-Backend tests: PASS - 224 passed, 28 skipped, 50 warnings
+Backend tests: PASS - 229 passed, 28 skipped, 50 warnings
 Ruff: PASS
-Frontend tests: PASS - 19 files / 124 tests
+Frontend tests: PASS - 19 files / 125 tests
 Typecheck/build: PASS
 PostgreSQL Phase 4 live qualification: NOT_RUN - no approved DSN/server
 Browser matrix: NOT_RUN - no Playwright/browser run claimed
@@ -40,10 +41,14 @@ Known limitations:
 - Historical feature-worktree .venv/root-smoke limitations remain historical evidence.
 - No hospital-data export authorization, model qualification, GPU/Tailscale access, training, or production approval is implied.
 
+Follow-up correction evidence:
+- `20e5f6d` / merge `9d0ea21`: imported lesion readiness is independent of DR-grade readiness; focused regression evidence also covers blocked origins, completeness-only reviewed-none handling, missing source bytes, and preview AI-evidence counts.
+- `d7d980b` / merge `efef25b`: legacy compatibility export paths enforce the same blocked-origin authorization as the canonical snapshot endpoint.
+
 Phase 4: READY_FOR_OWNER_REVIEW
 Phase 5: NOT_STARTED
-Git/main/origin status: pending integration
-Project Brain status: refresh after integration
+Git/main/origin status: synchronized at corrected current main candidate before documentation closeout
+Project Brain status: refresh after documentation closeout
 ```
 
 Historical planning and prior phase evidence remain unchanged. This receipt is
