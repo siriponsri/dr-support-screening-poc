@@ -6,7 +6,7 @@
 **Feature candidate SHA:** `1dca82d8cb6818f5457c85d928772190be816bf2`
 **Integrated main SHA:** `8a001b1c4d957dade0c887c5b3105af125ae60d3`
 **Final evidence SHA:** `d09d748a2a1ad20ac97a962e80f364e036a36fa7` (historical r3.0 documentation evidence)
-**Corrected current main SHA:** `efef25bfa3992e2271f7f24add3b38b75e78b3a4`
+**Corrected current main SHA:** `85c4325b5fab87925ef3c1e877c5ff6aefc9c57e`
 **Current state:** `READY_FOR_OWNER_REVIEW`
 
 This document records the Phase 4 execution candidate against the owner-directed
@@ -15,11 +15,12 @@ owner acceptance. Phase 4 does not authorize training, hospital-data export,
 production/clinical deployment, model qualification, or Phase 5.
 
 The original r3.0 candidate and integrated-main evidence remain historical. Before
-owner review, two bounded corrections were integrated into the synchronized main
-candidate `efef25b`: imported lesion readiness now remains independent of DR-grade
-readiness, and the legacy v1 manifest/grouped export compatibility paths enforce
-the same `PUBLIC`/`SYNTHETIC` engineering authorization boundary as the canonical
-Phase 4 snapshot path.
+owner review, three bounded corrections were integrated into the synchronized main
+candidate `85c4325`: imported lesion readiness now remains independent of DR-grade
+readiness, the legacy v1 manifest/grouped export compatibility paths enforce the
+same `PUBLIC`/`SYNTHETIC` engineering authorization boundary as the canonical
+Phase 4 snapshot path, and canonical snapshot files are re-read and hash-verified
+after writing before a successful response is returned.
 
 ## Implemented scope
 
@@ -70,7 +71,7 @@ Coordinate system: original_image_pixels
 | Check | Result |
 | --- | --- |
 | Phase 4 focused backend tests | `PASS` - 23 passed, 2 warnings |
-| Backend full suite | `PASS` - 229 passed, 28 skipped, 50 warnings |
+| Backend full suite | `PASS` - 230 passed, 28 skipped, 50 warnings |
 | Ruff | `PASS` - `python -m ruff check dr_support tests` |
 | Frontend tests | `PASS` - 19 files / 125 tests |
 | Frontend typecheck | `PASS` |
@@ -111,6 +112,10 @@ were changed by Phase 4.
 - `d7d980b` / merge `efef25b`: legacy `/v1/dataset/export` and
   `/v1/dataset/export/grouped-by-grade` now reject `WORKSPACE` and `UNKNOWN`
   origins, with regression coverage alongside the canonical snapshot block.
+- `311cd84` / merge `85c4325`: canonical snapshot output re-reads each generated
+  data file and verifies its final SHA-256 before success; a mismatch removes the
+  partial snapshot and returns a structured failure. Regression coverage verifies
+  the cleanup behavior.
 - The frontend Datasets regression now explicitly opens the Processing tab before
   asserting the recorded-evidence wording; no application UX behavior changed.
 

@@ -5,7 +5,7 @@ Starting SHA: 80e7460252518a63c88f4ae7d73fb6f0bb5a4d37
 Feature candidate SHA: 1dca82d8cb6818f5457c85d928772190be816bf2
 Integrated main SHA: 8a001b1c4d957dade0c887c5b3105af125ae60d3
 Final evidence SHA: d09d748a2a1ad20ac97a962e80f364e036a36fa7
-Corrected current main SHA: efef25bfa3992e2271f7f24add3b38b75e78b3a4
+Corrected current main SHA: 85c4325b5fab87925ef3c1e877c5ff6aefc9c57e
 
 Chunk A: PASS - policy, digest, authorization, grouping, completeness, and AI-contamination invariants
 Chunk B: PASS - PostgreSQL-aware read model, bounded Workspace Data API, detail projections, and UI
@@ -24,7 +24,7 @@ Snapshot consistency mechanism: short-lived PostgreSQL REPEATABLE READ READ ONLY
 Source-state digest: p4-source-state-v1, sorted case/revision/payload digest material
 Export receipt: receipt.json plus manifest file hashes and row counts
 
-Backend tests: PASS - 229 passed, 28 skipped, 50 warnings
+Backend tests: PASS - 230 passed, 28 skipped, 50 warnings
 Ruff: PASS
 Frontend tests: PASS - 19 files / 125 tests
 Typecheck/build: PASS
@@ -44,6 +44,7 @@ Known limitations:
 Follow-up correction evidence:
 - `20e5f6d` / merge `9d0ea21`: imported lesion readiness is independent of DR-grade readiness; focused regression evidence also covers blocked origins, completeness-only reviewed-none handling, missing source bytes, and preview AI-evidence counts.
 - `d7d980b` / merge `efef25b`: legacy compatibility export paths enforce the same blocked-origin authorization as the canonical snapshot endpoint.
+- `311cd84` / merge `85c4325`: final generated snapshot files are re-read and SHA-256 verified before success; mismatches remove the partial snapshot and fail safely.
 
 Phase 4: READY_FOR_OWNER_REVIEW
 Phase 5: NOT_STARTED
