@@ -96,6 +96,45 @@ describe('Datasets page', () => {
     expect(screen.getByRole('button', { name: 'Export manifest' })).toBeDisabled();
   });
 
+  it('uses the bounded Workspace Data API and opens record audit details', async () => {
+    const user = userEvent.setup();
+    const record = {
+      ...manifest.images[0],
+      source_origin: 'SYNTHETIC',
+      source_available: true,
+      export_authorization: 'ALLOWED_ENGINEERING_SYNTHETIC',
+      dr_grade_training_ready: true,
+      lesion_positive_training_ready: true,
+      core_completeness_state: 'REVIEWED_FINDINGS_RECORDED',
+      advanced_completeness_state: 'NOT_REVIEWED',
+      case_revision: 4,
+    };
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
+      if (path === '/v1/dataset/manifest') return response(manifest);
+      if (path === '/v2/workspace-data/records') return response({
+        schema_version: 's4.workspace-data.v1', workspace_id: 'ws_demo', workspace_name: 'April DR Screening',
+        page: 1, limit: 25, total: 1, has_next: false, source_state_digest: 'd'.repeat(64),
+        source_state_digest_version: 'p4-source-state-v1', source_origin_summary: { SYNTHETIC: 1 },
+        export_authorization_summary: { ALLOWED_ENGINEERING_SYNTHETIC: 1 }, records: [record],
+      });
+      if (path === '/v2/workspace-data/records/sha-ready') return response({
+        schema_version: 's4.workspace-data-record.v1', workspace_id: 'ws_demo', workspace_name: 'April DR Screening',
+        source_state_digest: 'd'.repeat(64), record, review_milestones: {}, completeness: [],
+        gold_label_counts: { dr_grade: 1, lesion_positive: 1, lesion_negative: 0 },
+        ai_evidence_counts: { items: 1, unresolved: 0 },
+        processing: { status: 'UNAVAILABLE' }, explainability: { status: 'UNAVAILABLE' },
+      });
+      return response({ detail: `Unexpected request ${path}` }, 404);
+    });
+
+    withProviders(<DatasetsPage />, '/datasets');
+    expect(await screen.findByText('Digest dddddddddddd')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Details' }));
+    await user.click(await screen.findByRole('tab', { name: 'Processing' }));
+    expect(await screen.findByText('Processing details are recorded evidence only; Phase 4 does not recompute model results.')).toBeInTheDocument();
+  });
+
   it('keeps backend exception details out of the clinician surface', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       response({ detail: 'MISSING_PROVENANCE: C:\\private\\patient-records' }, 409),
