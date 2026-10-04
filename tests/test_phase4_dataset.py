@@ -1,6 +1,7 @@
 import hashlib
 import csv
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -270,6 +271,24 @@ def test_reviewed_none_is_completeness_only_and_receipt_hashes_files(tmp_path):
     app.state.store.put(case)
     assert client.post("/v2/dataset/snapshot").status_code == 409
     assert first_snapshot.is_dir()
+
+
+def test_snapshot_removes_partial_output_on_final_hash_mismatch(tmp_path, monkeypatch):
+    _app, client, output = _workspace_client(tmp_path)
+    original_write_bytes = Path.write_bytes
+
+    def tamper_records(path, data):
+        written = original_write_bytes(path, data)
+        if path.name == "records.csv":
+            original_write_bytes(path, b"tampered")
+        return written
+
+    monkeypatch.setattr(Path, "write_bytes", tamper_records)
+
+    response = client.post("/v2/dataset/snapshot")
+
+    assert response.status_code == 409
+    assert list(output.glob("dataset-snapshot-*")) == []
 
 
 def test_missing_source_keeps_workspace_metadata_and_blocks_only_bytes(tmp_path):
