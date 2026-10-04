@@ -1,21 +1,21 @@
 # DR Screening M1 — Phase 3 Execution r3.0
 ## AI Models, Model API, Qualification, MONAI Evaluation, and Research Comparators
 
-**Document revision:** Execution r3.0  
-**Prepared:** 2026-10-04  
-**Document status:** `OWNER_DIRECTED_EXECUTION_SPEC`  
-**Implementation status:** `READY_FOR_OWNER_REVIEW` (execution receipt recorded; owner acceptance pending)  
-**Repository:** `siriponsri/dr-support-screening-poc`  
-**Authoritative repository baseline:** `50cf7124ec95c56b9821d34e57141a1d8d3919a4`  
-**Phase 1:** `DONE`  
-**Phase 2:** `DONE`  
-**P3-0 Clinical UX & Design System Freeze:** `DONE / UX FREEZE ACCEPTED`  
-**Phase 3:** `NOT_STARTED`  
-**Phase 4:** `NOT_STARTED`  
+**Document revision:** Execution r3.0
+**Prepared:** 2026-10-04
+**Document status:** `OWNER_DIRECTED_EXECUTION_SPEC`
+**Implementation status:** `READY_FOR_OWNER_REVIEW` (execution receipt recorded; owner acceptance pending)
+**Repository:** `siriponsri/dr-support-screening-poc`
+**Authoritative repository baseline:** `50cf7124ec95c56b9821d34e57141a1d8d3919a4`
+**Phase 1:** `DONE`
+**Phase 2:** `DONE`
+**P3-0 Clinical UX & Design System Freeze:** `DONE / UX FREEZE ACCEPTED`
+**Phase 3:** `NOT_STARTED`
+**Phase 4:** `NOT_STARTED`
 **Phase 5:** `NOT_STARTED`
 
-**Supersedes for execution:** `docs/milestone/m1/M1_PHASE3_MODELS_MODEL_API.md` Candidate r2.2 as the active Phase 3 execution plan.  
-**Historical r2.2 remains evidence:** do not delete or rewrite its historical claims/evidence.  
+**Supersedes for execution:** `docs/milestone/m1/M1_PHASE3_MODELS_MODEL_API.md` Candidate r2.2 as the active Phase 3 execution plan.
+**Historical r2.2 remains evidence:** do not delete or rewrite its historical claims/evidence.
 **Execution name:** `M1 Phase 3 — Qualified AI Assistance and Model API`
 
 > Phase 3 introduces and qualifies AI assistance behind the already-frozen clinician workstation. The model must adapt to the Phase 2/P3-0 clinical, persistence, provenance, and UX contracts. The clinician workflow must not become more complicated merely because more model outputs become available.

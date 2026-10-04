@@ -1,14 +1,14 @@
 # DR Screening — Milestone 1 Master Plan
 
-**Document path in repository:** `docs/milestone/m1/M1_MASTER_PLAN.md`  
-**Document revision:** Closeout r2.9 (Phase 3 execution receipt)  
+**Document path in repository:** `docs/milestone/m1/M1_MASTER_PLAN.md`
+**Document revision:** Closeout r2.9 (Phase 3 execution receipt)
 **Prepared:** 2026-09-29
 **Document status:** `OWNER_APPROVED_CLOSEOUT`
 **Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted), Phase 2 `DONE` (owner-approved on 2026-10-03 after UAT; independent O1 review/self-audit and final integrated evidence accepted), P3-0 `DONE / UX FREEZE ACCEPTED` (owner UAT PASS on 2026-10-04), and Phase 3 `READY_FOR_OWNER_REVIEW` (execution receipt recorded on 2026-10-04); see the phase trackers, which are independent of later-phase authorization.
 **Source baseline commit:** `20726efcb8aa6ce857eb9b8537810fea5175b42e`
-**Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.  
+**Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.
 **Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; unresolved optional items follow the Phase 2 safe-defer boundary in §24.
-**Primary repository:** `siriponsri/dr-support-screening-poc`  
+**Primary repository:** `siriponsri/dr-support-screening-poc`
 
 **Current reading guide (closeout r2.9):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29, Phase 2 `DONE` on 2026-10-03, and P3-0 `DONE / UX FREEZE ACCEPTED` on 2026-10-04 based on the recorded implementation/evidence, accepted UAT, independent O1 review/self-audit, and final integrated receipts. Phase 3 execution is now `READY_FOR_OWNER_REVIEW`; this does not authorize production, hospital-data use, clinical/model semantic changes, or Phase 3 acceptance.
 
@@ -586,13 +586,13 @@ Phase 0 is complete when:
 
 ## Phase 0 status tracker
 
-**Status:** `NOT_STARTED`  
-**Start date:**  
-**Completion date:**  
-**Reviewed by:**  
-**Evidence / commit(s):**  
-**Open blockers:**  
-**Owner decisions:**  
+**Status:** `NOT_STARTED`
+**Start date:**
+**Completion date:**
+**Reviewed by:**
+**Evidence / commit(s):**
+**Open blockers:**
+**Owner decisions:**
 
 ---
 
@@ -699,7 +699,7 @@ Each chunk receives one independent substantive review of the exact candidate. O
 **Status:** `DONE`
 **Specification:** Execution r3.0 adopted 2026-09-29; Chunk A and Chunk B implementation integrated; owner UAT and formal closeout accepted 2026-10-03
 **Start date:** 2026-10-01
-**Completion date:** 2026-10-03  
+**Completion date:** 2026-10-03
 **Reviewed by:** Independent O1 Chunk A review PASS; independent O1 Chunk B review PASS; final integration review by MAIN
 **Evidence / commit(s):** Chunk A `6bfa7825da7175694373e6b3661abc7d53d7d5f7`; Chunk B `6c33255741b1b43a42b1474a05a3db6cfcbce021`; integrated main `5b300f70d8ab6a5433d2066d24a8706fe044a696`; final integrated implementation `bde3e673169fa6de2f1ecee6373c22c7d46a04de`. The full pre-closeout validation, self-audit, independent review, and UAT evidence remains recorded below and in the Phase 2 closeout documents.
 **Clinical feedback:** Owner accepted the Phase 2 UAT on 2026-10-03 and authorized formal closeout. Unresolved Advanced taxonomy/geometry remains explicitly deferred.
@@ -802,19 +802,19 @@ Native UWF model work may remain `BLOCKED` or `DEFERRED` while the application u
 
 ## Phase 3 status tracker
 
-**Overall status:** `READY_FOR_OWNER_REVIEW`  
-**3G native UWF grading:** `BLOCKED_ARTIFACT / DISABLED`  
-**3G CFP fallback:** `RESEARCH_ONLY / COMPARATOR_ONLY`  
-**3L native UWF localization:** `DEFERRED_NO_QUALIFIED_CANDIDATE`  
-**3L CFP fallback:** `COMPARATOR_ONLY / NOT_VALIDATED_FOR_UWF`  
-**3T longitudinal model:** `DISABLED`  
-**Start date:** 2026-10-04  
-**Completion/review date:** 2026-10-04 execution receipt; owner review pending  
-**Evidence / commit(s):** Feature foundation `8830608`; final feature candidate `06d09b6`; integrated main merge `857f048`; [M1 Phase 3 execution evidence](M1_PHASE3_EVIDENCE.md); [r3.0 execution contract](M1_PHASE3_EXECUTION_R3.md)  
-**Model artifact references:** USPEC expected `grading_state.pt` identity recorded; observed bytes unavailable; no checkpoint in Git  
-**Known model limitations:** no qualified USPEC runtime/load, no live Model API Gate C, no GPU/L4 performance profile, USPEC rights unverified, PRISM CFP-only, no native UWF lesion candidate, no learned longitudinal model  
-**Open blockers:** artifact access/trust, exact loader security/runtime, designated target-host evidence, live approved Model API target, rights and clinical/domain decisions  
-**Owner decisions:** owner review of Phase 3 evidence and later capability-release decisions remain pending; Phase 3 is not `DONE`  
+**Overall status:** `READY_FOR_OWNER_REVIEW`
+**3G native UWF grading:** `BLOCKED_ARTIFACT / DISABLED`
+**3G CFP fallback:** `RESEARCH_ONLY / COMPARATOR_ONLY`
+**3L native UWF localization:** `DEFERRED_NO_QUALIFIED_CANDIDATE`
+**3L CFP fallback:** `COMPARATOR_ONLY / NOT_VALIDATED_FOR_UWF`
+**3T longitudinal model:** `DISABLED`
+**Start date:** 2026-10-04
+**Completion/review date:** 2026-10-04 execution receipt; owner review pending
+**Evidence / commit(s):** Feature foundation `8830608`; final feature candidate `06d09b6`; integrated main merge `857f048`; [M1 Phase 3 execution evidence](M1_PHASE3_EVIDENCE.md); [r3.0 execution contract](M1_PHASE3_EXECUTION_R3.md)
+**Model artifact references:** USPEC expected `grading_state.pt` identity recorded; observed bytes unavailable; no checkpoint in Git
+**Known model limitations:** no qualified USPEC runtime/load, no live Model API Gate C, no GPU/L4 performance profile, USPEC rights unverified, PRISM CFP-only, no native UWF lesion candidate, no learned longitudinal model
+**Open blockers:** artifact access/trust, exact loader security/runtime, designated target-host evidence, live approved Model API target, rights and clinical/domain decisions
+**Owner decisions:** owner review of Phase 3 evidence and later capability-release decisions remain pending; Phase 3 is not `DONE`
 
 ---
 
@@ -850,14 +850,14 @@ Turn reviewed PostgreSQL data into transparent, queryable, exportable, training-
 
 ## Phase 4 status tracker
 
-**Status:** `NOT_STARTED`  
-**Start date:**  
-**Completion date:**  
-**Reviewed by:**  
-**Evidence / commit(s):**  
-**Export sample / schema:**  
-**Open blockers:**  
-**Owner decisions:**  
+**Status:** `NOT_STARTED`
+**Start date:**
+**Completion date:**
+**Reviewed by:**
+**Evidence / commit(s):**
+**Export sample / schema:**
+**Open blockers:**
+**Owner decisions:**
 
 ---
 
@@ -960,16 +960,16 @@ For each capability:
 
 ## Phase 5 status tracker
 
-**Status:** `NOT_STARTED`  
-**Start date:**  
-**Completion date:**  
-**Reviewed by:**  
-**Integrated commit:**  
-**Test evidence:**  
-**Demo/UAT review date:**  
-**Clinical comments:**  
-**Accepted limitations:**  
-**Open blockers / next milestone:**  
+**Status:** `NOT_STARTED`
+**Start date:**
+**Completion date:**
+**Reviewed by:**
+**Integrated commit:**
+**Test evidence:**
+**Demo/UAT review date:**
+**Clinical comments:**
+**Accepted limitations:**
+**Open blockers / next milestone:**
 
 ---
 
