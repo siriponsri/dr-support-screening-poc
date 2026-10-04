@@ -445,6 +445,18 @@ export interface AdmissionScanResponse {
 export interface ModelDescriptor {
   model_id: string;
   task: string;
+  capability_id?: string;
+  provider_id?: string;
+  model_version?: string;
+  artifact_digest?: string | null;
+  trained_domain?: string;
+  supported_modalities?: string[];
+  domain_status?: string;
+  clinical_validation_status?: string;
+  rights_status?: string;
+  release_status?: string;
+  explanation_types?: string[];
+  enabled?: boolean;
   runtime?: string;
   status?: string;
   warnings?: string[];

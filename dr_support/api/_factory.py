@@ -7,6 +7,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
@@ -22,6 +23,12 @@ from dr_support.contracts import (
     LesionResult,
     ModelConnectionInput,
     ModelConnectionResponse,
+    Phase3Explanation,
+    Phase3InputContext,
+    Phase3ModelIdentity,
+    Phase3ResultEnvelope,
+    Phase3ReviewInferenceRequest,
+    Phase3Runtime,
 )
 from dr_support.providers.mock import infer_mock
 from dr_support.providers.prism import PRISM
@@ -32,6 +39,7 @@ from dr_support.providers.remote import (
     RemoteNotConfiguredError,
     RemoteModelProvider,
     RemoteTimeoutError,
+    provider_from_descriptor,
 )
 from dr_support.runtime import runtime_snapshot
 from dr_support.providers.retfound import RETFound
@@ -55,6 +63,7 @@ from ..services.model_gateway import (
     probe_model_connection,
     response_payload,
 )
+from ..phase3_registry import capability_descriptors, descriptor_for
 from ..persistence import (
     CASE_STORE_MODE_ENV,
     DATABASE_URL_ENV,
@@ -385,14 +394,20 @@ def create_app(
         if not probe.verified:
             # Do not mutate either the active providers or the saved candidate.
             raise HTTPException(502, probe.message)
-        providers = {
-            RemoteGlobalProvider.model_id: RemoteGlobalProvider(
-                base_url=candidate.url, token=candidate.token,
-            ),
-            RemoteLesionProvider.model_id: RemoteLesionProvider(
-                base_url=candidate.url, token=candidate.token,
-            ),
-        }
+        providers = {}
+        for advertised in probe.models:
+            try:
+                provider = provider_from_descriptor(
+                    advertised,
+                    base_url=candidate.url,
+                    token=candidate.token,
+                    transport=getattr(app.state, 'model_gateway_transport', None),
+                )
+            except ValueError:
+                continue
+            providers[provider.model_id] = provider
+        if not providers:
+            raise HTTPException(502, 'Model API advertised no supported inference capability.')
         app.state.providers = providers
         app.state.model_connection = candidate
         app.state.model_connection_probe = probe
@@ -437,9 +452,17 @@ def create_app(
                     'modalities': ['CFP'],
                     'warnings': [f'Provider metadata failed: {type(exc).__name__}: {exc}'],
                 })
-        return synthetic + remote
+        return capability_descriptors([*synthetic, *remote], include_registry=False)
 
-    def infer(request, task):
+    @app.get('/v1/capabilities')
+    def capabilities():
+        """Return the full deterministic capability/readiness view."""
+
+        return capability_descriptors([
+            *(provider.metadata() for provider in app.state.providers.values())
+        ])
+
+    def infer(request, task, *, invocation_id=None, request_case_revision=None):
         image = app.state.images.get(request.image_id)
         if image is None:
             raise HTTPException(404, 'Image not admitted to public/synthetic registry')
@@ -458,11 +481,27 @@ def create_app(
             raise HTTPException(409, 'Image needs review or its image type is not supported for AI analysis.')
         if request.modality != admission['retinal_modality']:
             raise HTTPException(422, 'Modality does not match admitted image')
+        invocation_id = invocation_id or f'legacy-{uuid4().hex}'
+        if request_case_revision is None:
+            request_case_revision = app.state.store.get(request.image_id)['revision']
+        prior_run = next(
+            (item for item in reversed(app.state.store.get(request.image_id).get('inference_history', []))
+             if item.get('invocation_id') == invocation_id and item.get('task') == task),
+            None,
+        )
+        if prior_run and isinstance(prior_run.get('result'), dict):
+            return (GlobalResult if task == 'global' else LesionResult).model_validate(prior_run['result'])
         if request.model_id == 'mock-' + ('global' if task == 'global' else 'lesion'):
             if image.source_type != 'SYNTHETIC':
                 raise HTTPException(422, 'Synthetic providers cannot infer on public images')
             result = infer_mock(request, image)
-            save_result(request, task, result)
+            save_result(
+                request,
+                task,
+                result,
+                invocation_id=invocation_id,
+                request_case_revision=request_case_revision,
+            )
             return result
         provider = app.state.providers.get(request.model_id)
         if provider is None or provider.task != task:
@@ -478,7 +517,14 @@ def create_app(
                     result,
                     analysis_derivative.coordinate_mapping,
                 )
-            save_result(request, task, result, analysis_derivative)
+            save_result(
+                request,
+                task,
+                result,
+                analysis_derivative,
+                invocation_id=invocation_id,
+                request_case_revision=request_case_revision,
+            )
             return result
         except DerivativePayloadTooLargeError:
             raise HTTPException(
@@ -499,29 +545,80 @@ def create_app(
         except (RuntimeError, ValueError, KeyError, OSError, ImportError):
             raise HTTPException(503, 'Model unavailable; inspect Models readiness and runtime configuration') from None
 
-    def save_result(request, task, result, analysis_derivative=None):
+    def save_result(
+        request,
+        task,
+        result,
+        analysis_derivative=None,
+        *,
+        invocation_id=None,
+        request_case_revision=None,
+    ):
         key = 'global' if task == 'global' else 'lesion'
         store = app.state.store
         with store.lock:
             case = store.get(request.image_id)
+            invocation_id = invocation_id or f'legacy-{uuid4().hex}'
+            history = case.setdefault('inference_history', [])
+            existing = next((entry for entry in history if entry.get('invocation_id') == invocation_id), None)
+            if existing is not None:
+                return existing.get('status') == 'APPLIED'
             value = result.model_dump(mode='json')
             derivative_record = analysis_derivative.audit_record() if analysis_derivative else None
             derivative_changed = derivative_record is not None and case.get('analysis_derivative') != derivative_record
+            request_case_revision = case['revision'] if request_case_revision is None else request_case_revision
+            stale = case['revision'] != request_case_revision
+            provider = app.state.providers.get(request.model_id)
+            source_origin = ((case.get('admission') or {}).get('source_origin')
+                             or getattr(app.state.images.get(request.image_id), 'source_origin', 'UNKNOWN'))
+            input_context = {
+                'source_sha256': derivative_record['source_sha256'] if derivative_record else getattr(app.state.images.get(request.image_id), 'sha256', None),
+                'analysis_sha256': derivative_record['analysis_sha256'] if derivative_record else getattr(app.state.images.get(request.image_id), 'sha256', None),
+                'transform_id': derivative_record['transform_id'] if derivative_record else 'IDENTITY',
+                'representation_version': derivative_record['representation_version'] if derivative_record else 'ORIGINAL',
+                'source_origin': source_origin,
+                'request_case_revision': request_case_revision,
+            }
+            entry = {
+                'invocation_id': invocation_id,
+                'capability_id': descriptor_for(request.model_id).get('capability_id'),
+                'task': task,
+                'model_id': request.model_id,
+                'model_version': value.get('model_version'),
+                'status': 'STALE_RESULT' if stale else 'APPLIED',
+                'case_revision': request_case_revision,
+                'source_sha256': input_context['source_sha256'],
+                'analysis_sha256': input_context['analysis_sha256'],
+                'transform_id': input_context['transform_id'],
+                'representation_version': input_context['representation_version'],
+                'result': value,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+            }
+            history.append(entry)
+            if stale:
+                case['revision'] += 1
+                case.setdefault('events', []).append({
+                    'action': 'INFERENCE',
+                    'status': 'STALE_RESULT',
+                    'invocation_id': invocation_id,
+                    'model_id': request.model_id,
+                    'timestamp': entry['timestamp'],
+                    'request_case_revision': request_case_revision,
+                    'current_case_revision': case['revision'],
+                })
+                store.put(case)
+                return False
             if case[key] != value or derivative_changed:
                 case[key] = value
                 if derivative_record is not None:
                     case['analysis_derivative'] = derivative_record
                 case['revision'] += 1
-                if key == 'global':
-                    case['state'] = 'PENDING'
-                    case['reviewed_grade'] = None
-                    case['grade_review_source'] = None
-                    case['grade_status'] = 'NOT_REVIEWED'
-                    case['reviewed_grade_label'] = None
-                    case['clinician_review'] = None
                 event = {
                     'action': 'INFERENCE',
+                    'status': 'APPLIED',
+                    'invocation_id': invocation_id,
                     'model_id': request.model_id,
+                    'capability_id': descriptor_for(request.model_id).get('capability_id'),
                     'timestamp': datetime.now(timezone.utc).isoformat(),
                 }
                 if derivative_record is not None:
@@ -530,12 +627,15 @@ def create_app(
                         'analysis_sha256': derivative_record['analysis_sha256'],
                         'transform_id': derivative_record['transform_id'],
                     })
-                provider = app.state.providers.get(request.model_id)
                 if isinstance(provider, RemoteModelProvider):
                     event['runtime'] = 'remote'
                     if provider.last_inference_ms is not None:
                         event['latency_ms'] = round(provider.last_inference_ms, 1)
                 case['events'].append(event)
+                store.put(case)
+            elif history:
+                # Preserve an idempotent run even when the latest projection
+                # already matches; the history entry is the authoritative run.
                 store.put(case)
 
     @app.post('/v1/infer/global', response_model=GlobalResult)
@@ -545,6 +645,80 @@ def create_app(
     @app.post('/v1/infer/lesion-roi', response_model=LesionResult)
     def lesion_inference(request: InferenceRequest):
         return infer(request, 'lesion-roi')
+
+    def phase3_review_inference(request, task):
+        legacy_request = InferenceRequest(
+            image_id=request.image_id,
+            modality=request.modality,
+            model_id=request.model_id,
+        )
+        result = infer(
+            legacy_request,
+            task,
+            invocation_id=request.invocation_id,
+            request_case_revision=request.request_case_revision,
+        )
+        case = app.state.store.get(request.image_id)
+        entry = next(
+            (item for item in reversed(case.get('inference_history', []))
+             if item.get('invocation_id') == request.invocation_id),
+            None,
+        )
+        entry = entry or {}
+        source_sha = entry.get('source_sha256') or case.get('image_sha256')
+        analysis_sha = entry.get('analysis_sha256') or source_sha
+        source_origin = ((case.get('admission') or {}).get('source_origin')
+                         or getattr(app.state.images.get(request.image_id), 'source_origin', 'UNKNOWN'))
+        context = Phase3InputContext(
+            image_id=request.image_id,
+            source_sha256=source_sha,
+            source_origin=source_origin,
+            input_modality=request.modality,
+            analysis_sha256=analysis_sha,
+            representation_version=entry.get('representation_version') or 'ORIGINAL',
+            transform_id=entry.get('transform_id') or 'IDENTITY',
+            request_case_revision=request.request_case_revision,
+        )
+        descriptor = descriptor_for(request.model_id)
+        provider = app.state.providers.get(request.model_id)
+        return Phase3ResultEnvelope(
+            invocation_id=request.invocation_id,
+            capability_id=request.capability_id,
+            task=task,
+            model=Phase3ModelIdentity(
+                id=request.model_id,
+                version=request.model_version,
+                artifact_digest=descriptor.get('artifact_digest'),
+                trained_domain=descriptor.get('trained_domain', 'UNKNOWN'),
+                supported_modalities=list(descriptor.get('supported_modalities') or []),
+                release_status=descriptor.get('release_status', 'UNKNOWN'),
+            ),
+            input=context,
+            result=result,
+            explanation=Phase3Explanation(
+                status='UNAVAILABLE',
+                invocation_id=request.invocation_id,
+                model_id=request.model_id,
+                source_sha256=source_sha,
+                analysis_sha256=analysis_sha,
+                warning='No typed explanation evidence is available for this invocation.',
+            ),
+            runtime=Phase3Runtime(
+                runtime_id='review',
+                device='remote' if getattr(app.state, 'remote_runtime', False) else 'local',
+                latency_ms=getattr(provider, 'last_inference_ms', None),
+            ),
+            warnings=list(result.warnings),
+            status=entry.get('status', 'APPLIED'),
+        )
+
+    @app.post('/v2/infer/global', response_model=Phase3ResultEnvelope)
+    def phase3_global_inference(request: Phase3ReviewInferenceRequest):
+        return phase3_review_inference(request, 'global')
+
+    @app.post('/v2/infer/lesion-roi', response_model=Phase3ResultEnvelope)
+    def phase3_lesion_inference(request: Phase3ReviewInferenceRequest):
+        return phase3_review_inference(request, 'lesion-roi')
 
     @app.get('/')
     def home():

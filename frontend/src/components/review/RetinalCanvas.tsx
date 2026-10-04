@@ -193,8 +193,8 @@ function AiShape({
       style={{ cursor: onSelect ? 'pointer' : undefined, opacity: dimmed ? 0.45 : 1 }}
     >
       <title>{corrected
-        ? `Clinician corrected: ${label}. Original AI suggestion: ${prettyLabel(lesion.originalLabel ?? lesion.canonical_label)} - detection confidence ${(lesion.originalScore ?? lesion.score).toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`
-        : `AI suggestion: ${label} - detection confidence ${lesion.score.toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`}</title>
+        ? `Clinician corrected: ${label}. Original AI suggestion: ${prettyLabel(lesion.originalLabel ?? lesion.canonical_label)} - model score ${(lesion.originalScore ?? lesion.score).toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`
+        : `AI suggestion: ${label} - model score ${lesion.score.toFixed(2)}${modelId ? ` - ${modelId}${modelVersion ? ` ${modelVersion}` : ''}` : ''}`}</title>
       <rect
         x={x1}
         y={y1}

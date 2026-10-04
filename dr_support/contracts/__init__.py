@@ -26,6 +26,15 @@ from .model_gateway import (
     ModelConnectionModel,
     ModelConnectionResponse,
 )
+from .phase3 import (
+    Phase3Explanation,
+    Phase3InputContext,
+    Phase3ModelIdentity,
+    Phase3PredictRequest,
+    Phase3ReviewInferenceRequest,
+    Phase3ResultEnvelope,
+    Phase3Runtime,
+)
 
 __all__ = [
     'LABELS',
@@ -47,6 +56,13 @@ __all__ = [
     'ModelConnectionInput',
     'ModelConnectionModel',
     'ModelConnectionResponse',
+    'Phase3Explanation',
+    'Phase3InputContext',
+    'Phase3ModelIdentity',
+    'Phase3PredictRequest',
+    'Phase3ReviewInferenceRequest',
+    'Phase3ResultEnvelope',
+    'Phase3Runtime',
 ]
 
 

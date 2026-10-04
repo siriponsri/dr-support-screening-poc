@@ -4,13 +4,13 @@ import type { CaseRecord, ModelDescriptor } from '@/lib/api';
 import { getHintsEnabled, setHintsEnabled } from '@/lib/hintPreference';
 import { annotationsConfirmed, gradeConfirmed } from '@/lib/caseProgress';
 
-const MODEL_IDS = ['retfound-aptos5', 'prism-dr-5fold'];
-
 function modelCapabilityUnavailable(models: ModelDescriptor[]): boolean {
-  return models.some((model) => (
-    MODEL_IDS.includes(model.model_id)
-      && !['LOADED', 'SYNTHETIC_FIXTURE'].includes(model.status ?? '')
-  ));
+  return (['global', 'lesion-roi'] as const).some((task) => !models.some((model) => (
+    model.task === task
+      && model.release_status !== 'COMPARATOR_ONLY'
+      && model.release_status !== 'DISABLED'
+      && ['LOADED', 'SYNTHETIC_FIXTURE'].includes(model.status ?? '')
+  )));
 }
 
 export function nextAction(item: CaseRecord, _models: ModelDescriptor[] = []): string {

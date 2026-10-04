@@ -49,6 +49,7 @@ def new_case(image_id):
             'review_history': [], 'admission': None, 'admission_history': [],
             'analysis_derivative': None,
             'analysis_preparation': None, 'superseded_model_results': [],
+            'inference_history': [], 'selected_ai_evidence': None,
             'ai_annotation_reviews': [],
             'annotation_completeness': {},
             'annotation_confirmation': None,
@@ -66,6 +67,8 @@ def apply_case_defaults(case):
     case.setdefault('analysis_derivative', None)
     case.setdefault('analysis_preparation', None)
     case.setdefault('superseded_model_results', [])
+    case.setdefault('inference_history', [])
+    case.setdefault('selected_ai_evidence', None)
     case.setdefault('ai_annotation_reviews', [])
     case.setdefault('annotation_completeness', {})
     case.setdefault('annotation_confirmation', None)

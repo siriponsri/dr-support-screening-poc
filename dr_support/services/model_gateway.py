@@ -37,6 +37,11 @@ def _headers(token: str | None) -> dict[str, str]:
 
 
 def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
+    """Validate capability discovery without requiring a legacy model pair.
+
+    The old RETFound/PRISM pair remains valid, but a future Model API may
+    expose only one qualified capability or a different provider identity.
+    """
     if not isinstance(body, list):
         return None
     summaries: list[dict[str, Any]] = []
@@ -45,7 +50,7 @@ def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
         if not isinstance(item, dict):
             continue
         model_id = item.get("model_id")
-        if model_id not in EXPECTED_MODELS or model_id in seen:
+        if not isinstance(model_id, str) or not model_id or model_id in seen:
             continue
         seen.add(model_id)
         status = item.get("status")
@@ -53,8 +58,11 @@ def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
             "model_id": model_id,
             "ready": status not in {"UNAVAILABLE", "ERROR", "ASSET_REQUIRED"},
             "status": status if isinstance(status, str) else None,
+            "capability_id": item.get("capability_id") if isinstance(item.get("capability_id"), str) else None,
+            "task": item.get("task") if isinstance(item.get("task"), str) else None,
+            "modalities": list(item.get("modalities") or []) if isinstance(item.get("modalities"), list) else [],
         })
-    if seen != set(EXPECTED_MODELS):
+    if not summaries:
         return None
     return tuple(sorted(summaries, key=lambda item: item["model_id"]))
 
