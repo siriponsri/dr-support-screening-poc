@@ -1123,7 +1123,7 @@ Update this table after each phase review.
 | 1 | Data Foundation & PostgreSQL | `DONE` | Owner-approved implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c`; detailed receipt in `docs/milestone/m1/M1_PHASE1_POSTGRES.md` | Public/synthetic-only scope; accepted UI/documentation validation limitations remain; Phase 2 not started |
 | 2 | UWF Labeling Workflow | `DONE` | Chunk A `6bfa782`; Chunk B `6c33255`; final integrated implementation `bde3e67`; full validation, accepted UAT, and limitations recorded in §10 | Owner-approved 2026-10-03; Advanced taxonomy/geometry and native UWF model capabilities remain safely deferred |
 | 3 | AI Models & Model API Integration | `DONE / OWNER_ACCEPTED` | Integrated implementation/evidence recorded in Phase 3 closeout; P3.1 runtime qualification remains deferred/non-blocking | Terminal model/runtime states and limitations preserved |
-| 4 | Dataset & Review Tools | `READY_FOR_OWNER_REVIEW` | Feature candidate `3980989`; evidence/receipt in `docs/milestone/m1/M1_PHASE4_EVIDENCE.md` and `docs/milestone/m1/phase4/final_phase4_receipt.md` | Owner UAT pending; live PostgreSQL/browser qualification not run |
+| 4 | Dataset & Review Tools | `READY_FOR_OWNER_REVIEW` | Final feature candidate `1dca82d`; integrated main `8a001b1`; evidence/receipt in `docs/milestone/m1/M1_PHASE4_EVIDENCE.md` and `docs/milestone/m1/phase4/final_phase4_receipt.md` | Owner UAT pending; live PostgreSQL/browser qualification not run |
 | 5 | End-to-End Validation & M1 Review | `NOT_STARTED` |  |  |
 
 ---
