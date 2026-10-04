@@ -1104,6 +1104,17 @@ class DatasetManifestService:
                 })
         return rows
 
+    @staticmethod
+    def _verify_snapshot_file_hashes(export_dir: Path, expected: dict[str, str]) -> None:
+        for filename, expected_digest in expected.items():
+            path = export_dir / filename
+            try:
+                actual_digest = _sha256(path.read_bytes())
+            except OSError as error:
+                raise DatasetManifestError("Canonical snapshot file hash verification failed.") from error
+            if actual_digest != expected_digest:
+                raise DatasetManifestError("Canonical snapshot file hash verification failed.")
+
     def export_snapshot(self) -> dict:
         workspace = self._workspace()
         if workspace is None:
@@ -1196,6 +1207,7 @@ class DatasetManifestService:
             for name, data in files.items():
                 (export_dir / name).write_bytes(data)
             (export_dir / "receipt.json").write_bytes(_canonical_json_bytes(receipt))
+            self._verify_snapshot_file_hashes(export_dir, file_hashes)
         except Exception:
             if export_dir.exists():
                 shutil.rmtree(export_dir)
