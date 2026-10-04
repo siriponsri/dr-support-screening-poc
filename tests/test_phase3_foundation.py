@@ -145,6 +145,8 @@ def test_model_api_v2_blocks_workspace_origin_and_reports_unenabled_uspec(monkey
     response = client.post('/v2/predict/dr', json=body)
     assert response.status_code == 200
     assert response.json()['status'] == 'BLOCKED'
+    body['task'] = 'lesion-roi'
+    assert client.post('/v2/predict/dr', json=body).status_code == 422
     body['source_origin'] = 'WORKSPACE'
     assert client.post('/v2/predict/dr', json=body).status_code == 409
 

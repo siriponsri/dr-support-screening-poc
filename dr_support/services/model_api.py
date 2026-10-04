@@ -269,12 +269,12 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
     @app.post('/v2/predict/dr', response_model=Phase3ResultEnvelope,
               dependencies=[Depends(_require_bearer)])
     def predict_phase3_dr(payload: Phase3PredictRequest):
-        return _predict_phase3(app, payload, inference_lock)
+        return _predict_phase3(app, payload, inference_lock, expected_task='global')
 
     @app.post('/v2/predict/lesions', response_model=Phase3ResultEnvelope,
               dependencies=[Depends(_require_bearer)])
     def predict_phase3_lesions(payload: Phase3PredictRequest):
-        return _predict_phase3(app, payload, inference_lock)
+        return _predict_phase3(app, payload, inference_lock, expected_task='lesion-roi')
 
     # Annotation: we deliberately do NOT mount /v1/cases, /v1/cases/{id}/*,
     # /v1/infer/* or the static UI here. Those belong to the review profile.
@@ -410,7 +410,13 @@ def _predict_lesions(app: FastAPI, payload: RemotePredictRequest, lock: RLock) -
     return result
 
 
-def _predict_phase3(app: FastAPI, payload: Phase3PredictRequest, lock: RLock) -> Phase3ResultEnvelope:
+def _predict_phase3(
+    app: FastAPI,
+    payload: Phase3PredictRequest,
+    lock: RLock,
+    *,
+    expected_task: str,
+) -> Phase3ResultEnvelope:
     """Handle the versioned context envelope without changing Bridge v1."""
 
     _check_runtime()
@@ -419,7 +425,6 @@ def _predict_phase3(app: FastAPI, payload: Phase3PredictRequest, lock: RLock) ->
             409,
             'This source origin is blocked from Model API transmission; manual review remains available.',
         )
-    expected_task = 'global' if payload.task == 'global' else 'lesion-roi'
     if payload.task != expected_task:
         raise HTTPException(422, 'Phase 3 task does not match the selected endpoint')
     registry = descriptor_for(payload.model_id)

@@ -38,8 +38,9 @@ Chunk A is integrated in feature commit `8830608`:
 
 Detailed receipts are in `phase3/capability_registry_receipt.json`,
 `phase3/artifact_receipt.md`, `phase3/security_runtime_receipt.md`,
-`phase3/monai_decision.md`, `phase3/comparator_decision.md`, and
-`phase3/performance_profile.md`.
+`phase3/adapter_contract_receipt.md`, `phase3/monai_decision.md`,
+`phase3/comparator_decision.md`, `phase3/performance_profile.md`, and
+`phase3/final_phase3_receipt.md`.
 
 ## Validation evidence
 
