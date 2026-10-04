@@ -31,20 +31,26 @@ For a developer checkout, open PowerShell in a folder where the repository shoul
 ```powershell
 git clone https://github.com/siriponsri/dr-support-screening-poc.git
 Set-Location dr-support-screening-poc
-.\SETUP.cmd
+uv python install 3.12
+uv sync --python 3.12 --extra test --extra dicom --extra browser-test
+npm.cmd ci
+Set-Location frontend
+npm.cmd ci
+npm.cmd run build
+Set-Location ..
 ```
 
-`SETUP.cmd` provisions the project Python and Node.js tooling as needed, installs locked dependencies, and builds the browser app. Wait for it to complete before starting the workstation. For a development installation with test and DICOM dependencies, use `.\SETUP.cmd --dev` instead. See [Installation](docs/operations/INSTALLATION.md) for diagnostics and manual recovery.
+The developer checkout installs locked dependencies and builds the browser app; use the same canonical no-code launchers as the release package. See [Installation](docs/operations/INSTALLATION.md) for diagnostics and manual recovery.
 
 ## 2. Start and open a workspace
 
 ```powershell
-.\START.cmd
+.\START_DR_SCREENING.bat
 ```
 
 The browser opens at **http://127.0.0.1:8000/app/**. Configure the server-side PostgreSQL URL before startup. In **Settings**, create a **New workspace** with a name and local input/output folders; managed PostgreSQL storage does not require a local review database path. Explicit SQLite mode remains available only for legacy compatibility and synthetic fixtures. Select that workspace before reviewing images. Source images are not moved by workspace setup.
 
-On later days, use `.\OPEN_APP.cmd` to reopen or start the app. When finished, run `.\STOP.cmd` to stop the process managed by this checkout. The launcher keeps the workstation on `127.0.0.1:8000` and stores logs under ignored `local-state/`. [Configuration](docs/operations/CONFIGURATION.md) covers private settings and deployment choices.
+On later days, use `.\START_DR_SCREENING.bat` again. When finished, run `.\STOP_DR_SCREENING.bat` to stop the process managed by this checkout. The launcher keeps the workstation on `127.0.0.1:8000` and stores logs under ignored `local-state/`. [Configuration](docs/operations/CONFIGURATION.md) covers private settings and deployment choices.
 
 ## 3. Review an image
 
@@ -82,7 +88,7 @@ Verify a `PASS` status and `assets_verified: true` before use. Configure `REMOTE
 
 ## 6. Run checks before sharing changes
 
-After `.\SETUP.cmd --dev`, run the following from the repository root in PowerShell:
+After the developer checkout setup above, run the following from the repository root in PowerShell:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q

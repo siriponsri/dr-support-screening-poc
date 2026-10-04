@@ -23,8 +23,8 @@ The single ``create_app`` factory preserves the historical behaviour used by
 the V2 UI and the existing tests.
 
 For backward compatibility with ``uvicorn dr_support.api:app`` invocations
-(the historical single-server entrypoint used by ``START.cmd`` and the JS
-UI smoke test), a module-level ``app`` instance is exposed. Production
+(the historical single-server entrypoint used by the JS UI smoke test), a
+module-level ``app`` instance is exposed. Production
 deployments that need strict profile/runtime invariants should instead use
 ``dr_support.app:app_factory`` and set ``APP_PROFILE`` explicitly.
 """

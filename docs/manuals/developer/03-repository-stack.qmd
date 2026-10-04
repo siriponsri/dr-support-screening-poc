@@ -35,7 +35,7 @@ Versions are taken from `pyproject.toml` (exact pins) and `frontend/package-lock
 
 | Layer | Component | Version / constraint |
 |:------|:----------|:---------------------|
-| Runtime | Python | `>=3.11,<3.13` (3.12 recommended by `START.cmd`) |
+| Runtime | Python | `>=3.11,<3.13` (3.12 recommended by the release launcher) |
 | Backend | FastAPI / Uvicorn / Pydantic / httpx / Pillow / Psycopg | 0.141.1 / 0.53.0 / 2.13.5 / 0.28.1 / 12.3.0 / 3.2.10 |
 | DICOM (extra `dicom`) | pydicom, pylibjpeg, -libjpeg, -openjpeg | 3.0.1, 2.1.0, 2.3.0, 2.5.0 |
 | Models (extra `models`, GPU host) | torch / torchvision / timm / ultralytics / sahi / ensemble-boxes / gdown | 2.5.1 / 0.20.1 / 0.9.2 / 8.4.8 / 0.12.6 / 1.0.9 / 6.4.0 |

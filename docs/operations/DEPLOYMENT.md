@@ -18,7 +18,7 @@ The workstation owns the review database, workspace catalog, source references, 
 
 ## Review workstation
 
-Build the frontend once with `npm run build`, then start `START.cmd` on Windows. The process listens on `127.0.0.1:8000` by default and serves the app at `/app/`. The workstation can admit and review stored cases while the Model API is unavailable; model actions report unavailable rather than silently switching to local weights.
+Build the frontend once with `npm run build`, then start `START_DR_SCREENING.bat` on Windows. The process listens on `127.0.0.1:8000` by default and serves the app at `/app/`. The workstation can admit and review stored cases while the Model API is unavailable; model actions report unavailable rather than silently switching to local weights.
 
 ## Model API
 

@@ -27,7 +27,7 @@ uv run python -m dr_support.fetch_samples   # needed by the root UI smoke test
 npm test
 ```
 
-Then run `START.cmd` and open `http://127.0.0.1:8000/app/`. Create a synthetic Workspace in **Settings**. Inference stays disabled until a Model API is configured.
+Then run `START_DR_SCREENING.bat` and open `http://127.0.0.1:8000/app/`. Create a synthetic Workspace in **Settings**. Inference stays disabled until a Model API is configured.
 
 Baseline on `main` `ec74af8` (2026-09-23):
 
