@@ -2,14 +2,34 @@
 
 **Prepared:** 2026-10-04  
 **Execution baseline:** `80e7460252518a63c88f4ae7d73fb6f0bb5a4d37`  
-**Document status:** `OWNER_DIRECTED_EXECUTION_SPEC`  
+**Document status:** `OWNER_DIRECTED_EXECUTION_SPEC; PHASE 4 CLOSED / OWNER_ACCEPTED`
 **Implementation status at entry:** `NOT_STARTED`  
 **Phase 1:** `DONE`  
 **Phase 2:** `DONE`  
 **P3-0:** `DONE / UX FREEZE ACCEPTED`  
 **Phase 3:** `DONE / OWNER_ACCEPTED`  
 **P3.1 runtime/model-host qualification:** `DEFERRED / NON-BLOCKING`  
+**Phase 4 current closeout status:** `DONE / OWNER_ACCEPTED` (owner accepted the
+execution candidate and recorded limitations on 2026-10-04; corrected
+implementation merge `85c4325`)
 **Phase 5:** `NOT_STARTED`
+
+---
+
+## Phase 4 owner closeout (2026-10-04)
+
+The owner accepted the existing Phase 4 implementation and execution evidence,
+including snapshot schema `s4.dataset-snapshot.v3`, eligibility policy
+`s8.2-task-specific-v2`, negative policy `p4-negative-training-deferred-v1`,
+source-origin/export controls, and final written-file SHA-256 verification. The
+historical candidate and correction evidence remain unchanged.
+
+The accepted limitations remain explicit: live PostgreSQL qualification,
+Playwright/browser matrix, owner browser UAT, and 1920px visual inspection are
+`NOT_RUN`; independent review is unavailable and MAIN self-audit is the recorded
+review status. No hospital-data export, training, model/GPU/runtime
+qualification, model use, production/clinical deployment, or Phase 5
+implementation is authorized. P3.1 remains `DEFERRED / NON-BLOCKING`.
 
 ---
 
@@ -1348,7 +1368,7 @@ NOT_APPLICABLE
 
 Do not mark Phase 4 `DONE` automatically at the end of implementation.
 
-Implementation target:
+Historical implementation target before owner acceptance:
 
 ```text
 Phase 4 = READY_FOR_OWNER_REVIEW
@@ -1363,6 +1383,18 @@ P3-0 = DONE
 Phase 3 = DONE / OWNER_ACCEPTED
 P3.1 = DEFERRED / NON-BLOCKING
 Phase 4 = READY_FOR_OWNER_REVIEW
+Phase 5 = NOT_STARTED
+```
+
+Current owner-accepted state:
+
+```text
+Phase 1 = DONE
+Phase 2 = DONE
+P3-0 = DONE / UX FREEZE ACCEPTED
+Phase 3 = DONE / OWNER_ACCEPTED
+P3.1 = DEFERRED / NON-BLOCKING
+Phase 4 = DONE / OWNER_ACCEPTED
 Phase 5 = NOT_STARTED
 ```
 
@@ -1410,7 +1442,7 @@ Independent review status:
 
 Known limitations:
 
-Phase 4: READY_FOR_OWNER_REVIEW
+Phase 4: DONE / OWNER_ACCEPTED
 Phase 5: NOT_STARTED
 Git/main/origin status:
 Project Brain status:
@@ -1419,7 +1451,7 @@ Project Brain status:
 Final marker:
 
 ```text
-PHASE 4 READY_FOR_OWNER_REVIEW
+PHASE 4 CLOSED — READY FOR PHASE 5 RECONCILIATION
 ```
 
 ---

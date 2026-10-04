@@ -7,13 +7,16 @@
 **Integrated main SHA:** `8a001b1c4d957dade0c887c5b3105af125ae60d3`
 **Final evidence SHA:** `d09d748a2a1ad20ac97a962e80f364e036a36fa7` (historical r3.0 documentation evidence)
 **Corrected current main SHA:** `85c4325b5fab87925ef3c1e877c5ff6aefc9c57e`
-**Final documentation closeout SHA:** `60300dfff4911385b20e3a0c47b26a043fda51fc`
-**Current state:** `READY_FOR_OWNER_REVIEW`
+**Prior documentation closeout SHA:** `60300dfff4911385b20e3a0c47b26a043fda51fc` (historical pre-owner-acceptance receipt finalization)
+**Current state:** `DONE / OWNER_ACCEPTED`
+**Owner acceptance:** `PASS` - owner accepted the existing Phase 4 execution candidate,
+implementation, evidence, and recorded limitations on 2026-10-04. This is a formal
+documentation closeout; it does not convert any `NOT_RUN` item into `PASS`.
 
 This document records the Phase 4 execution candidate against the owner-directed
-`M1_PHASE4_EXECUTION_R3.md`. It is an implementation/evidence candidate, not
-owner acceptance. Phase 4 does not authorize training, hospital-data export,
-production/clinical deployment, model qualification, or Phase 5.
+`M1_PHASE4_EXECUTION_R3.md` and its owner-accepted closeout. Phase 4 does not
+authorize training, hospital-data export, production/clinical deployment, model
+use or qualification, or Phase 5.
 
 The original r3.0 candidate and integrated-main evidence remain historical. Before
 owner review, three bounded corrections were integrated into the synchronized main
@@ -81,6 +84,7 @@ Coordinate system: original_image_pixels
 | Documentation QA | `PASS` - Markdown sources inspected; no generated evidence/log dump added |
 | Live PostgreSQL Phase 4 qualification | `NOT_RUN` - no approved DSN/server available |
 | Playwright/browser matrix | `NOT_RUN` - no Phase 4 browser run claimed |
+| Owner browser UAT | `NOT_RUN` - owner accepted the evidence; no owner browser UAT execution is claimed |
 | 1920px browser inspection | `NOT_RUN` |
 | Independent review | `UNAVAILABLE` - MAIN self-audit only |
 
@@ -125,8 +129,8 @@ were changed by Phase 4.
 - Live PostgreSQL repeatable-read/concurrent-revision qualification is `NOT_RUN`
   because no approved DSN/server was available. The code path is implemented,
   but this is not a live PostgreSQL PASS.
-- Playwright/browser matrix, responsive visual inspection, and owner UAT are
-  not claimed in this execution candidate.
+- Playwright/browser matrix, owner browser UAT, and 1920px responsive visual
+  inspection are `NOT_RUN`; owner acceptance does not convert them to `PASS`.
 - The feature-worktree `.venv` limitation and historical root-smoke fixture
   limitation remain inherited historical evidence; they are not converted into
   fabricated Phase 4 PASS results.
@@ -134,9 +138,10 @@ were changed by Phase 4.
   self-audit only.
 - No hospital-origin data, model weights, GPU/Tailscale host, training job, or
   production/clinical deployment was accessed or authorized.
-- P3.1 runtime/model-host qualification remains deferred and non-blocking.
-- The owner-review candidate has not been accepted yet; Phase 4 remains
-  `READY_FOR_OWNER_REVIEW`.
+- No model/GPU/runtime qualification was performed; P3.1 runtime/model-host
+  qualification remains `DEFERRED / NON-BLOCKING`.
+- Owner acceptance does not authorize hospital-data export, training, model use,
+  production/clinical deployment, or Phase 5 implementation.
 
 ## Phase handoff
 
@@ -146,8 +151,8 @@ Phase 2 = DONE
 P3-0 = DONE / UX FREEZE ACCEPTED
 Phase 3 = DONE / OWNER_ACCEPTED
 P3.1 Runtime Qualification / Model Host Qualification = DEFERRED / NON-BLOCKING
-Phase 4 = READY_FOR_OWNER_REVIEW
+Phase 4 = DONE / OWNER_ACCEPTED
 Phase 5 = NOT_STARTED
 ```
 
-**Candidate marker:** `PHASE 4 READY_FOR_OWNER_REVIEW`
+**Closeout marker:** `PHASE 4 CLOSED — READY FOR PHASE 5 RECONCILIATION`

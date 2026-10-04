@@ -1,16 +1,16 @@
 # DR Screening — Milestone 1 Master Plan
 
 **Document path in repository:** `docs/milestone/m1/M1_MASTER_PLAN.md`
-**Document revision:** Closeout r3.0 (Phase 3 owner acceptance)
+**Document revision:** Closeout r4.0 (Phase 4 owner acceptance)
 **Prepared:** 2026-09-29
 **Document status:** `OWNER_APPROVED_CLOSEOUT`
-**Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted), Phase 2 `DONE` (owner-approved on 2026-10-03 after UAT; independent O1 review/self-audit and final integrated evidence accepted), P3-0 `DONE / UX FREEZE ACCEPTED` (owner UAT PASS on 2026-10-04), and Phase 3 `DONE / OWNER_ACCEPTED` (owner accepted the execution evidence on 2026-10-04); see the phase trackers, which are independent of later-phase authorization.
+**Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted), Phase 2 `DONE` (owner-approved on 2026-10-03 after UAT; independent O1 review/self-audit and final integrated evidence accepted), P3-0 `DONE / UX FREEZE ACCEPTED` (owner UAT PASS on 2026-10-04), Phase 3 `DONE / OWNER_ACCEPTED` (owner accepted the execution evidence on 2026-10-04), and Phase 4 `DONE / OWNER_ACCEPTED` (owner accepted the execution candidate and recorded limitations on 2026-10-04); see the phase trackers, which are independent of later-phase authorization.
 **Source baseline commit:** `20726efcb8aa6ce857eb9b8537810fea5175b42e`
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.
 **Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; unresolved optional items follow the Phase 2 safe-defer boundary in §24.
 **Primary repository:** `siriponsri/dr-support-screening-poc`
 
-**Current reading guide (closeout r3.0):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29, Phase 2 `DONE` on 2026-10-03, P3-0 `DONE / UX FREEZE ACCEPTED` on 2026-10-04, and Phase 3 `DONE / OWNER_ACCEPTED` on 2026-10-04 based on the recorded execution evidence and owner acceptance. Phase 3 terminal capability states remain limited as recorded; P3.1 runtime/model-host qualification is deferred and non-blocking for Phase 4. Phase 4 remains `READY_FOR_OWNER_REVIEW` at the corrected execution candidate, with live PostgreSQL/browser/UAT qualification explicitly not claimed. This does not authorize production, hospital-data use, clinical/model semantic changes, hospital export, or Phase 5 implementation.
+**Current reading guide (closeout r4.0):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29, Phase 2 `DONE` on 2026-10-03, P3-0 `DONE / UX FREEZE ACCEPTED` on 2026-10-04, Phase 3 `DONE / OWNER_ACCEPTED` on 2026-10-04, and Phase 4 `DONE / OWNER_ACCEPTED` on 2026-10-04 based on the recorded execution evidence and owner acceptance. Phase 3 terminal capability states remain limited as recorded; P3.1 runtime/model-host qualification is deferred and non-blocking for Phase 4. Phase 4 browser, owner-UAT, PostgreSQL, and 1920px inspection limitations remain explicitly `NOT_RUN`; acceptance does not convert them to PASS. This does not authorize hospital-data export, training, model/GPU/runtime qualification, production/clinical deployment, model use, or Phase 5 implementation.
 
 ---
 
@@ -896,14 +896,14 @@ Turn reviewed PostgreSQL data into transparent, queryable, exportable, training-
 
 ## Phase 4 status tracker
 
-**Status:** `READY_FOR_OWNER_REVIEW`
+**Status:** `DONE / OWNER_ACCEPTED`
 **Start date:** 2026-10-04
-**Completion date:**
-**Reviewed by:** MAIN self-audit; independent review unavailable in this runtime
-**Evidence / commit(s):** Historical r3.0 candidate `1dca82d8cb6818f5457c85d928772190be816bf2` and integrated main `8a001b1c4d957dade0c887c5b3105af125ae60d3` remain preserved. Corrected implementation merge is `85c4325`; final synchronized documentation closeout is `60300df`; full SHAs and follow-up receipts are in `docs/milestone/m1/M1_PHASE4_EVIDENCE.md` and `docs/milestone/m1/phase4/final_phase4_receipt.md`
+**Completion date:** 2026-10-04
+**Reviewed by:** Owner acceptance of the execution candidate and recorded limitations; MAIN self-audit; independent review unavailable in this runtime
+**Evidence / commit(s):** Historical r3.0 candidate `1dca82d8cb6818f5457c85d928772190be816bf2` and integrated main `8a001b1c4d957dade0c887c5b3105af125ae60d3` remain preserved. Corrected implementation merge is `85c4325`; prior synchronized documentation closeout is `60300df`; this owner-accepted documentation closeout is finalized by the current Git commit. Full SHAs and follow-up receipts are in `docs/milestone/m1/M1_PHASE4_EVIDENCE.md` and `docs/milestone/m1/phase4/final_phase4_receipt.md`
 **Export sample / schema:** `s4.dataset-snapshot.v3`; canonical package and `receipt.json` defined in the Phase 4 evidence
-**Open blockers:** Owner UAT pending; live PostgreSQL qualification, Playwright/browser matrix, and 1920px inspection are `NOT_RUN`
-**Owner decisions:** Owner acceptance pending; hospital/workspace export authorization and negative-label expansion remain outside this candidate
+**Open limitations:** Live PostgreSQL qualification, Playwright/browser matrix, owner browser UAT, and 1920px inspection are `NOT_RUN`; independent review is unavailable and MAIN self-audit is the recorded review status
+**Owner decisions:** Owner accepted Phase 4 on 2026-10-04. This does not authorize hospital-data export, training, model/GPU/runtime qualification, production/clinical deployment, or model use; P3.1 remains `DEFERRED / NON-BLOCKING`
 
 ---
 
@@ -1123,7 +1123,7 @@ Update this table after each phase review.
 | 1 | Data Foundation & PostgreSQL | `DONE` | Owner-approved implementation/evidence baseline `b912f43ca9f5fe31bfb5ff0cac0672e746beca3c`; detailed receipt in `docs/milestone/m1/M1_PHASE1_POSTGRES.md` | Public/synthetic-only scope; accepted UI/documentation validation limitations remain; Phase 2 not started |
 | 2 | UWF Labeling Workflow | `DONE` | Chunk A `6bfa782`; Chunk B `6c33255`; final integrated implementation `bde3e67`; full validation, accepted UAT, and limitations recorded in §10 | Owner-approved 2026-10-03; Advanced taxonomy/geometry and native UWF model capabilities remain safely deferred |
 | 3 | AI Models & Model API Integration | `DONE / OWNER_ACCEPTED` | Integrated implementation/evidence recorded in Phase 3 closeout; P3.1 runtime qualification remains deferred/non-blocking | Terminal model/runtime states and limitations preserved |
-| 4 | Dataset & Review Tools | `READY_FOR_OWNER_REVIEW` | Historical r3.0 candidate `1dca82d` / integrated `8a001b1`; corrected current main `efef25b`; evidence/receipt in `docs/milestone/m1/M1_PHASE4_EVIDENCE.md` and `docs/milestone/m1/phase4/final_phase4_receipt.md` | Owner UAT pending; live PostgreSQL/browser qualification not run |
+| 4 | Dataset & Review Tools | `DONE / OWNER_ACCEPTED` | Historical r3.0 candidate `1dca82d` / integrated `8a001b1`; corrected implementation merge `85c4325`; evidence/receipt in `docs/milestone/m1/M1_PHASE4_EVIDENCE.md` and `docs/milestone/m1/phase4/final_phase4_receipt.md` | Owner accepted 2026-10-04; live PostgreSQL, browser matrix, owner browser UAT, and 1920px inspection remain `NOT_RUN` |
 | 5 | End-to-End Validation & M1 Review | `NOT_STARTED` |  |  |
 
 ---
@@ -1174,6 +1174,7 @@ Do not edit past decisions silently. Add new rows when the owner changes scope.
 | 2026-10-03 | Owner accepted the integrated Phase 2 UAT and authorized formal Phase 2 closeout as `DONE` at final integrated implementation SHA `bde3e673169fa6de2f1ecee6373c22c7d46a04de`. | Close Phase 2 while preserving accepted limitations and deferred Pre-Phase-3 UX items; Phase 3 remains `NOT_STARTED` and later clinical/model/export permissions remain separate. | Owner-approved |
 | 2026-10-04 | Owner accepted the Phase 3 execution evidence and authorized formal closeout as `DONE / OWNER_ACCEPTED`; P3.1 runtime/model-host qualification is deferred and non-blocking. | Preserve the recorded terminal capability states and validation limitations; Phase 4 remains `NOT_STARTED` and no model-runtime, hospital-data, or production authorization is inferred. | Owner-approved |
 | 2026-10-04 | Phase 4 r3.0 execution received three bounded follow-up corrections before owner review: imported lesion readiness is independent of DR-grade readiness, legacy compatibility exports enforce source-origin authorization, and canonical snapshot files are verified against their final written hashes before success. | Preserve the historical r3.0 evidence while using synchronized main `85c4325` as the corrected Phase 4 owner-review candidate; Phase 4 remains `READY_FOR_OWNER_REVIEW`. | MAIN self-audit |
+| 2026-10-04 | Owner accepted the Phase 4 execution candidate and authorized formal closeout as `DONE / OWNER_ACCEPTED` at corrected implementation merge `85c4325`. | Preserve the accepted schema/policy/export contracts and all recorded limitations; `NOT_RUN` PostgreSQL, browser, owner-UAT, and 1920px checks remain `NOT_RUN`, P3.1 remains deferred/non-blocking, and Phase 5 remains `NOT_STARTED`. No hospital export, training, model use, or production/clinical authorization is inferred. | Owner-approved |
 
 ---
 
