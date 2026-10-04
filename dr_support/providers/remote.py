@@ -276,6 +276,10 @@ class RemoteModelProvider:
             'modalities': match.get('modalities') or ['CFP'],
             'warnings': remote_warnings + self._runtime_warnings(),
             'preprocessing': match.get('preprocessing'),
+            'capability_id': match.get('capability_id'),
+            'domain_status': match.get('domain_status'),
+            'release_status': match.get('release_status'),
+            'explanation_types': match.get('explanation_types') or [],
         }
 
     def _degraded_metadata(self, status: str, detail: str | None = None) -> dict[str, Any]:
@@ -318,3 +322,37 @@ class RemoteLesionProvider(RemoteModelProvider):
                  transport: httpx.BaseTransport | None = None, timeout: float = INFERENCE_TIMEOUT_SECONDS):
         super().__init__(model_id=self.model_id, task=self.task, base_url=base_url,
                          token=token, transport=transport, timeout=timeout)
+
+
+def provider_from_descriptor(
+    descriptor: dict[str, Any],
+    *,
+    base_url: str,
+    token: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> RemoteModelProvider:
+    """Build a provider from an advertised capability without hard-coding it.
+
+    Legacy IDs retain their specialized classes.  New descriptors use the
+    generic Bridge-compatible provider and inherit the task-specific route and
+    response contract from capability discovery.
+    """
+
+    model_id = str(descriptor.get('model_id') or '').strip()
+    task = str(descriptor.get('task') or '').strip()
+    if model_id == RemoteGlobalProvider.model_id:
+        return RemoteGlobalProvider(base_url=base_url, token=token, transport=transport)
+    if model_id == RemoteLesionProvider.model_id:
+        return RemoteLesionProvider(base_url=base_url, token=token, transport=transport)
+    if task not in {'global', 'lesion-roi'}:
+        raise ValueError(f'Unsupported remote capability task for {model_id!r}')
+    provider = RemoteModelProvider(
+        model_id=model_id,
+        task=task,
+        base_url=base_url,
+        token=token,
+        transport=transport,
+    )
+    provider.predict_path = '/v1/predict/lesions' if task == 'lesion-roi' else '/v1/predict/dr'
+    provider.result_model = LesionResult if task == 'lesion-roi' else GlobalResult
+    return provider

@@ -2,7 +2,10 @@
 
 # Model Server
 
-The Model API is the hospital-side inference service. It supports the existing provider-neutral contract only; it does not add MRI, OCT, PACS, DICOMweb, calibration, or explainability models.
+The Model API is the hospital-side inference service. Bridge v1 remains the
+legacy provider-neutral contract. Phase 3 adds an additive, versioned v2
+context/result contract and capability discovery; neither contract adds MRI,
+OCT, PACS, DICOMweb, calibration, or unsupported explainability claims.
 
 ## One-time online setup
 
@@ -60,16 +63,22 @@ curl --fail http://127.0.0.1:7860/health
 curl --fail http://127.0.0.1:7860/v1/models
 ```
 
-`/health` reports `status`, device information, and `assets_verified`. A verified service reports `status: PASS` and `assets_verified: true`. `/v1/models` reports the stable model IDs `retfound-aptos5` and `prism-dr-5fold`, task, revision, modality, device, status, warnings, and preprocessing.
+`/health` reports `status`, device information, and `assets_verified`. A verified service reports `status: PASS` and `assets_verified: true`. `/v1/models` retains the legacy provider descriptors. `/v1/capabilities` reports the deterministic Phase 3 registry, including blocked/deferred capabilities and separate domain, rights, runtime, and release states.
 
 ## Inference contract
 
 - `POST /v1/predict/dr` runs RETFound for a CFP fundus image.
 - `POST /v1/predict/lesions` runs PRISM-DR for a CFP fundus image.
+- `POST /v2/predict/dr` and `/v2/predict/lesions` accept explicit invocation,
+  source/analysis, transform, capability, and case-revision context. They do
+  not promote an unqualified model or permit `WORKSPACE`/`UNKNOWN` origins.
 - Source image SHA-256 and provenance are preserved in the response.
 - PRISM rectangles are returned in original-image pixel coordinates.
 - Empty lesion output is valid evidence and is not proof of no lesions.
 - The review workstation calls its existing `/v1/infer/*` routes; it does not load local weights.
+- The review workstation also exposes additive `/v2/infer/*` routes for the
+  versioned context contract; the manual workflow remains available when AI is
+  unavailable.
 
 ## CUDA and offline acceptance
 

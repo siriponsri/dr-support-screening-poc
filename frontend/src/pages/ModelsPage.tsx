@@ -29,7 +29,7 @@ function Metadata({ result, descriptor }: { result: GlobalResult | LesionResult 
   return (
     <Stack spacing={2} fontSize="sm">
       <HStack justify="space-between"><Text color="text.secondary">Model id</Text><Text fontWeight="semibold">{result?.model_id ?? descriptor?.model_id ?? 'Not reported'}</Text></HStack>
-      <HStack justify="space-between"><Text color="text.secondary">Revision</Text><Text>{result?.model_version ?? descriptor?.revision ?? 'Not reported'}</Text></HStack>
+      <HStack justify="space-between"><Text color="text.secondary">Revision</Text><Text>{result?.model_version ?? descriptor?.model_version ?? descriptor?.revision ?? 'Not reported'}</Text></HStack>
       <HStack justify="space-between"><Text color="text.secondary">Task</Text><Text>{descriptor?.task ?? (result && 'lesions' in result ? 'lesion-roi' : 'global')}</Text></HStack>
       <HStack justify="space-between"><Text color="text.secondary">Runtime / status</Text><Text>{descriptor?.runtime ?? 'remote'} - {descriptor?.status ?? result?.state ?? 'Not reported'}</Text></HStack>
       <HStack justify="space-between" align="flex-start"><Text color="text.secondary">Preprocessing</Text><Text textAlign="right" maxW="65%">{provenance?.preprocessing ?? descriptor?.preprocessing ?? 'Not reported by the current contract'}</Text></HStack>
@@ -111,8 +111,8 @@ function CaseLineage({ item }: { item: CaseRecord }) {
   );
 }
 
-function ProbabilityBars({ result }: { result: GlobalResult }) {
-  if (!result.probabilities.length) return <Text color="text.secondary">No probability distribution returned.</Text>;
+function ScoreBars({ result }: { result: GlobalResult }) {
+  if (!result.probabilities.length) return <Text color="text.secondary">No model score distribution returned.</Text>;
   return (
     <Stack spacing={2}>
       {result.probabilities.map((probability, grade) => (
@@ -127,13 +127,12 @@ function ProbabilityBars({ result }: { result: GlobalResult }) {
 }
 
 function ModelDescriptorGrid({ models }: { models: ModelDescriptor[] }) {
-  const relevant = models.filter((model) => ['retfound-aptos5', 'prism-dr-5fold'].includes(model.model_id));
   return (
     <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={3}>
-      {relevant.map((model) => (
+      {models.map((model) => (
         <Box key={model.model_id} borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3}>
           <HStack justify="space-between" align="flex-start"><Text fontWeight="semibold">{model.model_id}</Text><StatusBadge tone={model.status === 'LOADED' ? 'success' : 'warning'}>{model.status ?? 'Unknown'}</StatusBadge></HStack>
-          <Text mt={1} fontSize="xs" color="text.secondary">{model.task} - {model.runtime ?? 'runtime not reported'}</Text>
+          <Text mt={1} fontSize="xs" color="text.secondary">{model.capability_id ?? model.task} - {model.runtime ?? 'runtime not reported'} - {model.trained_domain ?? 'domain not reported'}</Text>
           {model.warnings?.length ? <Text mt={2} fontSize="xs" color="text.secondary">{model.warnings[0]}</Text> : null}
         </Box>
       ))}
@@ -141,8 +140,8 @@ function ModelDescriptorGrid({ models }: { models: ModelDescriptor[] }) {
   );
 }
 
-function PrismEvidence({ item, result }: { item: CaseRecord; result: LesionResult | null }) {
-  if (!result) return <Text color="text.secondary">No PRISM result is available for this case.</Text>;
+function LesionEvidence({ item, result }: { item: CaseRecord; result: LesionResult | null }) {
+  if (!result) return <Text color="text.secondary">No lesion result is available for this case.</Text>;
   const bounded = item.lesion_review?.lesions ?? result.lesions;
   const counts = bounded.reduce<Record<string, number>>((all, lesion) => {
     all[lesion.canonical_label] = (all[lesion.canonical_label] ?? 0) + 1;
@@ -172,7 +171,7 @@ export function ModelsPage() {
 
   useEffect(() => {
     void Promise.all([
-      apiJson<ModelDescriptor[]>('/v1/models'),
+      apiJson<ModelDescriptor[]>('/v1/capabilities'),
       apiJson<CaseRecord[]>('/v1/cases'),
     ]).then(([loadedModels, loadedCases]) => {
       setModels(loadedModels);
@@ -182,8 +181,8 @@ export function ModelsPage() {
   }, []);
 
   const item = useMemo(() => cases.find((entry) => entry.image_id === selectedId) ?? cases[0], [cases, selectedId]);
-  const retfound = models.find((model) => model.model_id === 'retfound-aptos5');
-  const prism = models.find((model) => model.model_id === 'prism-dr-5fold');
+  const gradeModel = models.find((model) => model.capability_id === 'dr_grade');
+  const lesionModel = models.find((model) => model.capability_id === 'core_lesion_localization');
   const globalWarnings = item?.global?.warnings ?? [];
 
   return (
@@ -191,7 +190,7 @@ export function ModelsPage() {
       <PageHeader pathname={pathname} title="Models & Audit" subtitle="Read-only model metadata, case results, and bounded visual evidence" />
       {error && <Alert status="error" mb={5}><AlertIcon /><Text>{error}</Text></Alert>}
       <Stack spacing={5} minW={0}>
-        <Section title="Model readiness" description="Metadata is read from the existing /v1/models contract; unavailable remote state is shown honestly.">
+        <Section title="Model readiness" description="Capability metadata and unavailable/deferred states are shown honestly; no registry state implies clinical qualification.">
           <ModelDescriptorGrid models={models} />
         </Section>
         <Section title="Case context" description="Choose a returned case to inspect its actual inference metadata and results.">
@@ -199,20 +198,20 @@ export function ModelsPage() {
         </Section>
         {item && (
           <SimpleGrid columns={{ base: 1, laptop: 2 }} spacing={5} minW={0}>
-            <Section title="RETFound - Score-level decision context" description="No saliency explanation is produced by the current RETFound bridge.">
+            <Section title="Grade capability - score-level decision context" description="Raw model scores are research evidence, not calibrated clinical probabilities.">
               <Stack spacing={4}>
-                <Metadata result={item.global} descriptor={retfound} />
+                <Metadata result={item.global} descriptor={gradeModel} />
                 {item.global ? <>
                   <HStack justify="space-between"><Text color="text.secondary">Predicted grade</Text><Text fontSize="xl" fontWeight="semibold">{item.global.grade === null ? item.global.state : (drGradeLabel(item.global.grade) ?? 'Grade available')}</Text></HStack>
-                  <HStack justify="space-between"><Text color="text.secondary">Confidence / model score</Text><Text fontWeight="semibold">{item.global.confidence === null ? 'Not returned' : `${(item.global.confidence * 100).toFixed(1)}%`}</Text></HStack>
-                  <Box><Text fontSize="sm" color="text.secondary" mb={2}>Probability distribution - Grades 0-4</Text><ProbabilityBars result={item.global} /></Box>
+                  <HStack justify="space-between"><Text color="text.secondary">Top model score</Text><Text fontWeight="semibold">{item.global.confidence === null ? 'Not returned' : `${(item.global.confidence * 100).toFixed(1)}%`}</Text></HStack>
+                  <Box><Text fontSize="sm" color="text.secondary" mb={2}>Model score distribution - Grades 0-4</Text><ScoreBars result={item.global} /></Box>
                   <Warnings warnings={globalWarnings} />
                 </> : <Text color="text.secondary">Not analyzed for this case.</Text>}
               </Stack>
             </Section>
-            <Section title="PRISM-DR - Localized visual evidence" description="Bounded clinician-facing lesion suggestions are shown without changing raw provider output.">
-              <Metadata result={item.lesion} descriptor={prism} />
-              <PrismEvidence item={item} result={item.lesion} />
+            <Section title="Lesion capability - localized visual evidence" description="Bounded lesion suggestions remain model evidence and do not mean that an empty result is negative.">
+              <Metadata result={item.lesion} descriptor={lesionModel} />
+              <LesionEvidence item={item} result={item.lesion} />
             </Section>
           </SimpleGrid>
         )}

@@ -129,7 +129,9 @@ def test_manual_grade_is_explicit_and_mark_incorrect_requires_ai(tmp_path):
     result = client.post('/v1/infer/global', json={'image_id':'SYNTH_001','model_id':'mock-global'}).json()
     after = client.get(base).json()
     assert result['grade'] == 2
-    assert after['reviewed_grade'] is None and after['grade_review_source'] is None
+    # Phase 3 inference is append-only and must not silently erase a human
+    # decision; a later model result remains separate AI evidence.
+    assert after['reviewed_grade'] == 1 and after['grade_review_source'] == 'MANUAL'
 
 
 def test_human_annotations_and_clinician_review_roundtrip(tmp_path):

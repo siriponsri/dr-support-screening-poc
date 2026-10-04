@@ -51,6 +51,9 @@ class ModelConnectionModel(Contract):
     model_id: str
     ready: bool
     status: str | None = None
+    capability_id: str | None = None
+    task: str | None = None
+    modalities: list[str] = Field(default_factory=list)
 
 
 class ModelConnectionResponse(Contract):

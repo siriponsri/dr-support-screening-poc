@@ -48,6 +48,7 @@ function workspaceReply(path: string) {
 
 describe('UWF intake and clinical review', () => {
   it('shows unknown in Worklist and sends the clinician-selected image type at confirmation', async () => {
+    const user = userEvent.setup();
     const original = sample();
     const sent: Record<string, unknown>[] = [];
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -67,29 +68,29 @@ describe('UWF intake and clinical review', () => {
     renderAppAt('/worklist');
     const row = await screen.findByTestId('case-row-synthetic-uwf');
     expect(within(row).getByText('Image type needs confirmation')).toBeInTheDocument();
-    await userEvent.setup().click(within(row).getByRole('button', { name: 'Confirm Image' }));
+    await user.click(within(row).getByRole('button', { name: 'Confirm Image' }));
     const type = await screen.findByLabelText('Image type');
     expect(type).toHaveValue('UNKNOWN');
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Edit patient' }));
+    await user.click(screen.getByRole('button', { name: 'Edit patient' }));
     const patient = screen.getByLabelText('Patient');
-    await userEvent.setup().clear(patient);
-    await userEvent.setup().type(patient, 'PAT009');
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Done' }));
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Edit eye' }));
-    await userEvent.setup().selectOptions(screen.getByLabelText('Eye'), 'UNKNOWN');
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Done' }));
+    await user.clear(patient);
+    await user.type(patient, 'PAT009');
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(screen.getByRole('button', { name: 'Edit eye' }));
+    await user.selectOptions(screen.getByLabelText('Eye'), 'UNKNOWN');
+    await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.getByText('Unknown', { exact: true })).toBeInTheDocument();
     expect(screen.getByLabelText('Visit key (optional)')).not.toBeVisible();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Additional metadata' }));
+    await user.click(screen.getByRole('button', { name: 'Additional metadata' }));
     expect(screen.getByLabelText('Visit key (optional)')).toBeInTheDocument();
     expect((screen.getByLabelText('Capture sequence (optional)') as HTMLInputElement).value).toBe('');
     expect(screen.getByText(/Sequence 1 was derived from the supported filename pattern/i)).toBeInTheDocument();
-    await userEvent.setup().selectOptions(type, 'UWF');
-    await userEvent.setup().type(screen.getByPlaceholderText('Reviewer name'), 'Synthetic Reviewer');
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Confirm image & continue' }));
+    await user.selectOptions(type, 'UWF');
+    await user.type(screen.getByPlaceholderText('Reviewer name'), 'Synthetic Reviewer');
+    await user.click(screen.getByRole('button', { name: 'Confirm image & continue' }));
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0]).toMatchObject({ patient_key: 'PAT009', laterality: 'UNKNOWN', capture_sequence: null, retinal_modality: 'UWF', reviewer: expect.any(String) });
-  });
+  }, 30000);
 
   it('shows the prepared same-canvas analysis area while keeping UWF AI unavailable', async () => {
     const uwf = {

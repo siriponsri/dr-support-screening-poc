@@ -75,7 +75,7 @@ function ResultWarnings({ item }: { item: CaseRecord }) {
 }
 
 function ModelStatus({ models, error }: { models: ModelDescriptor[]; error: string | null }) {
-  const relevant = models.filter((model) => ['retfound-aptos5', 'prism-dr-5fold'].includes(model.model_id));
+  const relevant = models.filter((model) => ['global', 'lesion-roi'].includes(model.task));
   return (
     <Section title="Model / runtime status" description="Status reported by the existing model metadata contract.">
       {error && <Text color="status.warning" fontSize="sm">{error}</Text>}
@@ -113,7 +113,7 @@ function Assessment({ item }: { item: CaseRecord }) {
       </HStack>
       {item.global.confidence !== null && (
         <HStack justify="space-between">
-          <Text color="text.secondary">Model confidence</Text>
+          <Text color="text.secondary">Top model score</Text>
           <Text fontWeight="semibold">{(item.global.confidence * 100).toFixed(1)}%</Text>
         </HStack>
       )}
@@ -154,13 +154,35 @@ const LESION_DISPLAY_LABELS: Record<string, string> = {
   SOFT_EXUDATE: 'Soft exudate',
 };
 
-const MODEL_IDS = ['retfound-aptos5', 'prism-dr-5fold'];
-
 function modelCapabilityUnavailable(models: ModelDescriptor[]): boolean {
-  return models.some((model) => (
-    MODEL_IDS.includes(model.model_id)
-      && !['LOADED', 'SYNTHETIC_FIXTURE'].includes(model.status ?? '')
+  // An empty legacy descriptor response preserves the pre-capability API
+  // behavior; the case-level manual/AI state still governs what is shown.
+  if (models.length === 0) return false;
+  return (['global', 'lesion-roi'] as const).some((task) => !models.some((model) => (
+    model.task === task
+      && model.release_status !== 'COMPARATOR_ONLY'
+      && model.release_status !== 'DISABLED'
+      && ['LOADED', 'SYNTHETIC_FIXTURE'].includes(model.status ?? '')
+  )));
+}
+
+function selectedModel(models: ModelDescriptor[], task: 'global' | 'lesion-roi') {
+  const selected = models.find((model) => (
+    model.task === task
+      && ['LOADED', 'SYNTHETIC_FIXTURE'].includes(model.status ?? '')
+      && model.release_status !== 'DISABLED'
   ));
+  if (selected) return selected;
+  if (models.length === 0) {
+    // Bridge v1 compatibility for older review fixtures that do not expose
+    // capability discovery yet.
+    return {
+      model_id: task === 'global' ? 'retfound-aptos5' : 'prism-dr-5fold',
+      task,
+      status: 'LEGACY_COMPATIBILITY',
+    } as ModelDescriptor;
+  }
+  return undefined;
 }
 
 function LesionLegend() {
@@ -354,20 +376,26 @@ export function ReviewPage() {
 
   const analyze = async () => {
     if (!item || analyzing) return;
+    const globalModel = selectedModel(models, 'global');
+    const lesionModel = selectedModel(models, 'lesion-roi');
+    if (!globalModel || !lesionModel) {
+      setAnalysisError('AI assistance is unavailable; manual review remains available.');
+      return;
+    }
     setAnalyzing(true);
     setAnalysisError(null);
     try {
-      setProgress('Running RETFound global grading...');
+      setProgress(`Running ${globalModel.model_id} grading...`);
       await apiJson<unknown>('/v1/infer/global', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: 'retfound-aptos5' }),
+        body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: globalModel.model_id }),
       });
-      setProgress('Running PRISM-DR lesion localization...');
+      setProgress(`Running ${lesionModel.model_id} lesion localization...`);
       await apiJson<unknown>('/v1/infer/lesion-roi', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: 'prism-dr-5fold' }),
+        body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: lesionModel.model_id }),
       });
       setProgress('Reloading returned case results...');
       await loadCase();

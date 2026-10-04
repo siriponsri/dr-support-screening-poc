@@ -8,6 +8,7 @@ All request bodies are Pydantic `Contract` models: `extra="forbid"`, with explic
 |:----------------|:--------|:-------------------|
 | `GET /health` | Liveness and device snapshot | `_factory.health` |
 | `GET /v1/models` | Provider descriptors, degraded per provider rather than failing | `_factory.models` |
+| `GET /v1/capabilities` | Full deterministic capability/readiness registry | `_factory.capabilities` |
 | `GET` / `PUT /v1/model-connection`, `POST /v1/model-connection/test` | Read, test, or save the remote Model API connection (saves only after a verified probe) | `ModelConnectionInput` / `ModelConnectionResponse`; `services/model_gateway.py` |
 | `GET /v1/workspaces`, `GET /v1/workspaces/active` | Catalog and active profile | `api/workspaces.py` |
 | `POST /v1/workspaces`, `PUT` / `DELETE /v1/workspaces/{id}`, `POST .../{id}/open` | Create, update, delete (catalog only), open | `contracts/workspaces.py` |
@@ -20,6 +21,7 @@ All request bodies are Pydantic `Contract` models: `extra="forbid"`, with explic
 | `POST /v1/cases/{id}/admission` | Admission override | `AdmissionReview` |
 | `POST /v1/cases/{id}/queue` | Exclude or restore | `QueueAction` |
 | `POST /v1/infer/global`, `/v1/infer/lesion-roi` | Optional inference | `InferenceRequest` → `GlobalResult` / `LesionResult` |
+| `POST /v2/infer/global`, `/v2/infer/lesion-roi` | Versioned inference with invocation/source/analysis/revision context | `Phase3ReviewInferenceRequest` → `Phase3ResultEnvelope` |
 | `POST /v1/cases/{id}/review` | Confirm DR Grade, legacy escalation, or the internal `CONFIRM_ANNOTATIONS` milestone used by **Finish image & next** | `Review` |
 | `PUT /v1/cases/{id}/annotations` | Save human annotation set | `HumanAnnotationSave` |
 | `POST /v1/cases/{id}/lesion-review` | AI ROI correction or removal | `LesionReviewAction` |
@@ -36,8 +38,10 @@ All request bodies are Pydantic `Contract` models: `extra="forbid"`, with explic
 |:----------------|:-----|:--------|
 | `GET /health` | None | Runtime, device, and asset status |
 | `GET /v1/models` | None | Descriptors for `retfound-aptos5` and `prism-dr-5fold` |
+| `GET /v1/capabilities` | None | Deterministic capability registry, including blocked/deferred entries |
 | `POST /v1/predict/dr` | Bearer when `REMOTE_MODEL_TOKEN` is set | `RemotePredictRequest` → `GlobalResult` |
 | `POST /v1/predict/lesions` | Bearer when `REMOTE_MODEL_TOKEN` is set | `RemotePredictRequest` → `LesionResult` |
+| `POST /v2/predict/dr`, `/v2/predict/lesions` | Bearer when `REMOTE_MODEL_TOKEN` is set | `Phase3PredictRequest` → `Phase3ResultEnvelope` |
 
 : Model API. {#tbl-model-api tbl-colwidths="[30,32,38]"}
 

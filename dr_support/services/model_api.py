@@ -54,8 +54,18 @@ from typing import Any, Literal
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from dr_support.contracts import GlobalResult, LesionResult, Provenance
+from dr_support.contracts import (
+    GlobalResult,
+    LesionResult,
+    Phase3InputContext,
+    Phase3ModelIdentity,
+    Phase3PredictRequest,
+    Phase3ResultEnvelope,
+    Phase3Runtime,
+    Provenance,
+)
 from dr_support.model_assets import verify_assets
+from dr_support.phase3_registry import capability_descriptors, descriptor_for
 from dr_support.providers.prism import PRISM, REVISION as PRISM_REVISION
 from dr_support.providers.retfound import RETFound, REVISION as RETFOUND_REVISION
 from dr_support.runtime import DeviceUnavailable, assert_cuda_ready, runtime_snapshot
@@ -233,7 +243,11 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
         # Stable, contract-defined order so the review workstation sees a
         # predictable list.
         descriptors.sort(key=lambda m: (0 if m['task'] == 'global' else 1, m['model_id']))
-        return descriptors
+        return capability_descriptors(descriptors, include_registry=False)
+
+    @app.get('/v1/capabilities')
+    def capabilities():
+        return capability_descriptors([p.metadata() for p in app.state.providers.values()])
 
     # --------- /v1/predict/* ---------
     def _record_timing(provider: Any, started: float) -> dict[str, Any]:
@@ -251,6 +265,16 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
               dependencies=[Depends(_require_bearer)])
     def predict_lesions(payload: RemotePredictRequest):
         return _predict_lesions(app, payload, inference_lock)
+
+    @app.post('/v2/predict/dr', response_model=Phase3ResultEnvelope,
+              dependencies=[Depends(_require_bearer)])
+    def predict_phase3_dr(payload: Phase3PredictRequest):
+        return _predict_phase3(app, payload, inference_lock, expected_task='global')
+
+    @app.post('/v2/predict/lesions', response_model=Phase3ResultEnvelope,
+              dependencies=[Depends(_require_bearer)])
+    def predict_phase3_lesions(payload: Phase3PredictRequest):
+        return _predict_phase3(app, payload, inference_lock, expected_task='lesion-roi')
 
     # Annotation: we deliberately do NOT mount /v1/cases, /v1/cases/{id}/*,
     # /v1/infer/* or the static UI here. Those belong to the review profile.
@@ -384,6 +408,101 @@ def _predict_lesions(app: FastAPI, payload: RemotePredictRequest, lock: RLock) -
     provider.last_inference_ms = round((time.perf_counter() - started) * 1000, 1)
     app.state.predicted_count += 1
     return result
+
+
+def _predict_phase3(
+    app: FastAPI,
+    payload: Phase3PredictRequest,
+    lock: RLock,
+    *,
+    expected_task: str,
+) -> Phase3ResultEnvelope:
+    """Handle the versioned context envelope without changing Bridge v1."""
+
+    _check_runtime()
+    if payload.source_origin not in {'PUBLIC', 'SYNTHETIC'}:
+        raise HTTPException(
+            409,
+            'This source origin is blocked from Model API transmission; manual review remains available.',
+        )
+    if payload.task != expected_task:
+        raise HTTPException(422, 'Phase 3 task does not match the selected endpoint')
+    registry = descriptor_for(payload.model_id)
+    context = Phase3InputContext(
+        image_id=payload.image_id,
+        source_sha256=payload.source_sha256,
+        source_origin=payload.source_origin,
+        input_modality=payload.modality,
+        analysis_sha256=payload.analysis_sha256,
+        representation_version=payload.representation_version,
+        transform_id=payload.transform_id,
+        mask_version=payload.mask_version,
+        request_case_revision=payload.request_case_revision,
+    )
+    identity = Phase3ModelIdentity(
+        id=payload.model_id,
+        version=payload.model_version,
+        artifact_digest=registry.get('artifact_digest'),
+        trained_domain=registry.get('trained_domain', 'UNKNOWN'),
+        supported_modalities=list(registry.get('supported_modalities') or []),
+        release_status=registry.get('release_status', 'UNKNOWN'),
+    )
+    explanation = {
+        'status': 'UNAVAILABLE',
+        'invocation_id': payload.invocation_id,
+        'model_id': payload.model_id,
+        'source_sha256': payload.source_sha256,
+        'analysis_sha256': payload.analysis_sha256,
+        'warning': 'No typed explanation evidence is available for this invocation.',
+    }
+    provider = app.state.providers.get(payload.model_id)
+    if provider is None:
+        return Phase3ResultEnvelope(
+            invocation_id=payload.invocation_id,
+            capability_id=payload.capability_id,
+            task=payload.task,
+            model=identity,
+            input=context,
+            explanation=explanation,
+            warnings=list(registry.get('warnings') or []) + ['Capability is not enabled in this Model API runtime.'],
+            status='BLOCKED',
+        )
+    legacy_payload = RemotePredictRequest(
+        image_id=payload.image_id,
+        modality=payload.modality,
+        model_id=payload.model_id,
+        image_b64=payload.image_b64,
+        image_sha256=payload.image_sha256,
+        source_type=payload.source_origin,
+        width=payload.width,
+        height=payload.height,
+    )
+    try:
+        result = (_predict_global(app, legacy_payload, lock)
+                  if payload.task == 'global'
+                  else _predict_lesions(app, legacy_payload, lock))
+    except HTTPException:
+        raise
+    runtime = Phase3Runtime(
+        runtime_id='model_api',
+        device=str(getattr(provider, 'device', None) or runtime_snapshot().effective_device),
+        latency_ms=getattr(provider, 'last_inference_ms', None),
+    )
+    result_state = getattr(result, 'state', None)
+    status = 'UNSUPPORTED' if result_state == 'UNSUPPORTED' else 'APPLIED'
+    warnings = list(getattr(result, 'warnings', []) or [])
+    return Phase3ResultEnvelope(
+        invocation_id=payload.invocation_id,
+        capability_id=payload.capability_id,
+        task=payload.task,
+        model=identity,
+        input=context,
+        result=result,
+        explanation=explanation,
+        runtime=runtime,
+        warnings=warnings,
+        status=status,
+    )
 
 
 # A small local re-export so we can construct an ``InferenceRequest`` for the

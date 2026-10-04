@@ -125,7 +125,10 @@ export function AiRoiPopover({
   const aiScore = evidence?.original_score ?? lesion.originalScore ?? lesion.score;
   const classChanged = label !== aiLabel;
   const corrected = classChanged || geometryChanged || lesion.reviewState === 'CLINICIAN_CORRECTED';
-  const modelName = item.lesion?.model_id === 'prism-dr-5fold' || !item.lesion?.model_id ? 'PRISM-DR' : item.lesion.model_id;
+  const rawModelName = item.lesion?.model_id || 'AI model';
+  const modelName = rawModelName === 'prism-dr-5fold'
+    ? 'PRISM-DR'
+    : rawModelName.replace(/-(?:\d+fold|v\d+)$/i, '').replace(/-/g, ' ').toUpperCase();
 
   const roi = context.toViewport(rectangle);
   const width = Math.min(CARD_WIDTH, Math.max(220, context.viewport.width - 16));

@@ -1,0 +1,61 @@
+{
+  "schema_version": "phase3-capability-registry.v1",
+  "status": "REPOSITORY_METADATA_ONLY",
+  "source": "dr_support/phase3_registry.py",
+  "capabilities": [
+    {
+      "capability_id": "dr_grade",
+      "model_id": "uspec-uwf-grading",
+      "model_version": "grading_state.pt-candidate",
+      "artifact_role": "trained_inference_checkpoint",
+      "expected_size_bytes": 1213535294,
+      "expected_sha256": "8f07eb11859f638faee368a56c7c532ca946fee320f92f030a0cf25c63b769ac",
+      "supported_modalities": ["UWF"],
+      "release_status": "DISABLED",
+      "runtime_status": "BLOCKED_ARTIFACT"
+    },
+    {
+      "capability_id": "dr_grade",
+      "model_id": "retfound-aptos5",
+      "model_version": "ae9a9ecf37857cf47b8aa9f87cd6f710d75db287",
+      "artifact_role": "legacy_cfp_comparator",
+      "expected_sha256": "a96b9dbcb78eff373912fb0a48d316dc35ffb0715bb2a1b9128b096d780edbbf",
+      "supported_modalities": ["CFP"],
+      "release_status": "RESEARCH_ONLY",
+      "runtime_status": "RUNTIME_ADVERTISED"
+    },
+    {
+      "capability_id": "core_lesion_localization",
+      "model_id": "prism-dr-5fold",
+      "model_version": "79637440a535e4f8118e939d3787121f82180125",
+      "artifact_role": "legacy_cfp_comparator",
+      "supported_modalities": ["CFP"],
+      "release_status": "COMPARATOR_ONLY",
+      "runtime_status": "RUNTIME_ADVERTISED"
+    },
+    {
+      "capability_id": "core_lesion_localization",
+      "model_id": "native-uwf-lesion-localizer",
+      "model_version": "none-qualified",
+      "artifact_role": "none",
+      "supported_modalities": ["UWF"],
+      "release_status": "DEFERRED",
+      "runtime_status": "NOT_PRESENT"
+    },
+    {
+      "capability_id": "longitudinal_change",
+      "model_id": "longitudinal-disabled",
+      "model_version": "none-qualified",
+      "artifact_role": "none",
+      "supported_modalities": ["CFP", "UWF"],
+      "release_status": "DISABLED",
+      "runtime_status": "DISABLED"
+    }
+  ],
+  "safety": {
+    "weights_in_repository": false,
+    "filesystem_mtime_selection": false,
+    "workspace_origin_transmission": "BLOCKED",
+    "unknown_origin_transmission": "BLOCKED"
+  }
+}
