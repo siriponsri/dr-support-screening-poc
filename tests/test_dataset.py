@@ -331,7 +331,7 @@ def test_confirmed_cvat_annotations_are_provenanced_but_unreviewed_import_is_not
     before = client.get("/v1/dataset/manifest").json()["annotations"][0]
     assert before["annotation_source"] == "CVAT_IMPORTED"
     assert before["include_in_training"] is False
-    assert before["eligibility_reason"] == "NO_FINAL_CLINICIAN_GRADE"
+    assert before["eligibility_reason"] == "NO_ANNOTATION_CONFIRMATION"
 
     graded = client.post(base + "/review", json={
         "revision": imported["revision"], "action": "CORRECT_GRADE", "reviewer": "CVAT reviewer", "grade": 2,

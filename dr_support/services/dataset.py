@@ -644,7 +644,7 @@ class DatasetManifestService:
             }
             case_annotations = self._annotation_rows(
                 case, row, global_result, lesion_result, human_annotations,
-                imported_annotations, include, eligibility_reason, lesion_ready,
+                imported_annotations, lesion_ready, lesion_reason,
                 annotation_confirmed, annotation_confirmation,
             )
             row["lesion_positive_training_ready"] = any(
@@ -664,9 +664,8 @@ class DatasetManifestService:
         lesion_result: dict,
         human_annotations: list[dict],
         imported_annotations: list[dict],
-        image_include: bool,
-        image_reason: str,
         lesion_ready: bool,
+        lesion_reason: str,
         annotation_confirmed: bool,
         annotation_confirmation: dict,
     ) -> list[dict]:
@@ -732,7 +731,7 @@ class DatasetManifestService:
                 "verification_status": "CLINICIAN_CONFIRMED" if annotation_confirmed else "HUMAN_DRAFT",
                 "include_in_training": human_ready,
                 "eligibility_reason": "ELIGIBLE" if human_ready else (
-                    image_reason if not image_include else "ANNOTATION_NOT_VERIFIED"
+                    lesion_reason
                 ),
                 "source_detection_id": annotation.get("source_detection_id"),
                 "original_label": None,
@@ -750,7 +749,7 @@ class DatasetManifestService:
             if label not in CANONICAL_LABELS:
                 raise DatasetManifestError("Imported annotation uses a non-canonical lesion label")
             shape_type, geometry = _imported_geometry(annotation.get("geometry") or {})
-            ready = bool(imported_ready and image_include)
+            ready = bool(imported_ready and lesion_ready)
             remote_id = annotation.get("remote_id")
             annotation_id = remote_id if remote_id is not None else index
             rows.append({
@@ -768,7 +767,7 @@ class DatasetManifestService:
                 "verification_status": "CLINICIAN_CONFIRMED" if imported_ready else "UNVERIFIED",
                 "include_in_training": ready,
                 "eligibility_reason": "ELIGIBLE" if ready else (
-                    image_reason if not image_include else "ANNOTATION_NOT_VERIFIED"
+                    lesion_reason
                 ),
                 "source_detection_id": None,
                 "original_label": None,
@@ -1025,7 +1024,8 @@ class DatasetManifestService:
         return self._record_detail(image_id)["explainability"] | {"schema_version": "s4.workspace-data-explainability.v1", "image_id": image_id}
 
     def snapshot_preview(self) -> dict:
-        images, annotations, _cases, source_state, workspace_id, workspace_name = self._workspace_data_context()
+        images, annotations, cases, source_state, workspace_id, workspace_name = self._workspace_data_context()
+        ai_evidence = self._snapshot_ai_evidence(cases, images)
         return {
             "schema_version": SNAPSHOT_SCHEMA_VERSION,
             "workspace_id": workspace_id,
@@ -1037,7 +1037,7 @@ class DatasetManifestService:
                 "dr_labels.csv": sum(bool(row.get("dr_grade_training_ready")) for row in images),
                 "lesion_labels.csv": sum(bool(item.get("include_in_training")) for item in annotations),
                 "review_completeness.csv": len(images) * 2,
-                "ai_evidence.csv": sum(bool(row.get("ai_evidence_status") == "AVAILABLE") for row in images),
+                "ai_evidence.csv": len(ai_evidence),
             },
             "source_origin_summary": self._source_summary(images),
             "export_authorization_summary": self._authorization_summary(images),
