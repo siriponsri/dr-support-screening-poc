@@ -681,8 +681,9 @@ class DatasetManifestService:
             detection_id = lesion.get("detection_id") or lesion_detection_id(lesion)
             decision = decisions.get(detection_id) or {}
             removed = decision.get("action") == "REJECT"
-            corrected_label = decision.get("corrected_label") if decision.get("action") == "CORRECT" else None
-            annotation_source = "HUMAN_CORRECTION" if corrected_label else "AI"
+            correction = decision.get("action") == "CORRECT"
+            corrected_label = decision.get("corrected_label") if correction else None
+            annotation_source = "HUMAN_CORRECTION" if correction else "AI"
             active = not removed
             effective_label = corrected_label or lesion["canonical_label"]
             effective_geometry = decision.get("corrected_rectangle") or [x1, y1, x2, y2]
@@ -698,15 +699,15 @@ class DatasetManifestService:
                 "created_at": decision.get("timestamp") if decision else None,
                 "model_id": lesion_result.get("model_id") or global_result.get("model_id"),
                 "model_version": lesion_result.get("model_version") or global_result.get("model_version"),
-                "score": None if corrected_label else lesion.get("score"),
+                "score": None if correction else lesion.get("score"),
                 "verification_status": "CLINICIAN_CONFIRMED" if annotation_confirmed and active else ("REMOVED" if removed else "AI_ONLY"),
                 # Case-level annotation confirmation does not confirm an untouched
                 # AI proposal. Only the explicit correction path can become gold.
-                "include_in_training": bool(corrected_label and lesion_ready and active),
-                "eligibility_reason": "ELIGIBLE" if corrected_label and lesion_ready and active else (
+                "include_in_training": bool(correction and lesion_ready and active),
+                "eligibility_reason": "ELIGIBLE" if correction and lesion_ready and active else (
                     "REMOVED_FROM_ACTIVE_SET" if removed else "AI_ONLY_UNVERIFIED"
                 ),
-                "source_detection_id": detection_id if corrected_label else None,
+                "source_detection_id": detection_id if correction else None,
                 "original_label": lesion["canonical_label"],
                 "original_score": lesion.get("score"),
                 "original_geometry_json": _geometry_json({"x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1}),
@@ -865,7 +866,7 @@ class DatasetManifestService:
             return str(row.get("export_authorization", "")).startswith("BLOCKED_")
         return False
 
-    def _workspace_data_context(self) -> tuple[list[dict], list[dict], dict, str | None, str | None]:
+    def _workspace_data_context(self) -> tuple[list[dict], list[dict], list[dict], dict, str | None, str | None]:
         with self._read_snapshot_cases() as snapshot_cases:
             if hasattr(self.app.state.store, "repeatable_read_cases"):
                 cases = list(snapshot_cases)
@@ -874,7 +875,7 @@ class DatasetManifestService:
             images, annotations = self._rows(cases)
             workspace_id, workspace_name = self._workspace_context()
             source_state = _source_state_receipt(workspace_id, cases)
-        return images, annotations, source_state, workspace_id, workspace_name
+        return images, annotations, cases, source_state, workspace_id, workspace_name
 
     def workspace_data_records(
         self,
@@ -891,7 +892,7 @@ class DatasetManifestService:
     ) -> dict:
         page = max(1, int(page))
         limit = min(100, max(1, int(limit)))
-        images, _annotations, source_state, workspace_id, workspace_name = self._workspace_data_context()
+        images, _annotations, _cases, source_state, workspace_id, workspace_name = self._workspace_data_context()
         query = (q or "").strip().casefold()
         filtered = []
         for row in images:
@@ -939,11 +940,11 @@ class DatasetManifestService:
         }
 
     def _record_detail(self, image_id: str) -> dict:
-        images, annotations, source_state, workspace_id, workspace_name = self._workspace_data_context()
+        images, annotations, cases, source_state, workspace_id, workspace_name = self._workspace_data_context()
         row = next((item for item in images if item["image_id"] == image_id), None)
         if row is None:
             raise DatasetManifestError("The requested Workspace record was not found.")
-        case = next((item for item in self._case_records() if str(item.get("image_id")) == image_id), None)
+        case = next((item for item in cases if str(item.get("image_id")) == image_id), None)
         if case is None:
             raise DatasetManifestError("The requested Workspace record was not found.")
         case_annotations = [item for item in annotations if item.get("image_id") == image_id]
@@ -1024,7 +1025,7 @@ class DatasetManifestService:
         return self._record_detail(image_id)["explainability"] | {"schema_version": "s4.workspace-data-explainability.v1", "image_id": image_id}
 
     def snapshot_preview(self) -> dict:
-        images, annotations, source_state, workspace_id, workspace_name = self._workspace_data_context()
+        images, annotations, _cases, source_state, workspace_id, workspace_name = self._workspace_data_context()
         return {
             "schema_version": SNAPSHOT_SCHEMA_VERSION,
             "workspace_id": workspace_id,

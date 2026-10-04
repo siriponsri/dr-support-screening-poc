@@ -115,6 +115,44 @@ def test_corrected_ai_suggestion_is_gold_only_after_confirmation(tmp_path):
     assert detection["detection_id"] in lesion_csv
 
 
+def test_geometry_only_ai_correction_is_human_lineage(tmp_path):
+    _app, client, _output = _workspace_client(tmp_path)
+    assert client.post(
+        "/v1/infer/lesion-roi",
+        json={"image_id": "SYNTH_001", "model_id": "mock-lesion"},
+    ).status_code == 200
+    case = client.get("/v1/cases/SYNTH_001").json()
+    detection = case["lesion_review"]["lesions"][0]
+    corrected = client.post(
+        "/v1/cases/SYNTH_001/lesion-review",
+        json={
+            "revision": case["revision"],
+            "reviewer": "Phase 4 reviewer",
+            "detection_id": detection["detection_id"],
+            "action": "CORRECT",
+            "rectangle": [20, 20, 80, 80],
+        },
+    )
+    assert corrected.status_code == 200
+    confirmed = client.post(
+        "/v1/cases/SYNTH_001/review",
+        json={
+            "revision": corrected.json()["revision"],
+            "action": "CONFIRM_ANNOTATIONS",
+            "reviewer": "Phase 4 reviewer",
+        },
+    )
+    assert confirmed.status_code == 200
+    row = next(
+        item for item in client.get("/v1/dataset/manifest").json()["annotations"]
+        if item["annotation_id"] == detection["detection_id"]
+    )
+    assert row["annotation_source"] == "HUMAN_CORRECTION"
+    assert row["score"] is None
+    assert row["source_detection_id"] == detection["detection_id"]
+    assert row["include_in_training"] is True
+
+
 def test_unconfirmed_patient_key_does_not_create_training_group(tmp_path):
     app, client, _output = _workspace_client(tmp_path)
     case = app.state.store.get("SYNTH_001")
