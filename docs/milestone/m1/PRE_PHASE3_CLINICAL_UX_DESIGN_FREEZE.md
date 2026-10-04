@@ -1,13 +1,16 @@
 # DR Screening M1 — Pre-Phase 3 Clinical UX & Design Freeze
 
-**Document revision:** r1.0
+**Document revision:** r1.1
 **Prepared:** 2026-10-03
-**Document status:** `OWNER_DIRECTED_PRE_PHASE3_EXECUTION_SPEC`
-**Implementation status:** `OPEN / NOT_RUN / NOT_READY_FOR_OWNER_UAT` — the exact candidate still has unrun runtime gates and blocked test collection; owner UAT and freeze acceptance remain open.
+**Document status:** `OWNER_ACCEPTED_FREEZE_CLOSEOUT`
+**Implementation status:** `COMPLETE / OWNER_ACCEPTED` — Owner UAT passed on 2026-10-04; the accepted evidence receipt records the exact candidate and known limitations.
 **Repository:** `siriponsri/dr-support-screening-poc`
 **Authoritative baseline:** `f288ae5e8a527f124aaa99eedc6f3d6f7a3e32cb`
+**Integrated P3-0:** `580bd9a2112dd8b552a361f9fadde4d6e16fb13c`
+**Evidence closeouts:** `dc281a7821fd11c8b6da0f0aa48cc4cc534d1c97`, `1440bd5dd696d81ec1cf5859dfc77b6c5d08f9d4`
 **Phase 1:** `DONE`
 **Phase 2:** `DONE`
+**P3-0:** `DONE / UX FREEZE ACCEPTED`
 **Phase 3–5:** `NOT_STARTED`
 
 **Execution name:** `P3-0 — Clinical UX & Design System Freeze`
@@ -1316,7 +1319,7 @@ without decorative branding or color-semantic confusion.
 
 # 33. Completion state
 
-Stop at:
+The pre-owner-UAT execution stop was:
 
 ```text
 PRE-PHASE 3 CLINICAL UX FREEZE READY_FOR_OWNER_UAT
@@ -1336,9 +1339,28 @@ Do not automatically start Phase 3.
 
 After Owner UAT acceptance, use a documentation-only freeze closeout before Phase 3 authorization.
 
+That documentation-only closeout is now complete. The owner accepted the P3-0 UAT on
+2026-10-04. The final P3-0 state is:
+
+```text
+P3-0 = DONE / UX FREEZE ACCEPTED
+Phase 1 = DONE
+Phase 2 = DONE
+Phase 3 = NOT_STARTED
+Phase 4 = NOT_STARTED
+Phase 5 = NOT_STARTED
+```
+
+The accepted runtime/source evidence, review history, limitations, and historical
+pre-UAT receipt remain in `PRE_PHASE3_CLINICAL_UX_FREEZE_EVIDENCE.md`.
+
 ---
 
 # 34. Required receipt
+
+The following receipt is the preserved historical pre-owner-UAT record. Its
+`READY` markers are not the current P3-0 status; the owner-accepted closeout is
+recorded in §33 and in the evidence addendum.
 
 The candidate evidence record is maintained in `PRE_PHASE3_CLINICAL_UX_FREEZE_EVIDENCE.md`. It records source/test evidence separately from browser and 10-case checks that remain `NOT_RUN` until an authorized workstation runtime is available.
 
@@ -1467,6 +1489,7 @@ Advanced optional behavior
 internal-state hiding
 responsive baseline
 accessibility baseline
+manual AI-off workflow
 ```
 
 Phase 3 model evidence must fit this workstation contract.
@@ -1474,6 +1497,12 @@ Phase 3 model evidence must fit this workstation contract.
 The workstation should not become progressively more complicated merely because more model outputs become available.
 
 > The model adapts to the clinical workstation; the clinician should not have to adapt to the model implementation.
+
+The owner-accepted P3-0 UAT specifically confirms the compact Annotation Editor
+toolbar, More tools progressive disclosure, hidden backend-state terminology,
+optional Advanced behavior, compact completion/next-image flow, image dominance,
+and understandable multi-case operation. These are accepted freeze evidence, not
+authorization to start Phase 3.
 
 ---
 

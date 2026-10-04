@@ -1,16 +1,16 @@
 # DR Screening — Milestone 1 Master Plan
 
 **Document path in repository:** `docs/milestone/m1/M1_MASTER_PLAN.md`  
-**Document revision:** Closeout r2.7 (Phase 2 owner-approved closeout)
+**Document revision:** Closeout r2.8 (P3-0 owner-accepted UX freeze)
 **Prepared:** 2026-09-29
 **Document status:** `OWNER_APPROVED_CLOSEOUT`
-**Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted) and Phase 2 `DONE` (owner-approved on 2026-10-03 after UAT; independent O1 review/self-audit and final integrated evidence accepted); see the phase tracker, which is independent of later-phase authorization.
+**Implementation status:** Phase 1 `DONE` (owner-approved on 2026-09-29; independent O1 technical review accepted), Phase 2 `DONE` (owner-approved on 2026-10-03 after UAT; independent O1 review/self-audit and final integrated evidence accepted), and P3-0 `DONE / UX FREEZE ACCEPTED` (owner UAT PASS on 2026-10-04); see the phase trackers, which are independent of later-phase authorization.
 **Source baseline commit:** `20726efcb8aa6ce857eb9b8537810fea5175b42e`
 **Research evidence:** package `DR_M1_DELIVERY_20260928_r1/` (`ASSET_LOCK.json`, `EVIDENCE.md`, `PACKAGE_PREPARATION_REPORT.md`); these are package artifacts, not repository-relative links.  
 **Owner decisions pending:** Phase 0 scope freeze, clinical taxonomy/completeness rubric, model-use/rights and operational acceptance thresholds; unresolved optional items follow the Phase 2 safe-defer boundary in §24.
 **Primary repository:** `siriponsri/dr-support-screening-poc`  
 
-**Current reading guide (closeout r2.7):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29 and Phase 2 `DONE` on 2026-10-03 based on the recorded implementation/evidence, accepted UAT, independent O1 review/self-audit, and final integrated implementation SHA `bde3e673169fa6de2f1ecee6373c22c7d46a04de`. Phase 3 remains `NOT_STARTED`; this does not authorize production, hospital-data use, or clinical/model semantic changes.
+**Current reading guide (closeout r2.8):** §§2–9 and accepted ADRs state the target contracts; §§10 and 14 are phase/tracker requirements, not proof of completion. The §6.1 examples and original §15 status rows record the 2026-09-25 planning baseline; the current-evidence table distinguishes research assets from repository integration and runtime. Phase 1 §20/§21 provider-specific transcripts are historical only. The current execution roles are in Phase 1 §13. Package research is evidence, not authority to amend a frozen clinical/API contract. Owner approved Phase 1 `DONE` on 2026-09-29, Phase 2 `DONE` on 2026-10-03, and P3-0 `DONE / UX FREEZE ACCEPTED` on 2026-10-04 based on the recorded implementation/evidence, accepted UAT, independent O1 review/self-audit, and final integrated receipts. Phase 3 remains `NOT_STARTED`; this does not authorize production, hospital-data use, or clinical/model semantic changes.
 
 ---
 
@@ -711,6 +711,23 @@ Each chunk receives one independent substantive review of the exact candidate. O
 **2026-10-03 formal Phase 2 closeout:** Owner accepted the Phase 2 UAT and authorized formal closeout. Phase 2 is now `DONE` at final integrated implementation SHA `bde3e673169fa6de2f1ecee6373c22c7d46a04de`; the accepted independent O1 changed-diff review and MAIN self-audit remain the evidence for the exact candidate. Accepted limitations are: the feature-worktree `.venv` was unavailable in the final audit environment; no PostgreSQL DSN/server was available for that final audit run; the 1920px audit was not run; reviewer account independence remains unverified; the legacy root-smoke limitation remains historical evidence and is not a fabricated PASS; and live Model API success remains deferred to Phase 3. The owner also accepted these NON-BLOCKING / DEFERRED TO PRE-PHASE-3 UX observations without reopening Phase 2: compress the Annotation Editor toolbar toward one row with compact popover/progressive disclosure for secondary tools, and replace the implementation-oriented `Record partial review` wording in a future UX pass by deriving completeness from clinical actions. Phase 3 remains `NOT_STARTED`.
 
 ---
+
+# P3-0 — Clinical UX & Design System Freeze
+
+P3-0 is the bounded pre-Phase-3 UX/design freeze that follows Phase 2 closeout.
+It does not reopen Phase 2 or authorize model, hospital-data, production, or
+Phase 4 work.
+
+## P3-0 status tracker
+
+**Status:** `DONE / UX FREEZE ACCEPTED`
+**Start/completion date:** 2026-10-03 / 2026-10-04
+**Reviewed by:** Owner UAT `PASS` on 2026-10-04; accepted independent O1 exact-candidate review and MAIN self-audit remain recorded in the P3-0 evidence receipt
+**Evidence / commit(s):** Integrated P3-0 `580bd9a2112dd8b552a361f9fadde4d6e16fb13c`; documentation evidence closeouts `dc281a7821fd11c8b6da0f0aa48cc4cc534d1c97` and `1440bd5dd696d81ec1cf5859dfc77b6c5d08f9d4`; authoritative receipt `docs/milestone/m1/PRE_PHASE3_CLINICAL_UX_FREEZE_EVIDENCE.md`
+**Owner UAT evidence:** The owner verified the compact Annotation Editor toolbar, More tools progressive disclosure/popover, absence of normal-flow `Record partial review`, optional Advanced findings, compact completion/next-image flow, image dominance, and understandable normal multi-case operation.
+**Frozen UX/design contracts:** one-primary-action rule; image-first hierarchy; compact Annotation toolbar with progressive disclosure; hidden backend-state terminology; optional Advanced behavior; compact reviewer treatment; brand/status/lesion color separation; responsive/accessibility baseline; and the manual AI-off workflow.
+**Accepted limitations:** feature-worktree `.venv` unavailable in the final audit environment; PostgreSQL DSN unavailable for the final audit run; 1920px audit not run as an owner-workstation qualification; reviewer account independence unverified; historical legacy root-smoke limitation preserved as historical evidence, not a fabricated PASS; live Model API success deferred to Phase 3; Thai-label live browser coverage not run; and narrow mobile header title wrap/truncation deferred as non-blocking UX follow-up.
+**Owner decision:** P3-0 is closed as `DONE / UX FREEZE ACCEPTED`. Phase 3 remains `NOT_STARTED`. This does not authorize model integration, MONAI adoption, Clef integration, hospital-data use, production/clinical deployment, Phase 3 start, or Phase 4 changes.
 
 # Phase 3 — AI Models & Model API Integration
 

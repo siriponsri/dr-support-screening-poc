@@ -1,11 +1,13 @@
 # P3-0 Clinical UX & Design System Freeze Evidence
 
-**Status:** `READY_FOR_OWNER_UAT` — deterministic browser and synthetic 10-case runtime gates are recorded below; Owner UAT and any freeze acceptance remain pending.
+**Status:** `COMPLETE / OWNER_ACCEPTED` — deterministic browser and synthetic 10-case runtime gates are recorded below; Owner UAT passed and the UX freeze is accepted. The pre-UAT receipt remains historical evidence.
 **Baseline:** `f288ae5e8a527f124aaa99eedc6f3d6f7a3e32cb`
 **Candidate:** `8ba18ebfb68021136315a3ff4b128c56fdbce3b8` (`feat/pre-phase3-clinical-ux-freeze`); exact implementation candidate reviewed before integration
 **Integrated P3-0:** `580bd9a2112dd8b552a361f9fadde4d6e16fb13c`
 **Documentation evidence closeout:** `dc281a7821fd11c8b6da0f0aa48cc4cc534d1c97`
-**Final main state:** clean and synchronized (`main` / `origin/main`)
+**Pre-closeout main state:** `1440bd5dd696d81ec1cf5859dfc77b6c5d08f9d4` (clean and synchronized `main` / `origin/main`)
+**Owner UAT:** `PASS` on 2026-10-04; owner accepted the P3-0 workflow and UX freeze
+**Freeze acceptance:** `COMPLETE / OWNER_ACCEPTED`
 **Phase 1:** `DONE`
 **Phase 2:** `DONE`
 **Phase 3:** `NOT_STARTED`
@@ -105,11 +107,11 @@ The before/after values below are source-level interaction proxies, not clinicia
 
 ## Runtime UAT boundary
 
-The deterministic runtime gate is `PASS` for the required Playwright viewport and interaction checks, and the synthetic 10-case gate is `PASS`. Stagehand remains `NOT_RUN` because it is optional and not installed. This record is `READY_FOR_OWNER_UAT`; it is not a freeze acceptance, production/clinical approval, hospital-data authorization, native UWF model qualification, or Phase 3 start.
+The deterministic runtime gate is `PASS` for the required Playwright viewport and interaction checks, and the synthetic 10-case gate is `PASS`. Stagehand remains `NOT_RUN` because it is optional and not installed. This paragraph records the historical pre-owner-UAT `READY_FOR_OWNER_UAT` boundary; it is not a freeze acceptance, production/clinical approval, hospital-data authorization, native UWF model qualification, or Phase 3 start.
 
 ## Owner UAT boundary
 
-This candidate stops before Phase 3. Owner UAT is `READY` / pending owner action. The owner may inspect the normal synthetic/public workflow, toolbar/popover, reviewed-none completion, and target workstation resolutions. Phase 3 remains `NOT_STARTED`.
+This candidate stopped before Phase 3. The historical owner-UAT handoff was `READY` / pending owner action. The owner could inspect the normal synthetic/public workflow, toolbar/popover, reviewed-none completion, and target workstation resolutions. Phase 3 remains `NOT_STARTED`.
 
 ## Owner-UAT handoff
 
@@ -117,4 +119,45 @@ This candidate stops before Phase 3. Owner UAT is `READY` / pending owner action
 - **Required limitations:** feature-worktree `.venv` unavailable in the final source audit; PostgreSQL DSN unavailable; 1920px was checked with system Chrome but was not an owner-workstation qualification; reviewer account independence unverified; historical legacy root-smoke limitation preserved; live Model API success deferred to Phase 3.
 - **Deferred Pre-Phase-3 UX:** compress the Annotation Editor toolbar toward one-row operation and move low-frequency tools to compact progressive disclosure where practical; preserve the Owner-UAT observation that future completeness UX should derive internal state from clinical actions and must not expose backend terminology such as `Record partial review`. These are non-blocking follow-ups and were not implemented in this closeout.
 
-**Final marker:** `PRE-PHASE 3 CLINICAL UX FREEZE READY_FOR_OWNER_UAT`
+**Historical pre-UAT marker:** `PRE-PHASE 3 CLINICAL UX FREEZE READY_FOR_OWNER_UAT`
+
+## Formal owner UAT and freeze closeout (2026-10-04)
+
+Owner UAT result: `PASS`. The owner verified the intended P3-0 workflow and UX:
+
+- compact Annotation Editor toolbar;
+- More tools progressive disclosure/popover;
+- no normal-flow `Record partial review` control;
+- optional, untouched Advanced findings behavior;
+- compact completion and next-image flow;
+- retinal image remains visually dominant; and
+- the normal multi-case workflow is understandable and usable.
+
+The accepted P3-0 freeze carries these contracts into Phase 3:
+
+- **One-primary-action rule:** each routine state exposes one dominant next action, including compact completion and next-image guidance.
+- **Image-first hierarchy:** the retinal image and its clinician-relevant overlays remain the primary object; supporting controls stay compact.
+- **Annotation controls:** Box remains the primary tool; the Annotation toolbar stays compact and low-frequency geometry uses progressive disclosure through More tools.
+- **Hidden implementation state:** backend completeness/state-management terminology, including `Record partial review`, stays out of the normal clinician flow; persisted semantics and audit evidence remain intact.
+- **Advanced behavior:** Advanced findings remain optional; an unopened Advanced group remains `NOT_REVIEWED` and does not block Core completion.
+- **Reviewer treatment:** remembered reviewer identity remains compact and convenient without being treated as authentication.
+- **Color separation:** brand colors, clinical status colors, and retinal lesion/provenance colors remain separate and are not interchangeable.
+- **Responsive and accessible baseline:** supported layouts remain overflow-free and readable; keyboard access, visible focus, adequate targets, text/non-color cues, and progressive disclosure remain required.
+- **Manual AI-off workflow:** image confirmation, grading, findings, completion, and next-case progression remain usable without model integration or a live Model API.
+
+Known limitations remain accepted and explicitly bounded:
+
+- the feature-worktree `.venv` was unavailable in the final audit environment;
+- PostgreSQL DSN/server access was unavailable for the final audit run, so no PostgreSQL persistence/restart or CAS qualification is claimed here;
+- the 1920px audit used system Chrome and was not an owner-workstation qualification;
+- reviewer account independence remained unverified;
+- the historical legacy root-smoke limitation remains historical evidence, not a fabricated PASS;
+- live Model API success remains deferred to Phase 3;
+- Thai-label live browser coverage was not run; and
+- the narrow mobile header title wrap/truncation remains non-blocking deferred UX follow-up.
+
+The earlier Phase 2 deferred observations remain preserved as non-blocking/deferred history. P3-0 owner UAT verifies the resulting compact toolbar and More tools disclosure; future completeness copy should still derive internal state from clinical actions rather than expose backend terminology. No deferred UX change is authorized by this closeout.
+
+This closeout does not authorize model integration, MONAI adoption, Clef integration, hospital-data use, production/clinical deployment, Phase 3 start, or Phase 4 changes. Phase 3 remains `NOT_STARTED`.
+
+**Final closeout marker:** `P3-0 CLOSED — READY FOR PHASE 3 RECONCILIATION`
