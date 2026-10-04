@@ -6,7 +6,8 @@ Chunk A SHA: 8830608
 Chunk B: BLOCKED_ARTIFACT / no qualified USPEC bytes or runtime
 Chunk C: 00483b8 (decision receipts)
 Chunk D: NOT_RUN for target-host/live Model API; docs and contract evidence recorded
-Final feature SHA: pending integration
+Feature candidate SHA: 06d09b6366b8adce98ccd757e18ecc7062590f37
+Integrated main merge SHA: 857f048
 
 Bridge v1 compatibility: PASS (legacy focused tests)
 Phase 3 versioned contract: PASS (bridge.v2 contracts and v2 routes)

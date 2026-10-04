@@ -810,7 +810,7 @@ Native UWF model work may remain `BLOCKED` or `DEFERRED` while the application u
 **3T longitudinal model:** `DISABLED`  
 **Start date:** 2026-10-04  
 **Completion/review date:** 2026-10-04 execution receipt; owner review pending  
-**Evidence / commit(s):** Feature candidate `8830608`; [M1 Phase 3 execution evidence](M1_PHASE3_EVIDENCE.md); [r3.0 execution contract](M1_PHASE3_EXECUTION_R3.md)  
+**Evidence / commit(s):** Feature foundation `8830608`; final feature candidate `06d09b6`; integrated main merge `857f048`; [M1 Phase 3 execution evidence](M1_PHASE3_EVIDENCE.md); [r3.0 execution contract](M1_PHASE3_EXECUTION_R3.md)  
 **Model artifact references:** USPEC expected `grading_state.pt` identity recorded; observed bytes unavailable; no checkpoint in Git  
 **Known model limitations:** no qualified USPEC runtime/load, no live Model API Gate C, no GPU/L4 performance profile, USPEC rights unverified, PRISM CFP-only, no native UWF lesion candidate, no learned longitudinal model  
 **Open blockers:** artifact access/trust, exact loader security/runtime, designated target-host evidence, live approved Model API target, rights and clinical/domain decisions  
