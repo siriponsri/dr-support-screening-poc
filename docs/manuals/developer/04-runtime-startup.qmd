@@ -6,7 +6,7 @@
 
 | `APP_PROFILE` | Required `MODEL_RUNTIME` | Surface | Used by |
 |:--------------|:-------------------------|:--------|:--------|
-| `review` (default) | `remote` | Review API + `/app/` + `/ui/`; no sample or demo fixtures; model calls go to `REMOTE_MODEL_URL` | Clinician workstation (`START.cmd`) |
+| `review` (default) | `remote` | Review API + `/app/` + `/ui/`; no sample or demo fixtures; model calls go to `REMOTE_MODEL_URL` | Clinician workstation (`START_DR_SCREENING.bat`) |
 | `model_api` | `local` | `/health`, `/v1/models`, `/v1/predict/dr`, `/v1/predict/lesions`; CUDA enforced unless `DR_SUPPORT_RELAX_DEVICE=1` | GPU host (`start.sh`) |
 | `full` | `local` | Both surfaces merged, with synthetic fixtures and public samples; CPU allowed | Local demos and development only |
 
@@ -14,19 +14,22 @@
 
 `dr_support.api:app` is a separate legacy entry point used by the root UI smoke test (`tests/ui.test.cjs`). It does **not** apply the profile invariants and it includes the synthetic fixture and the public samples.
 
-## Workstation startup (`SETUP.cmd` -> `START.cmd`)
+## Workstation startup (no-code release launcher)
 
-`SETUP.cmd` is the one-time provisioning owner. It bootstraps per-user `uv`
-when needed, installs the supported Python 3.12 toolchain, runs `uv sync`,
-selects system Node.js or the ignored no-admin fallback, installs the root and
-frontend lockfiles, and builds `frontend/dist/`.
+`FIRST_RUN.bat` is the one-time provisioning owner for an extracted release.
+It installs the supported Python 3.12 toolchain and locked workstation
+dependencies while reusing the prebuilt `frontend/dist/`.
 
-`START.cmd` is the daily runtime owner. It requires the project environment and
-frontend dependencies to already exist, reuses them, and rebuilds only when the
-tracked frontend source or lockfile signature is stale. It never reinstalls
-dependencies. It sets `APP_PROFILE=review` and `MODEL_RUNTIME=remote`, then runs
-`python -m dr_support.run` on `127.0.0.1:8000`. `OPEN_APP.cmd` opens the app or
-delegates to `START.cmd`; `STOP.cmd` stops only the recorded repository process.
+`START_DR_SCREENING.bat` is the daily runtime owner. It requires the project
+environment and prebuilt frontend to already exist, never installs dependencies,
+sets `APP_PROFILE=review` and `MODEL_RUNTIME=remote`, then runs
+`python -m dr_support.run` on `127.0.0.1:8000`. `STOP_DR_SCREENING.bat` stops
+only the recorded release-managed repository process.
+
+For a developer checkout, run `uv sync --python 3.12 --extra test --extra dicom
+--extra browser-test`, then `npm.cmd ci` and `npm.cmd run build` under
+`frontend/`. Use the same `START_DR_SCREENING.bat` and
+`STOP_DR_SCREENING.bat` launchers afterward.
 
 At startup, `WorkspaceManager` uses the legacy SQLite catalog
 (`DR_SUPPORT_WORKSPACE_CATALOG`, default `local-state/bridge/workspaces.sqlite`)

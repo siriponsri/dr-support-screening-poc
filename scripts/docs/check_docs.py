@@ -101,10 +101,10 @@ def path_sources() -> list[Path]:
     roots = [
         ROOT / "PRESENT_DEMO.cmd",
         ROOT / "PRESENT_TECHNICAL.cmd",
-        ROOT / "SETUP.cmd",
-        ROOT / "START.cmd",
-        ROOT / "OPEN_APP.cmd",
-        ROOT / "STOP.cmd",
+        ROOT / "FIRST_RUN.bat",
+        ROOT / "START_DR_SCREENING.bat",
+        ROOT / "STOP_DR_SCREENING.bat",
+        ROOT / "CHECK_SYSTEM.bat",
         *((ROOT / "scripts").rglob("*.py") if (ROOT / "scripts").exists() else []),
         *((ROOT / "scripts").rglob("*.ps1") if (ROOT / "scripts").exists() else []),
     ]

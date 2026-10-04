@@ -12,13 +12,13 @@ This guide installs the review workstation and the separate hospital Model API f
 
 ## Windows clinician workstation
 
-The supported owner path is deliberately short:
+The supported no-code release path is deliberately short:
 
 ```text
-clean clone -> SETUP.cmd -> START.cmd -> browser opens
+extract release -> FIRST_RUN.bat -> START_DR_SCREENING.bat -> browser opens
 ```
 
-`SETUP.cmd` bootstraps `uv` when needed, provisions project-managed Python 3.12, installs workstation dependencies, uses compatible system Node.js or an official no-admin Node.js fallback under ignored `local-state/tools/`, installs the lockfile-defined npm dependencies, and builds the frontend once. Use `SETUP.cmd --dev` to add test/DICOM/browser extras. Use `SETUP.cmd --check` for a read-only diagnostic.
+`FIRST_RUN.bat` provisions project-managed Python 3.12 and locked workstation dependencies from an extracted release. It reuses the prebuilt frontend and does not install or run npm. Use `CHECK_SYSTEM.bat` for a read-only diagnostic.
 
 ## No-code release path
 
@@ -26,11 +26,16 @@ For a packaged workstation, use `README_START_HERE.md` and the root
 `FIRST_RUN.bat`, `START_DR_SCREENING.bat`, `CHECK_SYSTEM.bat`, and
 `STOP_DR_SCREENING.bat` files. `FIRST_RUN.bat` provisions Python dependencies
 but requires the release's prebuilt `frontend/dist`; normal startup never runs
-npm or rebuilds the frontend. `SETUP.cmd` remains the developer-checkout path.
+npm or rebuilds the frontend. Developer checkouts prepare dependencies manually
+with the `uv` and frontend npm commands documented below.
 
-`START.cmd` sets the safe workstation invariants (`APP_PROFILE=review`, `MODEL_RUNTIME=remote`, `HOST=127.0.0.1`, `PORT=8000`, `WORKERS=1`), reuses a healthy managed process, rebuilds only when the frontend signature is stale, waits for `/health`, and opens `/app/`. It does not reinstall dependencies on daily starts. `OPEN_APP.cmd` opens or delegates to `START.cmd`; `STOP.cmd` stops only the process recorded in `local-state/run/workstation.json`.
+`START_DR_SCREENING.bat` sets the safe workstation invariants (`APP_PROFILE=review`, `MODEL_RUNTIME=remote`, `HOST=127.0.0.1`, `PORT=8000`, `WORKERS=1`), reuses a healthy managed process, waits for `/health`, and opens `/app/`. It does not install or rebuild dependencies on daily starts. `STOP_DR_SCREENING.bat` stops only the process recorded in `local-state/release/workstation.json`.
 
-Logs and runtime metadata are under ignored `local-state/logs/`, `local-state/run/`, and `local-state/setup/`. A port-8000 conflict is reported with process information and is never killed automatically. Private `.env` values such as `REMOTE_MODEL_URL` and `REMOTE_MODEL_TOKEN` are loaded without being printed; launcher role variables are forced to the safe workstation values.
+Logs and runtime metadata are under ignored `local-state/logs/` and
+`local-state/release/`. A port-8000 conflict is reported with process
+information and is never killed automatically. Private `.env` values such as
+`REMOTE_MODEL_URL` and `REMOTE_MODEL_TOKEN` are loaded without being printed;
+launcher role variables are forced to the safe workstation values.
 
 ## Review workstation
 
@@ -51,10 +56,10 @@ cd ..
 Start the workstation with:
 
 ```powershell
-START.cmd
+START_DR_SCREENING.bat
 ```
 
-The launcher starts `APP_PROFILE=review`, `MODEL_RUNTIME=remote`, and `127.0.0.1:8000`. Configure `REMOTE_MODEL_URL` and the optional `REMOTE_MODEL_TOKEN` in a private `.env` or approved process environment before starting when model assistance is available.
+The launcher starts `APP_PROFILE=review`, `MODEL_RUNTIME=remote`, and `127.0.0.1:8000`. Configure `REMOTE_MODEL_URL` and the optional `REMOTE_MODEL_TOKEN` in a private `.env` or approved process environment before starting when model assistance is available. In a developer checkout, run `uv sync --python 3.12 --extra test --extra dicom --extra browser-test`, then `npm.cmd ci` and `npm.cmd run build` under `frontend/` before using the same launcher.
 
 For a development server without the launcher:
 

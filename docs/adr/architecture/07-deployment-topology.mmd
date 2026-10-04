@@ -3,7 +3,7 @@ flowchart LR
   subgraph lan["Protected hospital LAN (TLS / firewall at the boundary)"]
     subgraph wsn["Windows review workstation"]
       b["Browser → 127.0.0.1:8000/app/"]
-      w["START.cmd → python -m dr_support.run<br/>APP_PROFILE=review<br/>MODEL_RUNTIME=remote"]
+      w["START_DR_SCREENING.bat → python -m dr_support.run<br/>APP_PROFILE=review<br/>MODEL_RUNTIME=remote"]
       ls[("local-state/ + Workspace folders")]
     end
     subgraph gpun["Linux GPU host (/opt/dr-support-screening-poc)"]

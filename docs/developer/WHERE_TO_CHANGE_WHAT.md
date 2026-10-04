@@ -33,7 +33,7 @@ Protected areas need an owner-approved spec under `docs/` **before** implementat
 |:--|:--|:--|:--|
 | Model API URL, token, or timeout | Environment `REMOTE_MODEL_URL` / `REMOTE_MODEL_TOKEN`; `providers/remote.py` `INFERENCE_TIMEOUT_SECONDS` | `docs/operations/CONFIGURATION.md`; `test_remote.py` | Timeout: no. Contract: **yes** |
 | A model checkpoint or revision | `providers/retfound.py` / `prism.py` constants, `prism_assets.json`, `setup_models.py` | `THIRD_PARTY_NOTICES.md`; `MODEL_SERVER.md`; operator manual | **Yes** (model identity and provenance) |
-| Profile rules or ports | `dr_support/app.py`, `run.py`, `START.cmd`, `scripts/model-server/start.sh` | `test_profiles.py`, `test_startup.py`; `CONFIGURATION.md`; operator manual | **Yes** |
+| Profile rules or ports | `dr_support/app.py`, `run.py`, `scripts/windows/release-start.ps1`, `scripts/model-server/start.sh` | `test_profiles.py`, `test_startup.py`; `CONFIGURATION.md`; operator manual | **Yes** |
 | UI theme or tokens | `frontend/src/theme/**` | `DESIGN.md` first, then the components | DESIGN.md is the source of truth |
 
 ## Sampling, guides, and documents

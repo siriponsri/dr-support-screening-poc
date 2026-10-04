@@ -2,27 +2,27 @@
 
 ## Review application does not start
 
-Run `SETUP.cmd --check`, then `SETUP.cmd` if the project-managed Python, npm dependencies, or frontend bundle are missing. `START.cmd` writes stdout/stderr to `local-state/logs/`. Do not set `APP_PROFILE=review` with `MODEL_RUNTIME=local`.
+For an extracted release, run `CHECK_SYSTEM.bat`, then `FIRST_RUN.bat` if the project-managed Python is missing. For a developer checkout, rerun the documented `uv sync` and frontend `npm.cmd ci` / `npm.cmd run build` commands. `START_DR_SCREENING.bat` writes stdout/stderr to `local-state/logs/`. Do not set `APP_PROFILE=review` with `MODEL_RUNTIME=local`.
 
 ## uv or Python provisioning is blocked
 
-The first setup downloads uv and Python 3.12 from their official sources. Use an approved proxy or internal mirror if hospital policy blocks those downloads, then rerun `SETUP.cmd`. Do not replace the machine Python or manually point the workstation at an untested interpreter. `SETUP.cmd --check` is read-only.
+The first release setup downloads uv and Python 3.12 from their official sources. Use an approved proxy or internal mirror if hospital policy blocks those downloads, then rerun `FIRST_RUN.bat`. Do not replace the machine Python or manually point the workstation at an untested interpreter. `CHECK_SYSTEM.bat` is read-only.
 
-## Node/npm is unavailable
+## Developer frontend dependencies are unavailable
 
-`SETUP.cmd` accepts compatible system Node.js 18+ or downloads the pinned official Node.js distribution into ignored `local-state/tools/`. It uses `npm.cmd`, so PowerShell execution-policy changes are not required. Rerun setup to repair the managed fallback.
+The packaged workstation does not require Node.js or npm. In a developer checkout, install the supported Node.js version, run `npm.cmd ci` under `frontend/`, and rebuild with `npm.cmd run build`.
 
 ## Frontend build is stale or missing
 
-`START.cmd` hashes the frontend source, Vite/TypeScript configuration, and npm lockfile. If those inputs changed, it runs one build and records the signature under `local-state/setup/`. If the build is missing, run `SETUP.cmd` and inspect `frontend/dist/index.html`.
+The release launcher requires the prebuilt `frontend/dist/index.html`. In a developer checkout, rebuild it with `npm.cmd run build`; in an extracted release, re-extract the package if the bundle is missing.
 
 ## Port 8000 is already in use
 
-`START.cmd` reports the owning PID and command line and never kills an unrelated process. Stop the known owner using its own service controls, then rerun `START.cmd`. Do not change the workstation bind address to `0.0.0.0`.
+`START_DR_SCREENING.bat` reports the owning PID and command line and never kills an unrelated process. Stop the known owner using its own service controls, then rerun `START_DR_SCREENING.bat`. Do not change the workstation bind address to `0.0.0.0`.
 
 ## Browser does not open
 
-Open `http://127.0.0.1:8000/app/` manually after `START.cmd` reports a healthy service. `OPEN_APP.cmd` can be rerun without starting a second server.
+Open `http://127.0.0.1:8000/app/` manually after `START_DR_SCREENING.bat` reports a healthy service. The start launcher can be rerun without starting a second server.
 
 ## Review cannot reach the Model API
 

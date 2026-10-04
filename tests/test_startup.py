@@ -1,61 +1,41 @@
-import hashlib
-import os
 from pathlib import Path
-import re
-import subprocess
-
-import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_start_cmd_is_the_single_owner_launcher():
-    launcher = (ROOT / 'START.cmd').read_text(encoding='utf-8')
-    common = (ROOT / 'scripts' / 'windows' / 'workstation-common.ps1').read_text(encoding='utf-8')
-    worker = (ROOT / 'scripts' / 'windows' / 'start-workstation.ps1').read_text(encoding='utf-8')
+def test_release_launchers_are_the_single_workstation_path():
+    launchers = {
+        "FIRST_RUN.bat": "release-first-run.ps1",
+        "START_DR_SCREENING.bat": "release-start.ps1",
+        "STOP_DR_SCREENING.bat": "release-stop.ps1",
+        "CHECK_SYSTEM.bat": "release-check-system.ps1",
+    }
+    for name, script in launchers.items():
+        launcher = ROOT / name
+        assert launcher.exists()
+        assert script in launcher.read_text(encoding="utf-8")
 
-    assert 'scripts\\windows\\start-workstation.ps1' in launcher
+    common = (ROOT / "scripts/windows/release-common.ps1").read_text(encoding="utf-8")
+    start = (ROOT / "scripts/windows/release-start.ps1").read_text(encoding="utf-8")
+    stop = (ROOT / "scripts/windows/release-stop.ps1").read_text(encoding="utf-8")
     assert '$env:APP_PROFILE = "review"' in common
     assert '$env:MODEL_RUNTIME = "remote"' in common
     assert '$env:HOST = "127.0.0.1"' in common
     assert '$env:PORT = "8000"' in common
     assert '$env:WORKERS = "1"' in common
-    assert 'Get-Sha256Hex' in common
-    assert 'Get-FileHash' not in common
-    assert 'http://127.0.0.1:8000/app/' in worker
-    assert 'Start-Process' in worker
-    assert 'Ensure-FrontendBuild -AllowInstall' not in worker
-    assert 'Ensure-FrontendBuild | Out-Null' in worker
-    assert 'DR_DEMO_FOLDER' not in launcher
-    assert 'IMG_01.jpg' not in launcher
-    assert 'IMG_02.jpg' not in launcher
-    assert 'IMG_03.jpg' not in launcher
-    assert not (ROOT / 'START_DEMO.cmd').exists()
-    assert (ROOT / 'OPEN_APP.cmd').exists()
-    assert (ROOT / 'STOP.cmd').exists()
-    assert (ROOT / 'SETUP.cmd').exists()
+    assert "Test-ReleaseFrontend" in start
+    assert "npm" not in start.lower()
+    assert "127.0.0.1:8000/app/" in start
+    assert "Stop-Process" in stop
 
-
-@pytest.mark.skipif(os.name != 'nt', reason='Windows launcher coverage')
-def test_windows_powershell_can_compute_frontend_signature_without_get_file_hash():
-    command = (
-        ". 'scripts/windows/workstation-common.ps1'; "
-        "$source = Get-FrontendSourceSignature; "
-        "$dependency = Get-FrontendDependencySignature; "
-        "if ($source -notmatch '^[0-9a-f]{64}$' -or $dependency -notmatch '^[0-9a-f]{64}$') { exit 1 }; "
-        "Write-Output $source; Write-Output $dependency"
+    retired = ("SETUP.cmd", "START.cmd", "OPEN_APP.cmd", "STOP.cmd")
+    assert all(not (ROOT / name).exists() for name in retired)
+    retired_helpers = (
+        "bootstrap.ps1",
+        "start-workstation.ps1",
+        "open-workstation.ps1",
+        "stop-workstation.ps1",
+        "workstation-common.ps1",
     )
-    result = subprocess.run(
-        ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    signatures = result.stdout.splitlines()
-    assert all(re.fullmatch(r'[0-9a-f]{64}', line) for line in signatures)
-    assert len(signatures) == 2
-    assert signatures[1] == hashlib.sha256((ROOT / 'frontend' / 'package-lock.json').read_bytes()).hexdigest()
+    assert all(not (ROOT / "scripts/windows" / name).exists() for name in retired_helpers)

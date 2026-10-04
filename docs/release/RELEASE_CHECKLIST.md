@@ -19,15 +19,15 @@ is not production, clinical, hospital-data, model, or training authorization.
 ## Product tree
 
 - [ ] README describes the current product and links resolve.
-- [ ] Only final operational documentation remains under `docs/`.
-- [ ] No drafts, milestone specifications, owner audit notes, temporary smoke reports, or duplicate README files remain.
+- [ ] Current operating documentation under `docs/` points to one supported workstation path.
+- [ ] Accepted milestone specifications, owner evidence, and receipts remain for traceability; no obsolete task packets or duplicate operating guides remain.
 - [ ] No secrets, PHI, model weights, runtime databases, or local-state artifacts are tracked.
 - [ ] Logo and final architecture/workflow diagrams use Retinal Review Workbench branding.
 
 ## Runtime
 
 - [ ] Clean clone installs the review workstation dependencies and builds `frontend/dist`.
-- [ ] `START.cmd` opens the review workstation at `/app/`.
+- [ ] `START_DR_SCREENING.bat` opens the review workstation at `/app/`.
 - [ ] One-time model setup verifies pinned RETFound and PRISM-DR assets and ends with `READY`.
 - [ ] Normal Model API startup performs read-only verification and does not download.
 - [ ] `/health` reports `PASS` with verified assets and `/v1/models` reports both model descriptors.
