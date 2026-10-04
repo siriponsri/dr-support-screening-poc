@@ -850,6 +850,11 @@ class DatasetManifestService:
         return summary
 
     @staticmethod
+    def _assert_export_authorized(images: list[dict]) -> None:
+        if any(str(row.get("export_authorization", "")).startswith("BLOCKED_") for row in images):
+            raise DatasetManifestError("Export is blocked because one or more records lack approved engineering export authorization.")
+
+    @staticmethod
     def _readiness_match(row: dict, readiness: str) -> bool:
         if readiness in {"all", ""}:
             return True
@@ -1224,6 +1229,7 @@ class DatasetManifestService:
             cases = list(snapshot_cases) if hasattr(self.app.state.store, "repeatable_read_cases") else self._merge_case_records(snapshot_cases)
             images, annotations = self._rows(cases)
             source_state = _source_state_receipt(workspace.id, cases)
+        self._assert_export_authorized(images)
         created_at = _utc_now()
         export_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid4().hex[:8]}"
         output_root = Path(workspace.output_folder)
@@ -1322,6 +1328,10 @@ class DatasetManifestService:
                 (image_id, *self._case_context(image_id, store))
                 for image_id in self._image_ids()
             ]
+        self._assert_export_authorized([
+            self._rows([case])[0][0]
+            for _image_id, case, _image, _admission in snapshots
+        ])
 
         for image_id, case, image, admission in snapshots:
             group, grade = _grade_group(case, admission)

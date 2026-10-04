@@ -224,6 +224,8 @@ def test_blocked_origin_is_visible_but_cannot_create_snapshot(tmp_path, origin):
     assert preview.json()["blocked_record_count"] == 1
     assert preview.json()["can_export"] is False
     assert client.post("/v2/dataset/snapshot").status_code == 409
+    assert client.post("/v1/dataset/export").status_code == 409
+    assert client.post("/v1/dataset/export/grouped-by-grade", json={}).status_code == 409
 
 
 def test_reviewed_none_is_completeness_only_and_receipt_hashes_files(tmp_path):
