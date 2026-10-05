@@ -8,6 +8,7 @@ from typing import Any, Mapping
 
 READY_STATUSES = frozenset({"LOADED", "SYNTHETIC_FIXTURE"})
 BLOCKED_RELEASE_STATUSES = frozenset({"DISABLED", "COMPARATOR_ONLY", "DEFERRED"})
+CFP_ONLY_MODEL_IDS = frozenset({"retfound-aptos5", "prism-dr-5fold"})
 
 
 class CapabilityRoutingError(ValueError):
@@ -21,6 +22,12 @@ def release_status_blocked(status: object) -> bool:
         or normalized.startswith("BLOCKED")
         or normalized.startswith("DEFERRED")
     )
+
+
+def model_supports_modality(model_id: str, modality: str) -> bool:
+    """Keep known CFP model identities from being routed to UWF input."""
+
+    return not (modality == "UWF" and model_id in CFP_ONLY_MODEL_IDS)
 
 
 @dataclass(frozen=True)
@@ -65,6 +72,8 @@ def route_capability(
         raise CapabilityRoutingError("No ready model is advertised for this request; manual review remains available.")
     if release_status_blocked(descriptor.get("release_status")):
         raise CapabilityRoutingError("The selected model is not available for review use; manual review remains available.")
+    if not model_supports_modality(model_id, modality):
+        raise CapabilityRoutingError("This model is validated for CFP images only; manual review remains available.")
     modalities = _advertised_modalities(descriptor)
     if modality not in modalities:
         raise CapabilityRoutingError("No ready model is advertised for this image type; manual review remains available.")

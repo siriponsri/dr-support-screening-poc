@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 
-from .capability_routing import release_status_blocked
+from .capability_routing import CFP_ONLY_MODEL_IDS, release_status_blocked
 
 
 EXPECTED_MODELS = {
@@ -33,8 +33,8 @@ def _actionable_capability(item: dict[str, Any], model_id: str, status: object) 
         return False
     if any(not isinstance(modality, str) or not modality.strip() for modality in modalities):
         return False
-    if expected_task is not None:
-        return True
+    if model_id in CFP_ONLY_MODEL_IDS:
+        return "CFP" in modalities
     capability_id = item.get("capability_id")
     revision = item.get("revision") or item.get("model_version")
     preprocessing = item.get("preprocessing") or item.get("preprocessing_version")

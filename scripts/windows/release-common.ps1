@@ -6,8 +6,22 @@ $script:ReleaseLogRoot = Join-Path $script:ReleaseRepoRoot "local-state\logs"
 $script:ReleaseRunFile = Join-Path $script:ReleaseStateRoot "workstation.json"
 $script:ReleaseLocalDatabaseEnvFile = Join-Path $script:ReleaseStateRoot "postgres.env"
 $script:ReleaseComposeFile = Join-Path $script:ReleaseRepoRoot "deployment\docker-compose.local-postgres.yml"
-$script:ReleaseComposeProject = "dr-support-workstation"
 $script:ReleaseComposeService = "postgres"
+
+function Get-ReleaseCheckoutIdentity {
+    $normalizedPath = [IO.Path]::GetFullPath($script:ReleaseRepoRoot).TrimEnd('\', '/').ToUpperInvariant()
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($normalizedPath))
+    } finally {
+        $sha.Dispose()
+    }
+    return (-join ($digest | ForEach-Object { $_.ToString("x2") })).Substring(0, 16)
+}
+
+$script:ReleaseCheckoutIdentity = Get-ReleaseCheckoutIdentity
+$script:ReleaseComposeProject = "dr-support-workstation-$script:ReleaseCheckoutIdentity"
+$script:ReleaseComposeVolume = "dr_support_workstation_postgres_data_$script:ReleaseCheckoutIdentity"
 
 function Ensure-ReleaseDirectories {
     foreach ($path in @($script:ReleaseStateRoot, $script:ReleaseLogRoot)) {
@@ -92,11 +106,12 @@ function Import-ReleaseLocalDatabaseConfig {
     if (-not (Test-Path -LiteralPath $script:ReleaseLocalDatabaseEnvFile -PathType Leaf)) {
         return $null
     }
+    $values = @{}
     foreach ($line in Get-Content -LiteralPath $script:ReleaseLocalDatabaseEnvFile) {
         $trimmed = $line.Trim()
         if (-not $trimmed -or $trimmed.StartsWith("#")) { continue }
         if ($trimmed -notmatch "^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$") { continue }
-        [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2].Trim(), "Process")
+        $values[$Matches[1]] = $Matches[2].Trim()
     }
     $required = @(
         "DR_SUPPORT_POSTGRES_DB",
@@ -104,10 +119,20 @@ function Import-ReleaseLocalDatabaseConfig {
         "DR_SUPPORT_POSTGRES_PASSWORD",
         "DR_SUPPORT_POSTGRES_BIND",
         "DR_SUPPORT_POSTGRES_PORT",
-        "DR_SUPPORT_DATABASE_URL"
+        "DR_SUPPORT_DATABASE_URL",
+        "DR_SUPPORT_CHECKOUT_ID",
+        "DR_SUPPORT_POSTGRES_VOLUME"
     )
-    if ($required | Where-Object { -not [Environment]::GetEnvironmentVariable($_, "Process") }) {
-        throw "Project-owned PostgreSQL state is incomplete. Remove only local-state/release/postgres.env and retry START_DR_SCREENING.bat."
+    $missing = @($required | Where-Object { -not $values.ContainsKey($_) -or -not $values[$_] })
+    if ($missing.Count -gt 0) {
+        throw "Legacy project-owned PostgreSQL state detected in local-state/release/postgres.env. An owner must preserve or back up its data, then remove only that ignored env file to provision checkout-isolated state; the legacy named volume is not removed automatically."
+    }
+    if ($values["DR_SUPPORT_CHECKOUT_ID"] -ne $script:ReleaseCheckoutIdentity -or
+        $values["DR_SUPPORT_POSTGRES_VOLUME"] -ne $script:ReleaseComposeVolume) {
+        throw "Project-owned PostgreSQL state belongs to another checkout identity. An owner must preserve or back up its data before migrating this checkout; no existing volume was changed."
+    }
+    foreach ($name in $values.Keys) {
+        [Environment]::SetEnvironmentVariable($name, $values[$name], "Process")
     }
     return [pscustomobject]@{
         Source = "local"
@@ -138,7 +163,9 @@ function New-ReleaseLocalDatabaseConfig {
         "DR_SUPPORT_POSTGRES_PASSWORD=$password",
         "DR_SUPPORT_POSTGRES_BIND=$bind",
         "DR_SUPPORT_POSTGRES_PORT=$port",
-        "DR_SUPPORT_DATABASE_URL=$dsn"
+        "DR_SUPPORT_DATABASE_URL=$dsn",
+        "DR_SUPPORT_CHECKOUT_ID=$script:ReleaseCheckoutIdentity",
+        "DR_SUPPORT_POSTGRES_VOLUME=$script:ReleaseComposeVolume"
     ) | Set-Content -LiteralPath $script:ReleaseLocalDatabaseEnvFile -Encoding ascii
     return Import-ReleaseLocalDatabaseConfig
 }

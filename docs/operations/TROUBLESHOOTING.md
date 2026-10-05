@@ -20,7 +20,9 @@ The release launcher requires the prebuilt `frontend/dist/index.html` and the re
 
 ## Port 8000 is already in use
 
-`START_DR_SCREENING.bat` reports the owning PID and command line and never kills an unrelated process. Stop the known owner using its own service controls, then rerun `START_DR_SCREENING.bat`. Do not change the workstation bind address to `0.0.0.0`.
+`START_DR_SCREENING.bat` reports the owning PID and executable name only and never kills an unrelated process. Stop the known owner using its own service controls, then rerun `START_DR_SCREENING.bat`. Do not change the workstation bind address to `0.0.0.0`.
+
+If startup reports legacy or cross-checkout PostgreSQL state, preserve or back up any data before removing only the ignored `local-state/release/postgres.env` file. Rerun startup to provision checkout-isolated state; the old named volume is not removed automatically and requires a separate owner-approved migration or cleanup.
 
 ## Browser does not open
 

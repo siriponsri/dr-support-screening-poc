@@ -61,14 +61,36 @@ try {
             $headers = @{}
             if ($env:REMOTE_MODEL_TOKEN) { $headers.Authorization = "Bearer $env:REMOTE_MODEL_TOKEN" }
             $modelHealth = Invoke-WebRequest -Uri "$modelUrl/health" -Headers $headers -UseBasicParsing -TimeoutSec 5
-            $modelReady = $modelHealth.StatusCode -eq 200
-            if ($modelReady) {
-                Write-Host "[PASS] Model API connection: remote health endpoint responded; manual review remains available."
+            $healthBody = $modelHealth.Content | ConvertFrom-Json
+            $healthStatus = ([string]$healthBody.status).Trim().ToUpperInvariant()
+            if ($modelHealth.StatusCode -ne 200 -or $healthStatus -notin @("PASS", "PASS_WITH_WARNINGS")) {
+                Write-Host "[WARN] Model API connection: remote health is not passing; manual review remains available."
             } else {
-                Write-Host "[WARN] Model API connection: remote health endpoint did not report ready; manual review remains available."
+                $modelList = Invoke-WebRequest -Uri "$modelUrl/v1/models" -Headers $headers -UseBasicParsing -TimeoutSec 5
+                $capabilities = @($modelList.Content | ConvertFrom-Json)
+                $invalidCapabilities = @($capabilities | Where-Object {
+                    -not ([string]$_.model_id).Trim() -or
+                    -not ([string]$_.task).Trim() -or
+                    @($_.modalities).Count -eq 0
+                })
+                $validCapabilities = $modelList.StatusCode -eq 200 -and $capabilities.Count -gt 0 -and $invalidCapabilities.Count -eq 0
+                if (-not $validCapabilities) {
+                    Write-Host "[WARN] Model API connection: capability discovery could not be verified; manual review remains available."
+                } else {
+                    $readyCapabilities = @($capabilities | Where-Object {
+                        $release = ([string]$_.release_status).Trim().ToUpperInvariant()
+                        $blocked = $release -in @("DISABLED", "COMPARATOR_ONLY", "DEFERRED") -or $release.StartsWith("BLOCKED") -or $release.StartsWith("DEFERRED")
+                        ([string]$_.status).Trim().ToUpperInvariant() -eq "LOADED" -and -not $blocked
+                    })
+                    if ($readyCapabilities.Count -gt 0 -and $healthStatus -eq "PASS") {
+                        Write-Host "[PASS] Model API connection: health and capability discovery verified; manual review remains available."
+                    } else {
+                        Write-Host "[WARN] Model API connection: reachable but no ready capability was verified; manual review remains available."
+                    }
+                }
             }
         } catch {
-            Write-Host "[WARN] Model API connection: Remote Model API is unavailable; manual review remains available."
+            Write-Host "[WARN] Model API connection: health or capability discovery failed; manual review remains available."
         }
     }
     if ($failures -gt 0) {

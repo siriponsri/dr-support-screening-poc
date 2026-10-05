@@ -27,6 +27,7 @@ def test_windows_launcher_owns_local_postgres_and_reports_manual_mode_safely():
     check = (ROOT / "scripts/windows/release-check-system.ps1").read_text(encoding="utf-8")
     compose = (ROOT / "deployment/docker-compose.local-postgres.yml").read_text(encoding="utf-8")
     builder = (ROOT / "scripts/release/build_release.py").read_text(encoding="utf-8")
+    settings = (ROOT / "frontend/src/components/settings/ModelConnectionSettings.tsx").read_text(encoding="utf-8")
 
     assert "New-ReleaseLocalDatabaseConfig" in common
     assert "postgres.env" in common
@@ -37,12 +38,22 @@ def test_windows_launcher_owns_local_postgres_and_reports_manual_mode_safely():
     assert "managed_local" in common
     assert "compose_file" in common
     assert "PSObject.Properties.Name" in common
+    assert "ReleaseCheckoutIdentity" in common
+    assert "DR_SUPPORT_CHECKOUT_ID" in common
+    assert "DR_SUPPORT_POSTGRES_VOLUME" in common
+    assert "Legacy project-owned PostgreSQL state" in common
     assert "DR_SUPPORT_COMPOSE" not in common
+    assert "ConvertFrom-Json" in check
+    assert "/v1/models" in check
     assert "manual review remains available" in check
     assert "[WARN] Model API connection" in check
     assert "Workspace API readiness" in check
     assert "DR_SUPPORT_POSTGRES_PASSWORD" in compose
-    assert "dr_support_workstation_postgres_data" in compose
+    assert "${DR_SUPPORT_POSTGRES_VOLUME}" in compose
+    assert "CommandLine" not in start
+    assert "Research use" in settings
+    assert "Blocked for review" in settings
+    assert "Deferred" in settings
     assert "deployment/docker-compose.local-postgres.yml" in builder
     assert "Write-Host $password" not in common
     assert "Write-Host $env:DR_SUPPORT_DATABASE_URL" not in common

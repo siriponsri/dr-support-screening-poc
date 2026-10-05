@@ -21,8 +21,8 @@ def test_cfp_global_capability_is_actionable():
 
 def test_uwf_global_capability_requires_uwf_advertisement():
     route = route_capability(
-        _capability(modalities=["UWF"]),
-        model_id="retfound-aptos5",
+        _capability(model_id="uspec-like", modalities=["UWF"]),
+        model_id="uspec-like",
         task="global",
         modality="UWF",
     )
@@ -39,7 +39,7 @@ def test_incompatible_modality_is_rejected(task, modality):
         task=task,
         modalities=["CFP"],
     )
-    with pytest.raises(CapabilityRoutingError, match="image type"):
+    with pytest.raises(CapabilityRoutingError, match="image type|CFP images only"):
         route_capability(
             descriptor,
             model_id=descriptor["model_id"],
@@ -65,6 +65,16 @@ def test_prism_cannot_be_used_as_dr_grader():
             model_id="prism-dr-5fold",
             task="global",
             modality="CFP",
+        )
+
+
+def test_known_cfp_model_identity_cannot_route_to_uwf_even_when_advertised():
+    with pytest.raises(CapabilityRoutingError, match="CFP images only"):
+        route_capability(
+            _capability(modalities=["CFP", "UWF"]),
+            model_id="retfound-aptos5",
+            task="global",
+            modality="UWF",
         )
 
 

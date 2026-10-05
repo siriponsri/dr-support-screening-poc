@@ -21,14 +21,27 @@ function modalityLabel(modality: string): string {
   return modality === 'CFP' ? 'CFP' : modality === 'UWF' ? 'UWF' : modality;
 }
 
+export function releaseStatusView(status?: string | null): { label: string; tone: StatusTone } {
+  const normalized = status?.trim().toUpperCase() ?? '';
+  if (normalized === 'RESEARCH_ONLY') return { label: 'Research use', tone: 'info' };
+  if (normalized === 'COMPARATOR_ONLY' || normalized === 'DISABLED' || normalized.startsWith('BLOCKED')) {
+    return { label: 'Blocked for review', tone: 'warning' };
+  }
+  if (normalized === 'DEFERRED' || normalized.startsWith('DEFERRED')) return { label: 'Deferred', tone: 'warning' };
+  if (normalized === 'AVAILABLE' || normalized === 'QUALIFIED') return { label: 'Available', tone: 'success' };
+  return { label: 'Not stated', tone: 'warning' };
+}
+
 function ModelCapabilityRow({ model }: { model: ModelConnectionModel }) {
   const modalities = (model.modalities ?? []).map(modalityLabel).join(', ') || 'No image type advertised';
+  const release = releaseStatusView(model.release_status);
   return (
     <Box borderWidth="1px" borderColor="border.subtle" p={3}>
       <HStack justify="space-between" align="flex-start" spacing={3}>
         <Stack spacing={1} minW={0}>
           <Text fontFamily="mono" fontSize="sm" wordBreak="break-word">{model.model_id}</Text>
           <Text fontSize="xs" color="text.secondary">{taskLabel(model.task)} · {modalities}</Text>
+          <StatusBadge tone={release.tone}>Release: {release.label}</StatusBadge>
         </Stack>
         <StatusBadge tone={model.ready ? 'success' : 'warning'}>{model.ready ? 'Ready' : 'Unavailable'}</StatusBadge>
       </HStack>

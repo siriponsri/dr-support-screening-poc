@@ -9,7 +9,15 @@ function makeCase(overrides: Partial<CaseRecord> = {}): CaseRecord {
     filename: 'image_01.jpg',
     source_type: 'PUBLIC', source: 'WORKSPACE_INPUT', modality: 'CFP', width: 640, height: 480,
     image_url: null, state: 'PENDING', revision: 0, global: null, lesion: null,
-    lesion_review: null, human_annotations: [], clinician_review: null, admission: null, admission_ui: null,
+    lesion_review: null, human_annotations: [], clinician_review: null,
+    admission: {
+      image_id: 'case-1', source_reference: 'PUBLIC_INPUT/image_01.jpg', filename: 'image_01.jpg', file_extension: '.jpg',
+      file_size_bytes: 10, width: 640, height: 480, channels_or_mode: 'RGB', modality_admission: 'FUNDUS_ACCEPTED',
+      quality_state: 'NOT_EVALUATED', retinal_modality: 'CFP', admission_method: 'AUTOMATIC',
+      admission_reason_code: 'FUNDUS_PLAUSIBLE', quality_reason_code: null, created_at: '2026-01-01', updated_at: '2026-01-01',
+      reviewed_by: null, reviewed_at: null, review_note: null,
+    },
+    admission_ui: null,
     patient_key: null, laterality: 'UNKNOWN', queue_state: 'INCLUDED',
     resolver_ui: {
       label: 'Patient information needs review', note: 'Confirm patient and eye.', tone: 'warning', action_required: true,
@@ -62,6 +70,15 @@ describe('S3 worklist selectors', () => {
         laterality: { label: 'Eye not confirmed', note: 'Explicitly left unknown.', tone: 'success', action_required: false, value: 'UNKNOWN' },
       },
     }))).toBe(false);
+  });
+
+  it('keeps model availability aligned with admission readiness and model domain', () => {
+    const model = [{ model_id: 'retfound-aptos5', task: 'global', modalities: ['CFP', 'UWF'], status: 'LOADED', release_status: 'RESEARCH_ONLY' }];
+    const needsReview = makeCase({ admission: { ...makeCase().admission!, modality_admission: 'NEEDS_REVIEW' } });
+    const ungradable = makeCase({ admission: { ...makeCase().admission!, quality_state: 'UNGRADABLE' } });
+    const uwf = makeCase({ modality: 'UWF', admission: { ...makeCase().admission!, retinal_modality: 'UWF' } });
+
+    expect(filterCases([needsReview, ungradable, uwf], '', { ...DEFAULT_FILTERS, ai: 'model-available' }, model)).toEqual([]);
   });
 
   it('sorts operationally and uses a deterministic filename tie-breaker', () => {

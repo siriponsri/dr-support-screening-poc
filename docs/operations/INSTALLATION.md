@@ -33,7 +33,13 @@ with the `uv` and frontend npm commands documented below.
 
 Logs and runtime metadata are under ignored `local-state/logs/` and
 `local-state/release/`. A port-8000 conflict is reported with process
-information and is never killed automatically. Private `.env` values such as
+information (PID and executable name only) and is never killed automatically.
+Each checkout derives its own Compose project and PostgreSQL volume identity
+from its resolved path. If an older `local-state/release/postgres.env` is
+reported as legacy or belonging to another checkout, an owner must preserve or
+back up any data before removing only that ignored env file and allowing the
+checkout to provision isolated state; the old named volume is never removed
+automatically. Private `.env` values such as
 `REMOTE_MODEL_URL` and `REMOTE_MODEL_TOKEN` are loaded without being printed;
 launcher role variables are forced to the safe workstation values.
 

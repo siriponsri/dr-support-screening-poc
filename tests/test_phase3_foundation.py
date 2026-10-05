@@ -213,6 +213,24 @@ def test_model_gateway_accepts_complete_generic_loaded_global_capability():
     assert probe.models[0]["ready"] is True
 
 
+def test_model_gateway_does_not_promote_known_cfp_identity_for_uwf_only_advertisement():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS"})
+        return httpx.Response(200, json=[{
+            "model_id": "retfound-aptos5",
+            "task": "global",
+            "modalities": ["UWF"],
+            "status": "LOADED",
+        }])
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.connection_verified is True
+    assert probe.capabilities_ready is False
+    assert probe.models[0]["ready"] is False
+
+
 @pytest.mark.parametrize(
     "health_payload,models_payload",
     [

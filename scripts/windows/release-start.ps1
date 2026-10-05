@@ -23,9 +23,9 @@ try {
     $portProcess = Get-NetTCPConnection -LocalAddress "127.0.0.1" -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($portProcess) {
         $details = Get-ReleaseProcessDetails ([int]$portProcess.OwningProcess)
-        $command = if ($details) { [string]$details.CommandLine } else { "command line unavailable" }
+        $processName = if ($details -and $details.Name) { [string]$details.Name } else { "unknown executable" }
         Stop-ReleaseLocalPostgres $postgres
-        throw "Port 8000 is already in use by PID $($portProcess.OwningProcess): $command. No process was stopped."
+        throw "Port 8000 is already in use by PID $($portProcess.OwningProcess) ($processName). No process was stopped."
     }
     $stdout = Join-Path $script:ReleaseLogRoot "workstation.stdout.log"
     $stderr = Join-Path $script:ReleaseLogRoot "workstation.stderr.log"
