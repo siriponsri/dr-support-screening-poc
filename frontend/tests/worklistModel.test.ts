@@ -77,8 +77,9 @@ describe('S3 worklist selectors', () => {
     const needsReview = makeCase({ admission: { ...makeCase().admission!, modality_admission: 'NEEDS_REVIEW' } });
     const ungradable = makeCase({ admission: { ...makeCase().admission!, quality_state: 'UNGRADABLE' } });
     const uwf = makeCase({ modality: 'UWF', admission: { ...makeCase().admission!, retinal_modality: 'UWF' } });
+    const unknownOrigin = makeCase({ source_origin: 'UNKNOWN' });
 
-    expect(filterCases([needsReview, ungradable, uwf], '', { ...DEFAULT_FILTERS, ai: 'model-available' }, model)).toEqual([]);
+    expect(filterCases([needsReview, ungradable, uwf, unknownOrigin], '', { ...DEFAULT_FILTERS, ai: 'model-available' }, model)).toEqual([]);
 
     const incompleteGenericUwf = [{
       model_id: 'generic-uwf-grader', task: 'global', modalities: ['UWF'], status: 'LOADED', ready: false,

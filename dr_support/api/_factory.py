@@ -608,6 +608,15 @@ def create_app(
                 )
         else:
             descriptor = provider.metadata()
+        # Reapply committed registry restrictions before routing. A remote
+        # advertisement cannot promote a frozen disabled or deferred identity.
+        descriptor = next(
+            (
+                item for item in capability_descriptors([descriptor], include_registry=True)
+                if item.get('model_id') == request.model_id
+            ),
+            descriptor,
+        )
         try:
             route_capability(
                 descriptor,

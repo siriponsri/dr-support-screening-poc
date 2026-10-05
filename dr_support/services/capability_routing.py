@@ -133,9 +133,15 @@ def route_capability(
         raise CapabilityRoutingError("The advertised model readiness value is invalid; manual review remains available.")
     if status not in READY_STATUSES:
         raise CapabilityRoutingError("No ready model is advertised for this request; manual review remains available.")
-    if descriptor.get("ready") is False:
+    release_status = str(descriptor.get("release_status") or "").strip().upper()
+    prism_lesion_comparator = (
+        model_id == "prism-dr-5fold"
+        and task == "lesion-roi"
+        and release_status == "COMPARATOR_ONLY"
+    )
+    if descriptor.get("ready") is False and not prism_lesion_comparator:
         raise CapabilityRoutingError("The advertised model capability is not ready for this request; manual review remains available.")
-    if release_status_blocked(descriptor.get("release_status")):
+    if release_status_blocked(release_status) and not prism_lesion_comparator:
         raise CapabilityRoutingError("The selected model is not available for review use; manual review remains available.")
     if not model_supports_modality(model_id, modality):
         raise CapabilityRoutingError("This model is validated for CFP images only; manual review remains available.")

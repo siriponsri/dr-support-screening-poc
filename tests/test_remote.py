@@ -461,6 +461,50 @@ def test_api_rechecks_remote_health_before_inference(monkeypatch):
     assert predict_calls == []
 
 
+def test_api_does_not_promote_registry_disabled_uwf_identity(monkeypatch):
+    predict_calls = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
+        if request.url.path == '/v1/models':
+            return httpx.Response(200, json=[{
+                'model_id': 'uspec-uwf-grading',
+                'task': 'global',
+                'modalities': ['UWF'],
+                'status': 'LOADED',
+                'capability_id': 'dr_grade',
+                'revision': 'r1',
+                'preprocessing': 'uwf-v1',
+                'release_status': 'QUALIFIED',
+            }])
+        predict_calls.append(request.url.path)
+        return httpx.Response(200, json=SAMPLE_GLOBAL_BODY)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    app.state.images[FIXTURE_IMAGE.image_id] = FIXTURE_IMAGE
+    app.state.admissions[FIXTURE_IMAGE.image_id] = {
+        **legacy_admission(FIXTURE_IMAGE),
+        'retinal_modality': 'UWF',
+    }
+    client = TestClient(app)
+
+    saved = client.put('/v1/model-connection', json={'name': 'Remote', 'url': 'https://remote.test'})
+    assert saved.status_code == 200
+    advertised = next(item for item in client.get('/v1/models').json() if item['model_id'] == 'uspec-uwf-grading')
+    assert advertised['release_status'] == 'DISABLED'
+    assert advertised['ready'] is False
+
+    response = client.post('/v1/infer/global', json={
+        'image_id': FIXTURE_IMAGE.image_id,
+        'model_id': 'uspec-uwf-grading',
+        'modality': 'UWF',
+    })
+    assert response.status_code == 409
+    assert 'manual review remains available' in response.json()['detail']
+    assert predict_calls == []
+
+
 def test_api_rejects_non_boolean_ready_advertisement(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path == '/health':

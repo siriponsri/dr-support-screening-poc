@@ -56,7 +56,7 @@ export function isModelUsable(
 export function hasCompatibleModel(item: CaseRecord, models: ModelDescriptor[]): boolean {
   const sourceOrigin = item.source_origin ?? item.source_type ?? '';
   if (
-    sourceOrigin === 'WORKSPACE'
+    !['PUBLIC', 'SYNTHETIC'].includes(sourceOrigin)
     || item.admission?.modality_admission !== 'FUNDUS_ACCEPTED'
     || !['GRADABLE', 'NOT_EVALUATED'].includes(item.admission?.quality_state ?? '')
   ) return false;
