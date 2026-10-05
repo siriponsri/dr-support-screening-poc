@@ -35,7 +35,7 @@ is not production, clinical, hospital-data, model, or training authorization.
 - [ ] `START_DR_SCREENING.bat` opens the review workstation at `/app/`.
 - [ ] One-time model setup verifies pinned RETFound and PRISM-DR assets and ends with `READY`.
 - [ ] Normal Model API startup performs read-only verification and does not download.
-- [ ] `/health` reports `PASS` with verified assets and `/v1/models` reports both model descriptors.
+- [ ] `/health` reports `PASS` with verified assets and `/v1/models` reports every advertised capability with task, modality, readiness, and release metadata; at least one actionable descriptor is required for AI readiness.
 - [ ] Offline restart and local inference have been exercised after setup.
 
 ## Clinical workflow

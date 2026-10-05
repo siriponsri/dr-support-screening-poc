@@ -81,11 +81,7 @@ def capability_is_qualified(descriptor: Mapping[str, Any]) -> bool:
         return False
     if not any(modality in SUPPORTED_MODALITIES for modality in modalities):
         return False
-    if (
-        model_id not in CFP_ONLY_MODEL_IDS
-        and "UWF" in modalities
-        and not release_status_is_known(descriptor.get("release_status"))
-    ):
+    if model_id not in CFP_ONLY_MODEL_IDS and not release_status_is_known(descriptor.get("release_status")):
         return False
     if model_id in CFP_ONLY_MODEL_IDS:
         return "CFP" in modalities

@@ -273,6 +273,27 @@ def test_model_gateway_accepts_complete_generic_loaded_global_capability():
     assert probe.models[0]["ready"] is True
 
 
+def test_model_gateway_keeps_generic_cfp_without_release_state_manual_only():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS", "assets_verified": True})
+        return httpx.Response(200, json=[{
+            "model_id": "generic-cfp-grader",
+            "capability_id": "dr_grade",
+            "task": "global",
+            "status": "LOADED",
+            "modalities": ["CFP"],
+            "revision": "r1",
+            "preprocessing": "cfp-v1",
+        }])
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.connection_verified is True
+    assert probe.capabilities_ready is False
+    assert probe.models[0]["ready"] is False
+
+
 def test_model_gateway_does_not_promote_known_cfp_identity_for_uwf_only_advertisement():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":

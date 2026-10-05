@@ -118,6 +118,18 @@ def test_generic_uwf_capability_requires_known_release_status():
         )
 
 
+def test_generic_cfp_capability_requires_known_release_status():
+    descriptor = _capability(model_id="generic-capability", modalities=["CFP"])
+    descriptor.pop("release_status")
+    with pytest.raises(CapabilityRoutingError, match="incomplete"):
+        route_capability(
+            descriptor,
+            model_id="generic-capability",
+            task="global",
+            modality="CFP",
+        )
+
+
 def test_non_boolean_ready_value_stays_manual_only():
     descriptor = _capability()
     descriptor["ready"] = "false"
