@@ -9,6 +9,9 @@ def _capability(*, model_id="retfound-aptos5", task="global", modalities=None, s
         "task": task,
         "modalities": modalities if modalities is not None else ["CFP"],
         "status": status,
+        "capability_id": "fixture-capability",
+        "revision": "fixture-revision",
+        "preprocessing": "fixture-preprocessing",
     }
 
 
@@ -73,6 +76,20 @@ def test_known_cfp_model_identity_cannot_route_to_uwf_even_when_advertised():
         route_capability(
             _capability(modalities=["CFP", "UWF"]),
             model_id="retfound-aptos5",
+            task="global",
+            modality="UWF",
+        )
+
+
+def test_generic_capability_requires_qualification_metadata_before_routing():
+    descriptor = _capability(model_id="uspec-like", modalities=["UWF"])
+    descriptor.pop("capability_id")
+    descriptor.pop("revision")
+    descriptor.pop("preprocessing")
+    with pytest.raises(CapabilityRoutingError, match="incomplete"):
+        route_capability(
+            descriptor,
+            model_id="uspec-like",
             task="global",
             modality="UWF",
         )

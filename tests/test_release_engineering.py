@@ -225,9 +225,9 @@ def test_frontend_build_identity_detects_stale_source(tmp_path, monkeypatch):
 
 
 def test_release_capability_check_rejects_malformed_discovery_and_accepts_array(tmp_path):
-    pwsh = shutil.which("pwsh")
-    if not pwsh:
-        pytest.skip("PowerShell 7 is unavailable")
+    shells = [path for name in ("powershell", "pwsh") if (path := shutil.which(name))]
+    if not shells:
+        pytest.skip("PowerShell is unavailable")
     common = (ROOT / "scripts/windows/release-common.ps1").as_posix()
     command = f"""
 . '{common}'
@@ -241,8 +241,9 @@ def test_release_capability_check_rejects_malformed_discovery_and_accepts_array(
     $healthBad = Test-ReleaseModelHealth ([pscustomobject]@{{ status = "PASS"; assets_verified = $false }})
     if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid -or $knownCfpUwf.Ready -or $unsupportedTask.Ready -or $unqualifiedGeneric.Ready -or -not $healthGood -or $healthBad) {{ exit 1 }}
 """
-    result = subprocess.run([pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr or result.stdout
+    for shell in shells:
+        result = subprocess.run([shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], capture_output=True, text=True)
+        assert result.returncode == 0, f"{shell}: {result.stderr or result.stdout}"
 
 
 def test_local_postgres_compose_config_is_valid_without_starting_services(tmp_path):

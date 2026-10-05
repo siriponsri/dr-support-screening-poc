@@ -23,6 +23,7 @@ from dr_support.providers.remote import (
     RemoteSchemaError,
     RemoteTimeoutError,
 )
+from dr_support.services.admission import legacy_admission
 
 
 FIXTURE_IMAGE = synthetic_image()
@@ -87,6 +88,7 @@ def _wire_remote_app(monkeypatch, handler, *, token='synthetic-remote-secret', r
         monkeypatch.setenv('REMOTE_MODEL_TOKEN', token)
     transport = httpx.MockTransport(handler)
     app = create_app(include_samples=False)
+    app.state.model_gateway_transport = transport
     for provider in app.state.providers.values():
         if isinstance(provider, RemoteModelProvider):
             provider._transport = transport
@@ -325,6 +327,42 @@ def test_api_routes_inference_through_remote_provider(monkeypatch, tmp_path):
     assert inference_events, 'no INFERENCE events recorded'
     assert all(e.get('runtime') == 'remote' for e in inference_events)
     assert all(isinstance(e.get('latency_ms'), (int, float)) for e in inference_events)
+
+
+def test_api_rejects_unqualified_generic_capability_at_inference(monkeypatch):
+    predict_calls = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS'})
+        if request.url.path == '/v1/models':
+            return httpx.Response(200, json=[{
+                'model_id': 'generic-uwf-grader',
+                'task': 'global',
+                'modalities': ['UWF'],
+                'status': 'LOADED',
+            }])
+        predict_calls.append(request.url.path)
+        return httpx.Response(200, json=SAMPLE_GLOBAL_BODY)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    app.state.images[FIXTURE_IMAGE.image_id] = FIXTURE_IMAGE
+    app.state.admissions[FIXTURE_IMAGE.image_id] = {
+        **legacy_admission(FIXTURE_IMAGE),
+        'retinal_modality': 'UWF',
+    }
+    client = TestClient(app)
+
+    saved = client.put('/v1/model-connection', json={'name': 'Remote', 'url': 'https://remote.test'})
+    assert saved.status_code == 200
+    response = client.post('/v1/infer/global', json={
+        'image_id': FIXTURE_IMAGE.image_id,
+        'model_id': 'generic-uwf-grader',
+        'modality': 'UWF',
+    })
+    assert response.status_code == 409
+    assert 'capability is incomplete' in response.json()['detail']
+    assert predict_calls == []
 
 
 def test_api_returns_504_when_remote_times_out(monkeypatch):

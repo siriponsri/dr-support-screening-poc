@@ -7,14 +7,14 @@ from typing import Any
 
 import httpx
 
-from .capability_routing import CFP_ONLY_MODEL_IDS, release_status_blocked
+from .capability_routing import (
+    EXPECTED_MODEL_TASKS,
+    capability_is_qualified,
+    release_status_blocked,
+)
 
 
-EXPECTED_MODELS = {
-    "retfound-aptos5": "global",
-    "prism-dr-5fold": "lesion-roi",
-}
-SUPPORTED_TASKS = frozenset(EXPECTED_MODELS.values())
+EXPECTED_MODELS = EXPECTED_MODEL_TASKS
 
 
 def _actionable_capability(item: dict[str, Any], model_id: str, status: object) -> bool:
@@ -22,27 +22,7 @@ def _actionable_capability(item: dict[str, Any], model_id: str, status: object) 
         return False
     if release_status_blocked(item.get("release_status")):
         return False
-    task = item.get("task")
-    modalities = item.get("modalities")
-    expected_task = EXPECTED_MODELS.get(model_id)
-    if expected_task is not None and task != expected_task:
-        return False
-    if not isinstance(task, str) or task not in SUPPORTED_TASKS:
-        return False
-    if not isinstance(modalities, list) or not modalities:
-        return False
-    if any(not isinstance(modality, str) or not modality.strip() for modality in modalities):
-        return False
-    if model_id in CFP_ONLY_MODEL_IDS:
-        return "CFP" in modalities
-    capability_id = item.get("capability_id")
-    revision = item.get("revision") or item.get("model_version")
-    preprocessing = item.get("preprocessing") or item.get("preprocessing_version")
-    return (
-        isinstance(capability_id, str) and bool(capability_id.strip())
-        and isinstance(revision, str) and bool(revision.strip())
-        and isinstance(preprocessing, str) and bool(preprocessing.strip())
-    )
+    return capability_is_qualified(item)
 
 
 @dataclass(frozen=True)

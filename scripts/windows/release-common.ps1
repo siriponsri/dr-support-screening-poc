@@ -88,7 +88,8 @@ function Get-ReleaseModelCapabilityStatus([string] $Json) {
     $trimmed = $Json.Trim()
     if (-not $trimmed.StartsWith("[") -or -not $trimmed.EndsWith("]")) { return $empty }
     try {
-        $capabilities = @($trimmed | ConvertFrom-Json)
+        $parsed = ConvertFrom-Json -InputObject $trimmed
+        $capabilities = @($parsed | ForEach-Object { $_ })
     } catch {
         return $empty
     }

@@ -19,7 +19,7 @@ Confirm that:
 - `/v1/models` lists `retfound-aptos5` and `prism-dr-5fold`.
 - The review workstation opens `/app/` and shows the Model API connection state honestly.
 - The workspace input and output folders are mounted and writable by the workstation account.
-- Free space is sufficient for SQLite state and exported manifests.
+- Free space is sufficient for managed PostgreSQL state and exported manifests.
 
 ## Service lifecycle
 

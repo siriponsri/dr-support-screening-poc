@@ -4,11 +4,11 @@ Retinal Review Workbench is a public/synthetic research and clinical-support pro
 
 ## Data boundaries
 
-- Keep source images and SQLite state on hospital-controlled storage.
+- Keep source images and managed PostgreSQL state on hospital-controlled storage. SQLite is legacy compatibility state only, not the normal workstation store.
 - Original admitted images are immutable; the application stores source references, hashes, and derived analysis lineage.
 - The review workstation sends image bytes and contract identifiers to the configured Model API only when inference is requested. Local filesystem paths, patient resolver fields, OCR fields, and raw DICOM headers are not sent as model payload fields.
 - DICOM ingestion exposes only the established safe technical metadata allowlist to the application. Do not copy private headers into notes, screenshots, or exports.
-- Models accept fundus CFP inputs. MRI, OCT, PACS, DICOMweb, and unsupported modalities are outside scope.
+- Known RETFound and PRISM identities accept CFP inputs only. A generic capability may support UWF only when it advertises a qualified UWF task, readiness, release state, capability ID, revision, and preprocessing metadata. MRI, OCT, PACS, DICOMweb, and unsupported modalities are outside scope.
 
 ## Secrets
 
