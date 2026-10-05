@@ -68,29 +68,38 @@ function outputSetDigest(entries: Array<{ path: string; sha256: string }>): stri
 function frontendBuildIdentityPlugin(frontendRoot: string): Plugin {
   return {
     name: 'dr-frontend-build-identity',
-    generateBundle(_options, bundle) {
+    writeBundle() {
       const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
         cwd: path.resolve(frontendRoot, '..'),
         encoding: 'utf8',
       }).trim();
       const sourceDigest = frontendSourceDigest(frontendRoot);
-      const outputFiles = Object.entries(bundle)
-        .filter(([fileName]) => fileName !== 'build-identity.json')
-        .map(([fileName, output]) => ({ path: fileName, sha256: outputDigest(output) }))
-        .sort((a, b) => a.path.localeCompare(b.path));
-
-
-      this.emitFile({
-        type: 'asset',
-        fileName: 'build-identity.json',
-        source: `${JSON.stringify({
-          schema_version: 'frontend-build-identity.v1',
-          source_commit: sourceCommit,
-          source_digest: sourceDigest,
-          output_files: outputFiles,
-          output_set_sha256: outputSetDigest(outputFiles),
-        }, null, 2)}\n`,
-      });
+      const distRoot = path.resolve(frontendRoot, 'dist');
+      const outputFiles: Array<{ path: string; sha256: string }> = [];
+      const visit = (current: string) => {
+        for (const entry of fs.readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+          const absolute = path.join(current, entry.name);
+          if (entry.isDirectory()) visit(absolute);
+          else if (entry.isFile()) {
+            const relative = path.relative(distRoot, absolute).split(path.sep).join('/');
+            if (relative !== 'build-identity.json') {
+              outputFiles.push({
+                path: relative,
+                sha256: createHash('sha256').update(fs.readFileSync(absolute)).digest('hex'),
+              });
+            }
+          }
+        }
+      };
+      visit(distRoot);
+      outputFiles.sort((a, b) => a.path.localeCompare(b.path));
+      fs.writeFileSync(path.join(distRoot, 'build-identity.json'), `${JSON.stringify({
+        schema_version: 'frontend-build-identity.v1',
+        source_commit: sourceCommit,
+        source_digest: sourceDigest,
+        output_files: outputFiles,
+        output_set_sha256: outputSetDigest(outputFiles),
+      }, null, 2)}\n`);
     },
   };
 }
