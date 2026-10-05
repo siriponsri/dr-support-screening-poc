@@ -82,6 +82,40 @@ function Get-ReleaseDockerPath {
     return $null
 }
 
+function Get-ReleaseModelCapabilityStatus([string] $Json) {
+    $empty = [pscustomobject]@{ Valid = $false; Ready = $false }
+    if (-not $Json) { return $empty }
+    $trimmed = $Json.Trim()
+    if (-not $trimmed.StartsWith("[") -or -not $trimmed.EndsWith("]")) { return $empty }
+    try {
+        $capabilities = @($trimmed | ConvertFrom-Json)
+    } catch {
+        return $empty
+    }
+    if ($capabilities.Count -eq 0) { return $empty }
+    $invalid = @($capabilities | Where-Object {
+        $properties = $_.PSObject.Properties.Name
+        $modelId = if ($properties -contains "model_id") { [string]$_.model_id } else { "" }
+        $task = if ($properties -contains "task") { [string]$_.task } else { "" }
+        $modalities = $null
+        if ($properties -contains "modalities") { $modalities = $_.PSObject.Properties["modalities"].Value }
+        $invalidModalities = $modalities -isnot [array] -or @($modalities | Where-Object {
+            $_ -isnot [string] -or -not $_.Trim()
+        }).Count -gt 0
+        $invalidStatus = ($properties -contains "status") -and $null -ne $_.status -and $_.status -isnot [string]
+        -not $modelId.Trim() -or -not $task.Trim() -or $invalidModalities -or $invalidStatus
+    })
+    if ($invalid.Count -gt 0) { return $empty }
+    $ready = @($capabilities | Where-Object {
+        $properties = $_.PSObject.Properties.Name
+        $release = if ($properties -contains "release_status") { ([string]$_.release_status).Trim().ToUpperInvariant() } else { "" }
+        $blocked = $release -in @("DISABLED", "COMPARATOR_ONLY", "DEFERRED") -or $release.StartsWith("BLOCKED") -or $release.StartsWith("DEFERRED")
+        $status = if ($properties -contains "status") { ([string]$_.status).Trim().ToUpperInvariant() } else { "" }
+        $status -eq "LOADED" -and -not $blocked
+    })
+    return [pscustomobject]@{ Valid = $true; Ready = $ready.Count -gt 0 }
+}
+
 function Get-ReleaseComposeArguments([string[]] $Arguments) {
     return @(
         "compose",

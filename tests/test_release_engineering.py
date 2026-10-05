@@ -1,5 +1,6 @@
 import json
 import hashlib
+import shutil
 import subprocess
 import zipfile
 from pathlib import Path
@@ -49,11 +50,14 @@ def test_windows_launcher_owns_local_postgres_and_reports_manual_mode_safely():
     assert "[WARN] Model API connection" in check
     assert "Workspace API readiness" in check
     assert "DR_SUPPORT_POSTGRES_PASSWORD" in compose
-    assert "${DR_SUPPORT_POSTGRES_VOLUME}" in compose
+    assert "postgres_data:/var/lib/postgresql/data" in compose
+    assert "name: ${DR_SUPPORT_POSTGRES_VOLUME}" in compose
+    assert "Get-ReleaseModelCapabilityStatus" in common
     assert "CommandLine" not in start
     assert "Research use" in settings
     assert "Blocked for review" in settings
     assert "Deferred" in settings
+    assert "CFP only" in settings
     assert "deployment/docker-compose.local-postgres.yml" in builder
     assert "Write-Host $password" not in common
     assert "Write-Host $env:DR_SUPPORT_DATABASE_URL" not in common
@@ -217,6 +221,44 @@ def test_frontend_build_identity_detects_stale_source(tmp_path, monkeypatch):
     (frontend / "src" / "main.ts").write_text("export const stale = true;\n", encoding="utf-8")
     with pytest.raises(SystemExit, match="stale"):
         builder.verify_frontend_build("abc123")
+
+
+def test_release_capability_check_rejects_malformed_discovery_and_accepts_array(tmp_path):
+    pwsh = shutil.which("pwsh")
+    if not pwsh:
+        pytest.skip("PowerShell 7 is unavailable")
+    common = (ROOT / "scripts/windows/release-common.ps1").as_posix()
+    command = f"""
+. '{common}'
+$valid = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"uwf-model\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"]}}]'
+$badShape = Get-ReleaseModelCapabilityStatus '{{\"model_id\":\"uwf-model\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":\"UWF\"}}'
+$badModalities = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"uwf-model\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":\"UWF\"}}]'
+if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid) {{ exit 1 }}
+"""
+    result = subprocess.run([pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr or result.stdout
+
+
+def test_local_postgres_compose_config_is_valid_without_starting_services(tmp_path):
+    docker = shutil.which("docker")
+    if not docker:
+        pytest.skip("Docker CLI is unavailable")
+    env_file = tmp_path / "postgres.env"
+    env_file.write_text(
+        "DR_SUPPORT_POSTGRES_DB=dr_support\n"
+        "DR_SUPPORT_POSTGRES_USER=dr_support\n"
+        "DR_SUPPORT_POSTGRES_PASSWORD=placeholder\n"
+        "DR_SUPPORT_POSTGRES_BIND=127.0.0.1\n"
+        "DR_SUPPORT_POSTGRES_PORT=54329\n"
+        "DR_SUPPORT_POSTGRES_VOLUME=dr_support_test_volume\n",
+        encoding="ascii",
+    )
+    result = subprocess.run(
+        [docker, "compose", "--project-name", "dr-support-test", "--file", str(ROOT / "deployment/docker-compose.local-postgres.yml"), "--env-file", str(env_file), "config", "--quiet"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
 
 
 def test_frontend_build_identity_rejects_output_set_and_byte_drift(tmp_path, monkeypatch):

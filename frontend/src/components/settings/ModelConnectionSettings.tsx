@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, AlertIcon, Box, Button, FormControl, FormLabel, HStack, Input, SimpleGrid, Spinner, Stack, Text } from '@chakra-ui/react';
 import { CheckCircle2, Save, TestTube2 } from '@/lib/icons';
 import { modelConnectionApi, type ModelConnectionModel, type ModelConnectionResponse } from '@/lib/api';
+import { isCfpOnlyModel } from '@/lib/modelCapabilities';
 import { Section } from '@/components/common/Section';
 import { StatusBadge, type StatusTone } from '@/components/common/StatusBadge';
 
@@ -33,7 +34,9 @@ export function releaseStatusView(status?: string | null): { label: string; tone
 }
 
 function ModelCapabilityRow({ model }: { model: ModelConnectionModel }) {
-  const modalities = (model.modalities ?? []).map(modalityLabel).join(', ') || 'No image type advertised';
+  const modalities = isCfpOnlyModel(model.model_id)
+    ? 'CFP only'
+    : (model.modalities ?? []).map(modalityLabel).join(', ') || 'No image type advertised';
   const release = releaseStatusView(model.release_status);
   return (
     <Box borderWidth="1px" borderColor="border.subtle" p={3}>

@@ -67,22 +67,15 @@ try {
                 Write-Host "[WARN] Model API connection: remote health is not passing; manual review remains available."
             } else {
                 $modelList = Invoke-WebRequest -Uri "$modelUrl/v1/models" -Headers $headers -UseBasicParsing -TimeoutSec 5
-                $capabilities = @($modelList.Content | ConvertFrom-Json)
-                $invalidCapabilities = @($capabilities | Where-Object {
-                    -not ([string]$_.model_id).Trim() -or
-                    -not ([string]$_.task).Trim() -or
-                    @($_.modalities).Count -eq 0
-                })
-                $validCapabilities = $modelList.StatusCode -eq 200 -and $capabilities.Count -gt 0 -and $invalidCapabilities.Count -eq 0
-                if (-not $validCapabilities) {
+                $capabilityStatus = if ($modelList.StatusCode -eq 200) {
+                    Get-ReleaseModelCapabilityStatus $modelList.Content
+                } else {
+                    [pscustomobject]@{ Valid = $false; Ready = $false }
+                }
+                if (-not $capabilityStatus.Valid) {
                     Write-Host "[WARN] Model API connection: capability discovery could not be verified; manual review remains available."
                 } else {
-                    $readyCapabilities = @($capabilities | Where-Object {
-                        $release = ([string]$_.release_status).Trim().ToUpperInvariant()
-                        $blocked = $release -in @("DISABLED", "COMPARATOR_ONLY", "DEFERRED") -or $release.StartsWith("BLOCKED") -or $release.StartsWith("DEFERRED")
-                        ([string]$_.status).Trim().ToUpperInvariant() -eq "LOADED" -and -not $blocked
-                    })
-                    if ($readyCapabilities.Count -gt 0 -and $healthStatus -eq "PASS") {
+                    if ($capabilityStatus.Ready -and $healthStatus -eq "PASS") {
                         Write-Host "[PASS] Model API connection: health and capability discovery verified; manual review remains available."
                     } else {
                         Write-Host "[WARN] Model API connection: reachable but no ready capability was verified; manual review remains available."

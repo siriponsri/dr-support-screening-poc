@@ -4,6 +4,10 @@ const READY_MODEL_STATUSES = new Set(['LOADED', 'SYNTHETIC_FIXTURE']);
 const BLOCKED_RELEASE_STATUSES = new Set(['COMPARATOR_ONLY', 'DISABLED', 'DEFERRED']);
 const CFP_ONLY_MODEL_IDS = new Set(['retfound-aptos5', 'prism-dr-5fold']);
 
+export function isCfpOnlyModel(modelId: string): boolean {
+  return CFP_ONLY_MODEL_IDS.has(modelId);
+}
+
 export function releaseStatusBlocked(status?: string | null): boolean {
   const normalized = status?.trim().toUpperCase() ?? '';
   return BLOCKED_RELEASE_STATUSES.has(normalized)
@@ -19,7 +23,7 @@ export function isModelUsable(
   if (!modality || modality === 'UNKNOWN') return false;
   if (!READY_MODEL_STATUSES.has(model.status ?? '') || releaseStatusBlocked(model.release_status)) return false;
   if (model.model_id.startsWith('mock-') && sourceOrigin !== 'SYNTHETIC') return false;
-  if (modality === 'UWF' && CFP_ONLY_MODEL_IDS.has(model.model_id)) return false;
+  if (modality === 'UWF' && isCfpOnlyModel(model.model_id)) return false;
   return (model.modalities ?? model.supported_modalities ?? []).includes(modality);
 }
 
