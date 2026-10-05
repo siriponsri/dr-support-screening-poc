@@ -57,6 +57,8 @@ def capability_is_qualified(descriptor: Mapping[str, Any]) -> bool:
         return False
     if not isinstance(task, str) or task not in SUPPORTED_TASKS:
         return False
+    if "ready" in descriptor and not isinstance(descriptor["ready"], bool):
+        return False
     expected_task = EXPECTED_MODEL_TASKS.get(model_id)
     if expected_task is not None and task != expected_task:
         return False
@@ -112,6 +114,8 @@ def route_capability(
     if str(descriptor.get("task") or "") != task:
         raise CapabilityRoutingError("The selected model does not provide the requested review task.")
     status = str(descriptor.get("status") or "")
+    if "ready" in descriptor and not isinstance(descriptor["ready"], bool):
+        raise CapabilityRoutingError("The advertised model readiness value is invalid; manual review remains available.")
     if status not in READY_STATUSES:
         raise CapabilityRoutingError("No ready model is advertised for this request; manual review remains available.")
     if descriptor.get("ready") is False:

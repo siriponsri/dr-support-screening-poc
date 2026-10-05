@@ -246,11 +246,30 @@ def test_release_capability_check_rejects_malformed_discovery_and_accepts_array(
     $placeholderGeneric = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"dr_grade\",\"revision\":\"unknown\",\"preprocessing\":\"UNKNOWN\"}}]'
     $unsupportedModality = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"MRI\"],\"capability_id\":\"dr_grade\",\"revision\":\"r1\",\"preprocessing\":\"v1\"}}]'
     $explicitNotReady = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"dr_grade\",\"revision\":\"r1\",\"preprocessing\":\"uwf-v1\",\"ready\":false}}]'
+    $invalidReady = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"dr_grade\",\"revision\":\"r1\",\"preprocessing\":\"uwf-v1\",\"ready\":\"false\"}}]'
     $blockedCfp = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"prism-dr-5fold\",\"task\":\"lesion-roi\",\"status\":\"LOADED\",\"modalities\":[\"CFP\"],\"release_status\":\"COMPARATOR_ONLY\",\"ready\":false}}]'
     $mixedUnavailable = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"dr_grade\",\"revision\":\"r1\",\"preprocessing\":\"uwf-v1\"}},{{\"model_id\":\"remote-down\",\"task\":\"global\",\"status\":\"REMOTE_UNREACHABLE\",\"modalities\":[],\"ready\":false}}]'
     $healthGood = Test-ReleaseModelHealth ([pscustomobject]@{{ status = "PASS"; assets_verified = $true }})
     $healthBad = Test-ReleaseModelHealth ([pscustomobject]@{{ status = "PASS"; assets_verified = $false }})
-    if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid -or $emptyModalities.Valid -or $knownCfpUwf.Ready -or $unsupportedTask.Ready -or $unqualifiedGeneric.Ready -or $placeholderGeneric.Ready -or $unsupportedModality.Ready -or $explicitNotReady.Ready -or $blockedCfp.Ready -or -not $mixedUnavailable.Valid -or -not $mixedUnavailable.Ready -or -not $healthGood -or $healthBad) {{ exit 1 }}
+    if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid -or $emptyModalities.Valid -or $knownCfpUwf.Ready -or $unsupportedTask.Ready -or $unqualifiedGeneric.Ready -or $placeholderGeneric.Ready -or $unsupportedModality.Ready -or $explicitNotReady.Ready -or $invalidReady.Valid -or $blockedCfp.Ready -or -not $mixedUnavailable.Valid -or -not $mixedUnavailable.Ready -or -not $healthGood -or $healthBad) {{ exit 1 }}
+"""
+    for shell in shells:
+        result = subprocess.run([shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command], capture_output=True, text=True)
+        assert result.returncode == 0, f"{shell}: {result.stderr or result.stdout}"
+
+
+def test_release_port_probe_rejects_wildcard_listener(tmp_path):
+    shells = [path for name in ("powershell", "pwsh") if (path := shutil.which(name))]
+    if not shells:
+        pytest.skip("PowerShell is unavailable")
+    common = (ROOT / "scripts/windows/release-common.ps1").as_posix()
+    command = f"""
+. '{common}'
+function Get-NetTCPConnection {{
+    param([int] $LocalPort, [string] $State)
+    [pscustomobject]@{{ LocalAddress = '0.0.0.0'; LocalPort = $LocalPort; State = $State }}
+}}
+if (Test-ReleaseLocalPostgresPort 54329) {{ exit 1 }}
 """
     for shell in shells:
         result = subprocess.run([shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command], capture_output=True, text=True)

@@ -416,6 +416,33 @@ def test_api_routes_qualified_generic_capability_with_preprocessing_alias(monkey
     assert predict_calls == ['/v1/predict/dr']
 
 
+def test_api_rejects_non_boolean_ready_advertisement(monkeypatch):
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
+        if request.url.path == '/v1/models':
+            return httpx.Response(200, json=[{
+                'model_id': 'generic-uwf-grader',
+                'task': 'global',
+                'modalities': ['UWF'],
+                'status': 'LOADED',
+                'capability_id': 'uwf-grade',
+                'revision': 'r1',
+                'preprocessing': 'uwf-v1',
+                'ready': 'false',
+            }])
+        return httpx.Response(404)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    response = TestClient(app).put(
+        '/v1/model-connection',
+        json={'name': 'Remote', 'url': 'https://remote.test'},
+    )
+
+    assert response.status_code == 502
+    assert 'capabilities did not match' in response.json()['detail']
+
+
 def test_api_returns_504_when_remote_times_out(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path == '/v1/models':

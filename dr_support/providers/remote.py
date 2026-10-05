@@ -286,7 +286,7 @@ class RemoteModelProvider:
         status = remote_status.strip() if isinstance(remote_status, str) and remote_status.strip() else 'REMOTE_DEGRADED'
         remote_warnings = list(match.get('warnings') or [])
         preprocessing = match.get('preprocessing') or match.get('preprocessing_version')
-        return {
+        metadata = {
             'model_id': self.model_id,
             'task': advertised_task,
             'runtime': 'remote',
@@ -300,11 +300,13 @@ class RemoteModelProvider:
             'preprocessing': preprocessing,
             'preprocessing_version': preprocessing,
             'capability_id': match.get('capability_id'),
-            'ready': match.get('ready') if isinstance(match.get('ready'), bool) else None,
             'domain_status': match.get('domain_status'),
             'release_status': match.get('release_status'),
             'explanation_types': match.get('explanation_types') or [],
         }
+        if 'ready' in match:
+            metadata['ready'] = match['ready']
+        return metadata
 
     def _degraded_metadata(self, status: str, detail: str | None = None) -> dict[str, Any]:
         warnings = [f'Remote runtime degraded: {status}']

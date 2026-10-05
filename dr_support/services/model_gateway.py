@@ -78,6 +78,8 @@ def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
         status = item.get("status")
         if status is not None and (not isinstance(status, str) or not status.strip()):
             return None
+        if "ready" in item and not isinstance(item["ready"], bool):
+            return None
         modalities = item.get("modalities")
         if modalities is not None and (
             not isinstance(modalities, list)

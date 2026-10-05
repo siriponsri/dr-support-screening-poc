@@ -105,6 +105,18 @@ def test_generic_capability_with_only_unsupported_modality_stays_manual_only():
         )
 
 
+def test_non_boolean_ready_value_stays_manual_only():
+    descriptor = _capability()
+    descriptor["ready"] = "false"
+    with pytest.raises(CapabilityRoutingError, match="readiness value is invalid"):
+        route_capability(
+            descriptor,
+            model_id="retfound-aptos5",
+            task="global",
+            modality="CFP",
+        )
+
+
 def test_unready_capability_stays_manual_only():
     with pytest.raises(CapabilityRoutingError, match="No ready model"):
         route_capability(

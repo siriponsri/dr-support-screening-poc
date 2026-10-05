@@ -85,7 +85,8 @@ function Get-ReleaseDockerPath {
 
 function Test-ReleaseLocalPostgresPort([int] $Port) {
     try {
-        $listener = Get-NetTCPConnection -LocalAddress "127.0.0.1" -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+        $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+            Where-Object { [string]$_.LocalAddress -in @("127.0.0.1", "0.0.0.0", "::", "::0") } |
             Select-Object -First 1
         return -not [bool]$listener
     } catch {
