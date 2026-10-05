@@ -290,7 +290,7 @@ def verify_frontend_build(source_commit: str) -> dict[str, str]:
     actual_by_relative = {
         path.relative_to(dist).as_posix(): path for path in actual_files
     }
-    expected_paths = {entry["path"] for entry in normalized_outputs} | {"build-identity.json"}
+    expected_paths = {entry["path"] for entry in normalized_outputs} | {"build-identity.json", "index.html"}
     if set(actual_by_relative) != expected_paths:
         raise SystemExit("prebuilt frontend output set does not match its build identity")
     actual_outputs = [
