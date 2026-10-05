@@ -64,4 +64,8 @@ class ModelConnectionResponse(Contract):
     token_configured: bool = False
     status: Literal["CONNECTED", "NOT_CONFIGURED", "UNAVAILABLE", "UNVERIFIED"]
     message: str
+    server_reachable: bool = False
+    api_contract_valid: bool = False
+    connection_verified: bool = False
+    capabilities_ready: bool = False
     models: list[ModelConnectionModel] = Field(default_factory=list)

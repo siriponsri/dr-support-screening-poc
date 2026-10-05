@@ -56,6 +56,49 @@ function Set-ReleaseReviewEnvironment {
     $env:WORKERS = "1"
 }
 
+function Test-ReleasePostgres {
+    Read-ReleaseDotEnv
+    $mode = ($env:DR_SUPPORT_CASE_STORE | ForEach-Object { $_.Trim().ToLowerInvariant() })
+    if ($mode -eq "sqlite") {
+        return [pscustomobject]@{
+            Ready = $false
+            Mode = "sqlite"
+            Detail = "Explicit DR_SUPPORT_CASE_STORE=sqlite is legacy compatibility mode; normal managed PostgreSQL readiness is not available."
+        }
+    }
+    $dsn = ($env:DR_SUPPORT_DATABASE_URL | ForEach-Object { $_.Trim() })
+    if (-not $dsn) {
+        return [pscustomobject]@{
+            Ready = $false
+            Mode = "postgres"
+            Detail = "DR_SUPPORT_DATABASE_URL is not configured in the private server environment."
+        }
+    }
+    try {
+        $python = Get-ReleasePythonPath
+        $probe = @"
+from dr_support.persistence import PostgresDatabase, PostgresSettings
+PostgresDatabase(PostgresSettings.from_env()).verify_available()
+print('READY')
+"@
+        $output = & $python -c $probe 2>$null
+        if ($LASTEXITCODE -eq 0 -and ($output -join "`n") -match "READY") {
+            return [pscustomobject]@{
+                Ready = $true
+                Mode = "postgres"
+                Detail = "PostgreSQL configuration and SELECT 1 connectivity verified without exposing credentials."
+            }
+        }
+    } catch {
+        # Diagnostics intentionally remain credential-safe and concise.
+    }
+    return [pscustomobject]@{
+        Ready = $false
+        Mode = "postgres"
+        Detail = "PostgreSQL is configured but the project Python could not verify SELECT 1 connectivity."
+    }
+}
+
 function Test-ReleaseFrontend {
     $index = Join-Path $script:ReleaseRepoRoot "frontend\dist\index.html"
     if (-not (Test-Path -LiteralPath $index -PathType Leaf)) {

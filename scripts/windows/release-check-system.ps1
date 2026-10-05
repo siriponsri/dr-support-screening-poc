@@ -20,6 +20,8 @@ try {
     } else {
         Report "Python imports" $false "unavailable until FIRST_RUN.bat completes"
     }
+    $postgres = Test-ReleasePostgres
+    Report "Managed PostgreSQL readiness" $postgres.Ready $postgres.Detail
     $uv = Get-ReleaseUvPath
     Report "uv" ([bool]$uv) "optional after first run; used for provisioning"
     $record = Get-ReleaseRecord

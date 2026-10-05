@@ -262,7 +262,7 @@ class RemoteModelProvider:
                       if self.last_remote_checkpoint_sha256 is not None
                       else match.get('checkpoint_sha256'))
         remote_status = match.get('status')
-        status = 'LOADED' if (remote_status and remote_status not in {'UNAVAILABLE', 'ERROR'}) or revision else 'REMOTE_DEGRADED'
+        status = remote_status.strip() if isinstance(remote_status, str) and remote_status.strip() else 'REMOTE_DEGRADED'
         remote_warnings = list(match.get('warnings') or [])
         return {
             'model_id': self.model_id,

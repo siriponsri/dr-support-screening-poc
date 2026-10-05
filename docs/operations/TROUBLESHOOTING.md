@@ -4,6 +4,8 @@
 
 For an extracted release, run `CHECK_SYSTEM.bat`, then `FIRST_RUN.bat` if the project-managed Python is missing. For a developer checkout, rerun the documented `uv sync` and frontend `npm.cmd ci` / `npm.cmd run build` commands. `START_DR_SCREENING.bat` writes stdout/stderr to `local-state/logs/`. Do not set `APP_PROFILE=review` with `MODEL_RUNTIME=local`.
 
+If the system check reports managed PostgreSQL as not ready, configure `DR_SUPPORT_DATABASE_URL` in the private server environment and verify that the target accepts `SELECT 1`. The launcher does not install PostgreSQL, print the DSN, or switch to SQLite. An explicit `DR_SUPPORT_CASE_STORE=sqlite` run is legacy compatibility mode and is not normal managed review readiness.
+
 ## uv or Python provisioning is blocked
 
 The first release setup downloads uv and Python 3.12 from their official sources. Use an approved proxy or internal mirror if hospital policy blocks those downloads, then rerun `FIRST_RUN.bat`. Do not replace the machine Python or manually point the workstation at an untested interpreter. `CHECK_SYSTEM.bat` is read-only.
@@ -14,7 +16,7 @@ The packaged workstation does not require Node.js or npm. In a developer checkou
 
 ## Frontend build is stale or missing
 
-The release launcher requires the prebuilt `frontend/dist/index.html`. In a developer checkout, rebuild it with `npm.cmd run build`; in an extracted release, re-extract the package if the bundle is missing.
+The release launcher requires the prebuilt `frontend/dist/index.html` and the release builder verifies `frontend/dist/build-identity.json` against the source commit and deterministic frontend source digest. In a developer checkout, rebuild it with `npm.cmd run build`; in an extracted release, re-extract the package if the bundle or identity is missing or stale.
 
 ## Port 8000 is already in use
 

@@ -35,6 +35,7 @@ class PostgresCaseStore:
         # Same-revision automatic enrichment needs the payload observed by get().
         # Revision-changing writes use the database revision predicate directly.
         self._observed: dict[str, str | None] = {}
+        self._observed_revision: dict[str, int | None] = {}
         self._schema = sql.Identifier(database.settings.schema)
 
     def ensure_workspace(self) -> None:
@@ -60,12 +61,14 @@ class PostgresCaseStore:
                 ).fetchone()
             if row is None:
                 self._observed[image_id] = None
+                self._observed_revision[image_id] = None
                 return new_case(image_id)
             stored_revision, raw_case = row
             case = apply_case_defaults(dict(raw_case))
             case["image_id"] = image_id
             case["revision"] = stored_revision
             self._observed[image_id] = _serialized_payload(dict(raw_case))
+            self._observed_revision[image_id] = stored_revision
             return case
 
     def all_cases(self) -> list[dict[str, Any]]:
@@ -85,6 +88,7 @@ class PostgresCaseStore:
                 case["image_id"] = case_id
                 case["revision"] = stored_revision
                 self._observed[case_id] = _serialized_payload(dict(raw_case))
+                self._observed_revision[case_id] = stored_revision
                 cases.append(case)
             return cases
 
@@ -103,13 +107,22 @@ class PostgresCaseStore:
                     ).format(self._schema),
                     (self.workspace_id,),
                 ).fetchall()
+                raw_by_case_id = {str(case_id): (stored_revision, raw_case) for case_id, stored_revision, raw_case in rows}
                 cases = []
                 for case_id, stored_revision, raw_case in rows:
                     case = apply_case_defaults(dict(raw_case))
                     case["image_id"] = case_id
                     case["revision"] = stored_revision
-                    self._observed[case_id] = _serialized_payload(dict(raw_case))
                     cases.append(case)
+                with self.lock:
+                    for case in cases:
+                        case_id = str(case["image_id"])
+                        stored_revision = int(case["revision"])
+                        prior_revision = self._observed_revision.get(case_id)
+                        if prior_revision is None or prior_revision <= stored_revision:
+                            _revision, raw_case = raw_by_case_id[case_id]
+                            self._observed[case_id] = _serialized_payload(dict(raw_case))
+                            self._observed_revision[case_id] = stored_revision
                 yield cases
 
     def put(self, case: dict[str, Any]) -> None:
@@ -206,6 +219,7 @@ class PostgresCaseStore:
                     if updated != 1:
                         raise CaseConflictError("Case changed; reload")
             self._observed[image_id] = payload_text
+            self._observed_revision[image_id] = revision
 
 
 PostgresStore = PostgresCaseStore

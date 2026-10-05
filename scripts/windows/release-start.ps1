@@ -7,6 +7,8 @@ try {
     Set-ReleaseReviewEnvironment
     Ensure-ReleaseDirectories
     Test-ReleaseFrontend
+    $postgres = Test-ReleasePostgres
+    if (-not $postgres.Ready) { throw $postgres.Detail }
     $record = Get-ReleaseRecord
     if ($record -and (Test-ReleaseManagedProcess ([int]$record.pid)) -and (Test-ReleaseHealth)) {
         Write-Host "Retinal Review Workbench is already running at $($record.url)."

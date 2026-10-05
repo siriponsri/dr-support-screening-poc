@@ -1130,7 +1130,21 @@ class DatasetManifestService:
         export_dir = Path(workspace.output_folder) / f"dataset-snapshot-{snapshot_id}"
         completeness = self._snapshot_completeness(images)
         ai_evidence = self._snapshot_ai_evidence(cases, images)
-        dr_labels = [{field: row.get(field) for field in DR_LABEL_FIELDS} for row in images if row.get("dr_grade_training_ready")]
+        dr_labels = [
+            {
+                "image_id": row.get("image_id"),
+                "source_sha256": row.get("source_sha256"),
+                "dr_grade": row.get("clinician_grade"),
+                "grade_provenance": row.get("grade_provenance"),
+                "reviewer": row.get("reviewer"),
+                "reviewed_at": row.get("reviewed_at"),
+                "case_revision": row.get("case_revision"),
+                "training_group_key": row.get("training_group_key"),
+                "policy_version": SNAPSHOT_ELIGIBILITY_POLICY_VERSION,
+            }
+            for row in images
+            if row.get("dr_grade_training_ready")
+        ]
         row_by_id = {row["image_id"]: row for row in images}
         lesion_labels = []
         for item in annotations:

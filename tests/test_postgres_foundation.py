@@ -6,7 +6,11 @@ import os
 import re
 import json
 import sqlite3
+from copy import deepcopy
+from contextlib import contextmanager
 from pathlib import Path
+from threading import Event, Thread
+from types import SimpleNamespace
 from uuid import uuid4
 
 import psycopg
@@ -91,6 +95,151 @@ def test_configured_unavailable_postgres_fails_clearly_without_dsn_leak():
         database.verify_available()
 
     assert password not in str(exc_info.value)
+
+
+def _query_text(query) -> str:
+    if isinstance(query, str):
+        return query
+    if hasattr(query, "_obj"):
+        value = query._obj
+        if isinstance(value, list):
+            return "".join(_query_text(item) for item in value)
+        if isinstance(value, tuple):
+            return ".".join(str(item) for item in value)
+        return str(value)
+    return str(query)
+
+
+def _json_value(value):
+    return getattr(value, "obj", value)
+
+
+def _json_equal(left, right) -> bool:
+    return json.dumps(left, sort_keys=True, separators=(",", ":")) == json.dumps(
+        right, sort_keys=True, separators=(",", ":")
+    )
+
+
+class _ControlledCaseDatabase:
+    """Small deterministic harness for the store's observation/CAS boundary."""
+
+    def __init__(self):
+        self.rows: dict[str, tuple[int, dict]] = {}
+        self.settings = SimpleNamespace(schema="dr_support")
+        self.snapshot_started = Event()
+        self.release_snapshot = Event()
+
+    @contextmanager
+    def session(self, *, autocommit=True):
+        snapshot = dict(self.rows) if not autocommit else None
+        yield _ControlledCaseConnection(self, snapshot)
+
+    @contextmanager
+    def transaction(self):
+        with self.session() as connection:
+            yield connection
+
+
+class _ControlledCaseConnection:
+    def __init__(self, database, snapshot):
+        self.database = database
+        self.snapshot = snapshot
+
+    @contextmanager
+    def transaction(self):
+        yield self
+
+    def execute(self, query, params=()):
+        text = _query_text(query).lower()
+        if text.startswith("set transaction"):
+            return _ControlledCaseResult()
+        if text.startswith("select revision, payload"):
+            rows = self.snapshot if self.snapshot is not None else self.database.rows
+            row = rows.get(str(params[1]))
+            row = (row[0], deepcopy(row[1])) if row else None
+            return _ControlledCaseResult([row] if row else [])
+        if text.startswith("select case_id, revision, payload"):
+            rows = self.snapshot if self.snapshot is not None else self.database.rows
+            if self.snapshot is not None:
+                self.database.snapshot_started.set()
+                self.database.release_snapshot.wait(timeout=5)
+            return _ControlledCaseResult([
+                (case_id, revision, deepcopy(payload)) for case_id, (revision, payload) in sorted(rows.items())
+            ])
+        if "insert into" in text and "workspaces" in text:
+            return _ControlledCaseResult(rowcount=1)
+        if "insert into" in text and "review_cases" in text:
+            _, case_id, revision, payload = params[0], str(params[1]), params[2], _json_value(params[3])
+            if case_id in self.database.rows:
+                return _ControlledCaseResult(rowcount=0)
+            self.database.rows[case_id] = (revision, deepcopy(payload))
+            return _ControlledCaseResult(rowcount=1)
+        if text.startswith("update") and "review_cases" in text:
+            if len(params) == 6:
+                new_revision, payload_value, _workspace_id, case_id, expected_revision, observed_value = params
+                payload = _json_value(payload_value)
+                case_id = str(case_id)
+                observed = _json_value(observed_value)
+            else:
+                payload = _json_value(params[0])
+                case_id = str(params[2])
+                expected_revision = params[3]
+                observed = _json_value(params[4])
+            current = self.database.rows.get(case_id)
+            if current and current[0] == expected_revision and _json_equal(current[1], observed):
+                new_revision = new_revision if len(params) == 6 else expected_revision
+                self.database.rows[case_id] = (new_revision, payload)
+                return _ControlledCaseResult(rowcount=1)
+            return _ControlledCaseResult(rowcount=0)
+        raise AssertionError(f"Unhandled fake SQL: {text}")
+
+
+class _ControlledCaseResult:
+    def __init__(self, rows=None, rowcount=0):
+        self.rows = rows or []
+        self.rowcount = rowcount
+
+    def fetchone(self):
+        return self.rows[0] if self.rows else None
+
+    def fetchall(self):
+        return list(self.rows)
+
+
+def test_repeatable_read_snapshot_cannot_overwrite_newer_cas_observation():
+    database = _ControlledCaseDatabase()
+    store = PostgresCaseStore(database, "workspace")
+    seed = store.get("case")
+    store.put(seed)
+
+    def read_snapshot():
+        with store.repeatable_read_cases():
+            pass
+
+    reader = Thread(target=read_snapshot)
+    reader.start()
+    assert database.snapshot_started.wait(timeout=5)
+
+    external = PostgresCaseStore(database, "workspace")
+    external_case = external.get("case")
+    external_case["revision"] += 1
+    external_case["events"].append({"action": "EXTERNAL_WRITE"})
+    external.put(external_case)
+
+    current = store.get("case")
+    current["revision"] += 1
+    current["events"].append({"action": "CURRENT_WRITE"})
+    database.release_snapshot.set()
+    reader.join(timeout=5)
+    assert not reader.is_alive()
+
+    store.put(current)
+    final = PostgresCaseStore(database, "workspace").get("case")
+    assert final["revision"] == 2
+    assert final["events"] == [
+        {"action": "EXTERNAL_WRITE"},
+        {"action": "CURRENT_WRITE"},
+    ]
 
 
 def test_migration_sequence_and_checksums_are_deterministic():

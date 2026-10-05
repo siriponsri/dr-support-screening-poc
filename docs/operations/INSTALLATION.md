@@ -18,7 +18,7 @@ The supported no-code release path is deliberately short:
 extract release -> FIRST_RUN.bat -> START_DR_SCREENING.bat -> browser opens
 ```
 
-`FIRST_RUN.bat` provisions project-managed Python 3.12 and locked workstation dependencies from an extracted release. It reuses the prebuilt frontend and does not install or run npm. Use `CHECK_SYSTEM.bat` for a read-only diagnostic.
+`FIRST_RUN.bat` provisions project-managed Python 3.12 and locked workstation dependencies from an extracted release. It reuses the prebuilt frontend and does not install or run npm. Configure the private server-side `DR_SUPPORT_DATABASE_URL` before running the launcher; first run and the read-only `CHECK_SYSTEM.bat` diagnostic verify PostgreSQL configuration and `SELECT 1` connectivity without printing credentials.
 
 ## No-code release path
 
@@ -29,7 +29,7 @@ but requires the release's prebuilt `frontend/dist`; normal startup never runs
 npm or rebuilds the frontend. Developer checkouts prepare dependencies manually
 with the `uv` and frontend npm commands documented below.
 
-`START_DR_SCREENING.bat` sets the safe workstation invariants (`APP_PROFILE=review`, `MODEL_RUNTIME=remote`, `HOST=127.0.0.1`, `PORT=8000`, `WORKERS=1`), reuses a healthy managed process, waits for `/health`, and opens `/app/`. It does not install or rebuild dependencies on daily starts. `STOP_DR_SCREENING.bat` stops only the process recorded in `local-state/release/workstation.json`.
+`START_DR_SCREENING.bat` sets the safe workstation invariants (`APP_PROFILE=review`, `MODEL_RUNTIME=remote`, `HOST=127.0.0.1`, `PORT=8000`, `WORKERS=1`), verifies managed PostgreSQL before launch, reuses a healthy managed process, waits for `/health`, and opens `/app/`. It does not install or rebuild dependencies on daily starts. `STOP_DR_SCREENING.bat` stops only the process recorded in `local-state/release/workstation.json`.
 
 Logs and runtime metadata are under ignored `local-state/logs/` and
 `local-state/release/`. A port-8000 conflict is reported with process

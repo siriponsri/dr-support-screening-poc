@@ -9,10 +9,15 @@ is not production, clinical, hospital-data, model, or training authorization.
       `CHECK_SYSTEM.bat` work from an extracted workstation package.
 - [ ] Workstation package includes a prebuilt `frontend/dist` and normal users
       do not run npm commands.
+- [ ] Workstation package includes a verified `frontend/dist/build-identity.json`
+      bound to the release source commit and frontend source digest.
 - [ ] Model API package contains software/contracts only; no weights, secrets,
       databases, patient data, or runtime state.
 - [ ] `RELEASE_MANIFEST.json` records source version/commit and
       `SHA256SUMS.txt` is verified after package creation.
+- [ ] No-code readiness checks verify configured PostgreSQL connectivity and do
+      not imply managed review readiness for missing configuration or SQLite
+      compatibility mode.
 - [ ] USPEC artifact manifest records expected identity only; acquisition and
       runtime qualification remain deferred.
 

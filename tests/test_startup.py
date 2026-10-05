@@ -27,6 +27,12 @@ def test_release_launchers_are_the_single_workstation_path():
     assert "Test-ReleaseFrontend" in start
     assert "npm" not in start.lower()
     assert "127.0.0.1:8000/app/" in start
+    assert "Test-ReleasePostgres" in common
+    assert "DR_SUPPORT_DATABASE_URL" in common
+    assert "SELECT 1" in common
+    assert "Test-ReleasePostgres" in start
+    assert "Test-ReleasePostgres" in (ROOT / "scripts/windows/release-first-run.ps1").read_text(encoding="utf-8")
+    assert "Test-ReleasePostgres" in (ROOT / "scripts/windows/release-check-system.ps1").read_text(encoding="utf-8")
     assert "Stop-Process" in stop
 
     retired = ("SETUP.cmd", "START.cmd", "OPEN_APP.cmd", "STOP.cmd")

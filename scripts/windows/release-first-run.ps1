@@ -39,11 +39,17 @@ try {
     $python = Get-ReleasePythonPath
     & $python -c "import fastapi, dr_support; print('Python imports: PASS')"
     if ($LASTEXITCODE -ne 0) { throw "The project-managed Python environment failed the import check." }
+    $postgres = Test-ReleasePostgres
+    if (-not $postgres.Ready) {
+        Write-Host "Python provisioning completed, but normal managed review readiness is incomplete."
+        throw $postgres.Detail
+    }
     [pscustomobject]@{
         completed_at = (Get-Date).ToUniversalTime().ToString("o")
         python = (& $python --version 2>&1).Trim()
         frontend = "prebuilt"
         npm_required = $false
+        postgres = "verified"
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $script:ReleaseStateRoot "first-run.json")
     Write-Host "FIRST RUN completed. Use START_DR_SCREENING.bat each day; no developer commands are required."
     exit 0

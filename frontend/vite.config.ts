@@ -1,11 +1,75 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
+import type { Plugin } from 'vite';
+
+function frontendSourceFiles(frontendRoot: string): string[] {
+  const files: string[] = [
+    'index.html',
+    'package.json',
+    'package-lock.json',
+    'tsconfig.json',
+    'vite.config.ts',
+  ];
+  const collect = (relativeRoot: string) => {
+    const absoluteRoot = path.join(frontendRoot, relativeRoot);
+    if (!fs.existsSync(absoluteRoot)) return;
+    const visit = (current: string) => {
+      for (const entry of fs.readdirSync(current, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        const absolute = path.join(current, entry.name);
+        if (entry.isDirectory()) visit(absolute);
+        else if (entry.isFile()) files.push(path.relative(frontendRoot, absolute).split(path.sep).join('/'));
+      }
+    };
+    visit(absoluteRoot);
+  };
+  collect('src');
+  collect('public');
+  return [...new Set(files)].sort();
+}
+
+function frontendSourceDigest(frontendRoot: string): string {
+  const digest = createHash('sha256');
+  for (const relative of frontendSourceFiles(frontendRoot)) {
+    digest.update(relative, 'utf8');
+    digest.update('\0', 'utf8');
+    digest.update(fs.readFileSync(path.join(frontendRoot, relative)));
+    digest.update('\0', 'utf8');
+  }
+  return digest.digest('hex');
+}
+
+function frontendBuildIdentityPlugin(frontendRoot: string): Plugin {
+  return {
+    name: 'dr-frontend-build-identity',
+    generateBundle() {
+      const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: path.resolve(frontendRoot, '..'),
+        encoding: 'utf8',
+      }).trim();
+      const sourceDigest = frontendSourceDigest(frontendRoot);
+      this.emitFile({
+        type: 'asset',
+        fileName: 'build-identity.json',
+        source: `${JSON.stringify({
+          schema_version: 'frontend-build-identity.v1',
+          source_commit: sourceCommit,
+          source_digest: sourceDigest,
+        }, null, 2)}\n`,
+      });
+    },
+  };
+}
+
+const frontendRoot = __dirname;
 
 export default defineConfig({
   base: '/app/',
-  plugins: [react()],
+  plugins: [react(), frontendBuildIdentityPlugin(frontendRoot)],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

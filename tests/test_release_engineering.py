@@ -1,5 +1,9 @@
 import json
+import subprocess
+import zipfile
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,6 +59,120 @@ def test_builder_rejects_missing_prebuilt_frontend(tmp_path, monkeypatch):
         assert "frontend/dist" in str(exc)
     else:
         raise AssertionError("missing prebuilt frontend must block workstation packaging")
+
+
+def _temporary_git_repo(path: Path):
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "Release Test"], cwd=path, check=True)
+
+
+def test_release_zip_ignores_untracked_files_and_rejects_hostile_artifacts(tmp_path, monkeypatch):
+    import scripts.release.build_release as builder
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "dr_support").mkdir()
+    (root / "dr_support" / "app.py").write_text("print('tracked')\n", encoding="utf-8")
+    (root / "scripts" / "release").mkdir(parents=True)
+    (root / "scripts" / "release" / "model_artifacts.json").write_text("{}\n", encoding="utf-8")
+    (root / "dr_support" / "notes.txt").write_text("untracked but harmless\n", encoding="utf-8")
+    _temporary_git_repo(root)
+    subprocess.run(["git", "add", "dr_support/app.py", "scripts/release/model_artifacts.json"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
+    (root / "dr_support" / ".env.production").write_text("SECRET=do-not-package\n", encoding="utf-8")
+    (root / "dr_support" / "service.env.local").write_text("SECRET=do-not-package\n", encoding="utf-8")
+    (root / "dr_support" / "credentials.json").write_text("{}\n", encoding="utf-8")
+    (root / "dr_support" / "weights.pt").write_bytes(b"weights")
+    (root / "dr_support" / "weights.bin").write_bytes(b"weights")
+    (root / "dr_support" / "runtime.db").write_bytes(b"database")
+    (root / "dr_support" / "debug.log").write_text("log\n", encoding="utf-8")
+
+    monkeypatch.setattr(builder, "ROOT", root)
+    monkeypatch.setattr(builder, "model_api_allowlist", lambda: ["dr_support", "scripts/release/model_artifacts.json"])
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1735689600")
+    source_commit = builder.git("rev-parse", "HEAD")
+
+    with pytest.raises(SystemExit, match="forbidden release artifact"):
+        builder.package("model-api", "test", root / "out", source_commit)
+
+    for hostile in (
+        ".env.production", "service.env.local", "credentials.json", "weights.pt", "weights.bin",
+        "runtime.db", "debug.log",
+    ):
+        (root / "dr_support" / hostile).unlink()
+    archive = builder.package("model-api", "test", root / "out", source_commit)
+    with zipfile.ZipFile(archive) as package_zip:
+        names = set(package_zip.namelist())
+        assert "dr_support/app.py" in names
+        assert "dr_support/notes.txt" not in names
+        assert not any(name.endswith((".pt", ".db", ".log")) for name in names)
+    first_bytes = archive.read_bytes()
+    archive.unlink()
+    second = builder.package("model-api", "test", root / "out", source_commit)
+    assert second.read_bytes() == first_bytes
+
+
+def test_release_builder_rejects_path_escape_and_symlink(tmp_path, monkeypatch):
+    import scripts.release.build_release as builder
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "dr_support").mkdir()
+    (root / "dr_support" / "app.py").write_text("print('tracked')\n", encoding="utf-8")
+    _temporary_git_repo(root)
+    subprocess.run(["git", "add", "dr_support/app.py"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
+    monkeypatch.setattr(builder, "ROOT", root)
+    monkeypatch.setattr(builder, "model_api_allowlist", lambda: ["dr_support"])
+    source_commit = builder.git("rev-parse", "HEAD")
+
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside\n", encoding="utf-8")
+    link = root / "dr_support" / "linked.txt"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pass
+    else:
+        with pytest.raises(SystemExit, match="unsafe symlink"):
+            builder.package("model-api", "test", root / "out", source_commit)
+        link.unlink()
+
+    monkeypatch.setattr(builder, "model_api_allowlist", lambda: ["../outside.txt"])
+    with pytest.raises(SystemExit, match="escapes repository root"):
+        builder.package("model-api", "test", root / "out", source_commit)
+
+
+def test_frontend_build_identity_detects_stale_source(tmp_path, monkeypatch):
+    import scripts.release.build_release as builder
+
+    root = tmp_path / "repo"
+    frontend = root / "frontend"
+    (frontend / "src").mkdir(parents=True)
+    for name, content in {
+        "index.html": "<div id='root'></div>\n",
+        "package.json": "{}\n",
+        "package-lock.json": "{}\n",
+        "tsconfig.json": "{}\n",
+        "vite.config.ts": "export default {}\n",
+    }.items():
+        (frontend / name).write_text(content, encoding="utf-8")
+    (frontend / "src" / "main.ts").write_text("export {}\n", encoding="utf-8")
+    (frontend / "dist").mkdir()
+    monkeypatch.setattr(builder, "ROOT", root)
+    digest = builder.frontend_source_digest()
+    identity = {
+        "schema_version": "frontend-build-identity.v1",
+        "source_commit": "abc123",
+        "source_digest": digest,
+    }
+    (frontend / "dist" / "build-identity.json").write_text(json.dumps(identity), encoding="utf-8")
+
+    assert builder.verify_frontend_build("abc123")["source_digest"] == digest
+    (frontend / "src" / "main.ts").write_text("export const stale = true;\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="stale"):
+        builder.verify_frontend_build("abc123")
 
 
 def test_gitignore_excludes_release_runtime():

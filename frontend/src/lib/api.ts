@@ -721,6 +721,10 @@ export interface ModelConnectionResponse {
   token_configured: boolean;
   status: 'CONNECTED' | 'NOT_CONFIGURED' | 'UNAVAILABLE' | 'UNVERIFIED';
   message: string;
+  server_reachable: boolean;
+  api_contract_valid: boolean;
+  connection_verified: boolean;
+  capabilities_ready: boolean;
   models: ModelConnectionModel[];
 }
 

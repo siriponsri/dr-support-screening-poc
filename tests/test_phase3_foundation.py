@@ -113,7 +113,66 @@ def test_model_gateway_accepts_capability_or_legacy_discovery():
         transport=httpx.MockTransport(handler),
     )
     assert probe.verified is True
+    assert probe.connection_verified is True
+    assert probe.capabilities_ready is False
+    assert probe.models[0]["ready"] is False
     assert probe.models[0]['capability_id'] == 'dr_grade'
+
+
+@pytest.mark.parametrize("status", ["BLOCKED_ARTIFACT", "DISABLED", "NOT_RUN", "NOT_LOADED", None, "UNKNOWN"])
+def test_model_gateway_only_reports_exact_loaded_capabilities_as_ready(status):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS_WITH_WARNINGS"})
+        descriptor = {"model_id": "retfound-aptos5"}
+        if status is not None:
+            descriptor["status"] = status
+        return httpx.Response(200, json=[descriptor])
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.server_reachable is True
+    assert probe.api_contract_valid is True
+    assert probe.connection_verified is True
+    assert probe.capabilities_ready is False
+    assert probe.models[0]["ready"] is False
+    assert "no model capability is ready" in probe.message
+
+
+def test_model_gateway_reports_loaded_capability_as_ready():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS"})
+        return httpx.Response(200, json=[{"model_id": "retfound-aptos5", "status": "LOADED"}])
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.connection_verified is True
+    assert probe.capabilities_ready is True
+    assert probe.models[0]["ready"] is True
+
+
+@pytest.mark.parametrize(
+    "health_payload,models_payload",
+    [
+        ({"status": "NOT_A_HEALTH_STATUS"}, [{"model_id": "model"}]),
+        ({"status": "FAIL"}, [{"model_id": "model"}]),
+        ({"status": "PASS"}, {"model_id": "model"}),
+        ({"status": "PASS"}, [{"model_id": ""}]),
+        ({"status": "PASS"}, [{"model_id": "model"}, {"model_id": "model"}]),
+    ],
+)
+def test_model_gateway_does_not_report_connected_for_malformed_contracts(health_payload, models_payload):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json=health_payload)
+        return httpx.Response(200, json=models_payload)
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.connection_verified is False
+    assert probe.capabilities_ready is False
+    assert probe.status == "UNVERIFIED"
 
 
 def test_model_api_v2_blocks_workspace_origin_and_reports_unenabled_uspec(monkeypatch, tmp_path):

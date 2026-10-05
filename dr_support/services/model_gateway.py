@@ -23,10 +23,19 @@ class ModelConnection:
 
 @dataclass(frozen=True)
 class ModelGatewayProbe:
-    verified: bool
+    server_reachable: bool
+    api_contract_valid: bool
+    connection_verified: bool
+    capabilities_ready: bool
     status: str
     message: str
     models: tuple[dict[str, Any], ...] = ()
+
+    @property
+    def verified(self) -> bool:
+        """Compatibility alias for callers that mean connection verification."""
+
+        return self.connection_verified
 
 
 def _headers(token: str | None) -> dict[str, str]:
@@ -44,27 +53,51 @@ def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
     """
     if not isinstance(body, list):
         return None
+    if not body:
+        return None
     summaries: list[dict[str, Any]] = []
     seen: set[str] = set()
     for item in body:
         if not isinstance(item, dict):
-            continue
+            return None
         model_id = item.get("model_id")
-        if not isinstance(model_id, str) or not model_id or model_id in seen:
-            continue
+        if not isinstance(model_id, str) or not model_id.strip() or model_id in seen:
+            return None
         seen.add(model_id)
         status = item.get("status")
+        if status is not None and (not isinstance(status, str) or not status.strip()):
+            return None
+        modalities = item.get("modalities")
+        if modalities is not None and (
+            not isinstance(modalities, list)
+            or any(not isinstance(modality, str) or not modality.strip() for modality in modalities)
+        ):
+            return None
         summaries.append({
             "model_id": model_id,
-            "ready": status not in {"UNAVAILABLE", "ERROR", "ASSET_REQUIRED"},
+            "ready": status == "LOADED",
             "status": status if isinstance(status, str) else None,
             "capability_id": item.get("capability_id") if isinstance(item.get("capability_id"), str) else None,
             "task": item.get("task") if isinstance(item.get("task"), str) else None,
-            "modalities": list(item.get("modalities") or []) if isinstance(item.get("modalities"), list) else [],
+            "modalities": list(modalities or []) if isinstance(modalities, list) else [],
         })
     if not summaries:
         return None
     return tuple(sorted(summaries, key=lambda item: item["model_id"]))
+
+
+def _health_contract_valid(body: object) -> bool:
+    if not isinstance(body, dict) or body.get("status") not in {"PASS", "PASS_WITH_WARNINGS", "FAIL"}:
+        return False
+    warnings = body.get("warnings")
+    if warnings is not None and (
+        not isinstance(warnings, list)
+        or any(not isinstance(item, str) for item in warnings)
+    ):
+        return False
+    if body.get("status") == "FAIL" and not warnings:
+        return False
+    return True
 
 
 def probe_model_connection(
@@ -86,20 +119,54 @@ def probe_model_connection(
         with httpx.Client(**client_options) as client:
             health = client.get(f"{base_url}/health", headers=headers)
             if health.status_code != 200:
-                return ModelGatewayProbe(False, "UNAVAILABLE", "Connection could not be verified.")
+                return ModelGatewayProbe(
+                    True, False, False, False, "UNAVAILABLE", "Model API health could not be verified."
+                )
+            try:
+                health_body = health.json()
+            except ValueError:
+                return ModelGatewayProbe(
+                    True, False, False, False, "UNVERIFIED", "Model API health returned invalid JSON."
+                )
+            if not _health_contract_valid(health_body):
+                return ModelGatewayProbe(
+                    True, False, False, False, "UNVERIFIED", "Model API health did not match the expected contract."
+                )
+            health_ok = health_body["status"] in {"PASS", "PASS_WITH_WARNINGS"}
+
             models = client.get(f"{base_url}/v1/models", headers=headers)
             if models.status_code != 200:
-                return ModelGatewayProbe(False, "UNAVAILABLE", "Connection could not be verified.")
+                return ModelGatewayProbe(
+                    True, False, False, False, "UNAVAILABLE", "Model API capabilities could not be verified."
+                )
             try:
                 summaries = _model_summary(models.json())
             except ValueError:
                 summaries = None
     except (httpx.HTTPError, ValueError, OSError):
-        return ModelGatewayProbe(False, "UNAVAILABLE", "Connection could not be verified.")
+        return ModelGatewayProbe(
+            False, False, False, False, "UNAVAILABLE", "Model API server could not be reached."
+        )
 
     if summaries is None:
-        return ModelGatewayProbe(False, "UNAVAILABLE", "Connection could not be verified.")
-    return ModelGatewayProbe(True, "CONNECTED", "Connection verified.", summaries)
+        return ModelGatewayProbe(
+            True, False, False, False, "UNVERIFIED", "Model API capabilities did not match the expected contract."
+        )
+    capabilities_ready = any(model["ready"] for model in summaries)
+    if not health_ok:
+        return ModelGatewayProbe(
+            True,
+            True,
+            False,
+            False,
+            "UNAVAILABLE",
+            "Model API health reports failure; connection is not verified.",
+            summaries,
+        )
+    message = "Connection verified; at least one model capability is ready." if capabilities_ready else (
+        "Connection verified, but no model capability is ready."
+    )
+    return ModelGatewayProbe(True, True, True, capabilities_ready, "CONNECTED", message, summaries)
 
 
 def response_payload(
@@ -116,9 +183,16 @@ def response_payload(
             "token_configured": False,
             "status": "NOT_CONFIGURED",
             "message": "No Model API connection is configured.",
+            "server_reachable": False,
+            "api_contract_valid": False,
+            "connection_verified": False,
+            "capabilities_ready": False,
             "models": [],
         }
     current = probe or ModelGatewayProbe(
+        False,
+        False,
+        False,
         False,
         "UNVERIFIED",
         "Connection could not be verified.",
@@ -129,5 +203,9 @@ def response_payload(
         "token_configured": bool(connection.token),
         "status": current.status,
         "message": current.message,
+        "server_reachable": current.server_reachable,
+        "api_contract_valid": current.api_contract_valid,
+        "connection_verified": current.connection_verified,
+        "capabilities_ready": current.capabilities_ready,
         "models": list(current.models),
     }

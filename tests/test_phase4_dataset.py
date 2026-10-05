@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from dr_support.api import create_app
 from dr_support.contracts import LABELS
 from dr_support.services.dataset import _source_state_receipt
+from dr_support.services.dataset import SNAPSHOT_ELIGIBILITY_POLICY_VERSION
 
 
 def _workspace_client(tmp_path):
@@ -158,6 +159,59 @@ def test_confirmed_imported_lesion_is_ready_without_dr_grade(tmp_path):
     snapshot_dir = output / snapshot.json()["directory_name"]
     lesion_csv = (snapshot_dir / "lesion_labels.csv").read_text(encoding="utf-8")
     assert "cvat-SYNTH_001-7" in lesion_csv
+
+
+@pytest.mark.parametrize("grade", range(5))
+def test_snapshot_dr_labels_csv_contains_canonical_physician_grade_and_provenance(tmp_path, grade):
+    app, client, output = _workspace_client(tmp_path)
+    case = app.state.store.get("SYNTH_001")
+    case["patient_key"] = f"PT{grade:03d}"
+    case["patient_resolution_state"] = "RESOLVED"
+    app.state.store.put(case)
+    case = client.get("/v1/cases/SYNTH_001").json()
+
+    reviewed = client.post(
+        "/v1/cases/SYNTH_001/review",
+        json={
+            "revision": case["revision"],
+            "action": "CORRECT_GRADE",
+            "reviewer": "Snapshot physician",
+            "grade": grade,
+        },
+    )
+    assert reviewed.status_code == 200
+    reviewed_case = reviewed.json()
+    resolved = client.post(
+        "/v1/cases/SYNTH_001/resolver",
+        json={
+            "revision": reviewed_case["revision"],
+            "reviewer": "Snapshot physician",
+            "patient_action": "SET",
+            "patient_key": f"PT{grade:03d}",
+            "laterality_action": "SET",
+            "laterality": "UNKNOWN",
+        },
+    )
+    assert resolved.status_code == 200
+    reviewed_case = resolved.json()
+
+    snapshot = client.post("/v2/dataset/snapshot")
+    assert snapshot.status_code == 200
+    snapshot_dir = output / snapshot.json()["directory_name"]
+    with (snapshot_dir / "dr_labels.csv").open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["image_id"] == "SYNTH_001"
+    assert row["source_sha256"] == reviewed_case["image_sha256"]
+    assert row["dr_grade"] == str(grade)
+    assert row["grade_provenance"] == "MANUAL"
+    assert row["reviewer"] == "Snapshot physician"
+    assert row["reviewed_at"]
+    assert row["case_revision"] == str(reviewed_case["revision"])
+    assert row["training_group_key"] == f"patient:PT{grade:03d}"
+    assert row["policy_version"] == SNAPSHOT_ELIGIBILITY_POLICY_VERSION
 
 
 def test_geometry_only_ai_correction_is_human_lineage(tmp_path):
