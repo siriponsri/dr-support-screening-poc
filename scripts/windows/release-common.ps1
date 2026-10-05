@@ -22,6 +22,7 @@ function Get-ReleaseCheckoutIdentity {
 $script:ReleaseCheckoutIdentity = Get-ReleaseCheckoutIdentity
 $script:ReleaseComposeProject = "dr-support-workstation-$script:ReleaseCheckoutIdentity"
 $script:ReleaseComposeVolume = "dr_support_workstation_postgres_data_$script:ReleaseCheckoutIdentity"
+$script:ReleaseDatabaseSource = $null
 
 function Ensure-ReleaseDirectories {
     foreach ($path in @($script:ReleaseStateRoot, $script:ReleaseLogRoot)) {
@@ -202,6 +203,7 @@ function Import-ReleaseLocalDatabaseConfig {
     foreach ($name in $values.Keys) {
         [Environment]::SetEnvironmentVariable($name, $values[$name], "Process")
     }
+    $script:ReleaseDatabaseSource = "local"
     return [pscustomobject]@{
         Source = "local"
         Dsn = $env:DR_SUPPORT_DATABASE_URL
@@ -307,7 +309,7 @@ function Test-ReleasePostgres {
             Detail = "Explicit DR_SUPPORT_CASE_STORE=sqlite is legacy compatibility mode; normal managed PostgreSQL readiness is not available."
         }
     }
-    $source = "external"
+    $source = if ($script:ReleaseDatabaseSource -eq "local") { "local" } else { "external" }
     $dsn = ($env:DR_SUPPORT_DATABASE_URL | ForEach-Object { $_.Trim() })
     if (-not $dsn) {
         $local = Import-ReleaseLocalDatabaseConfig
@@ -363,6 +365,7 @@ function Ensure-ReleasePostgres {
     }
     $externalDsn = ($env:DR_SUPPORT_DATABASE_URL | ForEach-Object { $_.Trim() })
     if ($externalDsn) {
+        $script:ReleaseDatabaseSource = "external"
         $status = Test-ReleasePostgres
         if (-not $status.Ready) { throw $status.Detail }
         return [pscustomobject]@{
@@ -377,6 +380,7 @@ function Ensure-ReleasePostgres {
     Start-ReleaseLocalPostgres $local
     $env:DR_SUPPORT_DATABASE_URL = $local.Dsn
     $env:DR_SUPPORT_CASE_STORE = "postgres"
+    $script:ReleaseDatabaseSource = "local"
     $status = Test-ReleasePostgres
     if (-not $status.Ready) {
         Stop-ReleaseLocalPostgres $local

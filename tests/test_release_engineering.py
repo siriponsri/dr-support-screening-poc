@@ -42,6 +42,7 @@ def test_windows_launcher_owns_local_postgres_and_reports_manual_mode_safely():
     assert "ReleaseCheckoutIdentity" in common
     assert "DR_SUPPORT_CHECKOUT_ID" in common
     assert "DR_SUPPORT_POSTGRES_VOLUME" in common
+    assert "ReleaseDatabaseSource" in common
     assert "Legacy project-owned PostgreSQL state" in common
     assert "DR_SUPPORT_COMPOSE" not in common
     assert "ConvertFrom-Json" in check
