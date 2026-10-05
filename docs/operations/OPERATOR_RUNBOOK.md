@@ -14,7 +14,8 @@ Confirm that:
   either Model API connectivity or explicit manual mode.
 - If no external `DR_SUPPORT_DATABASE_URL` is configured, Docker Desktop is
   running for the project-owned local PostgreSQL service. The service is
-  named and stopped only through this checkout's release scripts.
+  named and stopped only through this checkout's release scripts, with a
+  checkout-specific loopback port recorded in ignored local state.
 - `/health` reports `status: PASS` and `assets_verified: true`.
 - `/v1/models` reports each advertised capability's task, supported modality,
   status, and `ready` state. A `ready: true` generic UWF capability must carry

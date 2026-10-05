@@ -40,6 +40,8 @@ Use HTTPS across any untrusted segment. When required, set `REMOTE_MODEL_TOKEN` 
 
 1. Confirm the service is active with `systemctl status`.
 2. Run `healthcheck.sh` and confirm `/health` reports `PASS`.
-3. Confirm `/v1/models` returns both expected model IDs with verified status.
+3. Confirm `/v1/models` returns at least one ready, task- and modality-matched
+   capability with verified status. Known CFP identities remain CFP-only; a
+   generic UWF capability must also advertise its qualification metadata.
 4. Open the review workstation and check **Models & Audit**.
 5. Run a public or synthetic smoke image only when the release acceptance procedure requires it.

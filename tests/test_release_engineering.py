@@ -43,6 +43,8 @@ def test_windows_launcher_owns_local_postgres_and_reports_manual_mode_safely():
     assert "DR_SUPPORT_CHECKOUT_ID" in common
     assert "DR_SUPPORT_POSTGRES_VOLUME" in common
     assert "ReleaseDatabaseSource" in common
+    assert "Get-ReleaseLocalPostgresPort" in common
+    assert "Get-NetTCPConnection" in common
     assert "Legacy project-owned PostgreSQL state" in common
     assert "DR_SUPPORT_COMPOSE" not in common
     assert "ConvertFrom-Json" in check
@@ -250,7 +252,7 @@ def test_release_capability_check_rejects_malformed_discovery_and_accepts_array(
     if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid -or $emptyModalities.Valid -or $knownCfpUwf.Ready -or $unsupportedTask.Ready -or $unqualifiedGeneric.Ready -or $placeholderGeneric.Ready -or $explicitNotReady.Ready -or $blockedCfp.Ready -or -not $mixedUnavailable.Valid -or -not $mixedUnavailable.Ready -or -not $healthGood -or $healthBad) {{ exit 1 }}
 """
     for shell in shells:
-        result = subprocess.run([shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], capture_output=True, text=True)
+        result = subprocess.run([shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command], capture_output=True, text=True)
         assert result.returncode == 0, f"{shell}: {result.stderr or result.stdout}"
 
 
@@ -273,7 +275,7 @@ $record = Get-Content -Raw '{run_file}' | ConvertFrom-Json
 if ($record.database.managed_local -or $record.database.PSObject.Properties.Name -contains 'project') {{ exit 1 }}
 """
     for shell in shells:
-        result = subprocess.run([shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], capture_output=True, text=True)
+        result = subprocess.run([shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", command], capture_output=True, text=True)
         assert result.returncode == 0, f"{shell}: {result.stderr or result.stdout}"
 
 

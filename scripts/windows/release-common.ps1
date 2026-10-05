@@ -83,6 +83,26 @@ function Get-ReleaseDockerPath {
     return $null
 }
 
+function Test-ReleaseLocalPostgresPort([int] $Port) {
+    try {
+        $listener = Get-NetTCPConnection -LocalAddress "127.0.0.1" -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        return -not [bool]$listener
+    } catch {
+        return $false
+    }
+}
+
+function Get-ReleaseLocalPostgresPort {
+    $seed = [Convert]::ToInt32($script:ReleaseCheckoutIdentity.Substring(0, 4), 16)
+    $start = 54329 + ($seed % 1000)
+    for ($offset = 0; $offset -lt 1000; $offset++) {
+        $port = $start + $offset
+        if (Test-ReleaseLocalPostgresPort $port) { return [string]$port }
+    }
+    throw "No available loopback PostgreSQL port was found for this checkout. Stop the conflicting local service or configure an external PostgreSQL URL."
+}
+
 function Get-ReleaseModelCapabilityStatus([string] $Json) {
     $empty = [pscustomobject]@{ Valid = $false; Ready = $false }
     if (-not $Json) { return $empty }
@@ -232,7 +252,7 @@ function New-ReleaseLocalDatabaseConfig {
     $database = "dr_support"
     $user = "dr_support"
     $bind = "127.0.0.1"
-    $port = "54329"
+    $port = Get-ReleaseLocalPostgresPort
     $dsn = "postgresql://$user`:$password@$bind`:$port/$database"
     @(
         "DR_SUPPORT_POSTGRES_DB=$database",
