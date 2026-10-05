@@ -35,7 +35,11 @@ try {
         Write-Host "[INFO] No PostgreSQL source is ready yet; START_DR_SCREENING.bat will provision the project-owned local path when Docker Desktop is available."
     }
     $uv = Get-ReleaseUvPath
-    Report "uv" ([bool]$uv) "optional after first run; used for provisioning"
+    if ($uv) {
+        Write-Host "[PASS] uv: available for provisioning"
+    } else {
+        Write-Host "[INFO] uv: not installed; optional after first run and not required for daily startup"
+    }
     $record = Get-ReleaseRecord
     $processStatus = Get-ReleaseProcessStatus $record
     if ($processStatus.State -eq "STOPPED") {

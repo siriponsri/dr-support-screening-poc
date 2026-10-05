@@ -101,12 +101,19 @@ function Get-ReleaseModelCapabilityStatus([string] $Json) {
         $task = if ($properties -contains "task") { [string]$_.task } else { "" }
         $modalities = $null
         if ($properties -contains "modalities") { $modalities = $_.PSObject.Properties["modalities"].Value }
-        $invalidModalities = $modalities -isnot [array] -or @($modalities).Count -eq 0 -or @($modalities | Where-Object {
+        $validModalities = $modalities -is [array] -and @($modalities).Count -gt 0 -and @($modalities | Where-Object {
+            $_ -is [string] -and $_.Trim()
+        }).Count -eq @($modalities).Count
+        $unavailable = (($properties -contains "ready") -and $_.ready -eq $false) -or
+            (($properties -contains "status") -and $_.status -is [string] -and
+             $_.status.Trim().ToUpperInvariant() -notin @("LOADED", "SYNTHETIC_FIXTURE"))
+        $invalidModalities = -not $validModalities -and -not $unavailable
+        $invalidModalityValues = @($modalities | Where-Object {
             $_ -isnot [string] -or -not $_.Trim()
         }).Count -gt 0
         $invalidStatus = ($properties -contains "status") -and $null -ne $_.status -and $_.status -isnot [string]
         $invalidReady = ($properties -contains "ready") -and $_.ready -isnot [bool]
-        -not $modelId.Trim() -or -not $task.Trim() -or $invalidModalities -or $invalidStatus -or $invalidReady
+        -not $modelId.Trim() -or -not $task.Trim() -or $invalidModalities -or $invalidModalityValues -or $invalidStatus -or $invalidReady
     })
     if ($invalid.Count -gt 0) { return $empty }
     $expectedTasks = @{
@@ -492,11 +499,20 @@ function Write-ReleaseRecord([int] $ProcessId, [object] $Database = $null) {
         stdout_log = (Join-Path $script:ReleaseLogRoot "workstation.stdout.log")
         stderr_log = (Join-Path $script:ReleaseLogRoot "workstation.stderr.log")
         database = if ($Database) {
-            [pscustomobject]@{
-                managed_local = [bool]$Database.ManagedLocal
-                project = [string]$Database.Project
-                service = [string]$Database.Service
-                compose_file = [string]$Database.ComposeFile
+            $managedLocal = if ($Database.PSObject.Properties.Name -contains "ManagedLocal") {
+                [bool]$Database.ManagedLocal
+            } else {
+                $false
+            }
+            if ($managedLocal) {
+                [pscustomobject]@{
+                    managed_local = $true
+                    project = [string]$Database.Project
+                    service = [string]$Database.Service
+                    compose_file = [string]$Database.ComposeFile
+                }
+            } else {
+                [pscustomobject]@{ managed_local = $false }
             }
         } else { $null }
     } | ConvertTo-Json | Set-Content -LiteralPath $script:ReleaseRunFile

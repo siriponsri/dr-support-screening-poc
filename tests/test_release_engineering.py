@@ -63,6 +63,8 @@ def test_windows_launcher_owns_local_postgres_and_reports_manual_mode_safely():
     assert "deployment/docker-compose.local-postgres.yml" in builder
     assert "Write-Host $password" not in common
     assert "Write-Host $env:DR_SUPPORT_DATABASE_URL" not in common
+    assert 'Report "uv"' not in check
+    assert "optional after first run and not required for daily startup" in check
 
 
 def test_release_builder_and_model_identity_are_contract_only():
@@ -242,9 +244,33 @@ def test_release_capability_check_rejects_malformed_discovery_and_accepts_array(
     $placeholderGeneric = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"dr_grade\",\"revision\":\"unknown\",\"preprocessing\":\"UNKNOWN\"}}]'
     $explicitNotReady = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"dr_grade\",\"revision\":\"r1\",\"preprocessing\":\"uwf-v1\",\"ready\":false}}]'
     $blockedCfp = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"prism-dr-5fold\",\"task\":\"lesion-roi\",\"status\":\"LOADED\",\"modalities\":[\"CFP\"],\"release_status\":\"COMPARATOR_ONLY\",\"ready\":false}}]'
+    $mixedUnavailable = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"dr_grade\",\"revision\":\"r1\",\"preprocessing\":\"uwf-v1\"}},{{\"model_id\":\"remote-down\",\"task\":\"global\",\"status\":\"REMOTE_UNREACHABLE\",\"modalities\":[],\"ready\":false}}]'
     $healthGood = Test-ReleaseModelHealth ([pscustomobject]@{{ status = "PASS"; assets_verified = $true }})
     $healthBad = Test-ReleaseModelHealth ([pscustomobject]@{{ status = "PASS"; assets_verified = $false }})
-    if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid -or $emptyModalities.Valid -or $knownCfpUwf.Ready -or $unsupportedTask.Ready -or $unqualifiedGeneric.Ready -or $placeholderGeneric.Ready -or $explicitNotReady.Ready -or $blockedCfp.Ready -or -not $healthGood -or $healthBad) {{ exit 1 }}
+    if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid -or $emptyModalities.Valid -or $knownCfpUwf.Ready -or $unsupportedTask.Ready -or $unqualifiedGeneric.Ready -or $placeholderGeneric.Ready -or $explicitNotReady.Ready -or $blockedCfp.Ready -or -not $mixedUnavailable.Valid -or -not $mixedUnavailable.Ready -or -not $healthGood -or $healthBad) {{ exit 1 }}
+"""
+    for shell in shells:
+        result = subprocess.run([shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], capture_output=True, text=True)
+        assert result.returncode == 0, f"{shell}: {result.stderr or result.stdout}"
+
+
+def test_external_postgres_record_does_not_require_local_compose_fields(tmp_path):
+    shells = [path for name in ("powershell", "pwsh") if (path := shutil.which(name))]
+    if not shells:
+        pytest.skip("PowerShell is unavailable")
+    common = (ROOT / "scripts/windows/release-common.ps1").as_posix()
+    run_file = (tmp_path / "workstation.json").as_posix()
+    state_root = (tmp_path / "state").as_posix()
+    log_root = (tmp_path / "logs").as_posix()
+    command = f"""
+. '{common}'
+$script:ReleaseStateRoot = '{state_root}'
+$script:ReleaseLogRoot = '{log_root}'
+$script:ReleaseRunFile = '{run_file}'
+$external = [pscustomobject]@{{ Ready = $true; Mode = 'postgres'; Source = 'external'; ManagedLocal = $false; Detail = 'verified' }}
+Write-ReleaseRecord 123 $external
+$record = Get-Content -Raw '{run_file}' | ConvertFrom-Json
+if ($record.database.managed_local -or $record.database.PSObject.Properties.Name -contains 'project') {{ exit 1 }}
 """
     for shell in shells:
         result = subprocess.run([shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], capture_output=True, text=True)
