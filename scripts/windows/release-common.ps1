@@ -116,6 +116,10 @@ function Get-ReleaseModelCapabilityStatus([string] $Json) {
         return $empty
     }
     if ($capabilities.Count -eq 0) { return $empty }
+    $seenModelIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    foreach ($capability in $capabilities) {
+        if (-not $seenModelIds.Add([string]$capability.model_id)) { return $empty }
+    }
     $invalid = @($capabilities | Where-Object {
         $properties = $_.PSObject.Properties.Name
         $modelId = if ($properties -contains "model_id") { [string]$_.model_id } else { "" }

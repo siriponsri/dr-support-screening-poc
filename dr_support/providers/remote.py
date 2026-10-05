@@ -226,6 +226,17 @@ class RemoteModelProvider:
             return self._degraded_metadata('REMOTE_INVALID_SCHEMA',
                                            f'Unexpected remote metadata error: {exc}')
 
+    def readiness_probe(self):
+        """Verify current remote health and capability discovery before inference."""
+
+        from dr_support.services.model_gateway import probe_model_connection
+
+        return probe_model_connection(
+            self.base_url,
+            self._token(),
+            transport=self._transport,
+        )
+
     def _collect_metadata(self) -> dict[str, Any]:
         """Inner metadata collection; every branch returns a degraded dict."""
         try:

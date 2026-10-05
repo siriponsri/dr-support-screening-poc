@@ -511,7 +511,29 @@ def create_app(
         provider = app.state.providers.get(request.model_id)
         if provider is None or provider.task != task:
             raise HTTPException(404, 'Unknown model for this task')
-        descriptor = provider.metadata()
+        if isinstance(provider, RemoteModelProvider):
+            readiness = provider.readiness_probe()
+            if not readiness.connection_verified:
+                if readiness.status == 'UNAVAILABLE':
+                    raise HTTPException(
+                        503,
+                        'AI analysis is not available; manual review remains available.',
+                    )
+                raise HTTPException(
+                    502,
+                    'The Model API capability could not be verified; manual review remains available.',
+                )
+            descriptor = next(
+                (item for item in readiness.models if item.get('model_id') == request.model_id),
+                None,
+            )
+            if descriptor is None:
+                raise HTTPException(
+                    409,
+                    'The selected model is no longer advertised; manual review remains available.',
+                )
+        else:
+            descriptor = provider.metadata()
         try:
             route_capability(
                 descriptor,

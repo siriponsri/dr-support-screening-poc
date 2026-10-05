@@ -100,6 +100,8 @@ def _success_handler(global_body=None, lesion_body=None):
     calls = []
 
     def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
         calls.append(request)
         if request.url.path == '/v1/models':
             return httpx.Response(200, json=[
@@ -416,6 +418,44 @@ def test_api_routes_qualified_generic_capability_with_preprocessing_alias(monkey
     assert predict_calls == ['/v1/predict/dr']
 
 
+def test_api_rechecks_remote_health_before_inference(monkeypatch):
+    state = {'assets_verified': True}
+    predict_calls = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={
+                'status': 'PASS_WITH_WARNINGS',
+                'assets_verified': state['assets_verified'],
+            })
+        if request.url.path == '/v1/models':
+            return httpx.Response(200, json=[{
+                'model_id': 'retfound-aptos5',
+                'task': 'global',
+                'modalities': ['CFP'],
+                'status': 'LOADED',
+            }])
+        predict_calls.append(request.url.path)
+        return httpx.Response(200, json=SAMPLE_GLOBAL_BODY)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    app.state.images[FIXTURE_IMAGE.image_id] = FIXTURE_IMAGE
+    client = TestClient(app)
+
+    saved = client.put('/v1/model-connection', json={'name': 'Remote', 'url': 'https://remote.test'})
+    assert saved.status_code == 200
+    state['assets_verified'] = False
+
+    response = client.post('/v1/infer/global', json={
+        'image_id': FIXTURE_IMAGE.image_id,
+        'model_id': 'retfound-aptos5',
+        'modality': 'CFP',
+    })
+
+    assert response.status_code == 503
+    assert predict_calls == []
+
+
 def test_api_rejects_non_boolean_ready_advertisement(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path == '/health':
@@ -445,6 +485,8 @@ def test_api_rejects_non_boolean_ready_advertisement(monkeypatch):
 
 def test_api_returns_504_when_remote_times_out(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
         if request.url.path == '/v1/models':
             return httpx.Response(200, json=[{
                 'model_id': 'retfound-aptos5',
@@ -466,6 +508,8 @@ def test_api_returns_504_when_remote_times_out(monkeypatch):
 
 def test_api_returns_502_when_remote_returns_non_2xx(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
         if request.url.path == '/v1/models':
             return httpx.Response(200, json=[{
                 'model_id': 'retfound-aptos5',
@@ -487,6 +531,8 @@ def test_api_returns_502_when_remote_returns_non_2xx(monkeypatch):
 
 def test_api_returns_502_when_remote_returns_malformed_payload(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
         if request.url.path == '/v1/models':
             return httpx.Response(200, json=[{
                 'model_id': 'retfound-aptos5',
