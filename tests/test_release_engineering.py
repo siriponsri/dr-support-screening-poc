@@ -1,4 +1,5 @@
 import json
+import hashlib
 import subprocess
 import zipfile
 from pathlib import Path
@@ -161,17 +162,72 @@ def test_frontend_build_identity_detects_stale_source(tmp_path, monkeypatch):
     (frontend / "src" / "main.ts").write_text("export {}\n", encoding="utf-8")
     (frontend / "dist").mkdir()
     monkeypatch.setattr(builder, "ROOT", root)
+    output = b"index\n"
+    (frontend / "dist" / "index.html").write_bytes(output)
     digest = builder.frontend_source_digest()
+    entry = {"path": "index.html", "sha256": hashlib.sha256(output).hexdigest()}
     identity = {
         "schema_version": "frontend-build-identity.v1",
         "source_commit": "abc123",
         "source_digest": digest,
+        "output_files": [entry],
+        "output_set_sha256": builder._frontend_output_set_digest([entry]),
     }
     (frontend / "dist" / "build-identity.json").write_text(json.dumps(identity), encoding="utf-8")
 
     assert builder.verify_frontend_build("abc123")["source_digest"] == digest
     (frontend / "src" / "main.ts").write_text("export const stale = true;\n", encoding="utf-8")
     with pytest.raises(SystemExit, match="stale"):
+        builder.verify_frontend_build("abc123")
+
+
+def test_frontend_build_identity_rejects_output_set_and_byte_drift(tmp_path, monkeypatch):
+    import hashlib
+    import scripts.release.build_release as builder
+
+    root = tmp_path / "repo"
+    frontend = root / "frontend"
+    (frontend / "src").mkdir(parents=True)
+    for name, content in {
+        "index.html": "<div id='root'></div>\n",
+        "package.json": "{}\n",
+        "package-lock.json": "{}\n",
+        "tsconfig.json": "{}\n",
+        "vite.config.ts": "export default {}\n",
+    }.items():
+        (frontend / name).write_text(content, encoding="utf-8")
+    (frontend / "src" / "main.ts").write_text("export {}\n", encoding="utf-8")
+    dist = frontend / "dist"
+    (dist / "assets").mkdir(parents=True)
+    outputs = {"index.html": b"index\n", "assets/app.js": b"app\n"}
+    for relative, content in outputs.items():
+        path = dist / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    entries = [
+        {"path": relative, "sha256": hashlib.sha256(content).hexdigest()}
+        for relative, content in sorted(outputs.items())
+    ]
+    monkeypatch.setattr(builder, "ROOT", root)
+    identity = {
+        "schema_version": "frontend-build-identity.v1",
+        "source_commit": "abc123",
+        "source_digest": builder.frontend_source_digest(),
+        "output_files": entries,
+        "output_set_sha256": builder._frontend_output_set_digest(entries),
+    }
+    (dist / "build-identity.json").write_text(json.dumps(identity), encoding="utf-8")
+    assert builder.verify_frontend_build("abc123")["output_set_sha256"] == identity["output_set_sha256"]
+    (dist / "extra.txt").write_text("unexpected\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="output set"):
+        builder.verify_frontend_build("abc123")
+    (dist / "extra.txt").unlink()
+    (dist / "assets/app.js").write_bytes(b"modified\n")
+    with pytest.raises(SystemExit, match="output bytes"):
+        builder.verify_frontend_build("abc123")
+    (dist / "assets/app.js").write_bytes(outputs["assets/app.js"])
+    (dist / "index.html").unlink()
+    with pytest.raises(SystemExit, match="output set"):
         builder.verify_frontend_build("abc123")
 
 

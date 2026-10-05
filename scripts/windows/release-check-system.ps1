@@ -25,10 +25,11 @@ try {
     $uv = Get-ReleaseUvPath
     Report "uv" ([bool]$uv) "optional after first run; used for provisioning"
     $record = Get-ReleaseRecord
-    if ($record -and (Test-ReleaseManagedProcess ([int]$record.pid))) {
-        Report "Workstation process" $true "managed PID $($record.pid); health=$((Test-ReleaseHealth).ToString().ToUpperInvariant())"
-    } else {
+    $processStatus = Get-ReleaseProcessStatus $record
+    if ($processStatus.State -eq "STOPPED") {
         Write-Host "[STOPPED] Workstation process: not running (this is safe; START_DR_SCREENING.bat starts it)."
+    } else {
+        Report "Workstation process" $processStatus.Ready $processStatus.Detail
     }
     if ($failures -gt 0) {
         Write-Host "System check is not ready. Fix the reported items, then run CHECK_SYSTEM.bat again."

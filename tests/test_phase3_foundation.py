@@ -152,6 +152,43 @@ def test_model_gateway_reports_loaded_capability_as_ready():
     assert probe.models[0]["ready"] is True
 
 
+def test_model_gateway_requires_actionable_fields_for_generic_loaded_capability():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS"})
+        return httpx.Response(200, json=[{
+            "model_id": "uspec-like",
+            "status": "LOADED",
+        }])
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.connection_verified is True
+    assert probe.capabilities_ready is False
+    assert probe.models[0]["ready"] is False
+
+
+def test_model_gateway_accepts_complete_generic_loaded_global_capability():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS"})
+        return httpx.Response(200, json=[{
+            "model_id": "uspec-like",
+            "capability_id": "dr_grade",
+            "task": "global",
+            "status": "LOADED",
+            "modalities": ["UWF"],
+            "revision": "r1",
+            "preprocessing": "uwf-v1",
+        }])
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.connection_verified is True
+    assert probe.capabilities_ready is True
+    assert probe.models[0]["ready"] is True
+
+
 @pytest.mark.parametrize(
     "health_payload,models_payload",
     [

@@ -43,15 +43,41 @@ function frontendSourceDigest(frontendRoot: string): string {
   return digest.digest('hex');
 }
 
+function outputBytes(output: { type: string; source?: string | Uint8Array; code?: string }): Buffer {
+  if (output.type === 'asset') {
+    return Buffer.isBuffer(output.source) ? output.source : Buffer.from(output.source ?? '');
+  }
+  return Buffer.from(output.code ?? '');
+}
+
+function outputDigest(output: { type: string; source?: string | Uint8Array; code?: string }): string {
+  return createHash('sha256').update(outputBytes(output)).digest('hex');
+}
+
+function outputSetDigest(entries: Array<{ path: string; sha256: string }>): string {
+  const digest = createHash('sha256');
+  for (const entry of entries) {
+    digest.update(entry.path, 'utf8');
+    digest.update('\0', 'utf8');
+    digest.update(entry.sha256, 'utf8');
+    digest.update('\0', 'utf8');
+  }
+  return digest.digest('hex');
+}
+
 function frontendBuildIdentityPlugin(frontendRoot: string): Plugin {
   return {
     name: 'dr-frontend-build-identity',
-    generateBundle() {
+    generateBundle(_options, bundle) {
       const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
         cwd: path.resolve(frontendRoot, '..'),
         encoding: 'utf8',
       }).trim();
       const sourceDigest = frontendSourceDigest(frontendRoot);
+      const outputFiles = Object.entries(bundle)
+        .filter(([fileName]) => fileName !== 'build-identity.json')
+        .map(([fileName, output]) => ({ path: fileName, sha256: outputDigest(output) }))
+        .sort((a, b) => a.path.localeCompare(b.path));
       this.emitFile({
         type: 'asset',
         fileName: 'build-identity.json',
@@ -59,6 +85,8 @@ function frontendBuildIdentityPlugin(frontendRoot: string): Plugin {
           schema_version: 'frontend-build-identity.v1',
           source_commit: sourceCommit,
           source_digest: sourceDigest,
+          output_files: outputFiles,
+          output_set_sha256: outputSetDigest(outputFiles),
         }, null, 2)}\n`,
       });
     },

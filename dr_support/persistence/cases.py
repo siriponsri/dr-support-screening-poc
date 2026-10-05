@@ -107,22 +107,12 @@ class PostgresCaseStore:
                     ).format(self._schema),
                     (self.workspace_id,),
                 ).fetchall()
-                raw_by_case_id = {str(case_id): (stored_revision, raw_case) for case_id, stored_revision, raw_case in rows}
                 cases = []
                 for case_id, stored_revision, raw_case in rows:
                     case = apply_case_defaults(dict(raw_case))
                     case["image_id"] = case_id
                     case["revision"] = stored_revision
                     cases.append(case)
-                with self.lock:
-                    for case in cases:
-                        case_id = str(case["image_id"])
-                        stored_revision = int(case["revision"])
-                        prior_revision = self._observed_revision.get(case_id)
-                        if prior_revision is None or prior_revision <= stored_revision:
-                            _revision, raw_case = raw_by_case_id[case_id]
-                            self._observed[case_id] = _serialized_payload(dict(raw_case))
-                            self._observed_revision[case_id] = stored_revision
                 yield cases
 
     def put(self, case: dict[str, Any]) -> None:

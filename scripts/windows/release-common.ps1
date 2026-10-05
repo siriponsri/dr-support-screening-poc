@@ -130,6 +130,30 @@ function Test-ReleaseHealth {
     } catch { return $false }
 }
 
+function Get-ReleaseProcessStatus([object] $Record) {
+    if (-not $Record) {
+        return [pscustomobject]@{
+            State = "STOPPED"
+            Ready = $true
+            Detail = "not running"
+        }
+    }
+    $processId = [int]$Record.pid
+    if (-not (Test-ReleaseManagedProcess $processId)) {
+        return [pscustomobject]@{
+            State = "STOPPED"
+            Ready = $true
+            Detail = "recorded process is not running"
+        }
+    }
+    $healthy = [bool](Test-ReleaseHealth)
+    return [pscustomobject]@{
+        State = if ($healthy) { "RUNNING" } else { "UNHEALTHY" }
+        Ready = $healthy
+        Detail = "managed PID $processId; health=$($healthy.ToString().ToUpperInvariant())"
+    }
+}
+
 function Write-ReleaseRecord([int] $ProcessId) {
     Ensure-ReleaseDirectories
     [pscustomobject]@{

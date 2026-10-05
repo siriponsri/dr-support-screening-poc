@@ -12,6 +12,27 @@ EXPECTED_MODELS = {
     "retfound-aptos5": "global",
     "prism-dr-5fold": "lesion-roi",
 }
+SUPPORTED_TASKS = frozenset(EXPECTED_MODELS.values())
+
+
+def _actionable_capability(item: dict[str, Any], model_id: str, status: object) -> bool:
+    if status != "LOADED":
+        return False
+    if model_id in EXPECTED_MODELS:
+        return True
+    task = item.get("task")
+    modalities = item.get("modalities")
+    capability_id = item.get("capability_id")
+    revision = item.get("revision") or item.get("model_version")
+    preprocessing = item.get("preprocessing") or item.get("preprocessing_version")
+    return (
+        isinstance(capability_id, str) and bool(capability_id.strip())
+        and isinstance(task, str) and task in SUPPORTED_TASKS
+        and isinstance(modalities, list) and bool(modalities)
+        and all(isinstance(modality, str) and modality.strip() for modality in modalities)
+        and isinstance(revision, str) and bool(revision.strip())
+        and isinstance(preprocessing, str) and bool(preprocessing.strip())
+    )
 
 
 @dataclass(frozen=True)
@@ -75,10 +96,10 @@ def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
             return None
         summaries.append({
             "model_id": model_id,
-            "ready": status == "LOADED",
+            "ready": _actionable_capability(item, model_id, status),
             "status": status if isinstance(status, str) else None,
             "capability_id": item.get("capability_id") if isinstance(item.get("capability_id"), str) else None,
-            "task": item.get("task") if isinstance(item.get("task"), str) else None,
+            "task": item.get("task") if isinstance(item.get("task"), str) else EXPECTED_MODELS.get(model_id),
             "modalities": list(modalities or []) if isinstance(modalities, list) else [],
         })
     if not summaries:

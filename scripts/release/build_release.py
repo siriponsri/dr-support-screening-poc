@@ -20,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUT = ROOT / "local-state" / "release" / "artifacts"
 FRONTEND_IDENTITY_NAME = "frontend/dist/build-identity.json"
+FRONTEND_IDENTITY_SCHEMA = "frontend-build-identity.v1"
 SKIPPED_DIRECTORY_NAMES = {
     ".git", ".venv", "node_modules", "local-state", "__pycache__", ".pytest_cache",
     ".ruff_cache", ".mypy_cache", ".tox", ".nox",
@@ -214,6 +215,29 @@ def frontend_source_digest() -> str:
     return digest.hexdigest()
 
 
+def _frontend_output_files(dist: Path) -> list[Path]:
+    if not dist.is_dir():
+        raise SystemExit("prebuilt frontend output directory is missing")
+    files: list[Path] = []
+    for path in sorted(dist.rglob("*"), key=lambda item: item.relative_to(dist).as_posix()):
+        if path.is_symlink():
+            relative = path.relative_to(ROOT).as_posix()
+            raise SystemExit(f"unsafe symlink in release source: {relative}")
+        if path.is_file():
+            files.append(path)
+    return files
+
+
+def _frontend_output_set_digest(entries: list[dict[str, str]]) -> str:
+    digest = hashlib.sha256()
+    for entry in entries:
+        digest.update(entry["path"].encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(entry["sha256"].encode("ascii"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def verify_frontend_build(source_commit: str) -> dict[str, str]:
     identity_path = ROOT / FRONTEND_IDENTITY_NAME
     if not identity_path.is_file():
@@ -224,15 +248,63 @@ def verify_frontend_build(source_commit: str) -> dict[str, str]:
         raise SystemExit("prebuilt frontend identity is invalid") from exc
     expected_digest = frontend_source_digest()
     if (
-        identity.get("schema_version") != "frontend-build-identity.v1"
+        identity.get("schema_version") != FRONTEND_IDENTITY_SCHEMA
         or identity.get("source_commit") != source_commit
         or identity.get("source_digest") != expected_digest
     ):
         raise SystemExit("prebuilt frontend is stale or was built from a different release candidate")
+
+    declared_outputs = identity.get("output_files")
+    declared_set_digest = identity.get("output_set_sha256")
+    if not isinstance(declared_outputs, list) or not isinstance(declared_set_digest, str):
+        raise SystemExit("frontend build identity does not include its generated output set")
+    normalized_outputs: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for entry in declared_outputs:
+        if not isinstance(entry, dict):
+            raise SystemExit("frontend build identity contains an invalid output entry")
+        relative = entry.get("path")
+        digest = entry.get("sha256")
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or relative == "build-identity.json"
+            or Path(relative).is_absolute()
+            or any(part in {"", ".", ".."} for part in Path(relative).parts)
+            or relative in seen
+            or not isinstance(digest, str)
+            or len(digest) != 64
+            or any(character not in "0123456789abcdef" for character in digest)
+        ):
+            raise SystemExit("frontend build identity contains an invalid output entry")
+        seen.add(relative)
+        normalized_outputs.append({"path": relative.replace("\\", "/"), "sha256": digest})
+    normalized_outputs.sort(key=lambda item: item["path"])
+    if normalized_outputs != declared_outputs:
+        raise SystemExit("frontend build identity output set is not canonical")
+    if _frontend_output_set_digest(normalized_outputs) != declared_set_digest:
+        raise SystemExit("frontend build identity output set digest is invalid")
+
+    dist = ROOT / "frontend" / "dist"
+    actual_files = _frontend_output_files(dist)
+    actual_by_relative = {
+        path.relative_to(dist).as_posix(): path for path in actual_files
+    }
+    expected_paths = {entry["path"] for entry in normalized_outputs} | {"build-identity.json"}
+    if set(actual_by_relative) != expected_paths:
+        raise SystemExit("prebuilt frontend output set does not match its build identity")
+    actual_outputs = [
+        {"path": entry["path"], "sha256": sha256(actual_by_relative[entry["path"]])}
+        for entry in normalized_outputs
+    ]
+    if actual_outputs != normalized_outputs:
+        raise SystemExit("prebuilt frontend output bytes do not match its build identity")
     return {
         "schema_version": identity["schema_version"],
         "source_commit": identity["source_commit"],
         "source_digest": identity["source_digest"],
+        "output_files": normalized_outputs,
+        "output_set_sha256": declared_set_digest,
     }
 
 

@@ -1,4 +1,8 @@
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,3 +49,33 @@ def test_release_launchers_are_the_single_workstation_path():
         "workstation-common.ps1",
     )
     assert all(not (ROOT / "scripts/windows" / name).exists() for name in retired_helpers)
+
+
+def test_system_check_marks_managed_unhealthy_process_not_ready():
+    powershell = shutil.which("powershell")
+    if not powershell:
+        pytest.skip("Windows PowerShell is unavailable")
+    probe = ROOT / "local-state" / "release" / "test-process-readiness.ps1"
+    probe.parent.mkdir(parents=True, exist_ok=True)
+    probe.write_text(
+        ". (Join-Path $PSScriptRoot '..\\..\\scripts\\windows\\release-common.ps1')\n"
+        "function Test-ReleaseManagedProcess([int] $ProcessId) { return $true }\n"
+        "function Test-ReleaseHealth { return $false }\n"
+        "$status = Get-ReleaseProcessStatus ([pscustomobject]@{ pid = 123 })\n"
+        "if ($status.State -ne 'UNHEALTHY' -or $status.Ready) { exit 1 }\n"
+        "function Test-ReleaseManagedProcess([int] $ProcessId) { return $false }\n"
+        "$stopped = Get-ReleaseProcessStatus ([pscustomobject]@{ pid = 123 })\n"
+        "if ($stopped.State -ne 'STOPPED' -or -not $stopped.Ready) { exit 2 }\n",
+        encoding="utf-8",
+    )
+    try:
+        result = subprocess.run(
+            [powershell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(probe)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr or result.stdout
+    finally:
+        probe.unlink(missing_ok=True)
