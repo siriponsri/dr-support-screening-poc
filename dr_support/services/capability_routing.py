@@ -15,6 +15,10 @@ EXPECTED_MODEL_TASKS = {
 }
 SUPPORTED_TASKS = frozenset(EXPECTED_MODEL_TASKS.values())
 SUPPORTED_MODALITIES = frozenset({"CFP", "UWF"})
+KNOWN_RELEASE_STATUSES = frozenset({
+    "AVAILABLE", "QUALIFIED", "RESEARCH_ONLY",
+    "COMPARATOR_ONLY", "DISABLED", "DEFERRED",
+})
 QUALIFICATION_PLACEHOLDERS = frozenset({
     "UNKNOWN", "NOT_REPORTED", "NOT_AVAILABLE", "NONE", "NULL", "N/A",
 })
@@ -28,6 +32,15 @@ def release_status_blocked(status: object) -> bool:
     normalized = str(status or "").strip().upper()
     return (
         normalized in BLOCKED_RELEASE_STATUSES
+        or normalized.startswith("BLOCKED")
+        or normalized.startswith("DEFERRED")
+    )
+
+
+def release_status_is_known(status: object) -> bool:
+    normalized = str(status or "").strip().upper()
+    return (
+        normalized in KNOWN_RELEASE_STATUSES
         or normalized.startswith("BLOCKED")
         or normalized.startswith("DEFERRED")
     )
@@ -67,6 +80,12 @@ def capability_is_qualified(descriptor: Mapping[str, Any]) -> bool:
     if any(not isinstance(modality, str) or not modality.strip() for modality in modalities):
         return False
     if not any(modality in SUPPORTED_MODALITIES for modality in modalities):
+        return False
+    if (
+        model_id not in CFP_ONLY_MODEL_IDS
+        and "UWF" in modalities
+        and not release_status_is_known(descriptor.get("release_status"))
+    ):
         return False
     if model_id in CFP_ONLY_MODEL_IDS:
         return "CFP" in modalities

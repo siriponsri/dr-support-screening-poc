@@ -236,7 +236,7 @@ def _fallback_entry(item: dict[str, Any]) -> dict[str, Any]:
         "domain_status": "UNKNOWN",
         "clinical_validation_status": "NOT_ESTABLISHED",
         "rights_status": "UNKNOWN",
-        "release_status": "RESEARCH_ONLY",
+        "release_status": "NOT_STATED",
         "enabled": False,
         "status": str(item.get("status") or "UNKNOWN"),
         "warnings": list(item.get("warnings") or []),
@@ -269,6 +269,7 @@ def capability_descriptors(
     descriptors: dict[str, dict[str, Any]] = {}
     for item in runtime_items:
         model_id = str(item.get("model_id") or "unknown")
+        is_registry_item = model_id in registry
         merged = deepcopy(registry.get(model_id, _fallback_entry(item)))
         for key, value in item.items():
             if key in {"release_status", "domain_status", "clinical_validation_status", "rights_status"}:
@@ -282,6 +283,8 @@ def capability_descriptors(
             or runtime_release_status.startswith("DEFERRED")
         ):
             merged["release_status"] = runtime_release_status
+        elif not is_registry_item:
+            merged["release_status"] = runtime_release_status or "NOT_STATED"
         merged["model_version"] = str(item.get("revision") or item.get("model_version") or merged["model_version"])
         merged["runtime_status"] = str(item.get("status") or merged["runtime_status"])
         merged["status"] = str(item.get("status") or merged["status"])

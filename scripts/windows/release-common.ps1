@@ -163,11 +163,13 @@ function Get-ReleaseModelCapabilityStatus([string] $Json) {
             $preprocessing.Trim().ToUpperInvariant() -notin $placeholders
         $reportedReady = ($properties -notcontains "ready") -or $_.ready
         $release = if ($properties -contains "release_status") { ([string]$_.release_status).Trim().ToUpperInvariant() } else { "" }
+        $knownRelease = $release -in @("AVAILABLE", "QUALIFIED", "RESEARCH_ONLY", "COMPARATOR_ONLY", "DISABLED", "DEFERRED") -or $release.StartsWith("BLOCKED") -or $release.StartsWith("DEFERRED")
+        $genericUwfReleaseValid = $knownModel -or ("UWF" -notin @($modalities)) -or $knownRelease
         $blocked = $release -in @("DISABLED", "COMPARATOR_ONLY", "DEFERRED") -or $release.StartsWith("BLOCKED") -or $release.StartsWith("DEFERRED")
         $status = if ($properties -contains "status") { ([string]$_.status).Trim().ToUpperInvariant() } else { "" }
         $actionableModality = @($modalities | Where-Object { $_ -in @("CFP", "UWF") }).Count -gt 0
         $reportedReady -and $status -eq "LOADED" -and -not $blocked -and $taskMatches -and $actionableModality -and $knownCfpOnly -or
-            $reportedReady -and $status -eq "LOADED" -and -not $blocked -and $taskMatches -and $actionableModality -and -not $knownModel -and $genericQualified
+            $reportedReady -and $status -eq "LOADED" -and -not $blocked -and $taskMatches -and $actionableModality -and $genericUwfReleaseValid -and -not $knownModel -and $genericQualified
     })
     return [pscustomobject]@{ Valid = $true; Ready = $ready.Count -gt 0 }
 }

@@ -104,10 +104,20 @@ def test_capability_descriptors_compute_ready_before_registry_fallback():
     qualified = capability_descriptors([{
         'model_id': 'generic-uwf-grader', 'task': 'global', 'status': 'LOADED',
         'modalities': ['UWF'], 'capability_id': 'uwf-grade', 'revision': 'r1',
-        'preprocessing': 'uwf-v1',
+        'preprocessing': 'uwf-v1', 'release_status': 'QUALIFIED',
     }], include_registry=False)
     assert incomplete[0]['ready'] is False
     assert qualified[0]['ready'] is True
+
+
+def test_capability_descriptors_do_not_infer_generic_uwf_release_state():
+    missing_release = capability_descriptors([{
+        'model_id': 'generic-uwf-grader', 'task': 'global', 'status': 'LOADED',
+        'modalities': ['UWF'], 'capability_id': 'uwf-grade', 'revision': 'r1',
+        'preprocessing': 'uwf-v1',
+    }], include_registry=False)
+    assert missing_release[0]['ready'] is False
+    assert missing_release[0]['release_status'] == 'NOT_STATED'
 
 
 def test_capability_descriptors_keep_registry_release_restrictions_authoritative():
@@ -194,6 +204,7 @@ def test_model_gateway_keeps_unverified_assets_manual_only():
             "modalities": ["UWF"],
             "revision": "r1",
             "preprocessing": "uwf-v1",
+            "release_status": "QUALIFIED",
         }])
 
     probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
@@ -252,6 +263,7 @@ def test_model_gateway_accepts_complete_generic_loaded_global_capability():
             "modalities": ["UWF"],
             "revision": "r1",
             "preprocessing": "uwf-v1",
+            "release_status": "QUALIFIED",
         }])
 
     probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))

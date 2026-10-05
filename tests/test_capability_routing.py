@@ -3,7 +3,7 @@ import pytest
 from dr_support.services.capability_routing import CapabilityRoutingError, route_capability
 
 
-def _capability(*, model_id="retfound-aptos5", task="global", modalities=None, status="LOADED"):
+def _capability(*, model_id="retfound-aptos5", task="global", modalities=None, status="LOADED", release_status="QUALIFIED"):
     return {
         "model_id": model_id,
         "task": task,
@@ -12,6 +12,7 @@ def _capability(*, model_id="retfound-aptos5", task="global", modalities=None, s
         "capability_id": "fixture-capability",
         "revision": "fixture-revision",
         "preprocessing": "fixture-preprocessing",
+        "release_status": release_status,
     }
 
 
@@ -102,6 +103,18 @@ def test_generic_capability_with_only_unsupported_modality_stays_manual_only():
             model_id="generic-capability",
             task="global",
             modality="CFP",
+        )
+
+
+def test_generic_uwf_capability_requires_known_release_status():
+    descriptor = _capability(model_id="generic-capability", modalities=["UWF"])
+    descriptor.pop("release_status")
+    with pytest.raises(CapabilityRoutingError, match="incomplete"):
+        route_capability(
+            descriptor,
+            model_id="generic-capability",
+            task="global",
+            modality="UWF",
         )
 
 

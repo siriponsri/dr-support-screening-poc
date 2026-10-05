@@ -389,6 +389,7 @@ def test_api_routes_qualified_generic_capability_with_preprocessing_alias(monkey
                 'capability_id': 'uwf-grade',
                 'revision': 'r1',
                 'preprocessing_version': 'uwf-v1',
+                'release_status': 'QUALIFIED',
                 'ready': True,
             }])
         predict_calls.append(request.url.path)
