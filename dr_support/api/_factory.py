@@ -365,11 +365,22 @@ def create_app(
             'prism-dr-5fold': PRISM(allow_cpu_fallback=True),
         }
 
+    def remote_transport():
+        """Use the shared transport hook, preserving injected providers in tests."""
+
+        transport = getattr(app.state, 'model_gateway_transport', None)
+        if transport is not None:
+            return transport
+        for provider in getattr(app.state, 'providers', {}).values():
+            if isinstance(provider, RemoteModelProvider):
+                return provider._transport
+        return None
+
     def connection_probe(connection: ModelConnection) -> ModelGatewayProbe:
         return probe_model_connection(
             connection.url,
             connection.token,
-            transport=getattr(app.state, 'model_gateway_transport', None),
+            transport=remote_transport(),
         )
 
     def providers_from_probe(
@@ -393,7 +404,7 @@ def create_app(
                         advertised,
                         base_url=connection.url,
                         token=connection.token,
-                        transport=getattr(app.state, 'model_gateway_transport', None),
+                        transport=remote_transport(),
                     )
             except ValueError:
                 continue

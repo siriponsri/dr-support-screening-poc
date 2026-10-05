@@ -180,7 +180,7 @@ def probe_model_connection(
                     descriptor_status="REMOTE_INVALID_JSON",
                 )
             summaries = _model_summary(models_body)
-    except (httpx.HTTPError, ValueError, OSError):
+    except (httpx.HTTPError, ValueError, OSError, RuntimeError):
         return ModelGatewayProbe(
             False,
             False,

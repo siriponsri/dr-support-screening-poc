@@ -225,6 +225,8 @@ def test_s5c_inference_persists_lineage_and_s4_keeps_source_identity(monkeypatch
     captured = {}
 
     def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS", "assets_verified": True})
         if request.url.path == "/v1/models":
             return httpx.Response(200, json=[{
                 "model_id": "retfound-aptos5",

@@ -86,6 +86,12 @@ describe('S3 worklist selectors', () => {
       capability_id: 'dr_grade', model_version: 'unknown', preprocessing_version: 'UNKNOWN',
     }];
     expect(filterCases([uwf], '', { ...DEFAULT_FILTERS, ai: 'model-available' }, incompleteGenericUwf)).toEqual([]);
+
+    const genericWithoutRelease = [{
+      model_id: 'generic-uwf-grader', task: 'global', modalities: ['UWF'], status: 'LOADED',
+      capability_id: 'dr_grade', revision: 'r1', preprocessing: 'uwf-v1',
+    }];
+    expect(filterCases([uwf], '', { ...DEFAULT_FILTERS, ai: 'model-available' }, genericWithoutRelease)).toEqual([]);
   });
 
   it('sorts operationally and uses a deterministic filename tie-breaker', () => {

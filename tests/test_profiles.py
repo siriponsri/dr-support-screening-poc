@@ -294,9 +294,14 @@ def test_review_profile_proxies_to_local_model_api(monkeypatch, tmp_path):
 
     def transport(request: httpx.Request) -> httpx.Response:
         calls.append(request)
-        return model_api_client.build_request(request.method, request.url.path,
-                                              headers=request.headers,
-                                              content=request.content).send()
+        return model_api_client.send(
+            model_api_client.build_request(
+                request.method,
+                request.url.path,
+                headers=request.headers,
+                content=request.content,
+            )
+        )
 
     monkeypatch.setenv('APP_PROFILE', 'review')
     monkeypatch.setenv('MODEL_RUNTIME', 'remote')

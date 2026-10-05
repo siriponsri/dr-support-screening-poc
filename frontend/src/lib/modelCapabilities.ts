@@ -2,6 +2,7 @@ import type { CaseRecord, ModelDescriptor } from './api';
 
 const READY_MODEL_STATUSES = new Set(['LOADED', 'SYNTHETIC_FIXTURE']);
 const BLOCKED_RELEASE_STATUSES = new Set(['COMPARATOR_ONLY', 'DISABLED', 'DEFERRED']);
+const KNOWN_RELEASE_STATUSES = new Set(['AVAILABLE', 'QUALIFIED', 'RESEARCH_ONLY', 'COMPARATOR_ONLY', 'DISABLED', 'DEFERRED']);
 const CFP_ONLY_MODEL_IDS = new Set(['retfound-aptos5', 'prism-dr-5fold']);
 const EXPECTED_MODEL_TASKS: Record<string, string> = {
   'retfound-aptos5': 'global',
@@ -19,6 +20,13 @@ export function releaseStatusBlocked(status?: string | null): boolean {
     || normalized.startsWith('DEFERRED');
 }
 
+function releaseStatusKnown(status?: string | null): boolean {
+  const normalized = status?.trim().toUpperCase() ?? '';
+  return KNOWN_RELEASE_STATUSES.has(normalized)
+    || normalized.startsWith('BLOCKED')
+    || normalized.startsWith('DEFERRED');
+}
+
 function hasQualifiedCapability(model: ModelDescriptor): boolean {
   const modalities = model.modalities ?? model.supported_modalities ?? [];
   const expectedTask = EXPECTED_MODEL_TASKS[model.model_id];
@@ -28,6 +36,7 @@ function hasQualifiedCapability(model: ModelDescriptor): boolean {
   if (model.model_id.startsWith('mock-')) {
     return Boolean(model.task && modalities.length > 0);
   }
+  if (!releaseStatusKnown(model.release_status)) return false;
   const capabilityId = model.capability_id?.trim();
   const revision = model.revision?.trim();
   const preprocessing = (model.preprocessing ?? model.preprocessing_version)?.trim();
