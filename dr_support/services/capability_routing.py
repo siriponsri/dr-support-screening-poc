@@ -14,6 +14,9 @@ EXPECTED_MODEL_TASKS = {
     "prism-dr-5fold": "lesion-roi",
 }
 SUPPORTED_TASKS = frozenset(EXPECTED_MODEL_TASKS.values())
+QUALIFICATION_PLACEHOLDERS = frozenset({
+    "UNKNOWN", "NOT_REPORTED", "NOT_AVAILABLE", "NONE", "NULL", "N/A",
+})
 
 
 class CapabilityRoutingError(ValueError):
@@ -33,6 +36,14 @@ def model_supports_modality(model_id: str, modality: str) -> bool:
     """Keep known CFP model identities from being routed to UWF input."""
 
     return not (modality == "UWF" and model_id in CFP_ONLY_MODEL_IDS)
+
+
+def _qualified_value(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and value.strip().upper() not in QUALIFICATION_PLACEHOLDERS
+    )
 
 
 def capability_is_qualified(descriptor: Mapping[str, Any]) -> bool:
@@ -57,11 +68,7 @@ def capability_is_qualified(descriptor: Mapping[str, Any]) -> bool:
     capability_id = descriptor.get("capability_id")
     revision = descriptor.get("revision") or descriptor.get("model_version")
     preprocessing = descriptor.get("preprocessing") or descriptor.get("preprocessing_version")
-    return (
-        isinstance(capability_id, str) and bool(capability_id.strip())
-        and isinstance(revision, str) and bool(revision.strip())
-        and isinstance(preprocessing, str) and bool(preprocessing.strip())
-    )
+    return all(_qualified_value(value) for value in (capability_id, revision, preprocessing))
 
 
 @dataclass(frozen=True)

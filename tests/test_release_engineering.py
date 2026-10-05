@@ -237,9 +237,12 @@ def test_release_capability_check_rejects_malformed_discovery_and_accepts_array(
     $knownCfpUwf = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"retfound-aptos5\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"]}}]'
     $unsupportedTask = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"unsupported\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"other\",\"revision\":\"r1\",\"preprocessing\":\"v1\"}}]'
     $unqualifiedGeneric = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"]}}]'
+    $placeholderGeneric = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"dr_grade\",\"revision\":\"unknown\",\"preprocessing\":\"UNKNOWN\"}}]'
+    $explicitNotReady = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"dr_grade\",\"revision\":\"r1\",\"preprocessing\":\"uwf-v1\",\"ready\":false}}]'
+    $blockedCfp = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"prism-dr-5fold\",\"task\":\"lesion-roi\",\"status\":\"LOADED\",\"modalities\":[\"CFP\"],\"release_status\":\"COMPARATOR_ONLY\",\"ready\":false}}]'
     $healthGood = Test-ReleaseModelHealth ([pscustomobject]@{{ status = "PASS"; assets_verified = $true }})
     $healthBad = Test-ReleaseModelHealth ([pscustomobject]@{{ status = "PASS"; assets_verified = $false }})
-    if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid -or $knownCfpUwf.Ready -or $unsupportedTask.Ready -or $unqualifiedGeneric.Ready -or -not $healthGood -or $healthBad) {{ exit 1 }}
+    if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid -or $knownCfpUwf.Ready -or $unsupportedTask.Ready -or $unqualifiedGeneric.Ready -or $placeholderGeneric.Ready -or $explicitNotReady.Ready -or $blockedCfp.Ready -or -not $healthGood -or $healthBad) {{ exit 1 }}
 """
     for shell in shells:
         result = subprocess.run([shell, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], capture_output=True, text=True)

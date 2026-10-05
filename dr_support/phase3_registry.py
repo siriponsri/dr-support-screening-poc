@@ -243,11 +243,12 @@ def _fallback_entry(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _runtime_ready(item: dict[str, Any]) -> bool:
+def _runtime_ready(item: dict[str, Any], effective_release_status: object) -> bool:
     status = str(item.get("status") or "").strip().upper()
     return (
         status in READY_STATUSES
-        and not release_status_blocked(item.get("release_status"))
+        and item.get("ready") is not False
+        and not release_status_blocked(effective_release_status)
         and capability_is_qualified(item)
     )
 
@@ -286,7 +287,7 @@ def capability_descriptors(
         merged["status"] = str(item.get("status") or merged["status"])
         # Compute actionability from the live provider record before registry
         # fallback fields can make an incomplete capability look complete.
-        merged["ready"] = _runtime_ready(item)
+        merged["ready"] = _runtime_ready(item, merged.get("release_status"))
         merged["warnings"] = list(dict.fromkeys([*merged.get("warnings", []), *(item.get("warnings") or [])]))
         descriptors[model_id] = merged
     if include_registry:

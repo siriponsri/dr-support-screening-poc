@@ -18,7 +18,7 @@ EXPECTED_MODELS = EXPECTED_MODEL_TASKS
 
 
 def _actionable_capability(item: dict[str, Any], model_id: str, status: object) -> bool:
-    if status != "LOADED":
+    if status != "LOADED" or item.get("ready") is False:
         return False
     if release_status_blocked(item.get("release_status")):
         return False

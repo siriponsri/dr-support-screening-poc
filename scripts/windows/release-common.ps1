@@ -104,7 +104,8 @@ function Get-ReleaseModelCapabilityStatus([string] $Json) {
             $_ -isnot [string] -or -not $_.Trim()
         }).Count -gt 0
         $invalidStatus = ($properties -contains "status") -and $null -ne $_.status -and $_.status -isnot [string]
-        -not $modelId.Trim() -or -not $task.Trim() -or $invalidModalities -or $invalidStatus
+        $invalidReady = ($properties -contains "ready") -and $_.ready -isnot [bool]
+        -not $modelId.Trim() -or -not $task.Trim() -or $invalidModalities -or $invalidStatus -or $invalidReady
     })
     if ($invalid.Count -gt 0) { return $empty }
     $expectedTasks = @{
@@ -122,12 +123,17 @@ function Get-ReleaseModelCapabilityStatus([string] $Json) {
         $capabilityId = if ($properties -contains "capability_id") { [string]$_.capability_id } else { "" }
         $revision = if ($properties -contains "revision") { [string]$_.revision } elseif ($properties -contains "model_version") { [string]$_.model_version } else { "" }
         $preprocessing = if ($properties -contains "preprocessing") { [string]$_.preprocessing } elseif ($properties -contains "preprocessing_version") { [string]$_.preprocessing_version } else { "" }
-        $genericQualified = $capabilityId.Trim() -and $revision.Trim() -and $preprocessing.Trim()
+        $placeholders = @("UNKNOWN", "NOT_REPORTED", "NOT_AVAILABLE", "NONE", "NULL", "N/A")
+        $genericQualified = $capabilityId.Trim() -and $revision.Trim() -and $preprocessing.Trim() -and
+            $capabilityId.Trim().ToUpperInvariant() -notin $placeholders -and
+            $revision.Trim().ToUpperInvariant() -notin $placeholders -and
+            $preprocessing.Trim().ToUpperInvariant() -notin $placeholders
+        $reportedReady = ($properties -notcontains "ready") -or $_.ready
         $release = if ($properties -contains "release_status") { ([string]$_.release_status).Trim().ToUpperInvariant() } else { "" }
         $blocked = $release -in @("DISABLED", "COMPARATOR_ONLY", "DEFERRED") -or $release.StartsWith("BLOCKED") -or $release.StartsWith("DEFERRED")
         $status = if ($properties -contains "status") { ([string]$_.status).Trim().ToUpperInvariant() } else { "" }
-        $status -eq "LOADED" -and -not $blocked -and $taskMatches -and $knownCfpOnly -or
-            $status -eq "LOADED" -and -not $blocked -and $taskMatches -and -not $knownModel -and $genericQualified
+        $reportedReady -and $status -eq "LOADED" -and -not $blocked -and $taskMatches -and $knownCfpOnly -or
+            $reportedReady -and $status -eq "LOADED" -and -not $blocked -and $taskMatches -and -not $knownModel -and $genericQualified
     })
     return [pscustomobject]@{ Valid = $true; Ready = $ready.Count -gt 0 }
 }

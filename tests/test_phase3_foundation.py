@@ -110,6 +110,17 @@ def test_capability_descriptors_compute_ready_before_registry_fallback():
     assert qualified[0]['ready'] is True
 
 
+def test_capability_descriptors_keep_registry_release_restrictions_authoritative():
+    entries = capability_descriptors([{
+        'model_id': 'prism-dr-5fold', 'task': 'lesion-roi', 'status': 'LOADED',
+        'modalities': ['CFP'], 'revision': 'r1', 'preprocessing': 'prism-v1',
+    }])
+    prism = next(item for item in entries if item['model_id'] == 'prism-dr-5fold')
+    assert prism['status'] == 'LOADED'
+    assert prism['release_status'] == 'COMPARATOR_ONLY'
+    assert prism['ready'] is False
+
+
 def test_model_gateway_accepts_capability_or_legacy_discovery():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == '/health':
@@ -240,6 +251,25 @@ def test_model_gateway_does_not_promote_known_cfp_identity_for_uwf_only_advertis
 
     probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
 
+    assert probe.connection_verified is True
+    assert probe.capabilities_ready is False
+    assert probe.models[0]["ready"] is False
+
+
+def test_model_gateway_respects_enriched_not_ready_placeholder_metadata():
+    enriched = capability_descriptors([{
+        "model_id": "generic-uwf-grader",
+        "task": "global",
+        "status": "LOADED",
+        "modalities": ["UWF"],
+    }], include_registry=False)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS"})
+        return httpx.Response(200, json=enriched)
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
     assert probe.connection_verified is True
     assert probe.capabilities_ready is False
     assert probe.models[0]["ready"] is False
