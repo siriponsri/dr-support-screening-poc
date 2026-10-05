@@ -7,6 +7,8 @@ from typing import Any
 
 import httpx
 
+from .capability_routing import release_status_blocked
+
 
 EXPECTED_MODELS = {
     "retfound-aptos5": "global",
@@ -18,18 +20,26 @@ SUPPORTED_TASKS = frozenset(EXPECTED_MODELS.values())
 def _actionable_capability(item: dict[str, Any], model_id: str, status: object) -> bool:
     if status != "LOADED":
         return False
-    if model_id in EXPECTED_MODELS:
-        return True
+    if release_status_blocked(item.get("release_status")):
+        return False
     task = item.get("task")
     modalities = item.get("modalities")
+    expected_task = EXPECTED_MODELS.get(model_id)
+    if expected_task is not None and task != expected_task:
+        return False
+    if not isinstance(task, str) or task not in SUPPORTED_TASKS:
+        return False
+    if not isinstance(modalities, list) or not modalities:
+        return False
+    if any(not isinstance(modality, str) or not modality.strip() for modality in modalities):
+        return False
+    if expected_task is not None:
+        return True
     capability_id = item.get("capability_id")
     revision = item.get("revision") or item.get("model_version")
     preprocessing = item.get("preprocessing") or item.get("preprocessing_version")
     return (
         isinstance(capability_id, str) and bool(capability_id.strip())
-        and isinstance(task, str) and task in SUPPORTED_TASKS
-        and isinstance(modalities, list) and bool(modalities)
-        and all(isinstance(modality, str) and modality.strip() for modality in modalities)
         and isinstance(revision, str) and bool(revision.strip())
         and isinstance(preprocessing, str) and bool(preprocessing.strip())
     )
@@ -101,6 +111,9 @@ def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
             "capability_id": item.get("capability_id") if isinstance(item.get("capability_id"), str) else None,
             "task": item.get("task") if isinstance(item.get("task"), str) else EXPECTED_MODELS.get(model_id),
             "modalities": list(modalities or []) if isinstance(modalities, list) else [],
+            "revision": item.get("revision") if isinstance(item.get("revision"), str) else item.get("model_version") if isinstance(item.get("model_version"), str) else None,
+            "preprocessing": item.get("preprocessing") if isinstance(item.get("preprocessing"), str) else item.get("preprocessing_version") if isinstance(item.get("preprocessing_version"), str) else None,
+            "release_status": item.get("release_status") if isinstance(item.get("release_status"), str) else None,
         })
     if not summaries:
         return None

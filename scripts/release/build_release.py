@@ -152,7 +152,7 @@ def workstation_allowlist() -> list[str]:
     return [
         "AGENTS.md", "DESIGN.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "README_START_HERE.md",
         "pyproject.toml", "uv.lock", ".env.example", "frontend/package.json", "frontend/package-lock.json",
-        "frontend/dist", "dr_support", "web", "scripts/windows/release-common.ps1",
+        "frontend/dist", "dr_support", "web", "deployment/docker-compose.local-postgres.yml", "scripts/windows/release-common.ps1",
         "scripts/windows/release-first-run.ps1", "scripts/windows/release-start.ps1",
         "scripts/windows/release-stop.ps1", "scripts/windows/release-check-system.ps1",
         "FIRST_RUN.bat", "START_DR_SCREENING.bat", "STOP_DR_SCREENING.bat", "CHECK_SYSTEM.bat",

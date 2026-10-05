@@ -313,16 +313,14 @@ def test_review_profile_proxies_to_local_model_api(monkeypatch, tmp_path):
     review_client = TestClient(review_app)
     fixture = synthetic_image()
     review_app.state.images[fixture.image_id] = fixture
-    # Review app forwards the predict call to the model_api app. Because the
-    # model_api app has no weights, the call surfaces 503 to the review app,
-    # which the remote adapter maps to a 502 to the UI. Either way, the call
-    # must reach the model_api and the auth envelope must round-trip.
+    # The model_api fixture has no ready assets. Capability routing therefore
+    # keeps the review workstation manual-first and does not send image bytes.
     response = review_client.post('/v1/infer/global',
                                   json={'image_id': fixture.image_id,
                                         'model_id': 'retfound-aptos5',
                                         'modality': 'CFP'})
-    assert response.status_code in (502, 503)
-    assert any(call.url.path == '/v1/predict/dr' for call in calls)
+    assert response.status_code in (409, 503)
+    assert not any(call.url.path == '/v1/predict/dr' for call in calls)
     # Ensure the review surface still works (worklist) on the merged app.
     cases = review_client.get('/v1/cases').json()
     assert any(c['image_id'] == fixture.image_id for c in cases)

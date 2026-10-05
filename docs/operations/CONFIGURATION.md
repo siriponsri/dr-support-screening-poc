@@ -15,7 +15,7 @@ Copy `.env.example` into a private environment file or configure variables throu
 | `DR_SUPPORT_WORKSPACE_CATALOG` | review | empty; compatibility path only | no |
 | `DR_SUPPORT_CASE_STORE` | review | `postgres` | no |
 | `DR_SUPPORT_WORKSPACE_ID` | PostgreSQL case store | optional bootstrap workspace identifier | no |
-| `DR_SUPPORT_DATABASE_URL` | PostgreSQL foundation | `postgresql://dr_support_app:change-me@127.0.0.1:5432/dr_support` | **yes** |
+| `DR_SUPPORT_DATABASE_URL` | PostgreSQL foundation | empty for the project-owned local Docker path; set a private external URL when required | **yes** |
 | `DR_SUPPORT_DATABASE_SCHEMA` | PostgreSQL foundation | `dr_support` | no |
 | `DR_SUPPORT_DATABASE_CONNECT_TIMEOUT` | PostgreSQL foundation | `5` seconds | no |
 | `INFERENCE_DEVICE` | Model API | `cuda:0` | no |
@@ -33,7 +33,7 @@ Copy `.env.example` into a private environment file or configure variables throu
 | `CVAT_PROJECT_ID` | optional CVAT | empty | no |
 | `CVAT_TOKEN` | optional CVAT | empty | yes |
 
-The review profile requires `MODEL_RUNTIME=remote` and never loads local weights. The Model API profile requires `MODEL_RUNTIME=local`. `INFERENCE_DEVICE=cuda:0` is the production default; an explicit CPU setting is for local development and contract testing only. `MODEL_REQUIRE_VERIFIED_ASSETS=1` is required for the normal server path.
+The review profile requires `MODEL_RUNTIME=remote` and never loads local weights. The Model API profile requires `MODEL_RUNTIME=local`. `INFERENCE_DEVICE=cuda:0` is the production default; an explicit CPU setting is for local development and contract testing only. `MODEL_REQUIRE_VERIFIED_ASSETS=1` is required for the normal server path. The review profile remains usable in manual mode when `REMOTE_MODEL_URL` is empty or the remote is unavailable.
 
 ## Runtime profiles
 
@@ -43,15 +43,15 @@ The review profile requires `MODEL_RUNTIME=remote` and never loads local weights
 | Hospital Model API | `model_api` | `local` | GPU inference endpoints with verified local RETFound and PRISM-DR assets. |
 | Combined local demo | `full` | `local` | Development-only combined surface for synthetic smoke work. |
 
-The application rejects incompatible profile/runtime combinations. The review profile may start without a configured Model API; model actions remain unavailable until the connection is healthy.
+The application rejects incompatible profile/runtime combinations. The review profile may start without a configured Model API; model actions remain unavailable until a compatible capability is healthy and advertised.
 
 `REVIEW_THRESHOLDS`, `REVIEW_MAX_PER_CLASS`, and `REVIEW_MAX_TOTAL` bound the visual/pre-label subset only. They do not alter raw PRISM output or model confidence values. Changing environment configuration requires a process restart.
 
 ## PostgreSQL foundation configuration
 
-`DR_SUPPORT_DATABASE_URL` is a server-side PostgreSQL connection URL. Store the real value in a private `.env`, service environment, or approved secret manager. Do not expose it through React, browser storage, API responses, or logs. The committed `.env.example` value is a placeholder only.
+`DR_SUPPORT_DATABASE_URL` is a server-side PostgreSQL connection URL. Store the real value in a private `.env`, service environment, or approved secret manager. Do not expose it through React, browser storage, API responses, or logs. When blank on Windows, the release launcher provisions project-owned PostgreSQL with credentials in ignored `local-state/release/postgres.env`.
 
-The packaged Windows workstation does not treat `FIRST_RUN.bat` or `CHECK_SYSTEM.bat` as normal review readiness unless PostgreSQL configuration is present and a credential-safe `SELECT 1` connectivity check succeeds. Set the private `DR_SUPPORT_DATABASE_URL` before running those launchers. `DR_SUPPORT_CASE_STORE=sqlite` is an explicit legacy compatibility mode and is reported as not ready for normal managed review; the launchers never install PostgreSQL or silently fall back to SQLite.
+The packaged Windows workstation does not treat `FIRST_RUN.bat` or `CHECK_SYSTEM.bat` as normal review readiness unless external or project-owned PostgreSQL is present and a credential-safe `SELECT 1` connectivity check succeeds. `DR_SUPPORT_CASE_STORE=sqlite` is an explicit legacy compatibility mode and is reported as not ready for normal managed review; the launchers never silently fall back to SQLite.
 
 Case-store mode precedence follows `_resolve_case_store_mode`: an explicit `DR_SUPPORT_CASE_STORE` is used first; otherwise `DR_SUPPORT_DATABASE_URL` selects PostgreSQL; otherwise function-level `case_store_mode` or `state_path` compatibility arguments apply; if none is supplied, the default remains PostgreSQL. `DR_SUPPORT_STATE` and `DR_SUPPORT_WORKSPACE_CATALOG` alone do not implicitly select SQLite. Set `DR_SUPPORT_CASE_STORE=sqlite` for an explicit legacy compatibility run, with the legacy paths supplied for that run. Managed PostgreSQL workspace creation and switching do not require or open a local SQLite database path; any legacy path retained on an imported profile is provenance only.
 

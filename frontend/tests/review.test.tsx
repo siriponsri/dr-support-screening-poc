@@ -182,7 +182,10 @@ describe('Review responsibility boundary', () => {
   it('keeps eligible analysis available while showing compact read-only context and downstream actions', async () => {
     const user = userEvent.setup();
     let reviewRequest: Record<string, unknown> | undefined;
-    mockReviewApi((request) => { reviewRequest = request; });
+    mockReviewApi((request) => { reviewRequest = request; }, readyCase, [
+      { model_id: 'retfound-aptos5', task: 'global', modalities: ['CFP'], status: 'LOADED', release_status: 'RESEARCH_ONLY' },
+      { model_id: 'prism-dr-5fold', task: 'lesion-roi', modalities: ['CFP'], status: 'LOADED', release_status: 'RESEARCH_ONLY' },
+    ]);
     renderAppAt('/review/ready');
 
     expect(await screen.findByText('IMG13 · Left')).toBeInTheDocument();

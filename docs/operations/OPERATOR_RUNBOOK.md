@@ -9,6 +9,12 @@ sudo systemctl is-active dr-support-model-api
 
 Confirm that:
 
+- `CHECK_SYSTEM.bat` reports PostgreSQL `SELECT 1` readiness, frontend build
+  identity/readiness, workspace API readiness when the app is running, and
+  either Model API connectivity or explicit manual mode.
+- If no external `DR_SUPPORT_DATABASE_URL` is configured, Docker Desktop is
+  running for the project-owned local PostgreSQL service. The service is
+  named and stopped only through this checkout's release scripts.
 - `/health` reports `status: PASS` and `assets_verified: true`.
 - `/v1/models` lists `retfound-aptos5` and `prism-dr-5fold`.
 - The review workstation opens `/app/` and shows the Model API connection state honestly.
@@ -39,6 +45,10 @@ Use systemd journal retention and the hospital host's approved rotation policy. 
 ## Routine review operation
 
 The clinician workstation can continue local Worklist, Review state, annotation, and Dataset export operations while the Model API is down. Do not retry inference indefinitely; restore the service or connectivity first. A remote model failure must not be presented as a local decoder failure.
+
+The Worklist exposes modality, review, DR-grade, lesion-review, and AI-state
+filters. Model state is assistance state only: an AI suggestion never replaces
+the clinician-confirmed grade or lesion-review decision.
 
 ## Legacy SQLite migration (P1-I candidate)
 

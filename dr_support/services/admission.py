@@ -728,8 +728,8 @@ def clinician_view(record: dict) -> dict:
         }
     if record.get("retinal_modality") == "UWF":
         return {
-            "label": "AI unavailable",
-            "note": "No qualified UWF AI model is enabled. Clinical review can continue manually.",
+            "label": "Image type confirmed",
+            "note": "UWF is confirmed. A compatible model capability is checked at review time; clinical review can continue manually.",
             "tone": "neutral",
             "action_required": False,
         }

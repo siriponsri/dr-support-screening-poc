@@ -203,6 +203,8 @@ _REGISTRY: tuple[dict[str, Any], ...] = (
     },
 )
 
+_BLOCKED_RUNTIME_RELEASE_STATUSES = frozenset({"COMPARATOR_ONLY", "DEFERRED", "DISABLED"})
+
 
 def registry_entries() -> tuple[dict[str, Any], ...]:
     """Return immutable-by-convention copies for tests and audit surfaces."""
@@ -261,6 +263,13 @@ def capability_descriptors(
                 continue
             if value is not None:
                 merged[key] = value
+        runtime_release_status = str(item.get("release_status") or "").strip().upper()
+        if (
+            runtime_release_status in _BLOCKED_RUNTIME_RELEASE_STATUSES
+            or runtime_release_status.startswith("BLOCKED")
+            or runtime_release_status.startswith("DEFERRED")
+        ):
+            merged["release_status"] = runtime_release_status
         merged["model_version"] = str(item.get("revision") or item.get("model_version") or merged["model_version"])
         merged["runtime_status"] = str(item.get("status") or merged["runtime_status"])
         merged["status"] = str(item.get("status") or merged["status"])

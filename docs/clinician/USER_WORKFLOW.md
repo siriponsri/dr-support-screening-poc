@@ -5,10 +5,15 @@ canonical procedural source is the [Clinician User Manual](../manuals/clinician/
 
 ## Normal path: one line per image
 
-1. **Worklist**: choose **Confirm Image** in the case row.
-2. **Confirm Image**: review the progressive-disclosure context summary and any supported filename/source evidence, then confirm patient key, eye, and reviewer; Review opens. Filename suggestions remain evidence until confirmed.
+1. **Worklist**: choose **Confirm Image** in the case row. Use the modality,
+   review, DR-grade, lesion-review, and AI-state filters to narrow the queue.
+   The AI filter distinguishes **Manual only**, **Model available**, and
+   **AI suggestion present**.
+2. **Confirm Image**: review the progressive-disclosure context summary and any supported filename/source evidence, then confirm patient key, eye, image type, and reviewer; Review opens. Filename suggestions remain evidence until confirmed. `Other / Unknown` stays manual-only until the image type is confirmed.
 3. **Review**: inspect the image and optional model suggestions, then choose
-   **Continue to clinician review**. Nothing is decided on this page.
+   **Continue to clinician review**. Nothing is decided on this page. A
+   disconnected Model API or an incompatible image type does not block manual
+   review.
 4. **Clinician Review**: select the final DR grade and choose **Confirm DR
    Grade**. *Grading complete* appears and the Annotation Editor opens.
 5. **Annotation Editor**: start with the image-first **Box** tool. Click an AI

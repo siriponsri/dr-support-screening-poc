@@ -261,19 +261,40 @@ class RemoteModelProvider:
         checkpoint = (self.last_remote_checkpoint_sha256
                       if self.last_remote_checkpoint_sha256 is not None
                       else match.get('checkpoint_sha256'))
+        advertised_task = match.get('task')
+        advertised_modalities = match.get('modalities')
+        if not isinstance(advertised_task, str) or not advertised_task.strip():
+            return self._degraded_metadata(
+                'REMOTE_INVALID_CAPABILITY',
+                f'{self.model_id} did not advertise a task',
+            )
+        if advertised_task != self.task:
+            return self._degraded_metadata(
+                'REMOTE_INVALID_CAPABILITY',
+                f'{self.model_id} advertised task {advertised_task!r}, expected {self.task!r}',
+            )
+        if (
+            not isinstance(advertised_modalities, list)
+            or not advertised_modalities
+            or any(not isinstance(modality, str) or not modality.strip() for modality in advertised_modalities)
+        ):
+            return self._degraded_metadata(
+                'REMOTE_INVALID_CAPABILITY',
+                f'{self.model_id} did not advertise supported modalities',
+            )
         remote_status = match.get('status')
         status = remote_status.strip() if isinstance(remote_status, str) and remote_status.strip() else 'REMOTE_DEGRADED'
         remote_warnings = list(match.get('warnings') or [])
         return {
             'model_id': self.model_id,
-            'task': self.task,
+            'task': advertised_task,
             'runtime': 'remote',
             'remote_url': self.base_url,
             'revision': revision,
             'checkpoint_sha256': checkpoint or {},
             'remote_status': remote_status,
             'status': status,
-            'modalities': match.get('modalities') or ['CFP'],
+            'modalities': advertised_modalities,
             'warnings': remote_warnings + self._runtime_warnings(),
             'preprocessing': match.get('preprocessing'),
             'capability_id': match.get('capability_id'),
@@ -295,7 +316,7 @@ class RemoteModelProvider:
             'runtime': 'remote',
             'remote_url': self.base_url,
             'status': status,
-            'modalities': ['CFP'],
+            'modalities': [],
             'warnings': warnings,
         }
 
@@ -341,8 +362,12 @@ def provider_from_descriptor(
     model_id = str(descriptor.get('model_id') or '').strip()
     task = str(descriptor.get('task') or '').strip()
     if model_id == RemoteGlobalProvider.model_id:
+        if task != RemoteGlobalProvider.task:
+            raise ValueError(f'Advertised task does not match {model_id!r}')
         return RemoteGlobalProvider(base_url=base_url, token=token, transport=transport)
     if model_id == RemoteLesionProvider.model_id:
+        if task != RemoteLesionProvider.task:
+            raise ValueError(f'Advertised task does not match {model_id!r}')
         return RemoteLesionProvider(base_url=base_url, token=token, transport=transport)
     if task not in {'global', 'lesion-roi'}:
         raise ValueError(f'Unsupported remote capability task for {model_id!r}')

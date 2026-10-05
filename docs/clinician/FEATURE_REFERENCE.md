@@ -7,9 +7,9 @@ is the canonical source for implementation ownership and contracts.
 
 | Surface | Current responsibility | Canonical detail |
 |:--|:--|:--|
-| Worklist | Start each image with **Confirm Image**; status shows **Grade confirmed** or **Review complete**. | [Worklist](../manuals/clinician/02-workflow.qmd) |
-| Confirm Image | Progressive-disclosure context review; confirm pseudonymous patient key, eye, and reviewer attribution. Supported filename/source suggestions remain evidence until confirmed. | [Confirm Image](../manuals/clinician/02-workflow.qmd) |
-| Review | Inspect the image and optional RETFound/PRISM-DR evidence; one forward action, **Continue to clinician review**. | [Review](../manuals/clinician/03-review.qmd) |
+| Worklist | Start each image with **Confirm Image**; filters cover modality, review, DR-grade, lesion-review, and AI state (**Manual only**, **Model available**, or **AI suggestion present**); status shows **Grade confirmed** or **Review complete**. | [Worklist](../manuals/clinician/02-workflow.qmd) |
+| Confirm Image | Progressive-disclosure context review; confirm pseudonymous patient key, eye, image type, and reviewer attribution. Supported filename/source suggestions remain evidence until confirmed. | [Confirm Image](../manuals/clinician/02-workflow.qmd) |
+| Review | Inspect the image and optional RETFound/PRISM-DR evidence; one forward action, **Continue to clinician review**. Manual review remains available when the Model API or a compatible capability is unavailable. | [Review](../manuals/clinician/03-review.qmd) |
 | Clinician Review | Select and confirm the final DR grade; *Not confirmed* until **Confirm DR Grade**. | [DR grade](../manuals/clinician/04-confirm-grade.qmd) |
 | Annotation Editor | Image-first **Box** workflow; correct an AI ROI in place (class dropdown, drag/resize) with **Confirm / Remove / Close**, or draw human annotations. Advanced findings are optional/deferred. | [Annotations](../manuals/clinician/05-annotations.qmd) |
 | Finish image & next | Third human confirmation; records Core findings or deliberate reviewed-none, preserves the internal annotation-confirmation milestone/hash, and opens the next unfinished Worklist image. | [Annotation confirmation](../manuals/clinician/07-confirm-annotation.qmd) |

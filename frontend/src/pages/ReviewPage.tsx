@@ -32,6 +32,7 @@ import {
   type LesionLabel,
   type ModelDescriptor,
 } from '@/lib/api';
+import { isModelUsable } from '@/lib/modelCapabilities';
 import { ArrowLeft, ChevronDown, ChevronUp, Play, UserRound } from '@/lib/icons';
 import { LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
 import { caseComplete } from '@/lib/caseProgress';
@@ -154,35 +155,22 @@ const LESION_DISPLAY_LABELS: Record<string, string> = {
   SOFT_EXUDATE: 'Soft exudate',
 };
 
-function modelCapabilityUnavailable(models: ModelDescriptor[]): boolean {
-  // An empty legacy descriptor response preserves the pre-capability API
-  // behavior; the case-level manual/AI state still governs what is shown.
-  if (models.length === 0) return false;
-  return (['global', 'lesion-roi'] as const).some((task) => !models.some((model) => (
-    model.task === task
-      && model.release_status !== 'COMPARATOR_ONLY'
-      && model.release_status !== 'DISABLED'
-      && ['LOADED', 'SYNTHETIC_FIXTURE'].includes(model.status ?? '')
-  )));
+type AnalysisTask = 'global' | 'lesion-roi';
+
+function caseOrigin(item: CaseRecord | null): string {
+  return item ? (item.source_origin ?? item.source_type) : '';
 }
 
-function selectedModel(models: ModelDescriptor[], task: 'global' | 'lesion-roi') {
-  const selected = models.find((model) => (
-    model.task === task
-      && ['LOADED', 'SYNTHETIC_FIXTURE'].includes(model.status ?? '')
-      && model.release_status !== 'DISABLED'
-  ));
-  if (selected) return selected;
-  if (models.length === 0) {
-    // Bridge v1 compatibility for older review fixtures that do not expose
-    // capability discovery yet.
-    return {
-      model_id: task === 'global' ? 'retfound-aptos5' : 'prism-dr-5fold',
-      task,
-      status: 'LEGACY_COMPATIBILITY',
-    } as ModelDescriptor;
-  }
-  return undefined;
+function selectedModel(
+  models: ModelDescriptor[],
+  task: AnalysisTask,
+  modality: CaseRecord['modality'] | undefined,
+  sourceOrigin: string,
+): ModelDescriptor | undefined {
+  const selected = models
+    .filter((model) => model.task === task && isModelUsable(model, modality, sourceOrigin))
+    .sort((left, right) => Number(left.model_id.startsWith('mock-')) - Number(right.model_id.startsWith('mock-')))[0];
+  return selected;
 }
 
 function LesionLegend() {
@@ -376,27 +364,32 @@ export function ReviewPage() {
 
   const analyze = async () => {
     if (!item || analyzing) return;
-    const globalModel = selectedModel(models, 'global');
-    const lesionModel = selectedModel(models, 'lesion-roi');
-    if (!globalModel || !lesionModel) {
-      setAnalysisError('AI assistance is unavailable; manual review remains available.');
+    const origin = caseOrigin(item);
+    const globalModel = selectedModel(models, 'global', item.modality, origin);
+    const lesionModel = selectedModel(models, 'lesion-roi', item.modality, origin);
+    if (!globalModel && !lesionModel) {
+      if (!globalModel && !lesionModel) setAnalysisError('AI assistance is unavailable; manual review remains available.');
       return;
     }
     setAnalyzing(true);
     setAnalysisError(null);
     try {
-      setProgress(`Running ${globalModel.model_id} grading...`);
-      await apiJson<unknown>('/v1/infer/global', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: globalModel.model_id }),
-      });
-      setProgress(`Running ${lesionModel.model_id} lesion localization...`);
-      await apiJson<unknown>('/v1/infer/lesion-roi', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: lesionModel.model_id }),
-      });
+      if (globalModel) {
+        setProgress(`Running ${globalModel.model_id} grading...`);
+        await apiJson<unknown>('/v1/infer/global', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: globalModel.model_id }),
+        });
+      }
+      if (lesionModel) {
+        setProgress(`Running ${lesionModel.model_id} lesion localization...`);
+        await apiJson<unknown>('/v1/infer/lesion-roi', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: lesionModel.model_id }),
+        });
+      }
       setProgress('Reloading returned case results...');
       await loadCase();
       await loadModels();
@@ -410,9 +403,16 @@ export function ReviewPage() {
   };
 
   const allWarnings = useMemo(() => item ? [...(item.global?.warnings ?? []), ...(item.lesion?.warnings ?? [])] : [], [item]);
-  const modelUnavailable = modelCapabilityUnavailable(models);
   const admissionReady = admissionAllowsAnalysis(item);
-  const analysisAllowed = admissionReady && item?.modality === 'CFP' && ['PUBLIC', 'SYNTHETIC'].includes(item?.source_origin ?? item?.source_type ?? '') && !modelUnavailable;
+  const origin = caseOrigin(item);
+  const globalModel = selectedModel(models, 'global', item?.modality, origin);
+  const lesionModel = selectedModel(models, 'lesion-roi', item?.modality, origin);
+  const modelUnavailable = Boolean(models.length > 0 && !globalModel && !lesionModel);
+  const analysisAllowed = admissionReady
+    && item?.modality !== 'UNKNOWN'
+    && ['PUBLIC', 'SYNTHETIC'].includes(origin)
+    && Boolean(globalModel || lesionModel)
+    && !modelError;
   const analysisPreparationStatus = item?.analysis_preparation?.status;
   const analysisCandidateAvailable = Boolean(analysisPreparationStatus === 'READY' && item?.analysis_preparation?.derivative);
   const analysisAudit = item ? processingAudit(item) : null;
@@ -427,8 +427,7 @@ export function ReviewPage() {
   const maskOverlayUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/mask-overlay` : '';
   const hasRecordedEvidence = Boolean(item?.global || item?.lesion);
   const manualOnly = !hasRecordedEvidence && (
-    item?.modality === 'UWF'
-      || item?.source_origin === 'WORKSPACE'
+    origin === 'WORKSPACE'
       || modelUnavailable
       || models.length === 0
   );
@@ -560,7 +559,7 @@ export function ReviewPage() {
               <Alert status="info" variant="subtle">
                 <AlertIcon />
                 <Stack spacing={1}>
-                  <Text fontWeight="semibold">{item.modality === 'UWF' ? 'Unavailable for UWF in this configuration.' : 'Unavailable for this image and configuration.'}</Text>
+                  <Text fontWeight="semibold">{item.modality === 'UWF' ? 'No ready UWF grading capability is connected.' : item.modality === 'UNKNOWN' ? 'Confirm the image type before using model assistance.' : 'Model assistance is unavailable.'}</Text>
                   <Text fontSize="sm">Manual review remains available. No unqualified model result is shown.</Text>
                 </Stack>
               </Alert>

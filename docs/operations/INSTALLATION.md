@@ -18,7 +18,7 @@ The supported no-code release path is deliberately short:
 extract release -> FIRST_RUN.bat -> START_DR_SCREENING.bat -> browser opens
 ```
 
-`FIRST_RUN.bat` provisions project-managed Python 3.12 and locked workstation dependencies from an extracted release. It reuses the prebuilt frontend and does not install or run npm. Configure the private server-side `DR_SUPPORT_DATABASE_URL` before running the launcher; first run and the read-only `CHECK_SYSTEM.bat` diagnostic verify PostgreSQL configuration and `SELECT 1` connectivity without printing credentials.
+`FIRST_RUN.bat` provisions project-managed Python 3.12 and locked workstation dependencies from an extracted release. It reuses the prebuilt frontend and does not install or run npm. Set a private `DR_SUPPORT_DATABASE_URL` to use external PostgreSQL, or leave it blank for the project-owned Docker PostgreSQL path. First run and the read-only `CHECK_SYSTEM.bat` diagnostic verify PostgreSQL configuration and `SELECT 1` connectivity without printing credentials.
 
 ## No-code release path
 
@@ -29,13 +29,18 @@ but requires the release's prebuilt `frontend/dist`; normal startup never runs
 npm or rebuilds the frontend. Developer checkouts prepare dependencies manually
 with the `uv` and frontend npm commands documented below.
 
-`START_DR_SCREENING.bat` sets the safe workstation invariants (`APP_PROFILE=review`, `MODEL_RUNTIME=remote`, `HOST=127.0.0.1`, `PORT=8000`, `WORKERS=1`), verifies managed PostgreSQL before launch, reuses a healthy managed process, waits for `/health`, and opens `/app/`. It does not install or rebuild dependencies on daily starts. `STOP_DR_SCREENING.bat` stops only the process recorded in `local-state/release/workstation.json`.
+`START_DR_SCREENING.bat` sets the safe workstation invariants (`APP_PROFILE=review`, `MODEL_RUNTIME=remote`, `HOST=127.0.0.1`, `PORT=8000`, `WORKERS=1`), starts or verifies the selected PostgreSQL path, verifies `SELECT 1` again before launch, reuses a healthy managed process, waits for `/health`, and opens `/app/`. It does not install or rebuild dependencies on daily starts. `STOP_DR_SCREENING.bat` stops only the process recorded in `local-state/release/workstation.json`; it never stops external PostgreSQL.
 
 Logs and runtime metadata are under ignored `local-state/logs/` and
 `local-state/release/`. A port-8000 conflict is reported with process
 information and is never killed automatically. Private `.env` values such as
 `REMOTE_MODEL_URL` and `REMOTE_MODEL_TOKEN` are loaded without being printed;
 launcher role variables are forced to the safe workstation values.
+
+The Model API is optional for daily review. An empty or unreachable URL is a
+valid manual-first workstation state. When it is reachable, the review app
+uses only capabilities whose metadata confirms the requested task, confirmed
+image type, ready status, and non-blocked release state.
 
 ## Review workstation
 

@@ -7,8 +7,11 @@ try {
     Set-ReleaseReviewEnvironment
     Ensure-ReleaseDirectories
     Test-ReleaseFrontend
-    $postgres = Test-ReleasePostgres
-    if (-not $postgres.Ready) { throw $postgres.Detail }
+    $postgres = Ensure-ReleasePostgres
+    $postgresStatus = Test-ReleasePostgres
+    if (-not $postgresStatus.Ready) {
+        throw $postgresStatus.Detail
+    }
     $record = Get-ReleaseRecord
     if ($record -and (Test-ReleaseManagedProcess ([int]$record.pid)) -and (Test-ReleaseHealth)) {
         Write-Host "Retinal Review Workbench is already running at $($record.url)."
@@ -21,12 +24,13 @@ try {
     if ($portProcess) {
         $details = Get-ReleaseProcessDetails ([int]$portProcess.OwningProcess)
         $command = if ($details) { [string]$details.CommandLine } else { "command line unavailable" }
+        Stop-ReleaseLocalPostgres $postgres
         throw "Port 8000 is already in use by PID $($portProcess.OwningProcess): $command. No process was stopped."
     }
     $stdout = Join-Path $script:ReleaseLogRoot "workstation.stdout.log"
     $stderr = Join-Path $script:ReleaseLogRoot "workstation.stderr.log"
     $process = Start-Process -FilePath $python -ArgumentList @("-m", "dr_support.run") -WorkingDirectory $script:ReleaseRepoRoot -RedirectStandardOutput $stdout -RedirectStandardError $stderr -WindowStyle Hidden -PassThru
-    Write-ReleaseRecord ([int]$process.Id)
+    Write-ReleaseRecord ([int]$process.Id) $postgres
     $healthy = $false
     for ($attempt = 0; $attempt -lt 30; $attempt++) {
         Start-Sleep -Milliseconds 500
@@ -34,10 +38,10 @@ try {
         if (Test-ReleaseHealth) { $healthy = $true; break }
     }
     if (-not $healthy) {
-        $tail = if (Test-Path -LiteralPath $stderr) { (Get-Content -LiteralPath $stderr -Tail 10) -join "`n" } else { "" }
         if (Test-ReleaseManagedProcess ([int]$process.Id)) { Stop-Process -Id $process.Id -Force }
+        Stop-ReleaseLocalPostgres $postgres
         Remove-ReleaseRecord
-        throw "The workstation did not become healthy at http://127.0.0.1:8000/health.`n$tail"
+        throw "The workstation did not become healthy at http://127.0.0.1:8000/health. Review the credential-safe logs under local-state/logs/ and retry after correcting the reported startup issue."
     }
     Write-Host "Retinal Review Workbench is running at http://127.0.0.1:8000/app/"
     if (-not $NoBrowser) { Start-Process "http://127.0.0.1:8000/app/" }

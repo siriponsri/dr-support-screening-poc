@@ -78,7 +78,7 @@ curl --fail http://127.0.0.1:7860/health
 curl --fail http://127.0.0.1:7860/v1/models
 ```
 
-`/health` reports `status`, device information, and `assets_verified`. A verified service reports `status: PASS` and `assets_verified: true`. `/v1/models` retains the legacy provider descriptors. `/v1/capabilities` reports the deterministic Phase 3 registry, including blocked/deferred capabilities and separate domain, rights, runtime, and release states.
+`/health` reports `status`, device information, and `assets_verified`. A verified service reports `status: PASS` and `assets_verified: true`. `/v1/models` retains the legacy provider descriptors and is the actionable discovery surface for the review workstation. A capability is actionable only when it advertises its `task`, supported `modalities`, ready `status`, and non-blocked `release_status`. `/v1/capabilities` reports the deterministic Phase 3 registry, including blocked/deferred capabilities and separate domain, rights, runtime, and release states.
 
 ## Inference contract
 
@@ -91,6 +91,9 @@ curl --fail http://127.0.0.1:7860/v1/models
 - PRISM rectangles are returned in original-image pixel coordinates.
 - Empty lesion output is valid evidence and is not proof of no lesions.
 - The review workstation calls its existing `/v1/infer/*` routes; it does not load local weights.
+- The review workstation routes global DR grading only to a ready capability
+  advertising the clinician-confirmed `CFP` or `UWF` modality. `Other / Unknown`
+  remains manual-only, and PRISM is lesion assistance rather than a DR grader.
 - The review workstation also exposes additive `/v2/infer/*` routes for the
   versioned context contract; the manual workflow remains available when AI is
   unavailable.

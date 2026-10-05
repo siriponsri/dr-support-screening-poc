@@ -39,11 +39,9 @@ try {
     $python = Get-ReleasePythonPath
     & $python -c "import fastapi, dr_support; print('Python imports: PASS')"
     if ($LASTEXITCODE -ne 0) { throw "The project-managed Python environment failed the import check." }
-    $postgres = Test-ReleasePostgres
-    if (-not $postgres.Ready) {
-        Write-Host "Python provisioning completed, but normal managed review readiness is incomplete."
-        throw $postgres.Detail
-    }
+    $postgres = Ensure-ReleasePostgres
+    $postgresStatus = Test-ReleasePostgres
+    if (-not $postgresStatus.Ready) { throw $postgresStatus.Detail }
     [pscustomobject]@{
         completed_at = (Get-Date).ToUniversalTime().ToString("o")
         python = (& $python --version 2>&1).Trim()

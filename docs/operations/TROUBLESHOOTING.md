@@ -4,7 +4,7 @@
 
 For an extracted release, run `CHECK_SYSTEM.bat`, then `FIRST_RUN.bat` if the project-managed Python is missing. For a developer checkout, rerun the documented `uv sync` and frontend `npm.cmd ci` / `npm.cmd run build` commands. `START_DR_SCREENING.bat` writes stdout/stderr to `local-state/logs/`. Do not set `APP_PROFILE=review` with `MODEL_RUNTIME=local`.
 
-If the system check reports managed PostgreSQL as not ready, configure `DR_SUPPORT_DATABASE_URL` in the private server environment and verify that the target accepts `SELECT 1`. The launcher does not install PostgreSQL, print the DSN, or switch to SQLite. An explicit `DR_SUPPORT_CASE_STORE=sqlite` run is legacy compatibility mode and is not normal managed review readiness.
+If the system check reports managed PostgreSQL as not ready, start Docker Desktop for the project-owned local path, or configure `DR_SUPPORT_DATABASE_URL` in the private server environment and verify that the target accepts `SELECT 1`. The launcher does not print the DSN or switch to SQLite. An explicit `DR_SUPPORT_CASE_STORE=sqlite` run is legacy compatibility mode and is not normal managed review readiness.
 
 ## uv or Python provisioning is blocked
 
@@ -28,7 +28,15 @@ Open `http://127.0.0.1:8000/app/` manually after `START_DR_SCREENING.bat` report
 
 ## Review cannot reach the Model API
 
-Check `REMOTE_MODEL_URL`, the host firewall, and the service status. From the review host, request `/health` from the configured base URL. If a bearer token is required, set `REMOTE_MODEL_TOKEN` privately and restart the review process. Review state remains local; inference is unavailable until connectivity is restored.
+Check `REMOTE_MODEL_URL`, the host firewall, and the service status. From the review host, request `/health` and `/v1/models` from the configured base URL. The model list must advertise the requested task, modalities, ready status, and release state. If a bearer token is required, set `REMOTE_MODEL_TOKEN` privately and restart the review process. Review state remains local; inference is unavailable until connectivity is restored, but manual review remains available.
+
+## No compatible capability for the image type
+
+The review app does not guess a model domain. Confirm the image type in
+**Confirm Image**, then check **Settings** for a ready capability advertising
+that type. UWF grading requires a ready global capability advertising `UWF`;
+CFP grading requires a ready global capability advertising `CFP`; `Other / Unknown`
+is manual-only. PRISM is lesion assistance and is never selected as a DR grader.
 
 ## `/health` is not `PASS`
 

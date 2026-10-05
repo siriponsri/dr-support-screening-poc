@@ -9,6 +9,7 @@ try {
     }
     $processId = [int]$record.pid
     if (-not (Test-ReleaseManagedProcess $processId)) {
+        Stop-ReleaseLocalPostgres $record.database
         Remove-ReleaseRecord
         Write-Host "The recorded release workstation process is no longer running. No unrelated process was stopped."
         exit 0
@@ -17,6 +18,7 @@ try {
     for ($attempt = 0; $attempt -lt 20 -and (Get-Process -Id $processId -ErrorAction SilentlyContinue); $attempt++) {
         Start-Sleep -Milliseconds 250
     }
+    Stop-ReleaseLocalPostgres $record.database
     Remove-ReleaseRecord
     Write-Host "Stopped the release-managed workstation process (PID $processId)."
     exit 0

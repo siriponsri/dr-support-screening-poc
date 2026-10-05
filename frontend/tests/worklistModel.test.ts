@@ -45,8 +45,11 @@ describe('S3 worklist selectors', () => {
     const unsupported = makeCase({ image_id: 'unsupported', display_name: 'brain-mri', filename: 'brain-mri.dcm', admission_ui: { label: 'Unsupported modality', note: 'MRI is not supported.', tone: 'danger', action_required: false }, resolver_ui: { label: 'Patient matched', note: 'Matched.', tone: 'success', action_required: false, patient: { label: 'Patient matched', note: 'Matched.', tone: 'success', action_required: false }, laterality: { label: 'Left eye', note: 'Left.', tone: 'success', action_required: false, value: 'LEFT' } } });
 
     expect(filterCases([resolved, unavailable, unsupported], 'PAT0007', DEFAULT_FILTERS)).toEqual([resolved]);
-    expect(filterCases([resolved, unavailable, unsupported], '', { ...DEFAULT_FILTERS, ai: 'analyzed' })).toEqual([resolved]);
-    expect(filterCases([resolved, unavailable, unsupported], '', { ...DEFAULT_FILTERS, ai: 'unavailable' })).toEqual([unavailable, unsupported]);
+    const cfpModel = [{ model_id: 'retfound-aptos5', task: 'global', modalities: ['CFP'], status: 'LOADED', release_status: 'RESEARCH_ONLY' }];
+    expect(filterCases([resolved, unavailable, unsupported], '', { ...DEFAULT_FILTERS, ai: 'ai-suggestion' }, cfpModel)).toEqual([resolved]);
+    expect(filterCases([resolved, unavailable, unsupported], '', { ...DEFAULT_FILTERS, ai: 'manual-only' }, cfpModel)).toEqual([unavailable, unsupported]);
+    const ready = makeCase({ image_id: 'ready', admission_ui: { label: 'Ready for analysis', note: 'Ready.', tone: 'success', action_required: false }, resolver_ui: { label: 'Patient matched', note: 'Matched.', tone: 'success', action_required: false, patient: { label: 'Patient matched', note: 'Matched.', tone: 'success', action_required: false }, laterality: { label: 'Left eye', note: 'Left.', tone: 'success', action_required: false, value: 'LEFT' } } });
+    expect(filterCases([ready], '', { ...DEFAULT_FILTERS, ai: 'model-available' }, cfpModel)).toEqual([ready]);
     expect(filterCases([resolved, unavailable, unsupported], '', { ...DEFAULT_FILTERS, readiness: 'identity' })).toEqual([]);
     expect(identityNeedsAction(resolved)).toBe(false);
     expect(identityNeedsAction(makeCase({

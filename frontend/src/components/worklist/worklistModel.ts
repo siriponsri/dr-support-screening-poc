@@ -1,16 +1,23 @@
-import type { CaseRecord, Laterality } from '@/lib/api';
+import type { CaseRecord, Laterality, ModelDescriptor } from '@/lib/api';
 import { annotationsConfirmed, gradeConfirmed } from '@/lib/caseProgress';
+import { hasCompatibleModel } from '@/lib/modelCapabilities';
 
 export type ViewMode = 'cases' | 'patients';
 export type ReadinessFilter = 'all' | 'identity' | 'image' | 'ready';
 export type ReviewFilter = 'all' | 'pending' | 'reviewed' | 'excluded';
-export type AiFilter = 'all' | 'analyzed' | 'not-analyzed' | 'unavailable';
+export type AiFilter = 'all' | 'manual-only' | 'model-available' | 'ai-suggestion';
+export type ModalityFilter = 'all' | 'CFP' | 'UWF' | 'UNKNOWN';
+export type GradeFilter = 'all' | 'ungraded' | 'ai-suggested' | 'clinician-confirmed';
+export type LesionReviewFilter = 'all' | 'not-reviewed' | 'in-progress' | 'reviewed' | 'reviewed-none';
 export type SortOption = 'filename' | 'patient-eye' | 'review' | 'recent';
 
 export interface WorklistFilters {
   readiness: ReadinessFilter;
   review: ReviewFilter;
   ai: AiFilter;
+  modality: ModalityFilter;
+  grade: GradeFilter;
+  lesionReview: LesionReviewFilter;
 }
 
 export interface PatientEyeGroup {
@@ -29,6 +36,9 @@ export const DEFAULT_FILTERS: WorklistFilters = {
   readiness: 'all',
   review: 'all',
   ai: 'all',
+  modality: 'all',
+  grade: 'all',
+  lesionReview: 'all',
 };
 
 const LATERALITY_ORDER: Record<Laterality, number> = { LEFT: 0, RIGHT: 1, UNKNOWN: 2 };
@@ -48,12 +58,31 @@ export function caseNeedsAttention(item: CaseRecord): boolean {
   return identityNeedsAction(item) || imageNeedsAction(item);
 }
 
-export type AiState = 'analyzed' | 'not-analyzed' | 'unavailable';
+export type AiState = 'manual-only' | 'model-available' | 'ai-suggestion';
 
-export function aiState(item: CaseRecord): AiState {
-  if (['Cannot analyze', 'Unsupported modality'].includes(item.admission_ui?.label ?? '')) return 'unavailable';
-  if (item.global || item.lesion) return 'analyzed';
-  return 'not-analyzed';
+export function aiState(item: CaseRecord, models: ModelDescriptor[] = []): AiState {
+  if (item.global || item.lesion) return 'ai-suggestion';
+  if (
+    item.source_origin === 'WORKSPACE'
+      || item.modality === 'UNKNOWN'
+      || ['Cannot analyze', 'Unsupported modality'].includes(item.admission_ui?.label ?? '')
+      || !hasCompatibleModel(item, models)
+  ) return 'manual-only';
+  return 'model-available';
+}
+
+export function gradeState(item: CaseRecord): Exclude<GradeFilter, 'all'> {
+  if (gradeConfirmed(item)) return 'clinician-confirmed';
+  if (item.global) return 'ai-suggested';
+  return 'ungraded';
+}
+
+export function lesionReviewState(item: CaseRecord): Exclude<LesionReviewFilter, 'all'> {
+  const state = item.annotation_completeness?.CORE?.state;
+  if (state === 'REVIEWED_NONE_FOUND') return 'reviewed-none';
+  if (state === 'REVIEWED_FINDINGS_RECORDED' || item.annotation_confirmation_status === 'CONFIRMED') return 'reviewed';
+  if (state === 'PARTIALLY_REVIEWED' || item.human_annotations.length > 0 || item.lesion_review_state === 'REQUIRES_CONFIRMATION' || item.lesion_review_state === 'IMPORTED_REQUIRES_REVIEW') return 'in-progress';
+  return 'not-reviewed';
 }
 
 export type ReviewState = 'pending' | 'complete' | 'reviewed' | 'needs-annotation' | 'escalated' | 'legacy-unknown' | 'needs-second-review' | 'ungradable' | 'excluded';
@@ -158,17 +187,20 @@ export function matchesSearch(item: CaseRecord, search: string): boolean {
     .some((value) => value.toLocaleLowerCase().includes(query));
 }
 
-export function matchesFilters(item: CaseRecord, filters: WorklistFilters): boolean {
+export function matchesFilters(item: CaseRecord, filters: WorklistFilters, models: ModelDescriptor[] = []): boolean {
   if (filters.readiness === 'identity' && !identityNeedsAction(item)) return false;
   if (filters.readiness === 'image' && !imageNeedsAction(item)) return false;
   if (filters.readiness === 'ready' && caseNeedsAttention(item)) return false;
   if (!matchesReviewFilter(item, filters.review)) return false;
-  if (filters.ai !== 'all' && aiState(item) !== filters.ai) return false;
+  if (filters.ai !== 'all' && aiState(item, models) !== filters.ai) return false;
+  if (filters.modality !== 'all' && item.modality !== filters.modality) return false;
+  if (filters.grade !== 'all' && gradeState(item) !== filters.grade) return false;
+  if (filters.lesionReview !== 'all' && lesionReviewState(item) !== filters.lesionReview) return false;
   return true;
 }
 
-export function filterCases(cases: CaseRecord[], search: string, filters: WorklistFilters): CaseRecord[] {
-  return cases.filter((item) => matchesSearch(item, search) && matchesFilters(item, filters));
+export function filterCases(cases: CaseRecord[], search: string, filters: WorklistFilters, models: ModelDescriptor[] = []): CaseRecord[] {
+  return cases.filter((item) => matchesSearch(item, search) && matchesFilters(item, filters, models));
 }
 
 function lateralityLabel(laterality: Laterality): string {

@@ -55,6 +55,7 @@ from ..imaging import (
     map_lesion_result_to_review,
 )
 from ..services.admission import is_inference_eligible, legacy_admission, scan_input_folder
+from ..services.capability_routing import CapabilityRoutingError, route_capability
 from ..services.workspaces import WorkspaceManager
 from ..services.resolver import ResolverService
 from ..services.model_gateway import (
@@ -449,7 +450,7 @@ def create_app(
                     'task': getattr(provider, 'task', 'unknown'),
                     'runtime': 'remote',
                     'status': 'REMOTE_INVALID_SCHEMA',
-                    'modalities': ['CFP'],
+                    'modalities': [],
                     'warnings': [f'Provider metadata failed: {type(exc).__name__}: {exc}'],
                 })
         return capability_descriptors([*synthetic, *remote], include_registry=False)
@@ -477,7 +478,7 @@ def create_app(
                 409,
                 'This source is available for manual review only; model analysis is not approved for its origin.',
             )
-        if not is_inference_eligible(admission, require_cfp_source=True):
+        if not is_inference_eligible(admission):
             raise HTTPException(409, 'Image needs review or its image type is not supported for AI analysis.')
         if request.modality != admission['retinal_modality']:
             raise HTTPException(422, 'Modality does not match admitted image')
@@ -494,6 +495,8 @@ def create_app(
         if request.model_id == 'mock-' + ('global' if task == 'global' else 'lesion'):
             if image.source_type != 'SYNTHETIC':
                 raise HTTPException(422, 'Synthetic providers cannot infer on public images')
+            if request.modality != 'CFP':
+                raise HTTPException(409, 'No ready model is advertised for this image type; manual review remains available.')
             result = infer_mock(request, image)
             save_result(
                 request,
@@ -506,6 +509,21 @@ def create_app(
         provider = app.state.providers.get(request.model_id)
         if provider is None or provider.task != task:
             raise HTTPException(404, 'Unknown model for this task')
+        descriptor = provider.metadata()
+        try:
+            route_capability(
+                descriptor,
+                model_id=request.model_id,
+                task=task,
+                modality=request.modality,
+            )
+        except CapabilityRoutingError as exc:
+            status = str(descriptor.get('status') or '')
+            if status in {'REMOTE_NOT_CONFIGURED', 'REMOTE_UNREACHABLE'}:
+                raise HTTPException(503, 'AI analysis is not available; manual review remains available.') from None
+            if status.startswith('REMOTE_'):
+                raise HTTPException(502, 'The Model API capability could not be verified; manual review remains available.') from None
+            raise HTTPException(409, str(exc)) from None
         try:
             analysis_image, analysis_derivative = app.state.derivatives.analysis_image(
                 image, source_modality=admission['retinal_modality'],

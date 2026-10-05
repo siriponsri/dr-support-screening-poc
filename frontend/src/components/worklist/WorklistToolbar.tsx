@@ -19,7 +19,7 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { Filter, Search } from '@/lib/icons';
-import type { AiFilter, ReadinessFilter, ReviewFilter, SortOption, ViewMode, WorklistFilters } from './worklistModel';
+import type { AiFilter, GradeFilter, LesionReviewFilter, ModalityFilter, ReadinessFilter, ReviewFilter, SortOption, ViewMode, WorklistFilters } from './worklistModel';
 import type { ReactNode } from 'react';
 
 interface WorklistToolbarProps {
@@ -72,18 +72,36 @@ export function WorklistToolbar({ search, onSearchChange, filters, onFiltersChan
                 </RadioGroup>
               </FilterSection>
               <Divider />
+              <FilterSection title="Image type">
+                <RadioGroup value={filters.modality} onChange={(value) => updateFilter('modality', value as ModalityFilter)}>
+                  <Stack spacing={2}><Radio value="all">All image types</Radio><Radio value="CFP">CFP</Radio><Radio value="UWF">UWF</Radio><Radio value="UNKNOWN">Not confirmed</Radio></Stack>
+                </RadioGroup>
+              </FilterSection>
+              <Divider />
               <FilterSection title="Review">
                 <RadioGroup value={filters.review} onChange={(value) => updateFilter('review', value as ReviewFilter)}>
                   <Stack spacing={2}><Radio value="all">All</Radio><Radio value="pending">Pending</Radio><Radio value="reviewed">Reviewed</Radio><Radio value="excluded">Excluded</Radio></Stack>
                 </RadioGroup>
               </FilterSection>
               <Divider />
-              <FilterSection title="AI">
-                <RadioGroup value={filters.ai} onChange={(value) => updateFilter('ai', value as AiFilter)}>
-                  <Stack spacing={2}><Radio value="all">All</Radio><Radio value="analyzed">Analyzed</Radio><Radio value="not-analyzed">Not analyzed</Radio><Radio value="unavailable">AI unavailable</Radio></Stack>
+              <FilterSection title="DR grade">
+                <RadioGroup value={filters.grade} onChange={(value) => updateFilter('grade', value as GradeFilter)}>
+                  <Stack spacing={2}><Radio value="all">All</Radio><Radio value="ungraded">Ungraded</Radio><Radio value="ai-suggested">AI suggested</Radio><Radio value="clinician-confirmed">Clinician confirmed</Radio></Stack>
                 </RadioGroup>
               </FilterSection>
-              {activeFilterCount > 0 && <Button size="sm" variant="ghost" alignSelf="flex-start" onClick={() => onFiltersChange({ readiness: 'all', review: 'all', ai: 'all' })}>Clear filters</Button>}
+              <Divider />
+              <FilterSection title="Lesion review">
+                <RadioGroup value={filters.lesionReview} onChange={(value) => updateFilter('lesionReview', value as LesionReviewFilter)}>
+                  <Stack spacing={2}><Radio value="all">All</Radio><Radio value="not-reviewed">Not reviewed</Radio><Radio value="in-progress">In progress</Radio><Radio value="reviewed">Reviewed</Radio><Radio value="reviewed-none">Reviewed - none found</Radio></Stack>
+                </RadioGroup>
+              </FilterSection>
+              <Divider />
+              <FilterSection title="AI">
+                <RadioGroup value={filters.ai} onChange={(value) => updateFilter('ai', value as AiFilter)}>
+                  <Stack spacing={2}><Radio value="all">All</Radio><Radio value="manual-only">Manual only</Radio><Radio value="model-available">Model available</Radio><Radio value="ai-suggestion">AI suggestion present</Radio></Stack>
+                </RadioGroup>
+              </FilterSection>
+              {activeFilterCount > 0 && <Button size="sm" variant="ghost" alignSelf="flex-start" onClick={() => onFiltersChange({ readiness: 'all', review: 'all', ai: 'all', modality: 'all', grade: 'all', lesionReview: 'all' })}>Clear filters</Button>}
             </Stack></PopoverBody>
           </PopoverContent>
         </Popover>

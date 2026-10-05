@@ -143,13 +143,37 @@ def test_model_gateway_reports_loaded_capability_as_ready():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":
             return httpx.Response(200, json={"status": "PASS"})
-        return httpx.Response(200, json=[{"model_id": "retfound-aptos5", "status": "LOADED"}])
+        return httpx.Response(200, json=[{
+            "model_id": "retfound-aptos5",
+            "task": "global",
+            "modalities": ["CFP"],
+            "status": "LOADED",
+        }])
 
     probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
 
     assert probe.connection_verified is True
     assert probe.capabilities_ready is True
     assert probe.models[0]["ready"] is True
+
+
+def test_model_gateway_does_not_promote_blocked_release_capability():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS"})
+        return httpx.Response(200, json=[{
+            "model_id": "retfound-aptos5",
+            "task": "global",
+            "modalities": ["CFP"],
+            "status": "LOADED",
+            "release_status": "DISABLED",
+        }])
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.connection_verified is True
+    assert probe.capabilities_ready is False
+    assert probe.models[0]["ready"] is False
 
 
 def test_model_gateway_requires_actionable_fields_for_generic_loaded_capability():

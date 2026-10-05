@@ -289,6 +289,7 @@ export interface CaseRecord {
   global: GlobalResult | null;
   lesion: LesionResult | null;
   lesion_review: LesionReview | null;
+  lesion_review_state?: string | null;
   review_evidence?: ReviewEvidence;
   human_annotations: HumanAnnotation[];
   annotation_completeness?: Partial<Record<'CORE' | 'ADVANCED', AnnotationCompletenessRecord>>;
@@ -713,6 +714,12 @@ export interface ModelConnectionModel {
   model_id: string;
   ready: boolean;
   status?: string | null;
+  capability_id?: string | null;
+  task?: string | null;
+  modalities?: string[];
+  revision?: string | null;
+  preprocessing?: string | null;
+  release_status?: string | null;
 }
 
 export interface ModelConnectionResponse {

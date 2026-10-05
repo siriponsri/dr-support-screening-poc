@@ -4,7 +4,7 @@ import type { CaseRecord } from '@/lib/api';
 import { StatusBadge, type StatusTone } from '@/components/common/StatusBadge';
 
 function admissionStatus(item: CaseRecord): { label: string; tone: StatusTone; note: string } | null {
-  if (!item.admission_ui || ['Ready for analysis', 'Image type needs confirmation'].includes(item.admission_ui.label)) return null;
+  if (!item.admission_ui || ['Ready for analysis', 'Image type needs confirmation', 'Image type confirmed'].includes(item.admission_ui.label)) return null;
   return item.admission_ui;
 }
 

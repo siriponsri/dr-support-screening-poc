@@ -54,6 +54,9 @@ class ModelConnectionModel(Contract):
     capability_id: str | None = None
     task: str | None = None
     modalities: list[str] = Field(default_factory=list)
+    revision: str | None = None
+    preprocessing: str | None = None
+    release_status: str | None = None
 
 
 class ModelConnectionResponse(Contract):

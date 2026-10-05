@@ -329,6 +329,13 @@ def test_api_routes_inference_through_remote_provider(monkeypatch, tmp_path):
 
 def test_api_returns_504_when_remote_times_out(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/v1/models':
+            return httpx.Response(200, json=[{
+                'model_id': 'retfound-aptos5',
+                'task': 'global',
+                'modalities': ['CFP'],
+                'status': 'LOADED',
+            }])
         raise httpx.ReadTimeout('simulated', request=request)
 
     app = _wire_remote_app(monkeypatch, handle)
@@ -344,7 +351,12 @@ def test_api_returns_504_when_remote_times_out(monkeypatch):
 def test_api_returns_502_when_remote_returns_non_2xx(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path == '/v1/models':
-            return httpx.Response(200, json=[{'model_id': 'retfound-aptos5', 'task': 'global'}])
+            return httpx.Response(200, json=[{
+                'model_id': 'retfound-aptos5',
+                'task': 'global',
+                'modalities': ['CFP'],
+                'status': 'LOADED',
+            }])
         return httpx.Response(500, json={'error': 'upstream'})
 
     app = _wire_remote_app(monkeypatch, handle)
@@ -360,7 +372,12 @@ def test_api_returns_502_when_remote_returns_non_2xx(monkeypatch):
 def test_api_returns_502_when_remote_returns_malformed_payload(monkeypatch):
     def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path == '/v1/models':
-            return httpx.Response(200, json=[{'model_id': 'retfound-aptos5', 'task': 'global'}])
+            return httpx.Response(200, json=[{
+                'model_id': 'retfound-aptos5',
+                'task': 'global',
+                'modalities': ['CFP'],
+                'status': 'LOADED',
+            }])
         return httpx.Response(200, json={'not': 'a bridge result'})
 
     app = _wire_remote_app(monkeypatch, handle)
@@ -404,7 +421,7 @@ def test_api_starts_without_remote_url_and_keeps_inference_unavailable(monkeypat
         'modality': 'CFP',
     })
     assert inference.status_code == 503
-    assert inference.json()['detail'] == 'AI analysis is not available.'
+    assert inference.json()['detail'] == 'AI analysis is not available; manual review remains available.'
     assert 'RemoteNotConfiguredError' not in inference.text
     assert client.get('/v1/workspaces').status_code == 200
     assert client.get('/v1/workspaces/active').status_code == 200

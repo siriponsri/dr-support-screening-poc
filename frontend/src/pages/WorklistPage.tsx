@@ -3,7 +3,7 @@ import { Alert, AlertIcon, Box, Button, Center, HStack, Spinner, Stack, Text, VS
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
-import { admissionApi, apiJson, queueApi, type CaseRecord } from '@/lib/api';
+import { admissionApi, apiJson, queueApi, type CaseRecord, type ModelDescriptor } from '@/lib/api';
 import { RefreshCw, ScanLine } from '@/lib/icons';
 import { ResolverDialog } from '@/components/worklist/ResolverDialog';
 import { ReadinessDialog } from '@/components/worklist/ReadinessDialog';
@@ -23,6 +23,7 @@ export function WorklistPage() {
   ));
   const [pendingConfirmId, setPendingConfirmId] = useState<string | null>(() => flowState?.openConfirmImage ?? null);
   const [cases, setCases] = useState<CaseRecord[]>([]);
+  const [models, setModels] = useState<ModelDescriptor[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,14 +36,21 @@ export function WorklistPage() {
   const [sort, setSort] = useState<SortOption>('filename');
   const [viewMode, setViewMode] = useState<ViewMode>('cases');
 
-  const filteredCases = useMemo(() => sortCases(filterCases(cases, search, filters), sort), [cases, filters, search, sort]);
+  const filteredCases = useMemo(() => sortCases(filterCases(cases, search, filters, models), sort), [cases, filters, models, search, sort]);
   const patientGroups = useMemo(() => viewMode === 'patients' ? groupCases(filteredCases) : undefined, [filteredCases, viewMode]);
   const attentionCount = useMemo(() => filteredCases.filter((item) => item.queue_state !== 'EXCLUDED' && caseNeedsAttention(item)).length, [filteredCases]);
 
   const loadCases = async () => {
     setLoading(true);
     setError(null);
-    try { setCases(await apiJson<CaseRecord[]>('/v1/cases')); }
+    try {
+      const [loadedCases, loadedModels] = await Promise.all([
+        apiJson<CaseRecord[]>('/v1/cases'),
+        apiJson<ModelDescriptor[]>('/v1/models').catch(() => []),
+      ]);
+      setCases(loadedCases);
+      setModels(loadedModels);
+    }
     catch { setError('Unable to load the worklist.'); }
     finally { setLoading(false); }
   };
@@ -105,7 +113,7 @@ export function WorklistPage() {
             {filteredCases.length === 0 ? (
               <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Stack spacing={2}><Text fontWeight="semibold">No cases match these filters.</Text><Button size="sm" variant="outline" alignSelf="flex-start" onClick={() => { setSearch(''); setFilters(DEFAULT_FILTERS); }}>Clear filters</Button></Stack></Box>
             ) : (
-            <WorklistTable cases={filteredCases} groups={patientGroups} onResolve={setResolverCase} onReadiness={setReadinessCase} onConfirmImage={setConfirmImageCase} onQueueAction={(item, action) => void updateQueue(item, action)} />
+            <WorklistTable cases={filteredCases} groups={patientGroups} models={models} onResolve={setResolverCase} onReadiness={setReadinessCase} onConfirmImage={setConfirmImageCase} onQueueAction={(item, action) => void updateQueue(item, action)} />
             )}
           </>
         )}

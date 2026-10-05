@@ -226,7 +226,12 @@ def test_s5c_inference_persists_lineage_and_s4_keeps_source_identity(monkeypatch
 
     def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/v1/models":
-            return httpx.Response(200, json=[])
+            return httpx.Response(200, json=[{
+                "model_id": "retfound-aptos5",
+                "task": "global",
+                "modalities": ["CFP"],
+                "status": "LOADED",
+            }])
         payload = json.loads(request.content)
         captured["payload"] = payload
         return httpx.Response(200, json={

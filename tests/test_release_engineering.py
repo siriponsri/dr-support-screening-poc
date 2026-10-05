@@ -21,6 +21,33 @@ def test_no_code_launchers_have_expected_roles():
     assert "127.0.0.1:8000/app/" in start
 
 
+def test_windows_launcher_owns_local_postgres_and_reports_manual_mode_safely():
+    common = (ROOT / "scripts/windows/release-common.ps1").read_text(encoding="utf-8")
+    start = (ROOT / "scripts/windows/release-start.ps1").read_text(encoding="utf-8")
+    check = (ROOT / "scripts/windows/release-check-system.ps1").read_text(encoding="utf-8")
+    compose = (ROOT / "deployment/docker-compose.local-postgres.yml").read_text(encoding="utf-8")
+    builder = (ROOT / "scripts/release/build_release.py").read_text(encoding="utf-8")
+
+    assert "New-ReleaseLocalDatabaseConfig" in common
+    assert "postgres.env" in common
+    assert "DR_SUPPORT_DATABASE_URL" in common
+    assert "SELECT 1" in common
+    assert "Ensure-ReleasePostgres" in start
+    assert "Test-ReleasePostgres" in start
+    assert "managed_local" in common
+    assert "compose_file" in common
+    assert "PSObject.Properties.Name" in common
+    assert "DR_SUPPORT_COMPOSE" not in common
+    assert "manual review remains available" in check
+    assert "[WARN] Model API connection" in check
+    assert "Workspace API readiness" in check
+    assert "DR_SUPPORT_POSTGRES_PASSWORD" in compose
+    assert "dr_support_workstation_postgres_data" in compose
+    assert "deployment/docker-compose.local-postgres.yml" in builder
+    assert "Write-Host $password" not in common
+    assert "Write-Host $env:DR_SUPPORT_DATABASE_URL" not in common
+
+
 def test_release_builder_and_model_identity_are_contract_only():
     builder = (ROOT / "scripts/release/build_release.py").read_text(encoding="utf-8")
     assert "workstation_allowlist" in builder

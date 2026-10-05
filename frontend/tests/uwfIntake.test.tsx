@@ -124,7 +124,7 @@ describe('UWF intake and clinical review', () => {
     expect(await screen.findByLabelText('Mask status')).toHaveTextContent('Ready');
     expect(screen.getByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
-    expect(screen.getByText('Unavailable for UWF in this configuration.')).toBeInTheDocument();
+    expect(screen.getByText('No ready UWF grading capability is connected.')).toBeInTheDocument();
     expect(screen.getByText('Manual review remains available. No unqualified model result is shown.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue to clinician review' })).toHaveAttribute('href', '/clinician-review/synthetic-uwf');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Analysis area' }));

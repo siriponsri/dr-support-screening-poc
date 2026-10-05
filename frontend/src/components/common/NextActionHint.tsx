@@ -3,15 +3,7 @@ import { Alert, AlertIcon, Button, HStack, Stack, Text } from '@chakra-ui/react'
 import type { CaseRecord, ModelDescriptor } from '@/lib/api';
 import { getHintsEnabled, setHintsEnabled } from '@/lib/hintPreference';
 import { annotationsConfirmed, gradeConfirmed } from '@/lib/caseProgress';
-
-function modelCapabilityUnavailable(models: ModelDescriptor[]): boolean {
-  return (['global', 'lesion-roi'] as const).some((task) => !models.some((model) => (
-    model.task === task
-      && model.release_status !== 'COMPARATOR_ONLY'
-      && model.release_status !== 'DISABLED'
-      && ['LOADED', 'SYNTHETIC_FIXTURE'].includes(model.status ?? '')
-  )));
-}
+import { aiState } from '@/components/worklist/worklistModel';
 
 export function nextAction(item: CaseRecord, _models: ModelDescriptor[] = []): string {
   if (item.grade_status === 'UNGRADABLE') return 'Review case status';
@@ -25,8 +17,9 @@ export function contextWarnings(item: CaseRecord, models: ModelDescriptor[] = []
   const warnings: string[] = [];
   if (item.resolver_ui?.action_required) warnings.push('Patient and eye context needs confirmation.');
   if (item.admission_ui?.action_required) warnings.push('Image context needs confirmation.');
-  const unavailable = modelCapabilityUnavailable(models);
-  if (unavailable && !item.global && !item.lesion) warnings.push('AI assistance is unavailable; manual review remains available.');
+  if (aiState(item, models) === 'manual-only' && !item.global && !item.lesion) {
+    warnings.push('AI assistance is unavailable; manual review remains available.');
+  }
   return warnings;
 }
 

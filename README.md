@@ -48,14 +48,14 @@ The developer checkout installs locked dependencies and builds the browser app; 
 .\START_DR_SCREENING.bat
 ```
 
-The browser opens at **http://127.0.0.1:8000/app/**. Configure the server-side PostgreSQL URL before startup. In **Settings**, create a **New workspace** with a name and local input/output folders; managed PostgreSQL storage does not require a local review database path. Explicit SQLite mode remains available only for legacy compatibility and synthetic fixtures. Select that workspace before reviewing images. Source images are not moved by workspace setup.
+The browser opens at **http://127.0.0.1:8000/app/**. If `DR_SUPPORT_DATABASE_URL` is set in the private environment, the launcher verifies that external PostgreSQL and uses it without starting a local database. If it is blank, the launcher creates a project-owned Docker PostgreSQL service, stores generated credentials only under ignored `local-state/release/`, waits for readiness, and verifies `SELECT 1`. It never silently falls back to SQLite. In **Settings**, create a **New workspace** with a name and local input/output folders; managed PostgreSQL storage does not require a local review database path. Select that workspace before reviewing images. Source images are not moved by workspace setup.
 
 On later days, use `.\START_DR_SCREENING.bat` again. When finished, run `.\STOP_DR_SCREENING.bat` to stop the process managed by this checkout. The launcher keeps the workstation on `127.0.0.1:8000` and stores logs under ignored `local-state/`. [Configuration](docs/operations/CONFIGURATION.md) covers private settings and deployment choices.
 
 ## 3. Review an image
 
-1. In **Worklist**, select **Confirm Image**. Review the progressive-disclosure context summary, including supported filename/source evidence when available, then confirm the pseudonymous patient key, eye, and reviewer.
-2. In **Review**, inspect the source image and any available model evidence. Open **Clinician Review**.
+1. In **Worklist**, select **Confirm Image**. Review the progressive-disclosure context summary, including supported filename/source evidence when available, then confirm the pseudonymous patient key, eye, image type, and reviewer. Use the Worklist filters to find modality, review, DR-grade, lesion-review, or AI-assistance states.
+2. In **Review**, inspect the source image and any available model evidence. Model assistance is optional; manual review remains available when the Model API is disconnected or no compatible capability is ready. Open **Clinician Review**.
 3. Select the final DR grade and choose **Confirm DR Grade**. The human decision is authoritative, whether or not an AI suggestion exists.
 4. In **Annotation Editor**, start with the image-first **Box** tool. Inspect the suggested regions of interest (ROIs); correct or remove an AI ROI if needed, or add a human annotation. Untouched AI ROIs remain AI suggestions.
 5. Choose **Finish image & next**. With no Core human findings, the button explicitly records **reviewed none found**; it does not create a negative lesion annotation. Individual AI ROIs do not need separate confirmation to complete the case, and Advanced findings remain optional/deferred.
@@ -84,7 +84,7 @@ cd /opt/dr-support-screening-poc
 ./scripts/model-server/healthcheck.sh
 ```
 
-Verify a `PASS` status and `assets_verified: true` before use. Configure `REMOTE_MODEL_URL` and, if required, `REMOTE_MODEL_TOKEN` in a private workstation `.env` or approved environment, then restart the workstation. Follow the [Model API guide](docs/operations/MODEL_SERVER.md) for verified assets, host/network controls, and failure recovery. Do not place model weights or credentials in Git.
+Verify a `PASS` status, `assets_verified: true`, and a `/v1/models` capability advertising the intended task, modalities, ready status, and release state before use. Configure `REMOTE_MODEL_URL` and, if required, `REMOTE_MODEL_TOKEN` in a private workstation `.env` or approved environment, then restart the workstation. The workstation routes DR grading only to a ready global capability advertising the confirmed modality; PRISM remains lesion assistance and is never a DR grader. If discovery fails, the UI reports manual mode and case state remains usable. Follow the [Model API guide](docs/operations/MODEL_SERVER.md) for verified assets, host/network controls, and failure recovery. Do not place model weights or credentials in Git.
 
 ## 6. Run checks before sharing changes
 

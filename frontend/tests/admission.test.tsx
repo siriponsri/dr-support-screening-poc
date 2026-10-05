@@ -98,7 +98,7 @@ describe('image admission UI', () => {
     expect(screen.getByText('ambiguous · Eye not confirmed')).toBeInTheDocument();
     expect(screen.getByText(/Image context needs confirmation\./)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
-    expect(screen.getByText('Unavailable for this image and configuration.')).toBeInTheDocument();
+    expect(screen.getByText('Model assistance is unavailable.')).toBeInTheDocument();
     expect(screen.getByText('Manual review remains available. No unqualified model result is shown.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back to Worklist' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Accept as retinal fundus image/i })).not.toBeInTheDocument();
@@ -138,7 +138,7 @@ describe('image admission UI', () => {
 
     expect(await screen.findByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
-    expect(screen.getByText('Unavailable for this image and configuration.')).toBeInTheDocument();
+    expect(screen.getByText('Model assistance is unavailable.')).toBeInTheDocument();
     expect(screen.getByText('Manual review remains available. No unqualified model result is shown.')).toBeInTheDocument();
   });
 });

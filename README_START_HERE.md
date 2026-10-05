@@ -22,6 +22,11 @@ authorize hospital-data export, model use, training, or diagnosis.
   binds to `127.0.0.1`.
 - The frontend must already be present under `frontend/dist`; daily startup
   never installs or builds frontend dependencies.
+- PostgreSQL is the normal case store. Set a private `DR_SUPPORT_DATABASE_URL`
+  to use an external server, or leave it blank and let the launcher start the
+  project-owned Docker PostgreSQL service. Generated local credentials stay in
+  ignored `local-state/release/postgres.env`; the launcher never falls back to
+  SQLite or prints the password.
 - Private values such as `REMOTE_MODEL_URL` and `REMOTE_MODEL_TOKEN` belong in
   a local untracked `.env` or approved environment. Never commit them.
 - Keep source images immutable and use only approved public or synthetic data.
@@ -42,6 +47,9 @@ remains deferred and non-blocking.
   and retry from an extracted folder.
 - If startup reports that port 8000 is in use, inspect the reported process;
   the launcher does not kill unrelated processes.
+- If PostgreSQL is not ready, start Docker Desktop for the managed local path,
+  or correct the private external URL. `CHECK_SYSTEM.bat` reports the selected
+  source and the credential-safe connectivity result.
 - If the prebuilt frontend is missing, re-extract the release archive rather
   than installing frontend tooling on the workstation.
 
