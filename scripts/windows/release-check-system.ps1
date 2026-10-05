@@ -63,8 +63,8 @@ try {
             $modelHealth = Invoke-WebRequest -Uri "$modelUrl/health" -Headers $headers -UseBasicParsing -TimeoutSec 5
             $healthBody = $modelHealth.Content | ConvertFrom-Json
             $healthStatus = ([string]$healthBody.status).Trim().ToUpperInvariant()
-            if ($modelHealth.StatusCode -ne 200 -or $healthStatus -notin @("PASS", "PASS_WITH_WARNINGS")) {
-                Write-Host "[WARN] Model API connection: remote health is not passing; manual review remains available."
+            if ($modelHealth.StatusCode -ne 200 -or -not (Test-ReleaseModelHealth $healthBody)) {
+                Write-Host "[WARN] Model API connection: remote health/assets are not verified; manual review remains available."
             } else {
                 $modelList = Invoke-WebRequest -Uri "$modelUrl/v1/models" -Headers $headers -UseBasicParsing -TimeoutSec 5
                 $capabilityStatus = if ($modelList.StatusCode -eq 200) {

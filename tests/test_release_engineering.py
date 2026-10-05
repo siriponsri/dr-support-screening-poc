@@ -53,6 +53,7 @@ def test_windows_launcher_owns_local_postgres_and_reports_manual_mode_safely():
     assert "postgres_data:/var/lib/postgresql/data" in compose
     assert "name: ${DR_SUPPORT_POSTGRES_VOLUME}" in compose
     assert "Get-ReleaseModelCapabilityStatus" in common
+    assert "Test-ReleaseModelHealth" in common
     assert "CommandLine" not in start
     assert "Research use" in settings
     assert "Blocked for review" in settings
@@ -230,10 +231,15 @@ def test_release_capability_check_rejects_malformed_discovery_and_accepts_array(
     common = (ROOT / "scripts/windows/release-common.ps1").as_posix()
     command = f"""
 . '{common}'
-$valid = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"uwf-model\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"]}}]'
-$badShape = Get-ReleaseModelCapabilityStatus '{{\"model_id\":\"uwf-model\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":\"UWF\"}}'
-$badModalities = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"uwf-model\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":\"UWF\"}}]'
-if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid) {{ exit 1 }}
+    $valid = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"uwf-model\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"uwf-grade\",\"revision\":\"r1\",\"preprocessing\":\"uwf-v1\"}}]'
+    $badShape = Get-ReleaseModelCapabilityStatus '{{\"model_id\":\"uwf-model\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":\"UWF\"}}'
+    $badModalities = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"uwf-model\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":\"UWF\"}}]'
+    $knownCfpUwf = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"retfound-aptos5\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"]}}]'
+    $unsupportedTask = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"unsupported\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"],\"capability_id\":\"other\",\"revision\":\"r1\",\"preprocessing\":\"v1\"}}]'
+    $unqualifiedGeneric = Get-ReleaseModelCapabilityStatus '[{{\"model_id\":\"other\",\"task\":\"global\",\"status\":\"LOADED\",\"modalities\":[\"UWF\"]}}]'
+    $healthGood = Test-ReleaseModelHealth ([pscustomobject]@{{ status = "PASS"; assets_verified = $true }})
+    $healthBad = Test-ReleaseModelHealth ([pscustomobject]@{{ status = "PASS"; assets_verified = $false }})
+    if (-not $valid.Valid -or -not $valid.Ready -or $badShape.Valid -or $badModalities.Valid -or $knownCfpUwf.Ready -or $unsupportedTask.Ready -or $unqualifiedGeneric.Ready -or -not $healthGood -or $healthBad) {{ exit 1 }}
 """
     result = subprocess.run([pwsh, "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr or result.stdout

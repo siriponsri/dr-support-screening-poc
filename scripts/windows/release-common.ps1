@@ -106,14 +106,41 @@ function Get-ReleaseModelCapabilityStatus([string] $Json) {
         -not $modelId.Trim() -or -not $task.Trim() -or $invalidModalities -or $invalidStatus
     })
     if ($invalid.Count -gt 0) { return $empty }
+    $expectedTasks = @{
+        "retfound-aptos5" = "global"
+        "prism-dr-5fold" = "lesion-roi"
+    }
     $ready = @($capabilities | Where-Object {
         $properties = $_.PSObject.Properties.Name
+        $modelId = [string]$_.model_id
+        $task = [string]$_.task
+        $modalities = $_.PSObject.Properties["modalities"].Value
+        $knownModel = $expectedTasks.ContainsKey($modelId)
+        $taskMatches = $task -in @("global", "lesion-roi") -and (-not $knownModel -or $expectedTasks[$modelId] -eq $task)
+        $knownCfpOnly = $knownModel -and "CFP" -in @($modalities)
+        $capabilityId = if ($properties -contains "capability_id") { [string]$_.capability_id } else { "" }
+        $revision = if ($properties -contains "revision") { [string]$_.revision } elseif ($properties -contains "model_version") { [string]$_.model_version } else { "" }
+        $preprocessing = if ($properties -contains "preprocessing") { [string]$_.preprocessing } elseif ($properties -contains "preprocessing_version") { [string]$_.preprocessing_version } else { "" }
+        $genericQualified = $capabilityId.Trim() -and $revision.Trim() -and $preprocessing.Trim()
         $release = if ($properties -contains "release_status") { ([string]$_.release_status).Trim().ToUpperInvariant() } else { "" }
         $blocked = $release -in @("DISABLED", "COMPARATOR_ONLY", "DEFERRED") -or $release.StartsWith("BLOCKED") -or $release.StartsWith("DEFERRED")
         $status = if ($properties -contains "status") { ([string]$_.status).Trim().ToUpperInvariant() } else { "" }
-        $status -eq "LOADED" -and -not $blocked
+        $status -eq "LOADED" -and -not $blocked -and $taskMatches -and $knownCfpOnly -or
+            $status -eq "LOADED" -and -not $blocked -and $taskMatches -and -not $knownModel -and $genericQualified
     })
     return [pscustomobject]@{ Valid = $true; Ready = $ready.Count -gt 0 }
+}
+
+function Test-ReleaseModelHealth([object] $Body) {
+    if (-not $Body) { return $false }
+    $properties = $Body.PSObject.Properties.Name
+    return (
+        ($properties -contains "status") -and
+        [string]$Body.status -in @("PASS", "PASS_WITH_WARNINGS") -and
+        ($properties -contains "assets_verified") -and
+        $Body.assets_verified -is [bool] -and
+        [bool]$Body.assets_verified
+    )
 }
 
 function Get-ReleaseComposeArguments([string[]] $Arguments) {
