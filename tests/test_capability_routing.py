@@ -95,6 +95,16 @@ def test_generic_capability_requires_qualification_metadata_before_routing():
         )
 
 
+def test_generic_capability_with_only_unsupported_modality_stays_manual_only():
+    with pytest.raises(CapabilityRoutingError, match="incomplete"):
+        route_capability(
+            _capability(model_id="generic-capability", modalities=["MRI"]),
+            model_id="generic-capability",
+            task="global",
+            modality="CFP",
+        )
+
+
 def test_unready_capability_stays_manual_only():
     with pytest.raises(CapabilityRoutingError, match="No ready model"):
         route_capability(

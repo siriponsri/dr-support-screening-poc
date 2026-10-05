@@ -14,6 +14,7 @@ EXPECTED_MODEL_TASKS = {
     "prism-dr-5fold": "lesion-roi",
 }
 SUPPORTED_TASKS = frozenset(EXPECTED_MODEL_TASKS.values())
+SUPPORTED_MODALITIES = frozenset({"CFP", "UWF"})
 QUALIFICATION_PLACEHOLDERS = frozenset({
     "UNKNOWN", "NOT_REPORTED", "NOT_AVAILABLE", "NONE", "NULL", "N/A",
 })
@@ -62,6 +63,8 @@ def capability_is_qualified(descriptor: Mapping[str, Any]) -> bool:
     if not isinstance(modalities, list) or not modalities:
         return False
     if any(not isinstance(modality, str) or not modality.strip() for modality in modalities):
+        return False
+    if not any(modality in SUPPORTED_MODALITIES for modality in modalities):
         return False
     if model_id in CFP_ONLY_MODEL_IDS:
         return "CFP" in modalities

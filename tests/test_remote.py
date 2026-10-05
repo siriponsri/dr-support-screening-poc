@@ -334,7 +334,7 @@ def test_api_rejects_explicitly_not_ready_generic_capability_at_inference(monkey
 
     def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path == '/health':
-            return httpx.Response(200, json={'status': 'PASS'})
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
         if request.url.path == '/v1/models':
             return httpx.Response(200, json=[{
                 'model_id': 'generic-uwf-grader',
@@ -377,7 +377,7 @@ def test_api_routes_qualified_generic_capability_with_preprocessing_alias(monkey
 
     def handle(request: httpx.Request) -> httpx.Response:
         if request.url.path == '/health':
-            return httpx.Response(200, json={'status': 'PASS'})
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
         if request.url.path == '/v1/models':
             return httpx.Response(200, json=[{
                 'model_id': 'generic-uwf-grader',

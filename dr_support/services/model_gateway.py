@@ -103,6 +103,8 @@ def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
 def _health_contract_valid(body: object) -> bool:
     if not isinstance(body, dict) or body.get("status") not in {"PASS", "PASS_WITH_WARNINGS", "FAIL"}:
         return False
+    if not isinstance(body.get("assets_verified"), bool):
+        return False
     warnings = body.get("warnings")
     if warnings is not None and (
         not isinstance(warnings, list)
@@ -146,7 +148,10 @@ def probe_model_connection(
                 return ModelGatewayProbe(
                     True, False, False, False, "UNVERIFIED", "Model API health did not match the expected contract."
                 )
-            health_ok = health_body["status"] in {"PASS", "PASS_WITH_WARNINGS"}
+            health_ok = (
+                health_body["status"] in {"PASS", "PASS_WITH_WARNINGS"}
+                and health_body["assets_verified"] is True
+            )
 
             models = client.get(f"{base_url}/v1/models", headers=headers)
             if models.status_code != 200:
@@ -168,6 +173,7 @@ def probe_model_connection(
         )
     capabilities_ready = any(model["ready"] for model in summaries)
     if not health_ok:
+        summaries = tuple({**model, "ready": False} for model in summaries)
         return ModelGatewayProbe(
             True,
             True,

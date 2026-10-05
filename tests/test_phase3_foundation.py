@@ -124,7 +124,7 @@ def test_capability_descriptors_keep_registry_release_restrictions_authoritative
 def test_model_gateway_accepts_capability_or_legacy_discovery():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == '/health':
-            return httpx.Response(200, json={'status': 'PASS'})
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
         return httpx.Response(200, json=[{
             'model_id': 'uspec-uwf-grading',
             'capability_id': 'dr_grade',
@@ -148,7 +148,7 @@ def test_model_gateway_accepts_capability_or_legacy_discovery():
 def test_model_gateway_only_reports_exact_loaded_capabilities_as_ready(status):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":
-            return httpx.Response(200, json={"status": "PASS_WITH_WARNINGS"})
+            return httpx.Response(200, json={"status": "PASS_WITH_WARNINGS", "assets_verified": True})
         descriptor = {"model_id": "retfound-aptos5"}
         if status is not None:
             descriptor["status"] = status
@@ -167,7 +167,7 @@ def test_model_gateway_only_reports_exact_loaded_capabilities_as_ready(status):
 def test_model_gateway_reports_loaded_capability_as_ready():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":
-            return httpx.Response(200, json={"status": "PASS"})
+            return httpx.Response(200, json={"status": "PASS", "assets_verified": True})
         return httpx.Response(200, json=[{
             "model_id": "retfound-aptos5",
             "task": "global",
@@ -182,10 +182,33 @@ def test_model_gateway_reports_loaded_capability_as_ready():
     assert probe.models[0]["ready"] is True
 
 
+def test_model_gateway_keeps_unverified_assets_manual_only():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS_WITH_WARNINGS", "assets_verified": False})
+        return httpx.Response(200, json=[{
+            "model_id": "generic-uwf-grader",
+            "capability_id": "uwf-grade",
+            "task": "global",
+            "status": "LOADED",
+            "modalities": ["UWF"],
+            "revision": "r1",
+            "preprocessing": "uwf-v1",
+        }])
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.api_contract_valid is True
+    assert probe.connection_verified is False
+    assert probe.capabilities_ready is False
+    assert probe.status == "UNAVAILABLE"
+    assert probe.models[0]["ready"] is False
+
+
 def test_model_gateway_does_not_promote_blocked_release_capability():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":
-            return httpx.Response(200, json={"status": "PASS"})
+            return httpx.Response(200, json={"status": "PASS", "assets_verified": True})
         return httpx.Response(200, json=[{
             "model_id": "retfound-aptos5",
             "task": "global",
@@ -204,7 +227,7 @@ def test_model_gateway_does_not_promote_blocked_release_capability():
 def test_model_gateway_requires_actionable_fields_for_generic_loaded_capability():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":
-            return httpx.Response(200, json={"status": "PASS"})
+            return httpx.Response(200, json={"status": "PASS", "assets_verified": True})
         return httpx.Response(200, json=[{
             "model_id": "uspec-like",
             "status": "LOADED",
@@ -220,7 +243,7 @@ def test_model_gateway_requires_actionable_fields_for_generic_loaded_capability(
 def test_model_gateway_accepts_complete_generic_loaded_global_capability():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":
-            return httpx.Response(200, json={"status": "PASS"})
+            return httpx.Response(200, json={"status": "PASS", "assets_verified": True})
         return httpx.Response(200, json=[{
             "model_id": "uspec-like",
             "capability_id": "dr_grade",
@@ -241,7 +264,7 @@ def test_model_gateway_accepts_complete_generic_loaded_global_capability():
 def test_model_gateway_does_not_promote_known_cfp_identity_for_uwf_only_advertisement():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":
-            return httpx.Response(200, json={"status": "PASS"})
+            return httpx.Response(200, json={"status": "PASS", "assets_verified": True})
         return httpx.Response(200, json=[{
             "model_id": "retfound-aptos5",
             "task": "global",
@@ -266,7 +289,7 @@ def test_model_gateway_respects_enriched_not_ready_placeholder_metadata():
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/health":
-            return httpx.Response(200, json={"status": "PASS"})
+            return httpx.Response(200, json={"status": "PASS", "assets_verified": True})
         return httpx.Response(200, json=enriched)
 
     probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))

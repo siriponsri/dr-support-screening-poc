@@ -61,7 +61,7 @@ def test_model_connection_never_returns_token_and_failed_save_preserves_provider
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request)
         if request.url.path == "/health":
-            return httpx.Response(200, json={"status": "PASS"})
+            return httpx.Response(200, json={"status": "PASS", "assets_verified": True})
         if request.url.path == "/v1/models":
             return httpx.Response(200, json=[
                 {"model_id": "retfound-aptos5", "status": "LOADED"},
