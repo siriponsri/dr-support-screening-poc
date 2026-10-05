@@ -78,14 +78,8 @@ function frontendBuildIdentityPlugin(frontendRoot: string): Plugin {
         .filter(([fileName]) => fileName !== 'build-identity.json')
         .map(([fileName, output]) => ({ path: fileName, sha256: outputDigest(output) }))
         .sort((a, b) => a.path.localeCompare(b.path));
-      const indexHtml = path.resolve(frontendRoot, 'index.html');
-      if (fs.existsSync(indexHtml)) {
-        outputFiles.push({
-          path: 'index.html',
-          sha256: createHash('sha256').update(fs.readFileSync(indexHtml)).digest('hex'),
-        });
-        outputFiles.sort((a, b) => a.path.localeCompare(b.path));
-      }
+
+
       this.emitFile({
         type: 'asset',
         fileName: 'build-identity.json',

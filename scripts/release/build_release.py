@@ -294,8 +294,9 @@ def verify_frontend_build(source_commit: str) -> dict[str, str]:
     if set(actual_by_relative) != expected_paths:
         raise SystemExit("prebuilt frontend output set does not match its build identity")
     actual_outputs = [
-        {"path": entry["path"], "sha256": sha256(actual_by_relative[entry["path"]])}
-        for entry in normalized_outputs
+        {"path": path, "sha256": sha256(actual_by_relative[path])}
+        for path in sorted(actual_by_relative)
+        if path != "build-identity.json"
     ]
     if actual_outputs != normalized_outputs:
         raise SystemExit("prebuilt frontend output bytes do not match its build identity")
