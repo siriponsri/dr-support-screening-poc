@@ -100,7 +100,7 @@ function Get-ReleaseModelCapabilityStatus([string] $Json) {
         $task = if ($properties -contains "task") { [string]$_.task } else { "" }
         $modalities = $null
         if ($properties -contains "modalities") { $modalities = $_.PSObject.Properties["modalities"].Value }
-        $invalidModalities = $modalities -isnot [array] -or @($modalities | Where-Object {
+        $invalidModalities = $modalities -isnot [array] -or @($modalities).Count -eq 0 -or @($modalities | Where-Object {
             $_ -isnot [string] -or -not $_.Trim()
         }).Count -gt 0
         $invalidStatus = ($properties -contains "status") -and $null -ne $_.status -and $_.status -isnot [string]

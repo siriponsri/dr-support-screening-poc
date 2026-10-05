@@ -329,7 +329,7 @@ def test_api_routes_inference_through_remote_provider(monkeypatch, tmp_path):
     assert all(isinstance(e.get('latency_ms'), (int, float)) for e in inference_events)
 
 
-def test_api_rejects_unqualified_generic_capability_at_inference(monkeypatch):
+def test_api_rejects_explicitly_not_ready_generic_capability_at_inference(monkeypatch):
     predict_calls = []
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -341,6 +341,10 @@ def test_api_rejects_unqualified_generic_capability_at_inference(monkeypatch):
                 'task': 'global',
                 'modalities': ['UWF'],
                 'status': 'LOADED',
+                'capability_id': 'uwf-grade',
+                'revision': 'r1',
+                'preprocessing': 'uwf-v1',
+                'ready': False,
             }])
         predict_calls.append(request.url.path)
         return httpx.Response(200, json=SAMPLE_GLOBAL_BODY)
@@ -364,8 +368,52 @@ def test_api_rejects_unqualified_generic_capability_at_inference(monkeypatch):
         'modality': 'UWF',
     })
     assert response.status_code == 409
-    assert 'capability is incomplete' in response.json()['detail']
+    assert 'capability is not ready' in response.json()['detail']
     assert predict_calls == []
+
+
+def test_api_routes_qualified_generic_capability_with_preprocessing_alias(monkeypatch):
+    predict_calls = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS'})
+        if request.url.path == '/v1/models':
+            return httpx.Response(200, json=[{
+                'model_id': 'generic-uwf-grader',
+                'task': 'global',
+                'modalities': ['UWF'],
+                'status': 'LOADED',
+                'capability_id': 'uwf-grade',
+                'revision': 'r1',
+                'preprocessing_version': 'uwf-v1',
+                'ready': True,
+            }])
+        predict_calls.append(request.url.path)
+        payload = json.loads(request.read())
+        result = json.loads(json.dumps(SAMPLE_GLOBAL_BODY))
+        result.update(model_id='generic-uwf-grader', modality='UWF')
+        result['provenance']['image_sha256'] = payload['image_sha256']
+        return httpx.Response(200, json=result)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    app.state.images[FIXTURE_IMAGE.image_id] = FIXTURE_IMAGE
+    app.state.admissions[FIXTURE_IMAGE.image_id] = {
+        **legacy_admission(FIXTURE_IMAGE),
+        'retinal_modality': 'UWF',
+    }
+    client = TestClient(app)
+
+    saved = client.put('/v1/model-connection', json={'name': 'Remote', 'url': 'https://remote.test'})
+    assert saved.status_code == 200
+    assert saved.json()['models'][0]['ready'] is True
+    response = client.post('/v1/infer/global', json={
+        'image_id': FIXTURE_IMAGE.image_id,
+        'model_id': 'generic-uwf-grader',
+        'modality': 'UWF',
+    })
+    assert response.status_code == 200
+    assert predict_calls == ['/v1/predict/dr']
 
 
 def test_api_returns_504_when_remote_times_out(monkeypatch):

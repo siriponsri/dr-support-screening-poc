@@ -111,6 +111,8 @@ def route_capability(
     status = str(descriptor.get("status") or "")
     if status not in READY_STATUSES:
         raise CapabilityRoutingError("No ready model is advertised for this request; manual review remains available.")
+    if descriptor.get("ready") is False:
+        raise CapabilityRoutingError("The advertised model capability is not ready for this request; manual review remains available.")
     if release_status_blocked(descriptor.get("release_status")):
         raise CapabilityRoutingError("The selected model is not available for review use; manual review remains available.")
     if not model_supports_modality(model_id, modality):
