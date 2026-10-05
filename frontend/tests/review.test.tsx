@@ -298,6 +298,27 @@ describe('Review responsibility boundary', () => {
     expect(screen.queryByRole('heading', { name: 'Lesion suggestions' })).not.toBeInTheDocument();
   });
 
+  it('keeps an incomplete generic UWF capability in the manual-review path', async () => {
+    const uwfCase: CaseRecord = {
+      ...readyCase,
+      modality: 'UWF',
+      admission: { ...readyCase.admission!, retinal_modality: 'UWF' },
+      global: null,
+      lesion: null,
+      lesion_review: null,
+    };
+    mockReviewApi(undefined, uwfCase, [{
+      model_id: 'generic-uwf-grader', task: 'global', modalities: ['UWF'], status: 'LOADED', ready: false,
+      capability_id: 'dr_grade', model_version: 'unknown', preprocessing_version: 'UNKNOWN',
+    }]);
+    renderAppAt('/review/ready');
+
+    expect(await screen.findByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
+    expect(screen.getByText('No ready UWF grading capability is connected.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Analysis' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
+  });
+
   it('keeps recorded evidence visible when new model analysis is unavailable', async () => {
     const recordedCase: CaseRecord = {
       ...readyCase,

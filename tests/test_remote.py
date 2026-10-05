@@ -355,6 +355,9 @@ def test_api_rejects_unqualified_generic_capability_at_inference(monkeypatch):
 
     saved = client.put('/v1/model-connection', json={'name': 'Remote', 'url': 'https://remote.test'})
     assert saved.status_code == 200
+    advertised = client.get('/v1/models').json()
+    generic = next(item for item in advertised if item['model_id'] == 'generic-uwf-grader')
+    assert generic['ready'] is False
     response = client.post('/v1/infer/global', json={
         'image_id': FIXTURE_IMAGE.image_id,
         'model_id': 'generic-uwf-grader',

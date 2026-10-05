@@ -458,12 +458,14 @@ export interface ModelDescriptor {
   release_status?: string;
   explanation_types?: string[];
   enabled?: boolean;
+  ready?: boolean;
   runtime?: string;
   status?: string;
   warnings?: string[];
   modalities?: string[];
   revision?: string;
   preprocessing?: string;
+  preprocessing_version?: string;
 }
 
 export interface WorkspaceProfile {

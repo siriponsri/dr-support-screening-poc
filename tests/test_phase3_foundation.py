@@ -96,6 +96,20 @@ def test_registry_keeps_uspec_blocked_and_does_not_promote_release_by_runtime():
     assert descriptor_for('uspec-uwf-grading')['artifact_digest'] == '8f07eb11859f638faee368a56c7c532ca946fee320f92f030a0cf25c63b769ac'
 
 
+def test_capability_descriptors_compute_ready_before_registry_fallback():
+    incomplete = capability_descriptors([{
+        'model_id': 'generic-uwf-grader', 'task': 'global', 'status': 'LOADED',
+        'modalities': ['UWF'],
+    }], include_registry=False)
+    qualified = capability_descriptors([{
+        'model_id': 'generic-uwf-grader', 'task': 'global', 'status': 'LOADED',
+        'modalities': ['UWF'], 'capability_id': 'uwf-grade', 'revision': 'r1',
+        'preprocessing': 'uwf-v1',
+    }], include_registry=False)
+    assert incomplete[0]['ready'] is False
+    assert qualified[0]['ready'] is True
+
+
 def test_model_gateway_accepts_capability_or_legacy_discovery():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == '/health':

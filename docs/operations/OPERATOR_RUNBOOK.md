@@ -16,7 +16,11 @@ Confirm that:
   running for the project-owned local PostgreSQL service. The service is
   named and stopped only through this checkout's release scripts.
 - `/health` reports `status: PASS` and `assets_verified: true`.
-- `/v1/models` lists `retfound-aptos5` and `prism-dr-5fold`.
+- `/v1/models` reports each advertised capability's task, supported modality,
+  status, and `ready` state. A `ready: true` generic UWF capability must carry
+  its capability ID, revision, and preprocessing metadata; the legacy CFP
+  identities are ready only for their confirmed CFP task. Both legacy models
+  do not need to be present for a connection to be useful.
 - The review workstation opens `/app/` and shows the Model API connection state honestly.
 - The workspace input and output folders are mounted and writable by the workstation account.
 - Free space is sufficient for managed PostgreSQL state and exported manifests.

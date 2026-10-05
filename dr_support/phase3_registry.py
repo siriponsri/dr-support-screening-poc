@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import Field
 
 from .contracts._schema import Contract
+from .services.capability_routing import READY_STATUSES, capability_is_qualified, release_status_blocked
 
 
 class CapabilityDescriptor(Contract):
@@ -37,6 +38,7 @@ class CapabilityDescriptor(Contract):
     rights_status: str
     release_status: str
     enabled: bool = False
+    ready: bool = False
     status: str
     warnings: list[str] = Field(default_factory=list)
 
@@ -241,6 +243,15 @@ def _fallback_entry(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _runtime_ready(item: dict[str, Any]) -> bool:
+    status = str(item.get("status") or "").strip().upper()
+    return (
+        status in READY_STATUSES
+        and not release_status_blocked(item.get("release_status"))
+        and capability_is_qualified(item)
+    )
+
+
 def capability_descriptors(
     runtime_items: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
     *,
@@ -273,11 +284,16 @@ def capability_descriptors(
         merged["model_version"] = str(item.get("revision") or item.get("model_version") or merged["model_version"])
         merged["runtime_status"] = str(item.get("status") or merged["runtime_status"])
         merged["status"] = str(item.get("status") or merged["status"])
+        # Compute actionability from the live provider record before registry
+        # fallback fields can make an incomplete capability look complete.
+        merged["ready"] = _runtime_ready(item)
         merged["warnings"] = list(dict.fromkeys([*merged.get("warnings", []), *(item.get("warnings") or [])]))
         descriptors[model_id] = merged
     if include_registry:
         for entry in _REGISTRY:
-            descriptors.setdefault(entry["model_id"], deepcopy(entry))
+            fallback = deepcopy(entry)
+            fallback.setdefault("ready", False)
+            descriptors.setdefault(entry["model_id"], fallback)
     return sorted(descriptors.values(), key=lambda item: (item["capability_id"], item["model_id"]))
 
 

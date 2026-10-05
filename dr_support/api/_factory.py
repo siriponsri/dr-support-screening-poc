@@ -435,7 +435,9 @@ def create_app(
         # UI's `response.json()` call).
         synthetic = [
             {'model_id': name, 'task': task, 'status': 'SYNTHETIC_FIXTURE',
-             'modalities': ['CFP'], 'warnings': ['Not real model inference']}
+             'modalities': ['CFP'], 'capability_id': f'{name}-fixture',
+             'revision': 'synthetic-v1', 'preprocessing': 'synthetic-v1',
+             'warnings': ['Not real model inference']}
             for name, task in [('mock-global', 'global'), ('mock-lesion', 'lesion-roi')]
         ]
         remote = []
