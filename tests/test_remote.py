@@ -418,6 +418,10 @@ def test_api_routes_qualified_generic_capability_with_preprocessing_alias(monkey
     })
     assert response.status_code == 200
     assert predict_calls == ['/v1/predict/dr']
+    case = client.get(f'/v1/cases/{FIXTURE_IMAGE.image_id}').json()
+    inference_events = [event for event in case['events'] if event.get('action') == 'INFERENCE']
+    assert inference_events[-1]['capability_id'] == 'uwf-grade'
+    assert case['inference_history'][-1]['capability_id'] == 'uwf-grade'
 
 
 def test_api_rechecks_remote_health_before_inference(monkeypatch):

@@ -56,7 +56,7 @@ export function isModelUsable(
 ): boolean {
   if (!modality || modality === 'UNKNOWN') return false;
   if (!READY_MODEL_STATUSES.has(model.status ?? '') || releaseStatusBlocked(model.release_status)) return false;
-  if (model.ready === false || (model.ready !== true && !hasQualifiedCapability(model))) return false;
+  if (model.ready === false || !hasQualifiedCapability(model)) return false;
   if (model.model_id.startsWith('mock-') && sourceOrigin !== 'SYNTHETIC') return false;
   if (modality === 'UWF' && isCfpOnlyModel(model.model_id)) return false;
   return (model.modalities ?? model.supported_modalities ?? []).includes(modality);

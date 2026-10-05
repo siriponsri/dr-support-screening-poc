@@ -629,7 +629,7 @@ def create_app(
             descriptor,
         )
         try:
-            route_capability(
+            route = route_capability(
                 descriptor,
                 model_id=request.model_id,
                 task=task,
@@ -658,6 +658,7 @@ def create_app(
                 task,
                 result,
                 analysis_derivative,
+                capability_id=route.capability_id,
                 invocation_id=invocation_id,
                 request_case_revision=request_case_revision,
             )
@@ -687,6 +688,7 @@ def create_app(
         result,
         analysis_derivative=None,
         *,
+        capability_id=None,
         invocation_id=None,
         request_case_revision=None,
     ):
@@ -717,7 +719,7 @@ def create_app(
             }
             entry = {
                 'invocation_id': invocation_id,
-                'capability_id': descriptor_for(request.model_id).get('capability_id'),
+                'capability_id': capability_id or descriptor_for(request.model_id).get('capability_id'),
                 'task': task,
                 'model_id': request.model_id,
                 'model_version': value.get('model_version'),
@@ -754,7 +756,7 @@ def create_app(
                     'status': 'APPLIED',
                     'invocation_id': invocation_id,
                     'model_id': request.model_id,
-                    'capability_id': descriptor_for(request.model_id).get('capability_id'),
+                    'capability_id': capability_id or descriptor_for(request.model_id).get('capability_id'),
                     'timestamp': datetime.now(timezone.utc).isoformat(),
                 }
                 if derivative_record is not None:
