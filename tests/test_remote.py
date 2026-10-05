@@ -447,6 +447,9 @@ def test_api_rechecks_remote_health_before_inference(monkeypatch):
     assert saved.status_code == 200
     state['assets_verified'] = False
 
+    displayed = client.get('/v1/models').json()
+    assert next(item for item in displayed if item['model_id'] == 'retfound-aptos5')['ready'] is False
+
     response = client.post('/v1/infer/global', json={
         'image_id': FIXTURE_IMAGE.image_id,
         'model_id': 'retfound-aptos5',

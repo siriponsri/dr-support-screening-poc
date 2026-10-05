@@ -372,6 +372,19 @@ def create_app(
             transport=getattr(app.state, 'model_gateway_transport', None),
         )
 
+    def display_provider_metadata(provider):
+        metadata = provider.metadata()
+        if isinstance(provider, RemoteModelProvider):
+            readiness = provider.readiness_probe()
+            if not readiness.connection_verified:
+                metadata = dict(metadata)
+                metadata['ready'] = False
+                metadata['warnings'] = list(dict.fromkeys([
+                    *(metadata.get('warnings') or []),
+                    'Model API health is not verified; manual review remains available.',
+                ]))
+        return metadata
+
     @app.get('/v1/model-connection', response_model=ModelConnectionResponse)
     def model_connection():
         connection = getattr(app.state, 'model_connection', None)
@@ -443,7 +456,7 @@ def create_app(
         remote = []
         for provider in app.state.providers.values():
             try:
-                remote.append(provider.metadata())
+                remote.append(display_provider_metadata(provider))
             except Exception as exc:  # pragma: no cover - defensive guard
                 # Provider.metadata() must already degrade, but belt-and-
                 # suspenders so a regression never produces HTTP 500 here.
@@ -462,7 +475,7 @@ def create_app(
         """Return the full deterministic capability/readiness view."""
 
         return capability_descriptors([
-            *(provider.metadata() for provider in app.state.providers.values())
+            *(display_provider_metadata(provider) for provider in app.state.providers.values())
         ])
 
     def infer(request, task, *, invocation_id=None, request_case_revision=None):
