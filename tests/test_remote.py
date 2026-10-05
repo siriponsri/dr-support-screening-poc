@@ -409,6 +409,7 @@ def test_api_routes_qualified_generic_capability_with_preprocessing_alias(monkey
 
     saved = client.put('/v1/model-connection', json={'name': 'Remote', 'url': 'https://remote.test'})
     assert saved.status_code == 200
+    assert 'generic-uwf-grader' in app.state.providers
     assert saved.json()['models'][0]['ready'] is True
     response = client.post('/v1/infer/global', json={
         'image_id': FIXTURE_IMAGE.image_id,
@@ -689,6 +690,8 @@ def test_api_v1_models_200_when_remote_metadata_404(monkeypatch):
     """A 404 on the remote metadata route must not crash local /v1/models."""
 
     def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
         if request.url.path == '/v1/models':
             return httpx.Response(404, text='not found', headers={'content-type': 'text/plain'})
         # Inference path: keep returning a valid payload so unrelated tests
@@ -746,6 +749,8 @@ def test_api_v1_models_200_when_remote_metadata_non_json(monkeypatch):
     """A text/plain metadata body must not crash local /v1/models."""
 
     def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
         if request.url.path == '/v1/models':
             return httpx.Response(200, text='Internal Server Error',
                                   headers={'content-type': 'text/plain'})
@@ -765,6 +770,8 @@ def test_api_v1_models_200_when_remote_metadata_wrong_schema(monkeypatch):
     """A metadata body that is not a JSON array must not crash local /v1/models."""
 
     def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
         if request.url.path == '/v1/models':
             return httpx.Response(200, json={'oops': 'not an array'})
         return httpx.Response(200, json=SAMPLE_GLOBAL_BODY)
@@ -785,7 +792,10 @@ def test_api_v1_models_200_when_remote_metadata_unexpected_exception(monkeypatch
         def metadata(self):  # type: ignore[override]
             raise RuntimeError('simulated metadata bug')
 
-    app = _wire_remote_app(monkeypatch, _success_handler()[1])
+    monkeypatch.setenv('MODEL_RUNTIME', 'remote')
+    monkeypatch.delenv('REMOTE_MODEL_URL', raising=False)
+    monkeypatch.delenv('REMOTE_MODEL_TOKEN', raising=False)
+    app = create_app(include_samples=False)
     # Replace one provider with a faulty one to exercise the api/_factory
     # belt-and-suspenders guard.
     for mid, provider in list(app.state.providers.items()):
@@ -800,6 +810,30 @@ def test_api_v1_models_200_when_remote_metadata_unexpected_exception(monkeypatch
     assert descriptors['retfound-aptos5']['status'] == 'REMOTE_INVALID_SCHEMA'
     assert any('simulated metadata bug' in w or 'Provider metadata failed' in w
                for w in descriptors['retfound-aptos5']['warnings'])
+
+
+def test_api_v1_models_uses_one_shared_remote_probe_for_all_providers(monkeypatch):
+    calls = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
+        if request.url.path == '/v1/models':
+            return httpx.Response(200, json=[
+                {'model_id': 'retfound-aptos5', 'task': 'global',
+                 'modalities': ['CFP'], 'status': 'LOADED'},
+                {'model_id': 'prism-dr-5fold', 'task': 'lesion-roi',
+                 'modalities': ['CFP'], 'status': 'LOADED'},
+            ])
+        return httpx.Response(404)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    response = TestClient(app).get('/v1/models')
+
+    assert response.status_code == 200
+    assert calls.count('/health') == 1
+    assert calls.count('/v1/models') == 1
 
 
 def test_api_v1_models_never_leaks_token_in_metadata_failures(monkeypatch, caplog):

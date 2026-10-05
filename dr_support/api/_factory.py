@@ -372,23 +372,86 @@ def create_app(
             transport=getattr(app.state, 'model_gateway_transport', None),
         )
 
-    def display_provider_metadata(provider):
-        metadata = provider.metadata()
-        if isinstance(provider, RemoteModelProvider):
-            readiness = provider.readiness_probe()
-            if not readiness.connection_verified:
-                metadata = dict(metadata)
-                metadata['ready'] = False
-                metadata['warnings'] = list(dict.fromkeys([
-                    *(metadata.get('warnings') or []),
-                    'Model API health is not verified; manual review remains available.',
-                ]))
+    def providers_from_probe(
+        connection: ModelConnection,
+        probe: ModelGatewayProbe,
+        *,
+        reuse_existing: bool = False,
+    ):
+        providers = {}
+        existing = app.state.providers if reuse_existing else {}
+        for advertised in probe.models:
+            try:
+                provider = existing.get(advertised.get('model_id'))
+                if not (
+                    isinstance(provider, RemoteModelProvider)
+                    and provider.base_url == connection.url
+                    and provider._explicit_token == connection.token
+                ):
+                    provider = provider_from_descriptor(
+                        advertised,
+                        base_url=connection.url,
+                        token=connection.token,
+                        transport=getattr(app.state, 'model_gateway_transport', None),
+                    )
+            except ValueError:
+                continue
+            providers[provider.model_id] = provider
+        return providers
+
+    def refresh_remote_state():
+        if not app.state.remote_runtime:
+            return None
+        connection = getattr(app.state, 'model_connection', None)
+        if connection is None:
+            return None
+        probe = connection_probe(connection)
+        app.state.model_connection_probe = probe
+        providers = providers_from_probe(connection, probe, reuse_existing=True)
+        if providers:
+            app.state.providers = providers
+        return probe
+
+    def display_provider_metadata(provider, probe: ModelGatewayProbe | None = None):
+        if not isinstance(provider, RemoteModelProvider) or probe is None:
+            return provider.metadata()
+        descriptor = next(
+            (item for item in probe.models if item.get('model_id') == provider.model_id),
+            None,
+        )
+        if descriptor is None:
+            return {
+                'model_id': provider.model_id,
+                'task': provider.task,
+                'runtime': 'remote',
+                'remote_url': provider.base_url,
+                'status': (
+                    'REMOTE_MODEL_NOT_LISTED'
+                    if probe.connection_verified
+                    else probe.descriptor_status or probe.status
+                ),
+                'modalities': [],
+                'ready': False,
+                'warnings': [probe.message],
+            }
+        metadata = dict(descriptor)
+        metadata['runtime'] = 'remote'
+        metadata['remote_url'] = provider.base_url
+        metadata['warnings'] = list(dict.fromkeys([
+            *(metadata.get('warnings') or []),
+            *provider._runtime_warnings(),
+        ]))
+        if not probe.connection_verified:
+            metadata['ready'] = False
+            metadata['warnings'].append(
+                'Model API health is not verified; manual review remains available.'
+            )
         return metadata
 
     @app.get('/v1/model-connection', response_model=ModelConnectionResponse)
     def model_connection():
         connection = getattr(app.state, 'model_connection', None)
-        probe = getattr(app.state, 'model_connection_probe', None)
+        probe = refresh_remote_state() if connection is not None else None
         return response_payload(connection, probe=probe)
 
     @app.post('/v1/model-connection/test', response_model=ModelConnectionResponse)
@@ -408,18 +471,7 @@ def create_app(
         if not probe.verified:
             # Do not mutate either the active providers or the saved candidate.
             raise HTTPException(502, probe.message)
-        providers = {}
-        for advertised in probe.models:
-            try:
-                provider = provider_from_descriptor(
-                    advertised,
-                    base_url=candidate.url,
-                    token=candidate.token,
-                    transport=getattr(app.state, 'model_gateway_transport', None),
-                )
-            except ValueError:
-                continue
-            providers[provider.model_id] = provider
+        providers = providers_from_probe(candidate, probe)
         if not providers:
             raise HTTPException(502, 'Model API advertised no supported inference capability.')
         app.state.providers = providers
@@ -446,6 +498,7 @@ def create_app(
         # failure degrades that descriptor instead of crashing the whole
         # response (which would surface as HTTP 500 + text/plain and break the
         # UI's `response.json()` call).
+        probe = refresh_remote_state()
         synthetic = [
             {'model_id': name, 'task': task, 'status': 'SYNTHETIC_FIXTURE',
              'modalities': ['CFP'], 'capability_id': f'{name}-fixture',
@@ -456,7 +509,7 @@ def create_app(
         remote = []
         for provider in app.state.providers.values():
             try:
-                remote.append(display_provider_metadata(provider))
+                remote.append(display_provider_metadata(provider, probe))
             except Exception as exc:  # pragma: no cover - defensive guard
                 # Provider.metadata() must already degrade, but belt-and-
                 # suspenders so a regression never produces HTTP 500 here.
@@ -474,8 +527,9 @@ def create_app(
     def capabilities():
         """Return the full deterministic capability/readiness view."""
 
+        probe = refresh_remote_state()
         return capability_descriptors([
-            *(display_provider_metadata(provider) for provider in app.state.providers.values())
+            *(display_provider_metadata(provider, probe) for provider in app.state.providers.values())
         ])
 
     def infer(request, task, *, invocation_id=None, request_case_revision=None):
@@ -521,11 +575,17 @@ def create_app(
                 request_case_revision=request_case_revision,
             )
             return result
+        remote_probe = refresh_remote_state() if app.state.remote_runtime else None
         provider = app.state.providers.get(request.model_id)
         if provider is None or provider.task != task:
+            if remote_probe is not None and not remote_probe.connection_verified:
+                raise HTTPException(
+                    503,
+                    'AI analysis is not available; manual review remains available.',
+                )
             raise HTTPException(404, 'Unknown model for this task')
         if isinstance(provider, RemoteModelProvider):
-            readiness = provider.readiness_probe()
+            readiness = remote_probe or provider.readiness_probe()
             if not readiness.connection_verified:
                 if readiness.status == 'UNAVAILABLE':
                     raise HTTPException(

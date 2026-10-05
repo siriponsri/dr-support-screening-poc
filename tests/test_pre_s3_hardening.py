@@ -95,6 +95,11 @@ def test_model_connection_never_returns_token_and_failed_save_preserves_provider
         return httpx.Response(503)
 
     app.state.model_gateway_transport = httpx.MockTransport(unavailable)
+    connection_state = client.get('/v1/model-connection')
+    assert connection_state.status_code == 200
+    assert connection_state.json()['status'] == 'UNAVAILABLE'
+    assert connection_state.json()['connection_verified'] is False
+    assert connection_state.json()['models'] == []
     failed = client.put(
         "/v1/model-connection",
         json={"name": "Broken", "url": "https://broken.test", "token": "failed-secret"},

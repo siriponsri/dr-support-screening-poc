@@ -41,6 +41,7 @@ class ModelGatewayProbe:
     status: str
     message: str
     models: tuple[dict[str, Any], ...] = ()
+    descriptor_status: str | None = None
 
     @property
     def verified(self) -> bool:
@@ -158,20 +159,47 @@ def probe_model_connection(
             models = client.get(f"{base_url}/v1/models", headers=headers)
             if models.status_code != 200:
                 return ModelGatewayProbe(
-                    True, False, False, False, "UNAVAILABLE", "Model API capabilities could not be verified."
+                    True,
+                    False,
+                    False,
+                    False,
+                    "UNAVAILABLE",
+                    "Model API capabilities at /v1/models could not be verified.",
+                    descriptor_status=f"REMOTE_HTTP_{models.status_code}",
                 )
             try:
-                summaries = _model_summary(models.json())
+                models_body = models.json()
             except ValueError:
-                summaries = None
+                return ModelGatewayProbe(
+                    True,
+                    False,
+                    False,
+                    False,
+                    "UNVERIFIED",
+                    "Model API capabilities did not match the expected contract at /v1/models.",
+                    descriptor_status="REMOTE_INVALID_JSON",
+                )
+            summaries = _model_summary(models_body)
     except (httpx.HTTPError, ValueError, OSError):
         return ModelGatewayProbe(
-            False, False, False, False, "UNAVAILABLE", "Model API server could not be reached."
+            False,
+            False,
+            False,
+            False,
+            "UNAVAILABLE",
+            "Model API server could not be reached.",
+            descriptor_status="REMOTE_UNREACHABLE",
         )
 
     if summaries is None:
         return ModelGatewayProbe(
-            True, False, False, False, "UNVERIFIED", "Model API capabilities did not match the expected contract."
+            True,
+            False,
+            False,
+            False,
+            "UNVERIFIED",
+            "Model API capabilities did not match the expected contract at /v1/models.",
+            descriptor_status="REMOTE_INVALID_SCHEMA",
         )
     capabilities_ready = any(model["ready"] for model in summaries)
     if not health_ok:
