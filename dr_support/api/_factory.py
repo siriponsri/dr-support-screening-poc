@@ -387,6 +387,7 @@ def create_app(
                     isinstance(provider, RemoteModelProvider)
                     and provider.base_url == connection.url
                     and provider._explicit_token == connection.token
+                    and provider.task == advertised.get('task')
                 ):
                     provider = provider_from_descriptor(
                         advertised,

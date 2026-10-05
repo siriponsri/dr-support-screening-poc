@@ -836,6 +836,51 @@ def test_api_v1_models_uses_one_shared_remote_probe_for_all_providers(monkeypatc
     assert calls.count('/v1/models') == 1
 
 
+def test_api_refresh_replaces_provider_when_advertised_task_changes(monkeypatch):
+    state = {'task': 'global'}
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/health':
+            return httpx.Response(200, json={'status': 'PASS', 'assets_verified': True})
+        if request.url.path == '/v1/models':
+            return httpx.Response(200, json=[{
+                'model_id': 'generic-capability',
+                'task': state['task'],
+                'modalities': ['CFP'],
+                'status': 'LOADED',
+                'capability_id': 'review-capability',
+                'revision': 'r1',
+                'preprocessing': 'cfp-v1',
+                'release_status': 'QUALIFIED',
+            }])
+        if request.url.path == '/v1/predict/lesions':
+            result = json.loads(json.dumps(SAMPLE_LESION_BODY))
+            payload = json.loads(request.read())
+            result['provenance']['image_sha256'] = payload['image_sha256']
+            return httpx.Response(200, json=result)
+        return httpx.Response(404)
+
+    app = _wire_remote_app(monkeypatch, handle)
+    app.state.images[FIXTURE_IMAGE.image_id] = FIXTURE_IMAGE
+    client = TestClient(app)
+
+    saved = client.put('/v1/model-connection', json={'name': 'Remote', 'url': 'https://remote.test'})
+    assert saved.status_code == 200
+    assert app.state.providers['generic-capability'].task == 'global'
+
+    state['task'] = 'lesion-roi'
+    refreshed = client.get('/v1/models')
+    assert refreshed.status_code == 200
+    assert app.state.providers['generic-capability'].task == 'lesion-roi'
+
+    response = client.post('/v1/infer/lesion-roi', json={
+        'image_id': FIXTURE_IMAGE.image_id,
+        'model_id': 'generic-capability',
+        'modality': 'CFP',
+    })
+    assert response.status_code == 200
+
+
 def test_api_v1_models_never_leaks_token_in_metadata_failures(monkeypatch, caplog):
     """The bearer token must not appear in /v1/models output or log output,
     even when the remote returns garbage."""
