@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { CaseRecord, HumanAnnotation, Lesion } from '@/lib/api';
+import { setGuideModeEnabled } from '@/lib/hintPreference';
 import { renderAppAt } from './testUtils';
 
 /**
@@ -298,6 +299,26 @@ describe('Annotation Editor single-line completion', () => {
     expect(await screen.findByRole('link', { name: 'Continue to clinician review' })).toHaveAttribute('href', '/clinician-review/case-2');
     expect(screen.queryByRole('dialog', { name: 'Confirm Image' })).not.toBeInTheDocument();
     expect(backend.log.some((entry) => entry.body?.action === 'CONFIRM_ANNOTATIONS')).toBe(true);
+  });
+
+  it('keeps Guide OFF quiet through a multi-case finish-and-next flow', async () => {
+    const user = userEvent.setup();
+    setGuideModeEnabled(false);
+    fakeBackend([
+      baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade }),
+      baseCase('case-2', 'b.jpg'),
+    ]);
+    renderAppAt('/edit/case-1');
+
+    expect(screen.queryByTestId('guide-hint')).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Finish - reviewed none found' }));
+    const nextReview = await screen.findByRole('link', { name: 'Continue to clinician review' });
+    expect(nextReview).toHaveAttribute('href', '/clinician-review/case-2');
+    expect(screen.queryByTestId('guide-hint')).not.toBeInTheDocument();
+
+    await user.click(nextReview);
+    expect(await screen.findByRole('button', { name: 'Confirm DR grade' })).toBeInTheDocument();
+    expect(screen.queryByTestId('guide-hint')).not.toBeInTheDocument();
   });
 
   it('guards Back to Review while confirmed annotations are reopened and leaves a clean complete case without warning', async () => {
