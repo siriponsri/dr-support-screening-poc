@@ -25,6 +25,7 @@ import type { CaseRecord, Laterality, RetinalModality } from '@/lib/api';
 import { admissionApi } from '@/lib/api';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 import { ReviewerField } from '@/components/common/ReviewerField';
+import { GuideHint } from '@/components/common/GuideHint';
 import { ChevronDown, ChevronUp, Pencil } from '@/lib/icons';
 
 function filenameMethod(method?: string): boolean {
@@ -147,6 +148,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
         <ModalCloseButton />
         <ModalBody>
           <Stack spacing={4}>
+            <GuideHint step="confirm-image" />
             {error && <Alert status="error"><AlertIcon /><Text>{error}</Text></Alert>}
             <Stack spacing={1}>
               <Text fontWeight="semibold">{item?.filename ?? item?.display_name}</Text>
@@ -189,7 +191,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
                 {editEye && eyeResolved && <Button type="button" size="xs" variant="ghost" mt={1} onClick={() => setEditEye(false)}>Done</Button>}
               </FormControl>
             )}
-            <ReviewerField id="confirm-image-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
+            <ReviewerField compact id="confirm-image-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
             <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3}>
               <Button
                 type="button"

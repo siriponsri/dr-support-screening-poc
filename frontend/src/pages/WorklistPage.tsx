@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, AlertIcon, Box, Button, Center, HStack, Spinner, Stack, Text, VStack } from '@chakra-ui/react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
+import { GuideCompletionOffer } from '@/components/common/GuideHint';
 import { Section } from '@/components/common/Section';
 import { admissionApi, apiJson, queueApi, type CaseRecord, type ModelDescriptor } from '@/lib/api';
 import { RefreshCw, ScanLine } from '@/lib/icons';
@@ -93,6 +94,7 @@ export function WorklistPage() {
   return (
     <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader pathname={pathname} subtitle="Admitted retinal images for clinician review" />
+      <GuideCompletionOffer />
       <Section title="Worklist" description="Review admitted images, resolve patient and eye identity, and keep AI assistance separate from the clinician decision." action={<HStack spacing={2} width={{ base: '100%', tablet: 'auto' }} justifyContent={{ base: 'flex-start', tablet: 'flex-end' }} flexWrap="wrap"><Button leftIcon={<ScanLine size={15} />} onClick={() => void scanInput()} isLoading={scanning}>Scan input folder</Button><Button variant="outline" leftIcon={<RefreshCw size={15} />} onClick={() => void loadCases()} isLoading={loading}>Refresh</Button></HStack>}>
         {completedNotice && (
           <Alert status="success" mb={4} role="status">

@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { Checkbox, FormControl, FormLabel, Input, Text } from '@chakra-ui/react';
 import { Section } from '@/components/common/Section';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
-import { getHintsEnabled, setHintsEnabled } from '@/lib/hintPreference';
+import { getGuideModeEnabled, setGuideModeEnabled } from '@/lib/hintPreference';
 
 export function ReviewerPreference() {
   const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
-  const [hintsEnabled, setHintsEnabledState] = useState(() => getHintsEnabled());
+  const [guideEnabled, setGuideEnabled] = useState(() => getGuideModeEnabled());
 
   const updateReviewer = (value: string) => {
     setReviewer(value);
@@ -30,12 +30,12 @@ export function ReviewerPreference() {
       </FormControl>
       <FormControl mt={5} maxW={{ base: '100%', tablet: '420px' }}>
         <Checkbox
-          isChecked={hintsEnabled}
-          onChange={(event) => { const checked = event.target.checked; setHintsEnabledState(checked); setHintsEnabled(checked); }}
+          isChecked={guideEnabled}
+          onChange={(event) => { const checked = event.target.checked; setGuideEnabled(checked); setGuideModeEnabled(checked); }}
         >
-          Show next action hints
+          Guide mode
         </Checkbox>
-        <Text mt={2} fontSize="xs" color="text.secondary">Hints are guidance only. They do not change clinical state and are stored on this workstation.</Text>
+        <Text mt={2} fontSize="xs" color="text.secondary">Brief step hints only.</Text>
       </FormControl>
     </Section>
   );

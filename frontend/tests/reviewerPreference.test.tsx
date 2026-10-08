@@ -48,7 +48,8 @@ describe('default reviewer preference', () => {
         </MemoryRouter>
       </ChakraProvider>,
     );
-    expect(await screen.findByPlaceholderText('Reviewer name')).toHaveValue('New reviewer');
+    expect(await screen.findByText('New reviewer')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change' })).toBeInTheDocument();
     expect(fetchSpy).toHaveBeenCalled();
 
     cleanup();

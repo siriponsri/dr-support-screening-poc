@@ -206,7 +206,7 @@ describe('Review responsibility boundary', () => {
     expect(screen.getByLabelText('Final DR grade')).toHaveValue('2');
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Send for senior review' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Confirm grade' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     expect(reviewRequest).toMatchObject({ action: 'ACCEPT', grade: 2, reviewer: 'Review clinician' });
     expect(await screen.findByRole('button', { name: 'Finish - reviewed none found' })).toBeInTheDocument();
   });

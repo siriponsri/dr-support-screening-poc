@@ -87,8 +87,7 @@ describe('AnnotationEditorPage human movement', () => {
     expect(screen.getByLabelText('Selected annotation class')).toHaveValue('SOFT_EXUDATE');
     fireEvent.change(screen.getByLabelText('Selected annotation class'), { target: { value: 'HEMORRHAGE' } });
     fireEvent.change(screen.getByPlaceholderText('Reviewer name'), { target: { value: 'Clinician' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
-    await waitFor(() => expect(annotationBody).toBeDefined());
+    await waitFor(() => expect(annotationBody).toBeDefined(), { timeout: 3000 });
     expect(annotationBody).toMatchObject({ annotations: [{ label: 'HEMORRHAGE' }] });
   });
 

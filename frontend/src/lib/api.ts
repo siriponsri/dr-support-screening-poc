@@ -277,6 +277,16 @@ export interface CaseRecord {
   grade_review_source?: string | null;
   grade_reviews?: GradeReview[];
   grade_adjudication?: Record<string, unknown> | null;
+  referral?: {
+    status: 'REFER' | 'NOT_REFER' | 'UNDETERMINED' | string;
+    rule_id?: string | null;
+    rule_version?: string | null;
+    source_grade?: number | null;
+    source_grade_revision?: number | null;
+    reviewer?: string | null;
+    timestamp?: string | null;
+    reason?: string | null;
+  };
   visit_context?: {
     visit_key: string | null;
     captured_at: string | null;

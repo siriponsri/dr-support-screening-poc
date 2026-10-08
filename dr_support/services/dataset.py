@@ -18,10 +18,11 @@ from .admission import legacy_admission
 from ..presentation import annotation_set_hash, lesion_detection_id, review_evidence_view
 from ..imaging import DerivativeError
 from .resolver import normalize_patient_key
+from ..referral import current_referral
 
 
 EXPORT_SCHEMA_VERSION = "s4.dataset-manifest.v2"
-SNAPSHOT_SCHEMA_VERSION = "s4.dataset-snapshot.v3"
+SNAPSHOT_SCHEMA_VERSION = "s4.dataset-snapshot.v4"
 LEGACY_ELIGIBILITY_POLICY_VERSION = "s8.2-task-specific-v1"
 SNAPSHOT_ELIGIBILITY_POLICY_VERSION = "s8.2-task-specific-v2"
 NEGATIVE_POLICY_VERSION = "p4-negative-training-deferred-v1"
@@ -117,6 +118,8 @@ SNAPSHOT_RECORD_FIELDS = [
     "visit_evidence_state", "captured_at", "capture_sequence", "image_confirmation_status",
     "dr_grade_confirmation_status", "dr_grade_confirmed_by", "dr_grade_confirmed_at",
     "clinician_grade", "grade_provenance", "dr_grade_training_ready", "grade_eligibility_reason",
+    "referral_status", "referral_rule_id", "referral_rule_version",
+    "referral_source_grade_revision", "referral_reviewer", "referral_reviewed_at",
     "lesion_training_ready", "lesion_positive_training_ready", "lesion_eligibility_reason",
     "core_completeness_state", "core_completeness_reviewer", "core_completeness_at",
     "core_completeness_taxonomy_version", "advanced_completeness_state",
@@ -129,7 +132,9 @@ SNAPSHOT_RECORD_FIELDS = [
 
 DR_LABEL_FIELDS = [
     "image_id", "source_sha256", "dr_grade", "grade_provenance", "reviewer", "reviewed_at",
-    "case_revision", "training_group_key", "policy_version",
+    "case_revision", "training_group_key", "referral_status", "referral_rule_id",
+    "referral_rule_version", "referral_source_grade_revision", "referral_reviewer",
+    "referral_reviewed_at", "policy_version",
 ]
 
 LESION_LABEL_FIELDS = [
@@ -568,6 +573,7 @@ class DatasetManifestService:
             filename = (admission or {}).get("filename") or (image.filename if image is not None else image_id)
             core_completeness = _completeness_record(case, "CORE")
             advanced_completeness = _completeness_record(case, "ADVANCED")
+            referral = current_referral(case)
             row = {
                 "image_id": image_id,
                 "filename": filename,
@@ -594,6 +600,12 @@ class DatasetManifestService:
                 "ai_confidence": global_result.get("confidence"),
                 "clinician_grade": grade,
                 "grade_review_source": grade_source,
+                "referral_status": referral["status"],
+                "referral_rule_id": referral["rule_id"],
+                "referral_rule_version": referral["rule_version"],
+                "referral_source_grade_revision": referral["source_grade_revision"],
+                "referral_reviewer": referral["reviewer"],
+                "referral_reviewed_at": referral["timestamp"],
                 "review_status": "CLINICIAN_REVIEWED" if grade is not None else ("AI_ONLY" if global_result or lesion_result else "UNVERIFIED"),
                 "reviewer": review.get("reviewer"),
                 "reviewed_at": review.get("timestamp"),
@@ -1140,6 +1152,12 @@ class DatasetManifestService:
                 "reviewed_at": row.get("reviewed_at"),
                 "case_revision": row.get("case_revision"),
                 "training_group_key": row.get("training_group_key"),
+                "referral_status": row.get("referral_status"),
+                "referral_rule_id": row.get("referral_rule_id"),
+                "referral_rule_version": row.get("referral_rule_version"),
+                "referral_source_grade_revision": row.get("referral_source_grade_revision"),
+                "referral_reviewer": row.get("referral_reviewer"),
+                "referral_reviewed_at": row.get("referral_reviewed_at"),
                 "policy_version": SNAPSHOT_ELIGIBILITY_POLICY_VERSION,
             }
             for row in images
@@ -1284,6 +1302,12 @@ class DatasetManifestService:
                 "source_state_digest_version": SOURCE_STATE_DIGEST_VERSION,
                 "source_state_digest": source_state,
                 "negative_policy_version": NEGATIVE_POLICY_VERSION,
+                "referral_policy": {
+                    "rule_id": "M1_DR_GRADE_4_REFERRAL",
+                    "rule_version": "1.0.0",
+                    "source": "current_clinician_confirmed_grade_only",
+                    "statuses": sorted({str(row.get("referral_status")) for row in images}),
+                },
                 "grouping_policy": "patient_key_only; no automatic train-validation-test split",
                 "excluded_count": sum(row["dataset_status"] == "Excluded" for row in images),
                 "files": ["manifest.json", "images.csv", "annotations.csv"],

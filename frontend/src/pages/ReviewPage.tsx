@@ -12,6 +12,7 @@ import {
   Grid,
   Heading,
   HStack,
+  Image,
   SimpleGrid,
   Select,
   Spinner,
@@ -24,7 +25,7 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { RetinalCanvas, LESION_COLORS } from '@/components/review/RetinalCanvas';
 import { displayedLesions } from '@/components/review/lesionPresentation';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
-import { NextActionHint } from '@/components/common/NextActionHint';
+import { GuideHint } from '@/components/common/GuideHint';
 import {
   apiJson,
   drGradeLabel,
@@ -36,6 +37,23 @@ import { isModelUsable } from '@/lib/modelCapabilities';
 import { ArrowLeft, ChevronDown, ChevronUp, Play, UserRound } from '@/lib/icons';
 import { LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
 import { caseComplete } from '@/lib/caseProgress';
+
+type ComparisonResponse = {
+  eligible: boolean;
+  reason?: string;
+  chronology?: string;
+  limitation?: string;
+  visits?: Array<{
+    label: string;
+    image_id: string;
+    display_name?: string;
+    image_url?: string | null;
+    visit_context?: CaseRecord['visit_context'];
+    grade?: number | null;
+    grade_status?: string;
+    findings_reviewed?: boolean;
+  }>;
+};
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : 'The request could not be completed.';
@@ -222,6 +240,20 @@ function patientEyeContext(item: CaseRecord) {
   return `${patient} \u00b7 ${eye}`;
 }
 
+function ReviewContextStatus({ item }: { item: CaseRecord }) {
+  const messages = [
+    item.resolver_ui?.action_required ? 'Patient and eye context needs confirmation.' : null,
+    item.admission_ui?.action_required ? 'Image context needs confirmation.' : null,
+  ].filter((message): message is string => Boolean(message));
+  if (messages.length === 0) return null;
+  return (
+    <Alert status="warning" variant="subtle" py={2} px={3} alignItems="flex-start">
+      <AlertIcon />
+      <Text fontSize="sm">{messages.join(' ')}</Text>
+    </Alert>
+  );
+}
+
 function sourceOriginLabel(sourceOrigin: CaseRecord['source_origin']): string {
   if (sourceOrigin === 'PUBLIC') return 'Public source';
   if (sourceOrigin === 'SYNTHETIC') return 'Synthetic fixture';
@@ -321,6 +353,12 @@ export function ReviewPage() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [maskOverlayLoadError, setMaskOverlayLoadError] = useState(false);
   const [processingOpen, setProcessingOpen] = useState(false);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [comparisonCases, setComparisonCases] = useState<CaseRecord[]>([]);
+  const [comparisonCaseId, setComparisonCaseId] = useState('');
+  const [comparison, setComparison] = useState<ComparisonResponse | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [confirmDialog, confirm] = useConfirmDialog();
 
   const loadCase = useCallback(async () => {
@@ -426,6 +464,46 @@ export function ReviewPage() {
   const analysisAreaUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/analysis-area` : '';
   const maskOverlayUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/mask-overlay` : '';
   const hasRecordedEvidence = Boolean(item?.global || item?.lesion);
+  const comparisonIdentityResolved = Boolean(
+    item?.patient_resolution_state === 'RESOLVED'
+      && item.patient_key
+      && item.laterality_resolution_state === 'RESOLVED'
+      && item.laterality && item.laterality !== 'UNKNOWN',
+  );
+
+  const loadComparisonCases = async () => {
+    if (!item || !comparisonIdentityResolved) return;
+    setComparisonLoading(true);
+    setComparisonError(null);
+    try {
+      const cases = await apiJson<CaseRecord[]>('/v1/cases');
+      setComparisonCases(cases.filter((candidate) => (
+        candidate.image_id !== item.image_id
+        && candidate.patient_resolution_state === 'RESOLVED'
+        && candidate.patient_key === item.patient_key
+        && candidate.laterality_resolution_state === 'RESOLVED'
+        && candidate.laterality === item.laterality
+      )));
+    } catch (err) {
+      setComparisonError(errorText(err));
+    } finally {
+      setComparisonLoading(false);
+    }
+  };
+
+  const runComparison = async () => {
+    if (!item || !comparisonCaseId) return;
+    setComparisonLoading(true);
+    setComparisonError(null);
+    try {
+      setComparison(await apiJson<ComparisonResponse>(`/v1/cases/${encodeURIComponent(item.image_id)}/comparison?other_image_id=${encodeURIComponent(comparisonCaseId)}`));
+    } catch (err) {
+      setComparisonError(errorText(err));
+      setComparison(null);
+    } finally {
+      setComparisonLoading(false);
+    }
+  };
   const manualOnly = !hasRecordedEvidence && (
     origin === 'WORKSPACE'
       || modelUnavailable
@@ -469,10 +547,11 @@ export function ReviewPage() {
       </HStack>
       <Stack spacing={3} mb={5}>
         <CaseNavigation imageId={item.image_id} guarded={!caseComplete(item)} confirm={confirm} />
-        <NextActionHint item={item} models={models} />
+        <ReviewContextStatus item={item} />
+        <GuideHint step="review" />
       </Stack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start" minW={0}>
-        <Section title="Retinal preview" description={`${item.width} x ${item.height}px · ${item.modality === 'UWF' ? 'Ultra-widefield' : item.modality === 'CFP' ? 'Conventional fundus photograph' : 'Image type needs confirmation'}`}>
+        <Section title="Retinal preview" description={item.modality === 'UWF' ? 'Ultra-widefield image' : item.modality === 'CFP' ? 'Conventional fundus photograph' : 'Image type needs confirmation'}>
           {item.modality === 'UWF' && (
             <Stack spacing={2} mb={3}>
               <HStack spacing={2} aria-label="Mask status">
@@ -547,11 +626,6 @@ export function ReviewPage() {
             {imageView === 'mask-overlay' && <MaskLegend />}
             <LesionLegend />
           </Stack>
-          <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={3} mt={4} fontSize="sm" minW={0}>
-            <Stack spacing={1}><Text color="text.secondary">Image ID</Text><Code fontSize="xs" whiteSpace="normal">{item.image_id}</Code></Stack>
-            <Stack spacing={1}><Text color="text.secondary">Dimensions</Text><Text>{item.width} x {item.height}px</Text></Stack>
-            <Stack spacing={1}><Text color="text.secondary">Source</Text><Text>{item.source}</Text></Stack>
-          </SimpleGrid>
         </Section>
         <Stack spacing={5} minW={0}>
           {manualOnly ? (
@@ -600,30 +674,6 @@ export function ReviewPage() {
               {item.lesion && <Section title="Lesion suggestions"><LesionSuggestions item={item} /></Section>}
             </>
           )}
-          <Section title="Explainability" description="Case-specific model evidence, separate from processing provenance.">
-            <Stack spacing={3}>
-              <Text fontSize="sm" color="text.secondary">
-                {item.explainability?.status === 'AVAILABLE'
-                  ? item.explainability.note
-                  : 'Explainability evidence is unavailable. It is not lesion localization or a clinical probability.'}
-              </Text>
-              <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3} bg="surface.subtle">
-                <Stack spacing={1}>
-                  <Text fontSize="xs" fontWeight="semibold">{analysisPreparationRecorded && modelProvenanceRecorded ? 'Separate records; linkage not verified' : analysisPreparationRecorded ? 'Recorded analysis path; model transform not recorded' : 'Documented processing path (when approved)'}</Text>
-                  <Text fontSize="sm">Original -&gt; Analysis area -&gt; provider transform -&gt; actual model input</Text>
-                  <Text fontSize="xs" color="text.secondary">
-                    {analysisPreparationRecorded && modelProvenanceRecorded
-                      ? 'Separate analysis and model records exist, but their connection is not verified for this case. Do not treat them as one approved processing chain.'
-                      : analysisPreparationRecorded
-                        ? 'Analysis area and Mask preview are recorded case-local processing evidence. The provider-specific transform and actual model input are not recorded for this case.'
-                        : item?.analysis_preparation?.status === 'NEEDS_REVIEW' && item.analysis_preparation.candidate_mask_sha256
-                          ? 'This case does not have an approved analysis preparation recorded. The candidate mask remains inspection-only; Original and manual review remain available.'
-                          : 'This case does not have an approved analysis preparation recorded. Original and manual review remain available.'}
-                  </Text>
-                </Stack>
-              </Box>
-            </Stack>
-          </Section>
           <Stack spacing={2}>
             <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid" alignSelf="flex-start">Continue to clinician review</Button>
             <Text fontSize="xs" color="text.secondary">No clinical decision is recorded on this page. The DR grade is confirmed in Clinician Review.</Text>
@@ -632,12 +682,90 @@ export function ReviewPage() {
       </Grid>
       <Box mt={5}>
         <Section
+          title="Compare resolved visit"
+          description="Optional side-by-side review for the same explicitly resolved patient and eye."
+          action={<Button size="sm" variant="ghost" rightIcon={comparisonOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} aria-expanded={comparisonOpen} aria-controls="comparison-panel" onClick={() => { const next = !comparisonOpen; setComparisonOpen(next); if (next) void loadComparisonCases(); }}>{comparisonOpen ? 'Hide comparison' : 'Show comparison'}</Button>}
+        >
+          <Collapse in={comparisonOpen} animateOpacity>
+            <Stack id="comparison-panel" spacing={3}>
+              {!comparisonIdentityResolved ? (
+                <Text fontSize="sm" color="text.secondary">Comparison is unavailable until patient and eye are explicitly resolved.</Text>
+              ) : (
+                <>
+                  <HStack align="end" flexWrap="wrap" spacing={3}>
+                    <Select aria-label="Comparison visit" maxW="360px" value={comparisonCaseId} onChange={(event) => setComparisonCaseId(event.target.value)}>
+                      <option value="">Choose another resolved visit</option>
+                      {comparisonCases.map((candidate) => <option key={candidate.image_id} value={candidate.image_id}>{candidate.display_name}</option>)}
+                    </Select>
+                    <Button size="sm" variant="outline" onClick={() => void runComparison()} isLoading={comparisonLoading} isDisabled={!comparisonCaseId}>Compare</Button>
+                  </HStack>
+                  {comparisonError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{comparisonError}</Text></Alert>}
+                  {comparison && !comparison.eligible && <Alert status="warning"><AlertIcon /><Text fontSize="sm">This pair is not eligible for side-by-side review.</Text></Alert>}
+                  {comparison?.eligible && comparison.visits && (
+                    <Grid templateColumns={{ base: '1fr', tablet: '1fr 1fr' }} gap={3}>
+                      {comparison.visits.map((visit) => <Box key={visit.image_id} borderWidth="1px" borderColor="border.subtle" p={3}>
+                        <Text fontWeight="semibold">{visit.label}</Text>
+                        <Text fontSize="sm" color="text.secondary">{visit.display_name}</Text>
+                        {visit.image_url ? (
+                          <Image
+                            src={visit.image_url}
+                            alt={`${visit.label} retinal image`}
+                            width="100%"
+                            maxH="260px"
+                            objectFit="contain"
+                            bg="surface.subtle"
+                            mt={2}
+                          />
+                        ) : (
+                          <Text mt={2} fontSize="sm" color="text.secondary">Retinal image unavailable.</Text>
+                        )}
+                        <Text mt={2} fontSize="sm">Grade: {visit.grade_status === 'CONFIRMED' && visit.grade != null ? drGradeLabel(visit.grade) : 'Not confirmed'}</Text>
+                        <Text fontSize="sm">Findings: {visit.findings_reviewed ? 'Reviewed' : 'Not confirmed'}</Text>
+                      </Box>)}
+                    </Grid>
+                  )}
+                  {comparison?.eligible && <Text fontSize="xs" color="text.secondary">{comparison.limitation}</Text>}
+                </>
+              )}
+            </Stack>
+          </Collapse>
+        </Section>
+      </Box>
+      <Box mt={5}>
+        <Section
           title="Processing details"
           description="Read-only provenance for the source, derived representation, mapping, and model-domain state."
           action={<Button size="sm" variant="ghost" rightIcon={processingOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} aria-expanded={processingOpen} aria-controls="processing-details-panel" onClick={() => setProcessingOpen((open) => !open)}>{processingOpen ? 'Hide details' : 'Show details'}</Button>}
         >
           <Collapse in={processingOpen} animateOpacity>
             <Box id="processing-details-panel">
+              <SimpleGrid columns={{ base: 1, tablet: 2, laptop: 4 }} spacing={3} mb={4} fontSize="sm">
+                <Stack spacing={1}><Text color="text.secondary">Image ID</Text><Code fontSize="xs" whiteSpace="normal">{item.image_id}</Code></Stack>
+                <Stack spacing={1}><Text color="text.secondary">Dimensions</Text><Text>{item.width} x {item.height}px</Text></Stack>
+                <Stack spacing={1}><Text color="text.secondary">Source</Text><Text>{item.source}</Text></Stack>
+              </SimpleGrid>
+              <Stack spacing={2} mb={4}>
+                <Text fontSize="sm" color="text.secondary">
+                  {item.explainability?.status === 'AVAILABLE'
+                    ? item.explainability.note
+                    : 'Explainability evidence is unavailable. It is not lesion localization or a clinical probability.'}
+                </Text>
+                <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3} bg="surface.subtle">
+                  <Stack spacing={1}>
+                    <Text fontSize="xs" fontWeight="semibold">{analysisPreparationRecorded && modelProvenanceRecorded ? 'Separate records; linkage not verified' : analysisPreparationRecorded ? 'Recorded analysis path; model transform not recorded' : 'Documented processing path (when approved)'}</Text>
+                    <Text fontSize="sm">Original -&gt; Analysis area -&gt; provider transform -&gt; actual model input</Text>
+                    <Text fontSize="xs" color="text.secondary">
+                      {analysisPreparationRecorded && modelProvenanceRecorded
+                        ? 'Separate analysis and model records exist, but their connection is not verified for this case. Do not treat them as one approved processing chain.'
+                        : analysisPreparationRecorded
+                          ? 'Analysis area and Mask preview are recorded case-local processing evidence. The provider-specific transform and actual model input are not recorded for this case.'
+                          : item.analysis_preparation?.status === 'NEEDS_REVIEW' && item.analysis_preparation.candidate_mask_sha256
+                            ? 'This case does not have an approved analysis preparation recorded. The candidate mask remains inspection-only; Original and manual review remain available.'
+                            : 'This case does not have an approved analysis preparation recorded. Original and manual review remain available.'}
+                    </Text>
+                  </Stack>
+                </Box>
+              </Stack>
               <SimpleGrid columns={{ base: 1, tablet: 2, laptop: 4 }} spacing={3} fontSize="sm">
                 <Stack spacing={1}><Text color="text.secondary">Source origin</Text><Text>{sourceOriginLabel(item.source_origin)}</Text></Stack>
                 <Stack spacing={1}><Text color="text.secondary">Visit / capture</Text><Text>{item.visit_context?.visit_key ?? 'Unknown'}{item.visit_context?.captured_at ? ` · ${item.visit_context.captured_at}` : ''}</Text></Stack>

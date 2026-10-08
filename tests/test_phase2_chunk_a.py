@@ -67,6 +67,65 @@ def test_named_grade_persists_and_disagreement_is_not_overwritten(tmp_path):
     assert [entry["grade"] for entry in body["grade_reviews"]] == [2, 1, 2]
 
 
+def test_referral_is_derived_from_current_confirmed_grade_and_keeps_history(tmp_path):
+    client = TestClient(create_app(tmp_path / "referral.sqlite", include_samples=False))
+    base = "/v1/cases/SYNTH_001"
+
+    initial = client.get(base).json()
+    assert initial["referral"]["status"] == "UNDETERMINED"
+
+    grade_four = client.post(base + "/review", json={
+        "revision": initial["revision"],
+        "action": "CORRECT_GRADE",
+        "reviewer": "Referral clinician",
+        "grade": 4,
+    })
+    assert grade_four.status_code == 200
+    grade_four_body = grade_four.json()
+    assert grade_four_body["referral"]["status"] == "REFER"
+    assert grade_four_body["referral"]["source_grade"] == 4
+    assert grade_four_body["referral"]["rule_id"] == "M1_DR_GRADE_4_REFERRAL"
+
+    grade_three = client.post(base + "/review", json={
+        "revision": grade_four_body["revision"],
+        "action": "CORRECT_GRADE",
+        "reviewer": "Referral clinician",
+        "grade": 3,
+    })
+    assert grade_three.status_code == 200
+    corrected = grade_three.json()
+    assert corrected["referral"]["status"] == "NOT_REFER"
+    assert corrected["referral"]["source_grade"] == 3
+    assert corrected["referral"]["source_grade_revision"] == corrected["clinician_review"]["revision"]
+    assert len(corrected["referral_history"]) == 2
+    assert corrected["referral_history"][0]["current"]["status"] == "REFER"
+    assert corrected["referral_history"][1]["previous"]["status"] == "REFER"
+
+    ungradable = client.post(base + "/review", json={
+        "revision": corrected["revision"],
+        "action": "MARK_UNGRADABLE",
+        "reviewer": "Referral clinician",
+    })
+    assert ungradable.status_code == 200
+    assert ungradable.json()["referral"]["status"] == "UNDETERMINED"
+    assert ungradable.json()["referral"]["reason"] == "NO_CURRENT_CONFIRMED_GRADE"
+
+
+def test_ai_only_grade_never_creates_final_referral(tmp_path):
+    client = TestClient(create_app(tmp_path / "ai-only-referral.sqlite", include_samples=False))
+    base = "/v1/cases/SYNTH_001"
+    inference = client.post("/v1/infer/global", json={
+        "image_id": "SYNTH_001",
+        "modality": "CFP",
+        "model_id": "mock-global",
+    })
+    assert inference.status_code == 200
+    case = client.get(base).json()
+    assert case["global"]["grade"] is not None
+    assert case["clinician_review"] is None
+    assert case["referral"]["status"] == "UNDETERMINED"
+
+
 def test_ungradable_cannot_clear_unresolved_grade_disagreement(tmp_path):
     client = TestClient(create_app(tmp_path / "review.sqlite", include_samples=False))
     base = "/v1/cases/SYNTH_001/review"

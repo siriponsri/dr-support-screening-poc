@@ -23,6 +23,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
 import { ReviewerField } from '@/components/common/ReviewerField';
+import { GuideHint } from '@/components/common/GuideHint';
 import { AiRoiPopover } from '@/components/review/AiRoiPopover';
 import { displayedLesions } from '@/components/review/lesionPresentation';
 import { RetinalCanvas, LESION_COLORS, LESION_SHORT_LABELS, type RectangleResizeHandle } from '@/components/review/RetinalCanvas';
@@ -42,8 +43,9 @@ import {
   type LesionLabel,
   type AnnotationCompletenessState,
 } from '@/lib/api';
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Circle, CircleDot, Lock, MousePointer2, Pentagon, Save, Square, Trash2, Undo2, Unlock } from '@/lib/icons';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Circle, CircleDot, Lock, MousePointer2, Pentagon, Square, Trash2, Undo2, Unlock } from '@/lib/icons';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
+import { markGuideFirstFlowCompleted } from '@/lib/hintPreference';
 
 type Tool = 'select' | 'rectangle' | 'polygon' | 'point' | 'circle';
 type Point = [number, number];
@@ -1220,6 +1222,7 @@ export function AnnotationEditorPage() {
       setDraftStatus('saved');
       completenessWrittenForFinishRef.current = false;
       clearRoiSelection();
+      markGuideFirstFlowCompleted();
       await advanceAfterCompletion(item.image_id);
     } catch (err) {
       const refreshed = await refreshAfterFinishFailure(completenessRequestLost);
@@ -1229,6 +1232,7 @@ export function AnnotationEditorPage() {
         && refreshedTargetState
         && refreshed.annotation_completeness?.CORE?.state === refreshedTargetState) {
         clearRoiSelection();
+        markGuideFirstFlowCompleted();
         await advanceAfterCompletion(refreshed.image_id);
         return;
       }
@@ -1359,7 +1363,6 @@ export function AnnotationEditorPage() {
           <HStack mt={4} spacing={3} flexWrap="wrap" fontSize="sm">
             <Text fontWeight="semibold">{draft.length} human annotation{draft.length === 1 ? '' : 's'}</Text>
             <Text aria-live="polite" color={draftStatus === 'failed' ? 'status.danger' : 'text.secondary'}>{draftStatusText}</Text>
-            {!readOnly && <Button size="xs" variant="ghost" leftIcon={<Save size={12} />} onClick={() => void persistDraft()} isDisabled={saving || draftStatus === 'saved'}>Save draft</Button>}
           </HStack>
         </Section>
         <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={3} fontSize="sm">
@@ -1369,6 +1372,7 @@ export function AnnotationEditorPage() {
         <Stack minW={0} spacing={5}>
           <Section title={completedReview ? 'Review complete' : 'Complete review'} description={hasRecordedFindings ? `${recordedFindingCount} finding${recordedFindingCount === 1 ? '' : 's'} recorded.` : 'No Core findings recorded.'}>
             <Stack spacing={3}>
+              {!completedReview && <GuideHint step="findings" />}
               {!hasRecordedFindings && !annotationConfirmed && <Text fontSize="sm" color="text.secondary">Finishing confirms Core findings were reviewed and none were found.</Text>}
               {!completedReview && <ReviewerField compact id="annotation-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />}
               {saveError && <Alert status="error" aria-live="assertive"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}

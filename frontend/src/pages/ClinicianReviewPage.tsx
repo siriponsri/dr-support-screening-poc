@@ -30,8 +30,8 @@ import { EDIT_CONFIRMED_GRADE_DIALOG, LEAVE_CASE_DIALOG, useConfirmDialog } from
 import { caseComplete, formatTimestamp, gradeConfirmed } from '@/lib/caseProgress';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 import { ReviewerField } from '@/components/common/ReviewerField';
+import { GuideHint } from '@/components/common/GuideHint';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
-import { NextActionHint } from '@/components/common/NextActionHint';
 import { GradeGuide } from '@/components/review/GradeGuide';
 
 type ReviewAction = 'ACCEPT' | 'CORRECT_GRADE' | 'MARK_UNGRADABLE' | 'REQUEST_SECOND_REVIEW' | 'ADJUDICATE_GRADE';
@@ -50,6 +50,14 @@ function reviewLabel(item: CaseRecord) {
   return 'Not confirmed';
 }
 
+function referralLabel(status?: string | null) {
+  switch (status) {
+    case 'REFER': return 'Refer';
+    case 'NOT_REFER': return 'No referral indicated';
+    default: return 'Not determined';
+  }
+}
+
 export function ClinicianReviewPage() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -62,6 +70,7 @@ export function ClinicianReviewPage() {
   const [remark, setRemark] = useState('');
   const [editingConfirmed, setEditingConfirmed] = useState(false);
   const [exceptionsOpen, setExceptionsOpen] = useState(false);
+  const [referralDetailsOpen, setReferralDetailsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +186,7 @@ export function ClinicianReviewPage() {
       />
       <Stack spacing={3} mb={5}>
         <CaseNavigation imageId={item.image_id} guarded={guarded} confirm={confirm} />
-        <NextActionHint item={item} />
+        <GuideHint step={readOnly ? 'findings' : 'grade'} />
       </Stack>
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.25fr) minmax(320px, 0.75fr)' }} gap={5} alignItems="start" minW={0}>
         <Section title="Retinal image" description="AI output is optional evidence; this page records the clinician's final grade.">
@@ -232,8 +241,9 @@ export function ClinicianReviewPage() {
                 {item.grade_status === 'UNGRADABLE' && (
                   <Alert status="warning" variant="subtle"><AlertIcon /><Text fontSize="sm"><strong>Ungradable.</strong> This is a separate image-review state, not a DR severity.</Text></Alert>
                 )}
-                <ReviewerField id="clinician-reviewer-name" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
+                <ReviewerField compact id="clinician-reviewer-name" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
                 <Text fontSize="sm" color="text.secondary">AI suggestion: {item.global?.grade == null ? 'Not available' : (drGradeLabel(item.global.grade) ?? 'Not available')} <Text as="span" color="text.muted">(optional evidence, not pre-selected)</Text></Text>
+                <Text fontSize="sm" color="text.secondary">Referral: <Text as="span" fontWeight="semibold" color="text.primary">{referralLabel(item.referral?.status)}</Text> <Text as="span" color="text.muted">(derived only from the confirmed physician grade)</Text></Text>
                 <FormControl>
                   <HStack justify="space-between" align="center" mb={1}>
                     <FormLabel htmlFor="clinician-review-grade" mb={0}>Final DR grade</FormLabel>
@@ -249,7 +259,7 @@ export function ClinicianReviewPage() {
                 </FormControl>
                 {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
                 <Button variant="solid" onClick={() => void saveGrade()} isLoading={saving} isDisabled={grade === ''}>
-                  {item.grade_status === 'NEEDS_SECOND_REVIEW' ? 'Resolve and confirm DR grade' : 'Confirm grade'}
+                  {item.grade_status === 'NEEDS_SECOND_REVIEW' ? 'Resolve and confirm DR grade' : 'Confirm DR grade'}
                 </Button>
                 <Box>
                   <Button
@@ -284,6 +294,28 @@ export function ClinicianReviewPage() {
                 <Text fontSize="xs" color="text.muted">Revision {item.clinician_review.revision}</Text>
               </Stack>
             ) : <Text color="text.secondary">Not confirmed.</Text>}
+            <Text mt={3} fontSize="sm"><strong>Referral:</strong> {referralLabel(item.referral?.status)}</Text>
+            <Box mt={2}>
+              <Button
+                variant="ghost"
+                size="sm"
+                px={0}
+                rightIcon={referralDetailsOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+                aria-expanded={referralDetailsOpen}
+                aria-controls="referral-details"
+                onClick={() => setReferralDetailsOpen((open) => !open)}
+              >
+                Referral details
+              </Button>
+              <Collapse in={referralDetailsOpen} animateOpacity>
+                <Stack id="referral-details" spacing={1} mt={2} fontSize="xs" color="text.muted">
+                  <Text>Derived from the current confirmed physician grade only.</Text>
+                  <Text>Rule {item.referral?.rule_id ?? 'M1_DR_GRADE_4_REFERRAL'} · version {item.referral?.rule_version ?? '1.0.0'}</Text>
+                  {item.referral?.source_grade != null && <Text>Source grade: {drGradeLabel(item.referral.source_grade) ?? 'Recorded grade'}</Text>}
+                  {item.referral?.reviewer && <Text>Source reviewer: {item.referral.reviewer}</Text>}
+                </Stack>
+              </Collapse>
+            </Box>
           </Section>
         </Stack>
       </Grid>

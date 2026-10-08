@@ -153,9 +153,9 @@ describe('Clinician Review grade decision', () => {
     expect(screen.queryByRole('button', { name: /not confirm/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Final DR grade')).toHaveValue('');
-    expect(screen.getByRole('button', { name: 'Confirm grade' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Confirm DR grade' })).toBeDisabled();
     await user.selectOptions(screen.getByLabelText('Final DR grade'), '3');
-    await user.click(screen.getByRole('button', { name: 'Confirm grade' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     expect(backend.log.find((entry) => entry.path.endsWith('/review'))?.body).toMatchObject({ action: 'CORRECT_GRADE', grade: 3 });
     expect((await screen.findAllByRole('heading', { name: 'Annotation Editor' })).length).toBeGreaterThan(0);
     expect(screen.getAllByText('DR grade confirmed · Severe NPDR').length).toBeGreaterThan(0);
@@ -188,7 +188,7 @@ describe('Clinician Review grade decision', () => {
     await user.click(await screen.findByRole('button', { name: 'Edit confirmed grade' }));
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Continue editing' }));
     await user.selectOptions(screen.getByLabelText('Final DR grade'), selectedGrade);
-    await user.click(screen.getByRole('button', { name: 'Confirm grade' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     await waitFor(() => expect(backend.log.find((entry) => entry.path.endsWith('/review') && entry.body?.grade === Number(selectedGrade))?.body).toMatchObject({ action }));
   });
 
@@ -197,7 +197,7 @@ describe('Clinician Review grade decision', () => {
     const backend = fakeBackend([baseCase('case-1', 'a.jpg', { global: null })]);
     renderAppAt('/clinician-review/case-1');
     await user.selectOptions(await screen.findByLabelText('Final DR grade'), '1');
-    await user.click(screen.getByRole('button', { name: 'Confirm grade' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     await waitFor(() => expect(backend.log.find((entry) => entry.path.endsWith('/review'))?.body).toMatchObject({ action: 'CORRECT_GRADE', grade: 1 }));
   });
 

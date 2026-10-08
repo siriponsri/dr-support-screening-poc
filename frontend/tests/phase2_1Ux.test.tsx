@@ -3,7 +3,9 @@ import { render, screen, waitForElementToBeRemoved } from '@testing-library/reac
 import userEvent from '@testing-library/user-event';
 import { GradeGuide } from '@/components/review/GradeGuide';
 import { ReviewStatusCell } from '@/components/worklist/ReviewStatusCell';
-import { NextActionHint, contextWarnings, nextAction } from '@/components/common/NextActionHint';
+import { GuideHint } from '@/components/common/GuideHint';
+import { ReviewerPreference } from '@/components/settings/ReviewerPreference';
+import { getGuideModeEnabled, setGuideModeEnabled } from '@/lib/hintPreference';
 import type { CaseRecord } from '@/lib/api';
 import { theme } from '@/theme';
 
@@ -60,26 +62,37 @@ describe('M1 Phase 2.1 clinician UX contracts', () => {
     expect(trigger).toHaveFocus();
   });
 
-  it('separates workflow guidance from context warnings after the grade milestone', () => {
-    const item = makeCase({
-      clinician_review: {
-        reviewer: 'Clinician', final_grade: 2, review_action: 'CORRECT_GRADE', remark: '', timestamp: '', revision: 1,
-      },
-      resolver_ui: {
-        label: 'Patient information needs review', note: 'Confirm context.', tone: 'warning', action_required: true,
-        patient: { label: 'Patient not linked', note: 'Confirm patient.', tone: 'warning', action_required: true },
-        laterality: { label: 'Eye not confirmed', note: 'Confirm eye.', tone: 'warning', action_required: true, value: 'UNKNOWN' },
-      },
-    });
-    window.localStorage.removeItem('dr-support-screening.next-action-hints.v1');
-    render(<ChakraProvider theme={theme}><NextActionHint item={item} /></ChakraProvider>);
+  it('defaults Guide mode to ON and turns it off persistently without changing case data', async () => {
+    const user = userEvent.setup();
+    const item = makeCase({ clinician_review: null, human_annotations: [] });
+    const originalCase = structuredClone(item);
+    window.localStorage.clear();
+    const renderGuide = () => render(<ChakraProvider theme={theme}><GuideHint step="grade" /></ChakraProvider>);
 
-    expect(nextAction(item)).toBe('Review findings and finish the case');
-    expect(contextWarnings(item)).toContain('Patient and eye context needs confirmation.');
-    const hint = screen.getByRole('alert');
-    expect(hint).toHaveTextContent('Workflow: Review findings and finish the case');
-    expect(hint).toHaveTextContent('Context: Patient and eye context needs confirmation.');
-    expect(screen.queryByText(/Confirm image/i)).not.toBeInTheDocument();
+    expect(getGuideModeEnabled()).toBe(true);
+    const first = renderGuide();
+    expect(screen.getByTestId('guide-hint')).toHaveTextContent('Choose the final physician grade; AI is only a suggestion.');
+    await user.click(screen.getByRole('button', { name: 'Turn off Guide mode' }));
+    expect(getGuideModeEnabled()).toBe(false);
+    first.unmount();
+
+    renderGuide();
+    expect(screen.queryByTestId('guide-hint')).not.toBeInTheDocument();
+    expect(item).toEqual(originalCase);
+  });
+
+  it('re-enables Guide mode from Settings after an OFF preference', async () => {
+    const user = userEvent.setup();
+    setGuideModeEnabled(false);
+    const screenView = render(<ChakraProvider theme={theme}><GuideHint step="review" /></ChakraProvider>);
+    expect(screen.queryByTestId('guide-hint')).not.toBeInTheDocument();
+    screenView.unmount();
+    render(<ChakraProvider theme={theme}><ReviewerPreference /></ChakraProvider>);
+
+    const control = screen.getByRole('checkbox', { name: 'Guide mode' });
+    expect(control).not.toBeChecked();
+    await user.click(control);
+    expect(getGuideModeEnabled()).toBe(true);
   });
 
   it('keeps complete worklist status compact while retaining accessible detail', () => {

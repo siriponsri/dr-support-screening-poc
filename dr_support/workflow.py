@@ -39,6 +39,8 @@ from .grade import (
     GRADE_STATUS_UNGRADABLE,
     grade_label,
 )
+from .referral import current_referral, derive_referral
+from .comparison import compare_cases
 
 
 KNOWN_ANALYSIS_TRANSFORMS = frozenset({
@@ -391,6 +393,7 @@ def install_workflow(app, store):
                 'reviewed_grade_label': case.get('reviewed_grade_label') or grade_label(case.get('reviewed_grade')),
                 'grade_reviews': _legacy_grade_reviews(case),
                 'grade_adjudication': case.get('grade_adjudication'),
+                'referral': current_referral(case),
                 'visit_context': case.get('visit_context'),
                 'modality': source_modality,
                 'admission': record,
@@ -471,6 +474,19 @@ def install_workflow(app, store):
     @app.get('/v1/cases/{image_id}')
     def case(image_id: str):
         return detail(image_id)
+
+    @app.get('/v1/cases/{image_id}/comparison')
+    def comparison(image_id: str, other_image_id: str):
+        if image_id == other_image_id:
+            return {'eligible': False, 'reason': 'SAME_IMAGE'}
+        left = current_store().get(image_id)
+        right = current_store().get(other_image_id)
+        if not left or not right:
+            raise HTTPException(404, 'Comparison image is not available in this workspace')
+        result = compare_cases({**left, 'image_id': image_id, 'display_name': detail(image_id).get('display_name'), 'image_url': detail(image_id).get('image_url')}, {
+            **right, 'image_id': other_image_id, 'display_name': detail(other_image_id).get('display_name'), 'image_url': detail(other_image_id).get('image_url'),
+        })
+        return result
 
     @app.get('/v1/images/{image_id}')
     def image_bytes(image_id: str):
@@ -632,6 +648,7 @@ def install_workflow(app, store):
                 raise HTTPException(409, 'Case changed; reload before reviewing')
             if not request.reviewer.strip():
                 raise HTTPException(422, 'Reviewer name required')
+            previous_referral = current_referral(case)
             if (request.action == 'ESCALATE'
                     and case.get('grade_status') == GRADE_STATUS_NEEDS_SECOND_REVIEW):
                 raise HTTPException(
@@ -779,6 +796,17 @@ def install_workflow(app, store):
                     'timestamp': timestamp,
                     'annotation_set_hash': case['confirmed_annotation_hash'],
                 }
+            if grade_action or request.action in {'MARK_INCORRECT', 'ESCALATE'}:
+                referral = derive_referral(case)
+                case['referral_current'] = referral
+                case.setdefault('referral_history', []).append({
+                    'timestamp': timestamp,
+                    'revision': case['revision'],
+                    'reviewer': request.reviewer.strip(),
+                    'review_action': request.action,
+                    'previous': previous_referral,
+                    'current': referral,
+                })
             store.put(case)
             return detail(image_id)
 
