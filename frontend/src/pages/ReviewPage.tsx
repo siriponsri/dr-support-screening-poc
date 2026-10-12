@@ -176,7 +176,7 @@ const LESION_DISPLAY_LABELS: Record<string, string> = {
 type AnalysisTask = 'global' | 'lesion-roi';
 
 function caseOrigin(item: CaseRecord | null): string {
-  return item ? (item.source_origin ?? item.source_type) : '';
+  return item ? (item.source_origin ?? 'UNKNOWN') : '';
 }
 
 function selectedModel(

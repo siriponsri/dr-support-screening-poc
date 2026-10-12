@@ -63,7 +63,7 @@ export function isModelUsable(
 }
 
 export function hasCompatibleModel(item: CaseRecord, models: ModelDescriptor[]): boolean {
-  const sourceOrigin = item.source_origin ?? item.source_type ?? '';
+  const sourceOrigin = item.source_origin ?? 'UNKNOWN';
   if (
     !['PUBLIC', 'SYNTHETIC'].includes(sourceOrigin)
     || item.admission?.modality_admission !== 'FUNDUS_ACCEPTED'

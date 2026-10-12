@@ -154,7 +154,7 @@ export function DatasetsPage() {
           ...row,
           dr_grade_training_ready: row.dr_grade_training_ready ?? row.include_in_training,
           lesion_positive_training_ready: row.lesion_positive_training_ready ?? false,
-          source_origin: row.source_origin ?? (row.source_type as DatasetImageRow['source_origin']),
+          source_origin: row.source_origin ?? 'UNKNOWN',
         }));
         const filtered = normalized.filter((row) => {
           if (filter === 'dr-ready' && !row.dr_grade_training_ready) return false;
@@ -214,9 +214,19 @@ export function DatasetsPage() {
     try { const result = await datasetApi.exportGrouped(groupedFormat, quality); setNotice(`Grouped export created in ${result.directory_name}: ${result.copied_count} copied, ${result.identical_existing_count} already present, ${result.skipped_count} skipped.`); } catch { setError('The grouped image export could not be created.'); } finally { setExportingGrouped(false); }
   };
 
+  const pageActions = (
+    <>
+      <Button leftIcon={<RefreshCw size={15} />} onClick={() => void load()} isLoading={loading}>Refresh</Button>
+      <Button leftIcon={<Download size={15} />} onClick={() => void createSnapshot()} isLoading={snapshotting}>Create canonical snapshot</Button>
+    </>
+  );
+
   return (
     <Box as="main" maxW="1600px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
-      <PageHeader pathname={pathname} title="Datasets" subtitle="A reproducible manifest of the active Workspace, with AI and clinician provenance kept separate. Workspace Data is read-only and bounded." actions={<HStack flexWrap="wrap"><Button leftIcon={<RefreshCw size={15} />} onClick={() => void load()} isLoading={loading}>Refresh</Button><Button leftIcon={<Download size={15} />} onClick={() => void createSnapshot()} isLoading={snapshotting}>Create canonical snapshot</Button></HStack>} />
+      <PageHeader pathname={pathname} title="Datasets" subtitle="A reproducible manifest of the active Workspace, with AI and clinician provenance kept separate. Workspace Data is read-only and bounded." actions={<Box display={{ base: 'none', tablet: 'block' }}><HStack flexWrap="wrap">{pageActions}</HStack></Box>} />
+      <Box display={{ base: 'block', tablet: 'none' }} mt={-6} mb={6}>
+        <HStack w="full" flexWrap="wrap">{pageActions}</HStack>
+      </Box>
       <Stack spacing={4}>
         {error && <Alert status="error"><AlertIcon /><Text>{error}</Text></Alert>}
         {notice && <Alert status="success"><AlertIcon /><Text>{notice}</Text></Alert>}
@@ -228,7 +238,9 @@ export function DatasetsPage() {
               <FormControl maxW="170px"><FormLabel htmlFor="workspace-data-origin" fontSize="sm">Source origin</FormLabel><Select id="workspace-data-origin" value={sourceOrigin} onChange={(event) => { setSourceOrigin(event.target.value); setPage(1); }}><option value="">All origins</option><option value="SYNTHETIC">Synthetic</option><option value="PUBLIC">Public</option><option value="WORKSPACE">Workspace</option><option value="UNKNOWN">Unknown</option></Select></FormControl>
             </HStack>
             <Tabs index={['all', 'dr-ready', 'lesion-positive-ready', 'needs-review', 'excluded'].indexOf(filter)} onChange={(index) => { setFilter(['all', 'dr-ready', 'lesion-positive-ready', 'needs-review', 'excluded'][index] as DatasetFilter); setPage(1); }} variant="line" isLazy>
-              <TabList aria-label="Workspace Data views"><Tab>All</Tab><Tab>DR-ready</Tab><Tab>Lesion-positive ready</Tab><Tab>Needs review</Tab><Tab>Excluded</Tab></TabList>
+              <TabList aria-label="Workspace Data views" maxW="100%" minW={0} overflowX="auto" whiteSpace="nowrap">
+                <Tab flexShrink={0}>All</Tab><Tab flexShrink={0}>DR-ready</Tab><Tab flexShrink={0}>Lesion-positive ready</Tab><Tab flexShrink={0}>Needs review</Tab><Tab flexShrink={0}>Excluded</Tab>
+              </TabList>
               <TabPanels><TabPanel px={0} pt={4}><WorkspaceDataTable records={data.records} onSelect={(id) => void openDetail(id)} /></TabPanel><TabPanel px={0} pt={4}><WorkspaceDataTable records={data.records} onSelect={(id) => void openDetail(id)} /></TabPanel><TabPanel px={0} pt={4}><WorkspaceDataTable records={data.records} onSelect={(id) => void openDetail(id)} /></TabPanel><TabPanel px={0} pt={4}><WorkspaceDataTable records={data.records} onSelect={(id) => void openDetail(id)} /></TabPanel><TabPanel px={0} pt={4}><WorkspaceDataTable records={data.records} onSelect={(id) => void openDetail(id)} /></TabPanel></TabPanels>
             </Tabs>
             <HStack justify="space-between"><Text fontSize="sm" color="text.secondary">Page {data.page} of {Math.max(1, Math.ceil(data.total / data.limit))}</Text><HStack><Button size="sm" variant="outline" leftIcon={<ChevronLeft size={14} />} onClick={() => setPage((value) => Math.max(1, value - 1))} isDisabled={page <= 1}>Previous</Button><Button size="sm" variant="outline" rightIcon={<ChevronRight size={14} />} onClick={() => setPage((value) => value + 1)} isDisabled={!data.has_next}>Next</Button></HStack></HStack>

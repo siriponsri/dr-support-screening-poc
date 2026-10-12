@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CaseRecord } from '@/lib/api';
+import { hasCompatibleModel } from '@/lib/modelCapabilities';
 import { DEFAULT_FILTERS, filterCases, groupCases, identityNeedsAction, sortCases } from '@/components/worklist/worklistModel';
 
 function makeCase(overrides: Partial<CaseRecord> = {}): CaseRecord {
@@ -7,7 +8,7 @@ function makeCase(overrides: Partial<CaseRecord> = {}): CaseRecord {
     image_id: 'case-1',
     display_name: 'image_01',
     filename: 'image_01.jpg',
-    source_type: 'PUBLIC', source: 'WORKSPACE_INPUT', modality: 'CFP', width: 640, height: 480,
+    source_type: 'PUBLIC', source_origin: 'PUBLIC', source: 'WORKSPACE_INPUT', modality: 'CFP', width: 640, height: 480,
     image_url: null, state: 'PENDING', revision: 0, global: null, lesion: null,
     lesion_review: null, human_annotations: [], clinician_review: null,
     admission: {
@@ -29,6 +30,15 @@ function makeCase(overrides: Partial<CaseRecord> = {}): CaseRecord {
 }
 
 describe('S3 worklist selectors', () => {
+  it('requires an explicit public or synthetic source origin for model routing', () => {
+    const model = [{ model_id: 'retfound-aptos5', task: 'global', modalities: ['CFP'], status: 'LOADED', release_status: 'RESEARCH_ONLY' }];
+    const explicitPublic = makeCase({ source_origin: 'PUBLIC', source_type: 'PUBLIC' });
+    const missingOrigin = makeCase({ source_origin: undefined, source_type: 'PUBLIC' });
+
+    expect(hasCompatibleModel(explicitPublic, model)).toBe(true);
+    expect(hasCompatibleModel(missingOrigin, model)).toBe(false);
+  });
+
   it('groups only existing patient keys and keeps eye groups distinct', () => {
     const cases = [
       makeCase({ image_id: 'left', display_name: 'left', filename: 'left.jpg', patient_key: 'P0001', laterality: 'LEFT' }),

@@ -71,6 +71,11 @@ describe('Datasets page', () => {
     expect(screen.getByText('ready.png')).toBeInTheDocument();
     expect(screen.getByText('review.png')).toBeInTheDocument();
     expect(screen.queryByText('Datasets (reserved)')).not.toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: 'Workspace Data views' })).toHaveStyle({
+      maxWidth: '100%',
+      overflowX: 'auto',
+      whiteSpace: 'nowrap',
+    });
 
     await user.click(screen.getByRole('tab', { name: /DR-ready/ }));
     expect(screen.getByText('ready.png')).toBeInTheDocument();
@@ -94,6 +99,21 @@ describe('Datasets page', () => {
 
     expect(await screen.findByText('Open an active Workspace to export a dataset manifest.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Export manifest' })).toBeDisabled();
+  });
+
+  it('keeps a missing origin unknown in the legacy manifest fallback', async () => {
+    const legacyManifest = { ...manifest, images: [manifest.images[0]] };
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const path = new URL(typeof input === 'string' ? input : input.url, window.location.origin).pathname;
+      if (path === '/v1/dataset/manifest') return response(legacyManifest);
+      if (path === '/v2/workspace-data/records') return response({ detail: 'compatibility fixture' }, 404);
+      return response({ detail: `Unexpected request ${path}` }, 404);
+    });
+    withProviders(<DatasetsPage />, '/datasets');
+
+    const row = (await screen.findByText('ready.png')).closest('tr');
+    expect(row).toHaveTextContent('UNKNOWN');
+    expect(row).not.toHaveTextContent('PUBLIC');
   });
 
   it('uses the bounded Workspace Data API and opens record audit details', async () => {

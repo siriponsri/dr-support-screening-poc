@@ -833,7 +833,9 @@ class DatasetManifestService:
             "lesion_ready_annotation_count": lesion_annotation_count,
             "needs_review_count": len(images) - ready_count - excluded_count,
             "excluded_count": excluded_count,
-            "can_export": workspace_id is not None,
+            "can_export": workspace_id is not None and not any(
+                str(row.get("export_authorization", "")).startswith("BLOCKED_") for row in images
+            ),
             "images": images,
             "annotations": annotations,
             "coordinate_system": "original_image_pixels",

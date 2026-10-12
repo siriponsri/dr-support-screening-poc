@@ -9,6 +9,7 @@ const readyCase: CaseRecord = {
   display_name: 'IMG13',
   filename: 'img13_L1.jpg',
   source_type: 'PUBLIC',
+  source_origin: 'PUBLIC',
   source: 'WORKSPACE_INPUT',
   modality: 'CFP',
   width: 640,
@@ -296,6 +297,25 @@ describe('Review responsibility boundary', () => {
     expect(screen.queryByRole('heading', { name: 'Analysis' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'DR assessment' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Lesion suggestions' })).not.toBeInTheDocument();
+  });
+
+  it('does not infer source origin from source type for model assistance', async () => {
+    const unknownOriginCase: CaseRecord = {
+      ...readyCase,
+      source_origin: undefined,
+      global: null,
+      lesion: null,
+      lesion_review: null,
+    };
+    mockReviewApi(undefined, unknownOriginCase, [
+      { model_id: 'retfound-aptos5', task: 'global', modalities: ['CFP'], status: 'LOADED', release_status: 'RESEARCH_ONLY' },
+      { model_id: 'prism-dr-5fold', task: 'lesion-roi', modalities: ['CFP'], status: 'LOADED', release_status: 'RESEARCH_ONLY' },
+    ]);
+    renderAppAt('/review/ready');
+
+    expect(await screen.findByRole('heading', { name: 'Analysis' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Analyze' })).toBeDisabled();
+    expect(screen.getByText('Not recorded')).toBeInTheDocument();
   });
 
   it('keeps an incomplete generic UWF capability in the manual-review path', async () => {
