@@ -63,9 +63,9 @@ export function WorklistToolbar({ search, onSearchChange, filters, onFiltersChan
               Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </Button>
           </PopoverTrigger>
-          <PopoverContent width="280px">
+          <PopoverContent width="280px" maxH={{ base: '60vh', tablet: 'calc(100vh - 24px)' }}>
             <PopoverArrow /><PopoverCloseButton /><PopoverHeader fontWeight="semibold">Filter worklist</PopoverHeader>
-            <PopoverBody><Stack spacing={4}>
+            <PopoverBody maxH={{ base: '50vh', tablet: 'calc(100vh - 112px)' }} overflowY="auto" overscrollBehavior="contain"><Stack spacing={4}>
               <FilterSection title="Readiness">
                 <RadioGroup value={filters.readiness} onChange={(value) => updateFilter('readiness', value as ReadinessFilter)}>
                   <Stack spacing={2}><Radio value="all">All</Radio><Radio value="identity">Needs patient / eye confirmation</Radio><Radio value="image">Needs image review</Radio><Radio value="ready">Ready</Radio></Stack>

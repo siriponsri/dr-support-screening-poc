@@ -21,12 +21,12 @@ export function ImageCell({ item }: { item: CaseRecord }) {
           <Text fontSize="xxs">No preview</Text>
         </Box>
       )}
-      <Stack spacing={0.5} minW={0}>
+      <Stack spacing={0.5} minW={0} flex={1}>
         <Text fontWeight="semibold" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" title={filename} tabIndex={0} _focusVisible={{ boxShadow: 'focus', borderRadius: 'sm', outline: 'none' }}>
           {filename}
         </Text>
-        <StatusBadge tone={item.modality === 'UNKNOWN' ? 'warning' : 'neutral'}>{item.modality === 'CFP' ? 'CFP' : item.modality === 'UWF' ? 'UWF' : 'Image type needs confirmation'}</StatusBadge>
-        {status && <Stack spacing={0} minW={0} title={status.note}><StatusBadge tone={status.tone}>{status.label}</StatusBadge><Text fontSize="xxs" color="text.secondary" noOfLines={1}>{status.note}</Text></Stack>}
+        <StatusBadge tone={item.modality === 'UNKNOWN' ? 'warning' : 'neutral'} maxW="100%" whiteSpace="normal">{item.modality === 'CFP' ? 'CFP' : item.modality === 'UWF' ? 'UWF' : 'Image type needs confirmation'}</StatusBadge>
+        {status && <Stack spacing={0} minW={0} title={status.note}><StatusBadge tone={status.tone} maxW="100%" whiteSpace="normal">{status.label}</StatusBadge><Text fontSize="xxs" color="text.secondary" noOfLines={1}>{status.note}</Text></Stack>}
       </Stack>
     </HStack>
   );

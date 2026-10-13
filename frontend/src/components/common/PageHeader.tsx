@@ -45,8 +45,13 @@ export function PageHeader({
           {resolvedKicker}
         </Text>
       )}
-      <HStack spacing={3} align="flex-end" justify="space-between">
-        <Box minW={0}>
+      <HStack
+        spacing={3}
+        align={{ base: 'stretch', tablet: 'flex-end' }}
+        justify="space-between"
+        flexDirection={{ base: 'column', tablet: 'row' }}
+      >
+        <Box minW={0} flex={1} w={{ base: 'full', tablet: 'auto' }}>
           <Heading
             as="h1"
             size={{ base: '2xl', tablet: '3xl' }}

@@ -30,7 +30,7 @@ export function AppHeader() {
   const location = useLocation();
   const meta = getRouteMeta(location.pathname);
   const isCompact = useBreakpointValue({ base: true, tablet: false, laptop: false });
-  const runtime = useRuntimeHealth(showPermanent);
+  const runtime = useRuntimeHealth();
 
   return (
     <HStack

@@ -1,9 +1,9 @@
-import { Badge } from '@chakra-ui/react';
+import { Badge, type BadgeProps } from '@chakra-ui/react';
 import type { ReactNode } from 'react';
 
 export type StatusTone = 'neutral' | 'brand' | 'info' | 'success' | 'warning' | 'danger';
 
-interface StatusBadgeProps {
+interface StatusBadgeProps extends Omit<BadgeProps, 'children' | 'variant'> {
   tone?: StatusTone;
   children: ReactNode;
 }
@@ -17,13 +17,14 @@ const VARIANT_FOR_TONE: Record<StatusTone, string> = {
   danger: 'danger',
 };
 
-export function StatusBadge({ tone = 'neutral', children }: StatusBadgeProps) {
+export function StatusBadge({ tone = 'neutral', children, ...props }: StatusBadgeProps) {
   return (
     <Badge
       variant={VARIANT_FOR_TONE[tone]}
       display="inline-flex"
       alignItems="center"
       gap={1}
+      {...props}
     >
       {children}
     </Badge>

@@ -422,13 +422,26 @@ function PathField({ label, value, onChange, onBrowse, onCopy, isLoading }: { la
 function WorkspaceRow({ workspace, active, onSwitch, onEdit, onDelete, onCopy, managedStorage, isMutating }: { workspace: WorkspaceProfile; active: boolean; onSwitch: () => void; onEdit: () => void; onDelete: () => void; onCopy: (label: string, path: string) => void; managedStorage: boolean; isMutating: boolean }) {
   return (
     <Box role="group" aria-label={`${workspace.name} workspace`} py={3} px={1} borderLeftWidth="3px" borderLeftColor={active ? 'action.primary' : 'transparent'} pl={active ? 3 : 4}>
-      <HStack align="flex-start" justify="space-between" spacing={4} flexWrap="wrap">
+      <HStack
+        align={{ base: 'stretch', tablet: 'flex-start' }}
+        justify="space-between"
+        spacing={4}
+        flexWrap="wrap"
+        flexDirection={{ base: 'column', tablet: 'row' }}
+      >
         <Stack spacing={1} minW={0} flex={1}>
           <Text flex={1} minW={0} fontWeight="semibold" noOfLines={1} title={workspace.name}>{workspace.name}</Text>
           {workspace.note && <Text fontSize="xs" color="text.secondary" noOfLines={2} title={workspace.note}>{workspace.note}</Text>}
           <WorkspaceMetadata workspace={workspace} onCopy={onCopy} managedStorage={managedStorage} />
         </Stack>
-        <HStack spacing={2} align="center" flexShrink={0} flexWrap="wrap" justify="flex-end">
+        <HStack
+          spacing={2}
+          align="center"
+          flexShrink={0}
+          flexWrap="wrap"
+          justify={{ base: 'flex-start', tablet: 'flex-end' }}
+          w={{ base: 'full', tablet: 'auto' }}
+        >
           {active ? <StatusBadge tone="brand"><CheckCircle2 size={11} aria-hidden="true" /> Active</StatusBadge> : <Button size="sm" width="152px" justifyContent="center" variant="solid" onClick={onSwitch} isLoading={isMutating}>Switch</Button>}
           <Button size="sm" width="152px" justifyContent="center" variant="outline" leftIcon={<Pencil size={14} />} onClick={onEdit} isDisabled={isMutating}>Edit</Button>
           {!active && <Button size="sm" variant="danger" leftIcon={<Trash2 size={14} />} onClick={onDelete} isDisabled={isMutating}>Delete</Button>}
