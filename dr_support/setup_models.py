@@ -24,9 +24,16 @@ def source(name, url, revision):
 
 
 def prepare(which):
+    if which in {'uspec', 'combined'}:
+        raise RuntimeError(
+            'USPEC assets are external, read-only runtime inputs; provision them out of band and use --verify.'
+        )
+    if which == 'combined':
+        prepare('legacy')
+        return
     cache = ROOT / 'local-state/bridge'
     cache.mkdir(parents=True, exist_ok=True)
-    if which in ('all', 'retfound'):
+    if which in ('all', 'legacy', 'retfound'):
         source('RETFound', 'https://github.com/rmaphoh/RETFound.git', RET_REVISION)
         weight = cache / 'retfound-aptos.pth'
         if not weight.exists():
@@ -39,7 +46,7 @@ def prepare(which):
             partial.replace(weight)
         verify_weight(weight, WEIGHT_SHA256)
         print('RETFound: verified official five-class checkpoint')
-    if which in ('all', 'prism'):
+    if which in ('all', 'legacy', 'prism'):
         source('PRISM-DR', 'https://github.com/zubeyrozeren/PRISM-DR.git', PRISM_REVISION)
         lock = json.loads((ROOT/'dr_support/providers/prism_assets.json').read_text(encoding='utf-8'))
         archive = cache / 'prism-weights.zip'
@@ -63,6 +70,10 @@ def prepare(which):
 
 def smoke(which: str) -> None:
     """Load each selected provider and run one public synthetic inference."""
+    if which == 'uspec':
+        raise RuntimeError(
+            'USPEC load/inference is reserved for a separately controlled qualification run.'
+        )
     from .contracts import InferenceRequest
     from .images import synthetic_image
     from .providers.prism import PRISM
@@ -70,10 +81,10 @@ def smoke(which: str) -> None:
 
     image = synthetic_image()
     request = InferenceRequest(image_id=image.image_id, modality='CFP', model_id='retfound-aptos5')
-    if which in ('all', 'retfound'):
+    if which in ('all', 'legacy', 'combined', 'retfound'):
         result = RETFound(allow_cpu_fallback=False).infer(request, image)
         print(f"RETFound smoke: {result.state} grade={result.grade}")
-    if which in ('all', 'prism'):
+    if which in ('all', 'legacy', 'combined', 'prism'):
         request = request.model_copy(update={'model_id': 'prism-dr-5fold'})
         result = PRISM(allow_cpu_fallback=False).infer(request, image)
         print(f"PRISM smoke: {result.state} lesions={len(result.lesions)}")
@@ -81,7 +92,11 @@ def smoke(which: str) -> None:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--model',choices=['all','retfound','prism'],default='all')
+    parser.add_argument(
+        '--model',
+        choices=['all', 'legacy', 'retfound', 'prism', 'uspec', 'combined'],
+        default='all',
+    )
     parser.add_argument('--verify', action='store_true', help='Verify local assets without downloading')
     parser.add_argument('--smoke', action='store_true', help='Run one synthetic inference after verification')
     args=parser.parse_args()
@@ -89,7 +104,8 @@ if __name__ == '__main__':
         prepare(args.model)
     verification = verify_assets(args.model)
     for model_id, details in verification['models'].items():
-        print(f'{model_id}: verified revision {details["revision"]}')
+        identity = details.get('revision') or details.get('sha256')
+        print(f'{model_id}: verified identity {identity or "asset set"}')
     if args.smoke:
         smoke(args.model)
     print('READY')

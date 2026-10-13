@@ -62,13 +62,30 @@ not establish commercial or clinical deployment clearance.
 ./scripts/model-server/start.sh
 ```
 
-Startup sets `APP_PROFILE=model_api`, `MODEL_RUNTIME=local`, `INFERENCE_DEVICE=cuda:0`, `HOST=0.0.0.0`, `PORT=7860`, `WORKERS=1`, and `MODEL_REQUIRE_VERIFIED_ASSETS=1` unless the operator overrides the documented non-secret host/device values. It first runs:
+Startup sets `APP_PROFILE=model_api`, `MODEL_RUNTIME=local`, `INFERENCE_DEVICE=cuda:0`, `HOST=0.0.0.0`, `PORT=7860`, `WORKERS=1`, and `MODEL_REQUIRE_VERIFIED_ASSETS=1` unless the operator overrides the documented non-secret host/device values. It first runs a read-only verification with the resolved `MODEL_API_PYTHON` interpreter and selected `MODEL_API_PROVIDER_SET`:
 
 ```bash
-.venv/bin/python -m dr_support.setup_models --model all --verify
+python_bin="${MODEL_API_PYTHON:-$PWD/.venv/bin/python}"
+provider_set="${MODEL_API_PROVIDER_SET:-legacy}"
+"$python_bin" -m dr_support.setup_models --model "$provider_set" --verify
 ```
 
 That command never downloads or mutates assets. If verification fails, startup stops with an actionable error. Model weights are loaded lazily on the first inference, but the source and checkpoint integrity gate is performed before the service becomes ready.
+
+The default `MODEL_API_PROVIDER_SET=legacy` is equivalent to the existing RETFound + PRISM-DR host. An additive USPEC-only host can instead be started with:
+
+```bash
+MODEL_API_PROVIDER_SET=uspec \
+MODEL_API_PYTHON=/path/to/isolated-uspec-venv/bin/python \
+USPEC_MODEL_DIR=/path/to/read-only-uspec-artifacts \
+USPEC_ENABLE_CANDIDATE_LOAD=1 \
+INFERENCE_DEVICE=cuda:0 \
+./scripts/model-server/start.sh
+```
+
+The configured USPEC directory must contain the exact `manifest.json` and `grading_state.pt` artifact. Startup verifies their identities without deserializing weights and does not require RETFound or PRISM assets in this provider set. USPEC inference is lazy, only accepts UWF, and requires CUDA when candidate loading is enabled. Use the manifest-compatible environment in an isolated venv: the repository model extra pins Torch 2.5.1, TorchVision 0.20.1, and timm 0.9.2, while the recorded USPEC runtime uses Torch 2.11.0+cu128; do not run the normal model setup installer over that environment. The manifest-listed `requirements-local.txt` was unavailable during preflight, so the similarly named PRISM requirements file is not a substitute.
+
+USPEC receives original RGB and applies its own hash-reviewed native v4 preprocessing: internal conservative FOV masking, RGB letterboxing to 1424, row-major 7x7 patches of 224 pixels at stride 200, and the source RGB mean/std normalization. The USPEC mask status is model provenance only; this path does not read or modify the clinician-facing PRISM analysis mask. The manifest research identity is `NBeye-research/USPEC`; the local application model and capability IDs are `uspec-uwf-grading`. USPEC stays disabled for clinician routing pending qualification, rights review, and clinical validation. Its 0..4 class scores are raw model output and are not calibrated clinical probabilities. The application referral policy is unchanged: grade 4 refers, lower gradable grades do not, and ungradable cases remain undetermined.
 
 ## Health and model metadata
 
@@ -82,7 +99,7 @@ curl --fail http://127.0.0.1:7860/v1/models
 
 ## Inference contract
 
-- `POST /v1/predict/dr` runs RETFound for a CFP fundus image.
+- `POST /v1/predict/dr` runs RETFound for CFP when the legacy provider set is enabled, or USPEC for UWF when the USPEC provider set is enabled.
 - `POST /v1/predict/lesions` runs PRISM-DR for a CFP fundus image.
 - `POST /v2/predict/dr` and `/v2/predict/lesions` accept explicit invocation,
   source/analysis, transform, capability, and case-revision context. They do

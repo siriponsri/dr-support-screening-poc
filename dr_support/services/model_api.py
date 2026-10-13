@@ -68,6 +68,7 @@ from dr_support.model_assets import verify_assets
 from dr_support.phase3_registry import capability_descriptors, descriptor_for
 from dr_support.providers.prism import PRISM, REVISION as PRISM_REVISION
 from dr_support.providers.retfound import RETFound, REVISION as RETFOUND_REVISION
+from dr_support.providers.uspec import USPEC
 from dr_support.runtime import DeviceUnavailable, assert_cuda_ready, runtime_snapshot
 from dr_support.services.admission import inspect_bytes, is_inference_eligible
 
@@ -139,7 +140,21 @@ def _ct_eq(a: str, b: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _build_providers(*, allow_cpu_fallback: bool) -> dict[str, Any]:
+_PROVIDER_SETS = {
+    'legacy': frozenset({'retfound', 'prism'}),
+    'uspec': frozenset({'uspec'}),
+    'combined': frozenset({'retfound', 'prism', 'uspec'}),
+}
+
+
+def _provider_set() -> str:
+    selected = os.environ.get('MODEL_API_PROVIDER_SET', 'legacy').strip().lower()
+    if selected not in _PROVIDER_SETS:
+        raise ValueError('MODEL_API_PROVIDER_SET must be legacy, uspec, or combined')
+    return selected
+
+
+def _build_providers(*, allow_cpu_fallback: bool, provider_set: str) -> dict[str, Any]:
     """Construct the local provider registry.
 
     Both providers are created lazily; no model weights are loaded until the
@@ -150,10 +165,15 @@ def _build_providers(*, allow_cpu_fallback: bool) -> dict[str, Any]:
     while local contract tests can still construct the adapters on a
     CPU-only host.
     """
-    return {
-        RETFound.model_id: RETFound(allow_cpu_fallback=allow_cpu_fallback),
-        PRISM.model_id: PRISM(allow_cpu_fallback=allow_cpu_fallback),
-    }
+    selected = _PROVIDER_SETS[provider_set]
+    providers: dict[str, Any] = {}
+    if 'retfound' in selected:
+        providers[RETFound.model_id] = RETFound(allow_cpu_fallback=allow_cpu_fallback)
+    if 'prism' in selected:
+        providers[PRISM.model_id] = PRISM(allow_cpu_fallback=allow_cpu_fallback)
+    if 'uspec' in selected:
+        providers[USPEC.model_id] = USPEC(allow_cpu_fallback=allow_cpu_fallback)
+    return providers
 
 
 # ---------------------------------------------------------------------------
@@ -191,15 +211,20 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
     # Startup is intentionally read-only: setup_models performs acquisition,
     # while the service refuses to become ready when pinned local assets are
     # missing or modified. Model weights remain lazy-loaded on first inference.
+    provider_set = _provider_set()
     assets_verified = False
     if (os.environ.get('MODEL_RUNTIME', 'local').strip().lower() == 'local'
             and os.environ.get('MODEL_REQUIRE_VERIFIED_ASSETS') == '1'):
-        verify_assets('all')
+        verify_assets(provider_set)
         assets_verified = True
 
     app = FastAPI(title='Retinal Review Workbench Model API', version='0.7.0')
     inference_lock = RLock()
-    app.state.providers = _build_providers(allow_cpu_fallback=not device_strict)
+    app.state.providers = _build_providers(
+        allow_cpu_fallback=not device_strict,
+        provider_set=provider_set,
+    )
+    app.state.provider_set = provider_set
     app.state.inference_lock = inference_lock
     app.state.profile = os.environ.get('APP_PROFILE', 'model_api')
     app.state.device_strict = device_strict
@@ -290,9 +315,8 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
 class _ImageShim:
     """Minimal duck-typed image adapter that the existing providers consume.
 
-    The local ``RETFound.infer`` and ``PRISM.infer`` accept a ``BridgeImage``
-    from ``dr_support.images``. We avoid coupling to that dataclass here by
-    constructing one via the same module.
+    Local providers accept a ``BridgeImage`` from ``dr_support.images``. This
+    adapter supplies the same interface without coupling to that dataclass.
     """
     __slots__ = ('image_id', 'data', 'source_type', 'modality', 'source')
 
@@ -339,10 +363,10 @@ def _check_admission(payload: RemotePredictRequest) -> None:
 
 def _predict_global(app: FastAPI, payload: RemotePredictRequest, lock: RLock) -> GlobalResult:
     _check_runtime()
-    if payload.model_id != RETFound.model_id:
+    provider = app.state.providers.get(payload.model_id)
+    if provider is None or provider.task != 'global':
         raise HTTPException(404, f"Unknown model_id '{payload.model_id}' for /v1/predict/dr")
-    provider = app.state.providers[RETFound.model_id]
-    if payload.modality != 'CFP':
+    if payload.model_id == RETFound.model_id and payload.modality != 'CFP':
         # The local provider returns UNSUPPORTED for non-CFP; mirror that even
         # when assets are not configured (the caller just wants a contract-
         # honest answer about modality support).
@@ -357,18 +381,30 @@ def _predict_global(app: FastAPI, payload: RemotePredictRequest, lock: RLock) ->
                                   source_revision=RETFOUND_REVISION),
         )
         return result
-    _check_admission(payload)
-    if provider.metadata().get('status') == 'ASSET_REQUIRED':
-        raise HTTPException(503, 'RETFound assets not configured; set RETFOUND_SOURCE / RETFOUND_WEIGHTS')
     image = _ImageShim(payload, base64.b64decode(payload.image_b64), source='remote-model-api')
     request = _InferenceRequest(image_id=payload.image_id, modality=payload.modality,
                                 model_id=payload.model_id)
+    if payload.modality not in provider.metadata().get('modalities', []):
+        if payload.model_id == USPEC.model_id:
+            try:
+                with lock:
+                    result = provider.infer(request, image)
+            except (RuntimeError, ValueError, KeyError, OSError, ImportError) as exc:
+                log.warning('USPEC inference failed: %s', type(exc).__name__)
+                raise HTTPException(503, 'Model inference failed; inspect logs and runtime configuration') from None
+            return result
+        raise HTTPException(422, 'The selected model does not support this modality.')
+    _check_admission(payload)
+    if provider.metadata().get('status') == 'ASSET_REQUIRED':
+        if payload.model_id == USPEC.model_id:
+            raise HTTPException(503, 'USPEC artifact is not configured; set USPEC_MODEL_DIR')
+        raise HTTPException(503, 'RETFound assets not configured; set RETFOUND_SOURCE / RETFOUND_WEIGHTS')
     started = time.perf_counter()
     try:
         with lock:
             result = provider.infer(request, image)
     except (RuntimeError, ValueError, KeyError, OSError, ImportError) as exc:
-        log.warning('RETFound inference failed: %s', type(exc).__name__)
+        log.warning('%s inference failed: %s', payload.model_id, type(exc).__name__)
         raise HTTPException(503, 'Model inference failed; inspect logs and runtime configuration') from None
     provider.last_inference_ms = round((time.perf_counter() - started) * 1000, 1)
     app.state.predicted_count += 1
@@ -467,6 +503,21 @@ def _predict_phase3(
             warnings=list(registry.get('warnings') or []) + ['Capability is not enabled in this Model API runtime.'],
             status='BLOCKED',
         )
+    if payload.model_id == USPEC.model_id:
+        if payload.modality != 'UWF':
+            raise HTTPException(422, 'USPEC accepts UWF input only.')
+        if (
+            payload.capability_id != USPEC.capability_id
+            or payload.model_version != USPEC.model_version
+            or payload.image_sha256 != payload.source_sha256
+            or payload.representation_version != USPEC.representation
+            or payload.transform_id != USPEC.transform
+            or payload.mask_version is not None
+        ):
+            raise HTTPException(
+                422,
+                'USPEC requires its exact model version and original source RGB bytes without an external analysis mask.',
+            )
     legacy_payload = RemotePredictRequest(
         image_id=payload.image_id,
         modality=payload.modality,

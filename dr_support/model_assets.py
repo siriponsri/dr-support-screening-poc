@@ -14,6 +14,7 @@ from typing import Any
 from .providers.assets import verify_source, verify_weight
 from .providers.prism import REVISION as PRISM_REVISION
 from .providers.retfound import REVISION as RETFOUND_REVISION, WEIGHT_SHA256
+from .models.uspec_artifact import verify_directory as verify_uspec_directory
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,13 +41,26 @@ def _require_path(name: str, path: Path) -> Path:
 
 
 def verify_assets(which: str = 'all') -> dict[str, Any]:
-    """Verify pinned source revisions and checkpoint hashes without downloads."""
-    if which not in {'all', 'retfound', 'prism'}:
+    """Verify only selected providers; this function never acquires assets.
+
+    ``all`` retains its historical RETFound + PRISM meaning. ``combined`` is
+    the explicit selection for all three providers.
+    """
+    selections = {
+        'all': {'retfound', 'prism'},
+        'legacy': {'retfound', 'prism'},
+        'retfound': {'retfound'},
+        'prism': {'prism'},
+        'uspec': {'uspec'},
+        'combined': {'retfound', 'prism', 'uspec'},
+    }
+    if which not in selections:
         raise ValueError(f'Unknown model selection: {which}')
+    selected = selections[which]
     paths = default_asset_paths()
     verified: dict[str, Any] = {'status': 'VERIFIED', 'models': {}}
 
-    if which in {'all', 'retfound'}:
+    if 'retfound' in selected:
         source = verify_source(_require_path('RETFOUND_SOURCE', paths['RETFOUND_SOURCE']), RETFOUND_REVISION)
         weight = verify_weight(_require_path('RETFOUND_WEIGHTS', paths['RETFOUND_WEIGHTS']), WEIGHT_SHA256)
         verified['models']['retfound-aptos5'] = {
@@ -56,7 +70,7 @@ def verify_assets(which: str = 'all') -> dict[str, Any]:
             'checkpoint_sha256': WEIGHT_SHA256,
         }
 
-    if which in {'all', 'prism'}:
+    if 'prism' in selected:
         source = verify_source(_require_path('PRISM_SOURCE', paths['PRISM_SOURCE']), PRISM_REVISION)
         weights_root = _require_path('PRISM_WEIGHTS', paths['PRISM_WEIGHTS'])
         lock = json.loads(PRISM_LOCK.read_text(encoding='utf-8'))
@@ -69,4 +83,10 @@ def verify_assets(which: str = 'all') -> dict[str, Any]:
             'checkpoint_sha256': dict(lock['weights']),
             'archive_sha256': lock['archive_sha256'],
         }
+
+    if 'uspec' in selected:
+        directory = os.environ.get('USPEC_MODEL_DIR')
+        if not directory:
+            raise RuntimeError('USPEC_MODEL_DIR is required for USPEC artifact verification.')
+        verified['models']['uspec-uwf-grading'] = verify_uspec_directory(directory)
     return verified

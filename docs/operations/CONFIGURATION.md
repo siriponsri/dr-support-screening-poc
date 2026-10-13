@@ -21,12 +21,16 @@ Copy `.env.example` into a private environment file or configure variables throu
 | `INFERENCE_DEVICE` | Model API | `cuda:0` | no |
 | `MODEL_CPU_THREADS` | local runtime | `4` | no |
 | `MODEL_REQUIRE_VERIFIED_ASSETS` | Model API | `1` in `start.sh`; `0` in example for tests | no |
+| `MODEL_API_PROVIDER_SET` | Model API | `legacy`; `legacy`, `uspec`, or `combined` | no |
+| `MODEL_API_PYTHON` | Model API launcher | `.venv/bin/python`; optional isolated runtime interpreter | no |
 | `DR_SUPPORT_RELAX_DEVICE` | development/tests | `0` | no |
 | `RETFOUND_SOURCE` | Model API | `local-state/bridge/sources/RETFound` | no |
 | `RETFOUND_WEIGHTS` | Model API | `local-state/bridge/retfound-aptos.pth` | no |
 | `PRISM_SOURCE` | Model API | `local-state/bridge/sources/PRISM-DR` | no |
 | `PRISM_WEIGHTS` | Model API | `local-state/bridge/prism` | no |
 | `PRISM_THRESHOLDS` | review evidence | `{}` | no |
+| `USPEC_MODEL_DIR` | USPEC Model API | empty; external read-only artifact directory | no |
+| `USPEC_ENABLE_CANDIDATE_LOAD` | USPEC Model API | `0`; explicitly set to `1` for controlled candidate qualification | no |
 | `REVIEW_MAX_PER_CLASS` | review evidence | `25` | no |
 | `REVIEW_MAX_TOTAL` | review evidence | `80` | no |
 | `CVAT_URL` | optional CVAT | `https://app.cvat.ai` | no |
@@ -40,10 +44,14 @@ The review profile requires `MODEL_RUNTIME=remote` and never loads local weights
 | Profile | `APP_PROFILE` | `MODEL_RUNTIME` | Purpose |
 | --- | --- | --- | --- |
 | Review workstation | `review` | `remote` | Clinician UI, local review state, and proxy calls to the hospital Model API. |
-| Hospital Model API | `model_api` | `local` | GPU inference endpoints with verified local RETFound and PRISM-DR assets. |
+| Hospital Model API | `model_api` | `local` | GPU inference endpoints with verified RETFound and PRISM-DR assets (`MODEL_API_PROVIDER_SET=legacy`). |
+| USPEC-only Model API | `model_api` | `local` | UWF grading candidate with only the exact external USPEC artifact verified (`MODEL_API_PROVIDER_SET=uspec`). |
+| Combined Model API | `model_api` | `local` | RETFound, PRISM-DR, and USPEC (`MODEL_API_PROVIDER_SET=combined`); every enabled provider is verified independently. |
 | Combined local demo | `full` | `local` | Development-only combined surface for synthetic smoke work. |
 
 The application rejects incompatible profile/runtime combinations. The review profile may start without a configured Model API; model actions remain unavailable until a compatible capability is healthy and advertised.
+
+The default `legacy` Model API selection preserves the existing RETFound CFP and PRISM CFP setup and verification path. For USPEC qualification, use a separate Python environment compatible with the recorded USPEC runtime, point `MODEL_API_PYTHON` to it, set `MODEL_API_PROVIDER_SET=uspec`, and set `USPEC_MODEL_DIR` to the external artifact directory. The USPEC directory is read-only and must remain outside this repository. `USPEC_ENABLE_CANDIDATE_LOAD=1` is an explicit opt-in for controlled inference; CUDA is required, and this opt-in does not change the capability's disabled release status or establish clinical validation or production rights. Repository `.[models]` pins are not the USPEC runtime and must not be installed over a qualified USPEC environment.
 
 `REVIEW_THRESHOLDS`, `REVIEW_MAX_PER_CLASS`, and `REVIEW_MAX_TOTAL` bound the visual/pre-label subset only. They do not alter raw PRISM output or model confidence values. Changing environment configuration requires a process restart.
 
