@@ -26,6 +26,7 @@ dicom = [
     "pylibjpeg-openjpeg==2.5.0",
 ]
 browser-test = ["playwright==1.57.0"]
+uwf-fov = ["opencv-python==5.0.0.93"]
 
 [project.scripts]
 dr-support-run = "dr_support.run:main"

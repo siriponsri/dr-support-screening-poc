@@ -249,6 +249,9 @@ test = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+uwf-fov = [
+    { name = "opencv-python" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -256,6 +259,7 @@ requires-dist = [
     { name = "fastapi", specifier = "==0.141.1" },
     { name = "gdown", marker = "extra == 'models'", specifier = "==6.4.0" },
     { name = "httpx", specifier = "==0.28.1" },
+    { name = "opencv-python", marker = "extra == 'uwf-fov'", specifier = "==5.0.0.93" },
     { name = "pillow", specifier = "==12.3.0" },
     { name = "playwright", marker = "extra == 'browser-test'", specifier = "==1.57.0" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.2.10" },
@@ -273,7 +277,7 @@ requires-dist = [
     { name = "ultralytics", marker = "extra == 'models'", specifier = "==8.4.8" },
     { name = "uvicorn", specifier = "==0.53.0" },
 ]
-provides-extras = ["models", "test", "dicom", "browser-test"]
+provides-extras = ["models", "test", "dicom", "browser-test", "uwf-fov"]
 
 [[package]]
 name = "ensemble-boxes"
