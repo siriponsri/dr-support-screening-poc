@@ -1207,3 +1207,82 @@ Reused latest candidate validation: backend **352 passed, 34 skipped, 0 failed**
 `CODEX_SELF_AUDIT / REDUCED_INDEPENDENCE`: no operator acceptance or inference was fabricated; external-mask rejection and existing failure behavior were preserved; no inference exception was converted into an empty lesion result; no PHI, hospital pixels, weights, secrets, or patient-level outputs entered Git; PostgreSQL workflow claims are explicitly scoped to synthetic TEST_ONLY receipts. This is a self-audit, not independent review.
 
 **Remaining blockers:** (1) authorized operator-created and visually accepted masks plus supported masked-input handoff and actual PRISM inference; (2) protected-origin export denial/workspace isolation if required for demo; (3) institutional model-rights, deployment, and clinical authorization remain unresolved. No commit, merge, or push was performed.
+
+### Autonomous overnight continuation — commit checkpoint and final push audit (2026-10-14)
+
+Recovered the exact current state, reread the launch file and start specification, inspected the whole dirty diff and external receipts, and took an additional hash-verified private snapshot before staging. The approved UWF source directory was checked with metadata-safe aggregation only: **21 files, 21 decodable, all 1920×835**; no names, EXIF values, images, or patient-level predictions were emitted or copied.
+
+Fresh candidate validation before checkpoint commit: backend **352 passed, 34 skipped, 0 failed**; focused PRISM/safe-loader/Bridge/routing/release-builder group **156 passed, 2 skipped**; Ruff, shell syntax, and diff checks passed; frontend **147 passed / 22 files**, typecheck and production build passed (existing >500 kB chunk warning); root `npm test` passed. Live Model API `/health` and `/v1/models` smoke helpers returned PASS for existing USPEC port 7861 and RETFound port 7864. This is metadata/health only for these existing native services, not inference evidence.
+
+All 50 implementation/report/spec/test/deployment files were explicitly staged after inspecting their names/content; `git diff --cached --check` initially caught trailing spaces in the added normative spec, which were removed. The reviewed changes were committed locally on `feat/m1-prism-uwf-integration` as `bbfb0c7e9467598ee35ea6d2591c0a6cca23906a` (`Integrate experimental PRISM UWF assistance`). No model weights, images, database, secrets, or private run evidence was staged. The working tree was clean immediately after commit.
+
+The authorized feature push was attempted but Git credential helper access failed (`/tmp/vscode-git-1b5a55640b.sock` connection refused; remote reported no anonymous write access). No credential was printed, changed, or persisted. Feature push, verified remote SHA, main merge/push, post-integration validation, and task-branch cleanup therefore remain **NOT DONE**. Main/origin/main remain `3c12ffd45953fd839b2da54de10fa5ef224e2c1d`; no local merge was made. No cleanup of existing services/database was performed because their ownership could not be independently confirmed.
+
+`CODEX_SELF_AUDIT / REDUCED_INDEPENDENCE`: current staged commit was checked for explicit safe paths, all changes were source/tests/docs/deployment; package filters reject patient/image/model/database/secret artifacts. Loader retains `weights_only=True` and explicit reviewed allowlist; no unsafe fallback. Source origin guards and external-mask rejection remain; no private/hospital provenance was relabeled. Grade AI suggestions remain separate from TEST_ONLY human review. No inference exception became an empty lesion result. This is a self-audit, not independent review.
+
+The local feature commit is a checkpoint, not release. PRISM UWF remains experimental; rim exclusion/mask acceptance/masked inference/PREPARED gates remain open; PostgreSQL evidence is TEST_ONLY synthetic; model rights and remote/workstation deployment are not cleared. Terminal stays **`DELIVERY_CHECKPOINT_WITH_BLOCKERS`**.
+
+### Current-session goal continuation update (2026-10-14)
+
+The feature work was explicitly staged and locally committed as `bbfb0c7e9467598ee35ea6d2591c0a6cca23906a` after recovery and privacy review. There is now one report-only worktree modification following that commit. `git fetch origin main` succeeded without advancing local `main`/`origin/main` (`3c12ffd45953fd839b2da54de10fa5ef224e2c1d`). Feature push was attempted and failed because the configured Git credential helper socket refused connection and GitHub denied anonymous write. No credentials were exposed or written; no merge or push to main was attempted.
+
+The latest earlier sanitized PostgreSQL browser receipt was verified by hash and remains synthetic TEST_ONLY evidence. No new browser E2E was executed: although a cached Playwright package and Chromium binary exist, Chromium cannot launch because host shared libraries including `libnspr4.so` and `libnss3.so` are absent. No dependencies were installed. The existing database manifest/case reads are still available over the already-running PostgreSQL-backed service; these reads are not a new workflow test. Existing model `/health` and `/v1/models` wrappers returned PASS for USPEC 7861 and RETFound 7864, but these were metadata checks only, not model inference.
+
+Package latest-run folder remains the 2026-10-14 20:53 delivery folder. Because report/handoff files were updated after its ZIP/checksums were created, those package hashes are stale and must be regenerated before calling the archive current. No claim of completed delivery/merge is made. All product gates remain as reported: no accepted rim mask or masked PRISM inference; PREPARED unqualified; PostgreSQL evidence synthetic only; no protected export denial/workspace isolation; no simultaneous container residency or image transfer; rights/remote/clinical authorization unresolved.
+
+### M1 rim-assisted demo rescue — resumed-session verification (2026-10-14)
+
+Recovered branch `feat/m1-prism-uwf-integration` at `bbfb0c7e9467598ee35ea6d2591c0a6cca23906a`; preserved the existing report-only dirty worktree. `git diff --check` passes. No mask, image, model, dependency, application, runtime, database, or prior evidence was modified.
+
+**Operator-assisted rim mask:** still blocked, not passed. This session confirmed both `DISPLAY` and `WAYLAND_DISPLAY` are unset; the installed OpenCV 4.11.0 reports an empty GUI framework; and no Chromium/Chrome/Firefox executable is available on PATH. There is no authorized operator annotation/visual-acceptance event. Accordingly, no hospital image was selected, displayed, annotated, or inferred upon; no polygon/mask was created or accepted; and masked-to-PRISM inference remains **0 cases**. The pre-existing API external-mask rejection was not bypassed. No result here demonstrates safe rim exclusion, retinal preservation, or the earlier trusted-detector `PREPARED` mode. Active inference remains unchanged.
+
+**PostgreSQL workflow:** no new end-to-end run was performed. The already hash-verified private receipt `qualification/evidence/m1-postgres-browser-resume-20261014T200000Z/e2e-sanitized-receipt.json` (SHA-256 `2538bdf44376db25d5ed182eb17d1fc565ea70783d4bbb190581ac7f604bb345`) records a TEST_ONLY synthetic browser/API/PostgreSQL path: original UWF displayed; fresh USPEC suggestion with admitted-source hash match; test actor corrected human grade to 4 / REFER; annotation review completed; service restart/reload retained Grade 4 and the suggestion; export included the same synthetic case with distinct human grade 4 and AI grade 0. This is synthetic test-actor evidence, not clinician/hospital evidence. Grade 4 was corrected from an existing Grade 2; other grade and ungradable paths are in separate receipts, not this transaction. Ungradable remains separate from Grade 0. Protected-origin export denial/workspace isolation are not established. No new database writes or browser session occurred.
+
+**Current disposition:** `M1_RIM_ASSISTED_DEMO_AND_E2E_REVIEW_READY` is an owner-review checkpoint only, not a passed rim-mask or clinical gate. Reproducible masked-to-PRISM demonstration is **NOT ESTABLISHED**. Resume the mask task only when an authorized operator can visually annotate and accept candidate masks through an available local visual workflow, and an authorized supported masked-input route is established; otherwise retain existing inference. PostgreSQL evidence remains bounded synthetic evidence as above. No feature, model, dependency, workflow, or runtime changes were introduced.
+
+### M1 rim-assisted demo rescue — owner handoff confirmation (2026-10-14)
+
+This continuation verified rather than repeated the prior bounded evidence. Current
+checkout remains `/teamspace/studios/this_studio/dr-support-screening-poc`, branch
+`feat/m1-prism-uwf-integration`, HEAD
+`bbfb0c7e9467598ee35ea6d2591c0a6cca23906a`; the pre-existing report-only
+modification was preserved. `git diff --check` passes. The exact private
+TEST_ONLY browser/PostgreSQL receipt was re-read and its SHA-256 verified as
+`2538bdf44376db25d5ed182eb17d1fc565ea70783d4bbb190581ac7f604bb345`.
+
+No operator-assisted mask was created or accepted, and no masked image was
+submitted to PRISM. The local shell has no display server, OpenCV is built with
+`GUI: NONE`, and no browser executable is on PATH. The already-running private
+headless-browser and synthetic test services were not evidence of a current
+operator review; only the three processes uniquely attributable to the prior
+resume test (PIDs 523124, 527631, 537792) were stopped after receipt verification.
+Pre-existing service processes on 7861, 7863, 7864, and 8766 were left running.
+There remain **0 accepted masks / 0 masked-to-PRISM cases**. The known external
+masked-input API guard remains intact. Rim masking is therefore **NOT READY TO
+DEMONSTRATE**; keep active inference unchanged. Historical native-ROI review
+remains 0 adequate, 5 partial, 16 inadequate, with uncertainty about anatomy.
+No new models, dependencies, segmentation, or inference path were introduced.
+
+The PostgreSQL clinician workflow has a real bounded *synthetic TEST_ONLY*
+receipt, not a fresh transaction in this continuation and not clinician or
+hospital evidence. In that recorded browser/API/PostgreSQL transaction, an
+already-admitted synthetic UWF was displayed, USPEC AI READY suggestion was
+created and source-bound, a TEST_ONLY actor corrected confirmed Grade 2 to
+Grade 4 / REFER, annotation review was completed, restart/reload preserved the
+state, and dataset CSV export included the case with separate human Grade 4 and
+AI Grade 0. This demonstrates the technical workflow on synthetic fixtures
+only. Separate prior receipts cover other grades and ungradable (`null` /
+`UNDETERMINED`), not the same transaction; ungradable remains distinct from
+Grade 0. Protected-origin export denial/workspace isolation and any real
+clinician/hospital workflow remain unverified. Do not present this as clinical
+or production E2E qualification.
+
+**Disposition:** `M1_RIM_ASSISTED_DEMO_AND_E2E_REVIEW_READY` — owner review
+checkpoint only. The masked-inference demo gate failed to establish within the
+available operator/display and supported-input conditions. Synthetic
+PostgreSQL workflow evidence is reproducible from its private receipt but was
+not rerun. Remaining blockers: authorized operator mask creation/visual
+acceptance and a supported masked-input handoff; actual masked-to-PRISM CUDA
+inference; protected-origin/export isolation checks if required; and real
+clinician/hospital E2E. No commit, merge, push, or cleanup of unrelated runtime
+state occurred.
