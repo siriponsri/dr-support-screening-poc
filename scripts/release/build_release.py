@@ -84,6 +84,20 @@ def _root_relative(path: Path) -> str:
 def _validate_source_entry(path: Path) -> str:
     """Reject links and paths that could escape the source repository."""
 
+    # Resolve the lexical repository-relative name before resolving symlinks,
+    # so an in-tree link to an outside target is reported as the symlink
+    # violation it is. _root_relative still rejects explicit path traversal.
+    root = ROOT.resolve()
+    lexical = Path(os.path.abspath(path))
+    try:
+        lexical.relative_to(root)
+    except ValueError:
+        return _root_relative(path)
+    current = root
+    for part in lexical.relative_to(root).parts:
+        current /= part
+        if current.is_symlink():
+            raise SystemExit(f"unsafe symlink in release source: {lexical.relative_to(root).as_posix()}")
     relative = _root_relative(path)
     root = ROOT.resolve()
     current = root

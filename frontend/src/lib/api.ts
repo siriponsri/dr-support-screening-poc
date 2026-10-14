@@ -246,6 +246,33 @@ export interface ResolverEvidence {
   };
 }
 
+export interface PrismAnalysisFieldEvidence {
+  status: 'READY';
+  mask_version: string;
+  mask_sha256: string;
+  source_rgb_sha256: string;
+  image_width: number;
+  image_height: number;
+  boundary_confidence: number;
+  excluded_fraction: number;
+  boundary: [number, number][];
+  used_for_model_input: boolean;
+  field_mask_png_base64?: string | null;
+}
+
+export interface PrismProcessingEvidence {
+  input_image_sha256: string;
+  processing_mode: 'LEGACY' | 'PREPARED' | 'FALLBACK';
+  native_roi_status: 'SUCCEEDED' | 'FAILED';
+  native_roi_bbox?: [number, number, number, number] | null;
+  native_roi_failure_code?: string | null;
+  external_fov_status: 'READY' | 'UNCERTAIN' | 'UNAVAILABLE' | 'NOT_APPLICABLE';
+  external_fov_reason_code?: string | null;
+  fov_used_for_model_input: boolean;
+  raw_boundary_classes: Array<'INSIDE_ANALYSIS_FIELD' | 'NEAR_CAMERA_RIM' | 'OUTSIDE_ANALYSIS_FIELD' | 'INVALID_BOX' | null>;
+  analysis_field?: PrismAnalysisFieldEvidence | null;
+}
+
 export interface CaseRecord {
   image_id: string;
   display_name: string;
@@ -260,6 +287,7 @@ export interface CaseRecord {
   source_image_url?: string | null;
   source_sha256?: string | null;
   analysis_derivative?: AnalysisDerivativeAudit | null;
+  prism_processing?: PrismProcessingEvidence | null;
   analysis_preparation?: {
     status: 'READY' | 'NEEDS_REVIEW' | 'FAILED' | 'NOT_APPLICABLE';
     reason_code?: string;
@@ -465,6 +493,9 @@ export interface ModelDescriptor {
   domain_status?: string;
   clinical_validation_status?: string;
   rights_status?: string;
+  production_authorization?: string;
+  runtime_qualification?: string;
+  uwf_use?: string;
   release_status?: string;
   explanation_types?: string[];
   enabled?: boolean;

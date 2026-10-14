@@ -1,11 +1,16 @@
 import type { CaseRecord, ModelDescriptor } from './api';
 
-const READY_MODEL_STATUSES = new Set(['LOADED', 'SYNTHETIC_FIXTURE']);
+const READY_MODEL_STATUSES = new Set(['LOADED', 'SYNTHETIC_FIXTURE', 'QUALIFIED_NOT_LOADED']);
 const BLOCKED_RELEASE_STATUSES = new Set(['COMPARATOR_ONLY', 'DISABLED', 'DEFERRED']);
 const KNOWN_RELEASE_STATUSES = new Set(['AVAILABLE', 'QUALIFIED', 'RESEARCH_ONLY', 'COMPARATOR_ONLY', 'DISABLED', 'DEFERRED']);
-const CFP_ONLY_MODEL_IDS = new Set(['retfound-aptos5', 'prism-dr-5fold']);
+const CFP_ONLY_MODEL_IDS = new Set(['retfound-aptos5']);
+const FIXED_MODEL_MODALITIES: Record<string, readonly string[]> = {
+  'retfound-aptos5': ['CFP'],
+  'uspec-uwf-grading': ['UWF'],
+};
 const EXPECTED_MODEL_TASKS: Record<string, string> = {
   'retfound-aptos5': 'global',
+  'uspec-uwf-grading': 'global',
   'prism-dr-5fold': 'lesion-roi',
 };
 
@@ -30,8 +35,20 @@ function releaseStatusKnown(status?: string | null): boolean {
 function hasQualifiedCapability(model: ModelDescriptor): boolean {
   const modalities = model.modalities ?? model.supported_modalities ?? [];
   const expectedTask = EXPECTED_MODEL_TASKS[model.model_id];
-  if (expectedTask) {
-    return model.task === expectedTask && modalities.includes('CFP');
+  if (expectedTask && model.task !== expectedTask) return false;
+  const fixedModalities = FIXED_MODEL_MODALITIES[model.model_id];
+  if (fixedModalities && (
+    modalities.length === 0
+    || !modalities.some((modality) => fixedModalities.includes(modality))
+    || !modalities.every((modality) => fixedModalities.includes(modality))
+  )) return false;
+  if (model.model_id === 'retfound-aptos5') {
+    // Preserve the legacy Bridge descriptor contract while keeping RETFound
+    // strictly CFP-only.
+    return modalities.includes('CFP');
+  }
+  if (model.model_id === 'prism-dr-5fold') {
+    return releaseStatusKnown(model.release_status) && modalities.includes('CFP');
   }
   if (model.model_id.startsWith('mock-')) {
     return Boolean(model.task && modalities.length > 0);
@@ -58,8 +75,13 @@ export function isModelUsable(
   if (!READY_MODEL_STATUSES.has(model.status ?? '') || releaseStatusBlocked(model.release_status)) return false;
   if (model.ready === false || !hasQualifiedCapability(model)) return false;
   if (model.model_id.startsWith('mock-') && sourceOrigin !== 'SYNTHETIC') return false;
-  if (modality === 'UWF' && isCfpOnlyModel(model.model_id)) return false;
-  return (model.modalities ?? model.supported_modalities ?? []).includes(modality);
+  const modalities = model.modalities ?? model.supported_modalities ?? [];
+  if (modality === 'UWF' && model.model_id === 'prism-dr-5fold') {
+    if (model.uwf_use !== 'EXPERIMENTAL'
+      || !['NOT_VALIDATED_FOR_UWF', 'NOT_ESTABLISHED'].includes(model.clinical_validation_status ?? '')
+      || model.trained_domain !== 'CFP') return false;
+  }
+  return modalities.includes(modality);
 }
 
 export function hasCompatibleModel(item: CaseRecord, models: ModelDescriptor[]): boolean {

@@ -80,7 +80,7 @@ def test_bridge_v1_remains_strict_and_phase3_context_binds_analysis_bytes():
     assert GlobalResult.model_validate(legacy.model_dump()).schema_version == 'bridge.v1'
 
 
-def test_registry_keeps_uspec_blocked_and_does_not_promote_release_by_runtime():
+def test_registry_reconciles_uspec_engineering_readiness_without_release_promotion():
     entries = capability_descriptors([{
         'model_id': 'uspec-uwf-grading',
         'task': 'global',
@@ -90,7 +90,12 @@ def test_registry_keeps_uspec_blocked_and_does_not_promote_release_by_runtime():
     }])
     uspec = next(item for item in entries if item['model_id'] == 'uspec-uwf-grading')
     assert uspec['runtime_status'] == 'LOADED'
-    assert uspec['release_status'] == 'DISABLED'
+    assert uspec['release_status'] == 'RESEARCH_ONLY'
+    assert uspec['runtime_qualification'] == 'ENGINEERING_QUALIFIED'
+    assert uspec['rights_status'] == 'UNVERIFIED'
+    assert uspec['clinical_validation_status'] == 'NOT_ESTABLISHED'
+    assert uspec['production_authorization'] == 'NOT_AUTHORIZED'
+    assert uspec['ready'] is False  # incomplete live descriptor cannot inherit readiness
     assert any(item['model_id'] == 'native-uwf-lesion-localizer'
                and item['status'] == 'DEFERRED_NO_QUALIFIED_CANDIDATE' for item in entries)
     assert descriptor_for('uspec-uwf-grading')['artifact_digest'] == '8f07eb11859f638faee368a56c7c532ca946fee320f92f030a0cf25c63b769ac'
@@ -127,7 +132,11 @@ def test_capability_descriptors_keep_registry_release_restrictions_authoritative
     }])
     prism = next(item for item in entries if item['model_id'] == 'prism-dr-5fold')
     assert prism['status'] == 'LOADED'
-    assert prism['release_status'] == 'COMPARATOR_ONLY'
+    assert prism['release_status'] == 'RESEARCH_ONLY'
+    assert prism['supported_modalities'] == ['CFP', 'UWF']
+    assert prism['trained_domain'] == 'CFP'
+    assert prism['uwf_use'] == 'EXPERIMENTAL'
+    assert prism['clinical_validation_status'] == 'NOT_VALIDATED_FOR_UWF'
     assert prism['ready'] is False
 
 
@@ -183,6 +192,10 @@ def test_model_gateway_reports_loaded_capability_as_ready():
             "task": "global",
             "modalities": ["CFP"],
             "status": "LOADED",
+            "capability_id": "dr_grade",
+            "revision": "locked-retfound-revision",
+            "preprocessing": "retfound-cfp-v1",
+            "release_status": "RESEARCH_ONLY",
         }])
 
     probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
@@ -190,6 +203,63 @@ def test_model_gateway_reports_loaded_capability_as_ready():
     assert probe.connection_verified is True
     assert probe.capabilities_ready is True
     assert probe.models[0]["ready"] is True
+
+
+def test_model_gateway_accepts_verified_qualified_lazy_uspec_capability():
+    uspec = {
+        "model_id": "uspec-uwf-grading",
+        "capability_id": "dr_grade",
+        "task": "global",
+        "modalities": ["UWF"],
+        "status": "QUALIFIED_NOT_LOADED",
+        "ready": True,
+        "model_version": "grading_state.pt-sha256:locked",
+        "preprocessing_version": "uspec-source-rgb-v1",
+        "release_status": "RESEARCH_ONLY",
+        "runtime_qualification": "ENGINEERING_QUALIFIED",
+        "trained_domain": "UWF_RESEARCH_CANDIDATE",
+        "clinical_validation_status": "NOT_ESTABLISHED",
+        "rights_status": "UNVERIFIED",
+        "production_authorization": "NOT_AUTHORIZED",
+        "warnings": ["Research/demo only."],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS", "assets_verified": True})
+        return httpx.Response(200, json=[uspec])
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.connection_verified is True
+    assert probe.capabilities_ready is True
+    assert probe.models[0]["ready"] is True
+    assert probe.models[0]["rights_status"] == "UNVERIFIED"
+    assert probe.models[0]["clinical_validation_status"] == "NOT_ESTABLISHED"
+    assert probe.models[0]["production_authorization"] == "NOT_AUTHORIZED"
+
+
+def test_model_gateway_does_not_accept_lazy_capability_without_verified_assets():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "PASS_WITH_WARNINGS", "assets_verified": False})
+        return httpx.Response(200, json=[{
+            "model_id": "uspec-uwf-grading",
+            "capability_id": "dr_grade",
+            "task": "global",
+            "modalities": ["UWF"],
+            "status": "QUALIFIED_NOT_LOADED",
+            "model_version": "grading_state.pt-sha256:locked",
+            "preprocessing_version": "uspec-source-rgb-v1",
+            "release_status": "RESEARCH_ONLY",
+            "runtime_qualification": "ENGINEERING_QUALIFIED",
+        }])
+
+    probe = probe_model_connection("https://model-api.test", transport=httpx.MockTransport(handler))
+
+    assert probe.connection_verified is False
+    assert probe.capabilities_ready is False
+    assert probe.models[0]["ready"] is False
 
 
 def test_model_gateway_keeps_unverified_assets_manual_only():

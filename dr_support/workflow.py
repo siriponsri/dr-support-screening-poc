@@ -65,6 +65,34 @@ def _source_origin(record, image):
     return 'UNKNOWN'
 
 
+def _global_result_matches_modality(result, modality, source_origin):
+    if not isinstance(result, dict) or result.get('modality') != modality:
+        return False
+    if source_origin not in {'PUBLIC', 'SYNTHETIC'}:
+        return False
+    model_id = result.get('model_id')
+    if modality == 'CFP':
+        return model_id == 'retfound-aptos5' or (
+            model_id == 'mock-global' and source_origin == 'SYNTHETIC'
+        )
+    if modality == 'UWF':
+        return model_id == 'uspec-uwf-grading'
+    return False
+
+
+def _lesion_result_matches_modality(result, modality, source_origin):
+    return (
+        isinstance(result, dict)
+        and (
+            result.get('model_id') == 'prism-dr-5fold'
+            or (result.get('model_id') == 'mock-lesion' and source_origin == 'SYNTHETIC')
+        )
+        and result.get('modality') == modality
+        and modality in {'CFP', 'UWF'}
+        and source_origin in {'PUBLIC', 'SYNTHETIC'}
+    )
+
+
 def _spatial_ai_display(case, image, *, source_origin='UNKNOWN'):
     """Return a safe projection for spatial AI evidence without mutating raw output."""
     lesion = case.get('lesion')
@@ -358,23 +386,35 @@ def install_workflow(app, store):
         )
         source_modality = (record or {}).get('retinal_modality', 'UNKNOWN')
         source_origin = _source_origin(record, image)
-        spatial_ai = _spatial_ai_display(case, image, source_origin=source_origin)
-        # CFP evidence from a legacy case is not current evidence for UWF.
-        visible_ai = source_modality == 'CFP' and source_origin in {'PUBLIC', 'SYNTHETIC'}
-        visible_lesion = case.get('lesion') if spatial_ai['status'] == 'AVAILABLE' else None
-        evidence_case = (case if visible_ai else {
-            **case, 'global': None, 'lesion': None, 'ai_annotation_reviews': []
-        })
-        if visible_ai and visible_lesion is None:
-            evidence_case = {**evidence_case, 'lesion': None, 'ai_annotation_reviews': []}
+        visible_global = (
+            case.get('global')
+            if _global_result_matches_modality(case.get('global'), source_modality, source_origin)
+            else None
+        )
+        modality_matched_lesion = (
+            case.get('lesion')
+            if _lesion_result_matches_modality(case.get('lesion'), source_modality, source_origin)
+            else None
+        )
+        spatial_ai = _spatial_ai_display(
+            {**case, 'lesion': modality_matched_lesion}, image,
+            source_origin=source_origin,
+        )
+        visible_lesion = modality_matched_lesion if spatial_ai['status'] == 'AVAILABLE' else None
+        evidence_case = {
+            **case,
+            'global': visible_global,
+            'lesion': visible_lesion,
+            'ai_annotation_reviews': case.get('ai_annotation_reviews', []) if visible_lesion else [],
+        }
         explanation = case.get('explainability')
         if not isinstance(explanation, dict):
             explanation = {
                 'status': 'UNAVAILABLE',
                 'note': 'Explainability evidence is unavailable for this result. It is not lesion localization or a clinical probability.',
             }
-        return {**case, 'global': case.get('global') if visible_ai else None,
-                'lesion': visible_lesion if visible_ai else None,
+        return {**case, 'global': visible_global,
+                'lesion': visible_lesion,
                 'source_type': image.source_type if image is not None else None,
                 'source_origin': source_origin,
                 'source': image.source if image is not None else 'WORKSPACE_INPUT',
@@ -632,9 +672,14 @@ def install_workflow(app, store):
             # source whose image type is now UWF or still unknown.
             current_admission = admission_record(image_id) or {}
             current_source_origin = _source_origin(current_admission, app.state.images.get(image_id))
-            current_ai = (case.get('global') if current_admission.get('retinal_modality') == 'CFP'
-                          and current_source_origin in {'PUBLIC', 'SYNTHETIC'}
-                          else None)
+            current_modality = current_admission.get('retinal_modality', 'UNKNOWN')
+            current_ai = (
+                case.get('global')
+                if _global_result_matches_modality(
+                    case.get('global'), current_modality, current_source_origin,
+                )
+                else None
+            )
             if request.revision != case['revision']:
                 already_confirmed = (
                     request.action == 'CONFIRM_ANNOTATIONS'

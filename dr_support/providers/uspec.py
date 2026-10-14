@@ -56,6 +56,9 @@ class USPEC:
 
     def metadata(self) -> dict:
         snapshot = runtime_snapshot()
+        status = "LOADED" if self.model is not None else self._status
+        if status == "NOT_LOADED" and getattr(self, "assets_verified", False):
+            status = "QUALIFIED_NOT_LOADED"
         return {
             "model_id": self.model_id,
             "research_model_id": RESEARCH_MODEL_ID,
@@ -64,7 +67,7 @@ class USPEC:
             "task": self.task,
             "revision": MODEL_VERSION,
             "artifact_digest": EXPECTED.sha256,
-            "status": "LOADED" if self.model is not None else self._status,
+            "status": status,
             "modalities": ["UWF"],
             "class_order": [0, 1, 2, 3, 4],
             "requested_device": snapshot.requested_device,
@@ -75,13 +78,14 @@ class USPEC:
             "input_representation": REPRESENTATION,
             "postprocessing_version": "softmax-argmax-5-v1",
             "explanation_status": "UNAVAILABLE",
-            "release_status": "DISABLED",
-            "runtime_qualification": "NEEDS_QUALIFICATION",
+            "release_status": "RESEARCH_ONLY",
+            "runtime_qualification": "ENGINEERING_QUALIFIED",
             "rights_status": "UNVERIFIED",
             "clinical_validation_status": "NOT_ESTABLISHED",
+            "production_authorization": "NOT_AUTHORIZED",
             "warnings": [
-                "USPEC research candidate; runtime qualification is pending.",
-                "Production rights are unverified and clinical validation is not established.",
+                "USPEC engineering runtime qualified on the Tesla T4 for public/synthetic UWF research/demo use; model weights load lazily.",
+                "Rights remain unverified; clinical validation is not established; production use is not authorized.",
                 "Raw model scores are not calibrated clinical probabilities.",
                 "Model attention is not exposed as lesion localization; clinician review remains authoritative.",
             ],

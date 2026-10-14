@@ -1,0 +1,17 @@
+FROM pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml README.md ./
+COPY dr_support ./dr_support
+RUN python -m pip install --break-system-packages --no-cache-dir --disable-pip-version-check \
+      'fastapi==0.141.1' 'uvicorn==0.53.0' 'httpx==0.28.1' \
+      'pydantic==2.13.5' 'Pillow==12.3.0' 'psycopg[binary]==3.2.10' \
+      'timm==1.0.22' 'opencv-python-headless==4.11.0.86' \
+    && python -m pip install --break-system-packages --no-cache-dir --no-deps -e .
+ENV APP_PROFILE=model_api MODEL_RUNTIME=local MODEL_API_PROVIDER_SET=uspec \
+    MODEL_REQUIRE_VERIFIED_ASSETS=1 INFERENCE_DEVICE=cuda:0 WORKERS=1 \
+    HOST=0.0.0.0 PORT=7861 DR_SUPPORT_RELAX_DEVICE=0 USPEC_ENABLE_CANDIDATE_LOAD=1
+EXPOSE 7861
+CMD ["python", "-m", "dr_support.run"]

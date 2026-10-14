@@ -6,7 +6,11 @@ const os = require('node:os');
 const path = require('node:path');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(),'dr-ui-'));
-const venvPython = path.resolve('.venv','Scripts','python.exe');
+const windowsVenvPython = path.resolve('.venv','Scripts','python.exe');
+const posixVenvPython = path.resolve('.venv','bin','python');
+const venvPython = process.env.DR_SUPPORT_TEST_PYTHON ||
+  (fs.existsSync(windowsVenvPython) ? windowsVenvPython :
+    (fs.existsSync(posixVenvPython) ? posixVenvPython : 'python3'));
 // Spawn the legacy review-API entrypoint directly. This path honours
 // MODEL_RUNTIME without the new strict profile invariants so the historical
 // UI smoke (synthetic-only Analyze + correction flow) continues to pass.
@@ -27,7 +31,10 @@ async function until(fn){for(let i=0;i<120;i++){try{if(await fn())return;}catch{
   w.eval(fs.readFileSync('web/app.js','utf8'));
   const q=s=>w.document.querySelector(s);
 
-  await until(()=>q('#rows')?.children.length===11);
+  const admittedCases = await (await fetch(base+'/v1/cases')).json();
+  const expectedCaseCount = admittedCases.length;
+  assert.ok(expectedCaseCount >= 1, 'the synthetic workflow fixture must be admitted');
+  await until(()=>q('#rows')?.children.length===expectedCaseCount);
   assert.equal(w.document.querySelectorAll('[data-nav]').length,3);
 
   q('[data-open="SYNTH_001"]').click();
@@ -51,6 +58,6 @@ async function until(fn){for(let i=0;i<120;i++){try{if(await fn())return;}catch{
   assert.equal(record.lesion.lesions.length,1);
 
   dom.window.close();
-  console.log('PASS: DOM + real API: 11 samples, navigation, unified Analyze, grade correction persistence, lesion overlay, Models & Audit.');
+  console.log(`PASS: DOM + real API: ${expectedCaseCount} admitted cases, navigation, unified Analyze, grade correction persistence, lesion overlay, Models & Audit.`);
   console.log('LIMITATION: jsdom validates DOM behavior, not browser pixel layout.');
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>server.kill());

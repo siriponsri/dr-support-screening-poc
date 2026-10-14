@@ -65,6 +65,61 @@ def test_model_api_profile_registers_only_model_routes(monkeypatch, tmp_path):
     assert '/ui' not in paths
 
 
+def test_retfound_only_model_api_profile_needs_no_prism_assets(monkeypatch, tmp_path):
+    from dr_support.services.model_api import create_app as create_model_api_app
+
+    monkeypatch.setenv('APP_PROFILE', 'model_api')
+    monkeypatch.setenv('MODEL_RUNTIME', 'local')
+    monkeypatch.setenv('MODEL_API_PROVIDER_SET', 'retfound')
+    monkeypatch.setenv('DR_SUPPORT_STATE', str(tmp_path / 'state.sqlite'))
+    monkeypatch.setenv('INFERENCE_DEVICE', 'cpu')
+    monkeypatch.delenv('MODEL_REQUIRE_VERIFIED_ASSETS', raising=False)
+    monkeypatch.delenv('RETFOUND_SOURCE', raising=False)
+    monkeypatch.delenv('RETFOUND_WEIGHTS', raising=False)
+    monkeypatch.delenv('PRISM_SOURCE', raising=False)
+    monkeypatch.delenv('PRISM_WEIGHTS', raising=False)
+    monkeypatch.delenv('USPEC_MODEL_DIR', raising=False)
+
+    app = create_model_api_app(device_strict=False)
+
+    assert set(app.state.providers) == {'retfound-aptos5'}
+    client = TestClient(app)
+    health = client.get('/health')
+    models = client.get('/v1/models')
+    assert health.status_code == models.status_code == 200
+    assert health.json()['providers'] == {'retfound-aptos5': 'ASSET_REQUIRED'}
+    assert [item['model_id'] for item in models.json()] == ['retfound-aptos5']
+    assert models.json()[0]['task'] == 'global'
+    assert models.json()[0]['modalities'] == ['CFP']
+
+
+def test_prism_only_model_api_profile_needs_no_other_provider_assets(monkeypatch, tmp_path):
+    from dr_support.services.model_api import create_app as create_model_api_app
+
+    monkeypatch.setenv('APP_PROFILE', 'model_api')
+    monkeypatch.setenv('MODEL_RUNTIME', 'local')
+    monkeypatch.setenv('MODEL_API_PROVIDER_SET', 'prism')
+    monkeypatch.setenv('DR_SUPPORT_STATE', str(tmp_path / 'state.sqlite'))
+    monkeypatch.setenv('INFERENCE_DEVICE', 'cpu')
+    monkeypatch.delenv('MODEL_REQUIRE_VERIFIED_ASSETS', raising=False)
+    monkeypatch.delenv('RETFOUND_SOURCE', raising=False)
+    monkeypatch.delenv('RETFOUND_WEIGHTS', raising=False)
+    monkeypatch.delenv('PRISM_SOURCE', raising=False)
+    monkeypatch.delenv('PRISM_WEIGHTS', raising=False)
+    monkeypatch.delenv('USPEC_MODEL_DIR', raising=False)
+
+    app = create_model_api_app(device_strict=False)
+
+    assert set(app.state.providers) == {'prism-dr-5fold'}
+    client = TestClient(app)
+    health = client.get('/health')
+    models = client.get('/v1/models')
+    assert health.status_code == models.status_code == 200
+    assert health.json()['providers'] == {'prism-dr-5fold': 'ASSET_REQUIRED'}
+    assert [item['model_id'] for item in models.json()] == ['prism-dr-5fold']
+    assert models.json()[0]['task'] == 'lesion-roi'
+
+
 def test_full_profile_exposes_both_surfaces(monkeypatch, tmp_path):
     monkeypatch.setenv('APP_PROFILE', 'full')
     monkeypatch.setenv('MODEL_RUNTIME', 'local')

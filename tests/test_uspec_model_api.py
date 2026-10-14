@@ -173,7 +173,11 @@ def test_uspec_descriptor_is_uwf_only_and_artifact_absence_is_safe(monkeypatch):
     assert descriptor["class_order"] == [0, 1, 2, 3, 4]
     assert descriptor["input_representation"] == REPRESENTATION
     assert descriptor["preprocessing"] == PREPROCESSING
-    assert descriptor["release_status"] == "DISABLED"
+    assert descriptor["release_status"] == "RESEARCH_ONLY"
+    assert descriptor["runtime_qualification"] == "ENGINEERING_QUALIFIED"
+    assert descriptor["rights_status"] == "UNVERIFIED"
+    assert descriptor["clinical_validation_status"] == "NOT_ESTABLISHED"
+    assert descriptor["production_authorization"] == "NOT_AUTHORIZED"
 
     response = client.post("/v1/predict/dr", json=_payload(MODEL_ID, "UWF"))
     assert response.status_code == 503

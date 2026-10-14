@@ -9,6 +9,7 @@ import httpx
 
 from .capability_routing import (
     EXPECTED_MODEL_TASKS,
+    READY_STATUSES,
     capability_is_qualified,
     release_status_blocked,
 )
@@ -17,8 +18,12 @@ from .capability_routing import (
 EXPECTED_MODELS = EXPECTED_MODEL_TASKS
 
 
-def _actionable_capability(item: dict[str, Any], model_id: str, status: object) -> bool:
-    if status != "LOADED" or item.get("ready") is False:
+def _actionable_capability(
+    item: dict[str, Any], model_id: str, status: object, *, assets_verified: bool,
+) -> bool:
+    if status not in READY_STATUSES or item.get("ready") is False:
+        return False
+    if status == "QUALIFIED_NOT_LOADED" and not assets_verified:
         return False
     if release_status_blocked(item.get("release_status")):
         return False
@@ -57,7 +62,9 @@ def _headers(token: str | None) -> dict[str, str]:
     return headers
 
 
-def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
+def _model_summary(
+    body: object, *, assets_verified: bool,
+) -> tuple[dict[str, Any], ...] | None:
     """Validate capability discovery without requiring a legacy model pair.
 
     The old RETFound/PRISM pair remains valid, but a future Model API may
@@ -89,7 +96,9 @@ def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
             return None
         summaries.append({
             "model_id": model_id,
-            "ready": _actionable_capability(item, model_id, status),
+            "ready": _actionable_capability(
+                item, model_id, status, assets_verified=assets_verified,
+            ),
             "status": status if isinstance(status, str) else None,
             "capability_id": item.get("capability_id") if isinstance(item.get("capability_id"), str) else None,
             "task": item.get("task") if isinstance(item.get("task"), str) else EXPECTED_MODELS.get(model_id),
@@ -97,6 +106,23 @@ def _model_summary(body: object) -> tuple[dict[str, Any], ...] | None:
             "revision": item.get("revision") if isinstance(item.get("revision"), str) else item.get("model_version") if isinstance(item.get("model_version"), str) else None,
             "preprocessing": item.get("preprocessing") if isinstance(item.get("preprocessing"), str) else item.get("preprocessing_version") if isinstance(item.get("preprocessing_version"), str) else None,
             "release_status": item.get("release_status") if isinstance(item.get("release_status"), str) else None,
+            "trained_domain": item.get("trained_domain") if isinstance(item.get("trained_domain"), str) else None,
+            "uwf_use": item.get("uwf_use") if isinstance(item.get("uwf_use"), str) else None,
+            "domain_status": item.get("domain_status") if isinstance(item.get("domain_status"), str) else None,
+            "clinical_validation_status": (
+                item.get("clinical_validation_status")
+                if isinstance(item.get("clinical_validation_status"), str) else None
+            ),
+            "rights_status": item.get("rights_status") if isinstance(item.get("rights_status"), str) else None,
+            "production_authorization": (
+                item.get("production_authorization")
+                if isinstance(item.get("production_authorization"), str) else None
+            ),
+            "runtime_qualification": (
+                item.get("runtime_qualification")
+                if isinstance(item.get("runtime_qualification"), str) else None
+            ),
+            "warnings": list(item.get("warnings") or []),
         })
     if not summaries:
         return None
@@ -179,7 +205,7 @@ def probe_model_connection(
                     "Model API capabilities did not match the expected contract at /v1/models.",
                     descriptor_status="REMOTE_INVALID_JSON",
                 )
-            summaries = _model_summary(models_body)
+            summaries = _model_summary(models_body, assets_verified=health_ok)
     except (httpx.HTTPError, ValueError, OSError, RuntimeError):
         return ModelGatewayProbe(
             False,

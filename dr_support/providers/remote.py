@@ -27,7 +27,9 @@ import os
 import time
 from typing import Any
 import httpx
-from dr_support.contracts import GlobalResult, LesionResult
+from dr_support.contracts import (
+    GlobalResult, LesionResult, Phase3PredictRequest, Phase3ResultEnvelope,
+)
 
 
 class RemoteModelError(RuntimeError):
@@ -90,6 +92,7 @@ class RemoteModelProvider:
         self.last_error: str | None = None
         self.last_remote_revision: str | None = None
         self.last_remote_checkpoint_sha256: dict[str, str] | None = None
+        self.last_processing_evidence: dict[str, Any] | None = None
 
     def _token(self) -> str | None:
         if self._explicit_token:
@@ -186,6 +189,108 @@ class RemoteModelProvider:
             self.last_remote_checkpoint_sha256 = dict(getattr(prov, 'checkpoint_sha256', {}) or {}) or None
         self.last_error = None
         return result
+
+    def infer_phase3_lesions(
+        self,
+        request,
+        image,
+        *,
+        capability_id: str,
+        model_version: str,
+        source_sha256: str,
+        source_origin: str,
+        representation_version: str,
+        transform_id: str,
+        request_case_revision: int,
+        invocation_id: str,
+        mask_version: str | None = None,
+    ) -> LesionResult:
+        """Call the additive Bridge v2 PRISM endpoint and retain typed evidence."""
+        if not self.base_url:
+            self.last_error = 'remote endpoint not configured'
+            raise RemoteNotConfiguredError('Remote model endpoint is not configured')
+        self.last_processing_evidence = None
+        payload = Phase3PredictRequest(
+            invocation_id=invocation_id,
+            capability_id=capability_id,
+            task='lesion-roi',
+            model_id=self.model_id,
+            model_version=model_version,
+            image_id=request.image_id,
+            modality=request.modality,
+            image_b64=base64.b64encode(image.data).decode('ascii'),
+            image_sha256=image.sha256,
+            source_sha256=source_sha256,
+            source_origin=source_origin,
+            analysis_sha256=image.sha256,
+            representation_version=representation_version,
+            transform_id=transform_id,
+            mask_version=mask_version,
+            request_case_revision=request_case_revision,
+            width=image.size[0],
+            height=image.size[1],
+        )
+        start = time.perf_counter()
+        response = self._send(
+            'POST', '/v2/predict/lesions',
+            json=payload.model_dump(mode='json'),
+            timeout=self._client_timeout,
+        )
+        self.last_inference_ms = (time.perf_counter() - start) * 1000
+        if response.status_code != 200:
+            self.last_error = f'HTTP {response.status_code}'
+            raise RemoteHTTPError(f'Remote model HTTP {response.status_code}; response rejected')
+        try:
+            envelope = Phase3ResultEnvelope.model_validate(response.json())
+        except Exception as exc:
+            self.last_error = 'schema mismatch'
+            raise RemoteSchemaError(f'Remote Model API returned malformed Bridge v2 result: {exc}') from None
+        if (
+            envelope.invocation_id != invocation_id
+            or envelope.capability_id != capability_id
+            or envelope.task != 'lesion-roi'
+            or envelope.model.id != self.model_id
+            or envelope.model.version != model_version
+            or envelope.input.image_id != request.image_id
+            or envelope.input.input_modality != request.modality
+            or envelope.input.source_sha256 != source_sha256
+            or envelope.input.source_origin != source_origin
+            or envelope.input.analysis_sha256 != image.sha256
+        ):
+            self.last_error = 'invocation or image hash mismatch'
+            raise RemoteSchemaError('Remote Model API returned mismatched PRISM invocation or image context')
+        if not isinstance(envelope.result, LesionResult):
+            raise RemoteSchemaError('Remote Model API did not return a lesion result')
+        if envelope.result.provenance.image_sha256 != image.sha256:
+            raise RemoteSchemaError('Remote Model API lesion result hash does not match sent bytes')
+        processing = envelope.prism_processing
+        if request.modality == 'UWF':
+            if (
+                envelope.schema_version != 'bridge.v2.1'
+                or processing is None
+                or processing.processing_mode not in {'PREPARED', 'FALLBACK'}
+                or processing.input_image_sha256 != image.sha256
+            ):
+                self.last_error = 'missing UWF processing evidence'
+                raise RemoteSchemaError(
+                    'Remote Model API must return Bridge v2.1 PRISM UWF processing evidence'
+                )
+            if processing.analysis_field is not None and (
+                processing.analysis_field.image_width != image.size[0]
+                or processing.analysis_field.image_height != image.size[1]
+            ):
+                self.last_error = 'analysis field dimensions mismatch'
+                raise RemoteSchemaError('Remote PRISM analysis field dimensions do not match sent image')
+        elif envelope.schema_version != 'bridge.v2' or processing is not None:
+            self.last_error = 'unexpected PRISM processing evidence'
+            raise RemoteSchemaError('Remote Model API returned unexpected PRISM processing evidence for CFP')
+        self.last_processing_evidence = (
+            processing.model_dump(mode='json') if processing is not None else None
+        )
+        self.last_error = None
+        self.last_remote_revision = envelope.model.version
+        self.last_remote_checkpoint_sha256 = dict(envelope.result.provenance.checkpoint_sha256 or {}) or None
+        return envelope.result
 
     def _runtime_warnings(self) -> list[str]:
         warnings = ([
@@ -313,6 +418,12 @@ class RemoteModelProvider:
             'capability_id': match.get('capability_id'),
             'domain_status': match.get('domain_status'),
             'release_status': match.get('release_status'),
+            'trained_domain': match.get('trained_domain'),
+            'uwf_use': match.get('uwf_use'),
+            'clinical_validation_status': match.get('clinical_validation_status'),
+            'rights_status': match.get('rights_status'),
+            'production_authorization': match.get('production_authorization'),
+            'runtime_qualification': match.get('runtime_qualification'),
             'explanation_types': match.get('explanation_types') or [],
         }
         if 'ready' in match:

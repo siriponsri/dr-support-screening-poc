@@ -1,0 +1,21 @@
+FROM pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml README.md ./
+COPY dr_support ./dr_support
+COPY deployment/model-api/prism-requirements.txt /tmp/prism-requirements.txt
+# The qualified base already provides Torch 2.11/CUDA 12.8. Install the
+# PRISM dependencies without resolving their generic torch requirement.
+RUN python -m pip install --break-system-packages --no-cache-dir --disable-pip-version-check \
+      --no-deps -r /tmp/prism-requirements.txt \
+    && python -m pip install --break-system-packages --no-cache-dir \
+      'huggingface_hub==2.2.0' 'httpx2==2.13.1' 'httpcore2==2.13.1' 'hf-xet==1.7.0' \
+      'fire==0.7.1' 'termcolor==3.3.0' 'idna==3.20' 'click==8.5.0' \
+    && python -m pip install --break-system-packages --no-cache-dir --no-deps -e .
+ENV APP_PROFILE=model_api MODEL_RUNTIME=local MODEL_API_PROVIDER_SET=prism \
+    MODEL_REQUIRE_VERIFIED_ASSETS=1 INFERENCE_DEVICE=cuda:0 WORKERS=1 \
+    HOST=0.0.0.0 PORT=7862 DR_SUPPORT_RELAX_DEVICE=0
+EXPOSE 7862
+CMD ["python", "-m", "dr_support.run"]

@@ -60,6 +60,7 @@ from dr_support.contracts import (
     Phase3InputContext,
     Phase3ModelIdentity,
     Phase3PredictRequest,
+    PrismProcessingEvidence,
     Phase3ResultEnvelope,
     Phase3Runtime,
     Provenance,
@@ -142,6 +143,8 @@ def _ct_eq(a: str, b: str) -> bool:
 
 _PROVIDER_SETS = {
     'legacy': frozenset({'retfound', 'prism'}),
+    'prism': frozenset({'prism'}),
+    'retfound': frozenset({'retfound'}),
     'uspec': frozenset({'uspec'}),
     'combined': frozenset({'retfound', 'prism', 'uspec'}),
 }
@@ -150,7 +153,7 @@ _PROVIDER_SETS = {
 def _provider_set() -> str:
     selected = os.environ.get('MODEL_API_PROVIDER_SET', 'legacy').strip().lower()
     if selected not in _PROVIDER_SETS:
-        raise ValueError('MODEL_API_PROVIDER_SET must be legacy, uspec, or combined')
+        raise ValueError('MODEL_API_PROVIDER_SET must be legacy, retfound, prism, uspec, or combined')
     return selected
 
 
@@ -229,6 +232,8 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
     app.state.profile = os.environ.get('APP_PROFILE', 'model_api')
     app.state.device_strict = device_strict
     app.state.assets_verified = assets_verified
+    for provider in app.state.providers.values():
+        provider.assets_verified = assets_verified
 
     # --------- /health ---------
     @app.get('/health')
@@ -291,12 +296,12 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
     def predict_lesions(payload: RemotePredictRequest):
         return _predict_lesions(app, payload, inference_lock)
 
-    @app.post('/v2/predict/dr', response_model=Phase3ResultEnvelope,
+    @app.post('/v2/predict/dr', response_model=Phase3ResultEnvelope, response_model_exclude_none=True,
               dependencies=[Depends(_require_bearer)])
     def predict_phase3_dr(payload: Phase3PredictRequest):
         return _predict_phase3(app, payload, inference_lock, expected_task='global')
 
-    @app.post('/v2/predict/lesions', response_model=Phase3ResultEnvelope,
+    @app.post('/v2/predict/lesions', response_model=Phase3ResultEnvelope, response_model_exclude_none=True,
               dependencies=[Depends(_require_bearer)])
     def predict_phase3_lesions(payload: Phase3PredictRequest):
         return _predict_phase3(app, payload, inference_lock, expected_task='lesion-roi')
@@ -416,12 +421,12 @@ def _predict_lesions(app: FastAPI, payload: RemotePredictRequest, lock: RLock) -
     if payload.model_id != PRISM.model_id:
         raise HTTPException(404, f"Unknown model_id '{payload.model_id}' for /v1/predict/lesions")
     provider = app.state.providers[PRISM.model_id]
-    if payload.modality != 'CFP':
+    if payload.modality not in provider.metadata().get('modalities', []):
         result = LesionResult(
             model_id=provider.model_id, model_version=PRISM_REVISION,
             modality=payload.modality, state='UNSUPPORTED', width=payload.width,
             height=payload.height, lesions=[],
-            warnings=['UWF is unsupported by this Bridge'],
+            warnings=[f'{payload.modality} is unsupported by this PRISM runtime'],
             provenance=Provenance(image_sha256=payload.image_sha256,
                                   source_type=payload.source_type,
                                   preprocessing='none',
@@ -518,6 +523,21 @@ def _predict_phase3(
                 422,
                 'USPEC requires its exact model version and original source RGB bytes without an external analysis mask.',
             )
+    if payload.model_id == PRISM.model_id:
+        if (
+            payload.task != 'lesion-roi'
+            or payload.capability_id != PRISM.capability_id
+            or payload.model_version != PRISM_REVISION
+        ):
+            raise HTTPException(422, 'PRISM requires its exact lesion capability and locked model revision.')
+        if payload.modality == 'UWF' and (
+            payload.mask_version is not None
+            or payload.transform_id != 'analysis-uwf-unmasked-source-v1'
+        ):
+            raise HTTPException(
+                422,
+                'PRISM UWF performs its trusted FOV preparation inside the provider; externally masked UWF input is not accepted.',
+            )
     legacy_payload = RemotePredictRequest(
         image_id=payload.image_id,
         modality=payload.modality,
@@ -542,13 +562,22 @@ def _predict_phase3(
     result_state = getattr(result, 'state', None)
     status = 'UNSUPPORTED' if result_state == 'UNSUPPORTED' else 'APPLIED'
     warnings = list(getattr(result, 'warnings', []) or [])
+    prism_processing = (
+        PrismProcessingEvidence.model_validate(provider.last_processing_evidence)
+        if payload.model_id == PRISM.model_id
+        and payload.modality == 'UWF'
+        and getattr(provider, 'last_processing_evidence', None) is not None
+        else None
+    )
     return Phase3ResultEnvelope(
+        schema_version='bridge.v2.1' if prism_processing is not None else 'bridge.v2',
         invocation_id=payload.invocation_id,
         capability_id=payload.capability_id,
         task=payload.task,
         model=identity,
         input=context,
         result=result,
+        prism_processing=prism_processing,
         explanation=explanation,
         runtime=runtime,
         warnings=warnings,

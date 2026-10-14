@@ -1,0 +1,89 @@
+services:
+  retfound:
+    build:
+      context: ../..
+      dockerfile: deployment/model-api/Dockerfile.retfound
+    image: dr-screening/retfound-api:${DR_SCREENING_IMAGE_TAG:-candidate}
+    ports: ["127.0.0.1:${RETFOUND_PORT:-7864}:7864"]
+    environment:
+      RETFOUND_SOURCE: /models/RETFound
+      RETFOUND_WEIGHTS: /weights/retfound-aptos.pth
+      REMOTE_MODEL_TOKEN: ${REMOTE_MODEL_TOKEN:?set a private token in the runtime environment}
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /models/RETFound
+    volumes:
+      - ${RETFOUND_SOURCE:?set RETFOUND_SOURCE}:/models/RETFound:ro
+      - ${RETFOUND_WEIGHTS:?set RETFOUND_WEIGHTS}:/weights/retfound-aptos.pth:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7864/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    init: true
+  uspec:
+    build:
+      context: ../..
+      dockerfile: deployment/model-api/Dockerfile.uspec
+    image: dr-screening/uspec-api:${DR_SCREENING_IMAGE_TAG:-candidate}
+    ports: ["127.0.0.1:${USPEC_PORT:-7861}:7861"]
+    environment:
+      USPEC_MODEL_DIR: /models/uspec
+      REMOTE_MODEL_TOKEN: ${REMOTE_MODEL_TOKEN:?set a private token in the runtime environment}
+    volumes:
+      - ${USPEC_MODEL_DIR:?set USPEC_MODEL_DIR}:/models/uspec:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7861/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    init: true
+  prism:
+    build:
+      context: ../..
+      dockerfile: deployment/model-api/Dockerfile.prism
+    image: dr-screening/prism-api:${DR_SCREENING_IMAGE_TAG:-candidate}
+    ports: ["127.0.0.1:${PRISM_PORT:-7862}:7862"]
+    environment:
+      PRISM_SOURCE: /models/PRISM-DR
+      PRISM_WEIGHTS: /weights/prism
+      REMOTE_MODEL_TOKEN: ${REMOTE_MODEL_TOKEN:?set a private token in the runtime environment}
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /models/PRISM-DR
+    volumes:
+      - ${PRISM_SOURCE:?set PRISM_SOURCE}:/models/PRISM-DR:ro
+      - ${PRISM_WEIGHTS:?set PRISM_WEIGHTS}:/weights/prism:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7862/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    init: true

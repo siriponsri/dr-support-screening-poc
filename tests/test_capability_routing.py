@@ -23,6 +23,99 @@ def test_cfp_global_capability_is_actionable():
     assert route.supported_modalities == ("CFP",)
 
 
+def _qualified_uspec(*, modalities=None):
+    return {
+        "model_id": "uspec-uwf-grading",
+        "task": "global",
+        "modalities": modalities or ["UWF"],
+        "status": "QUALIFIED_NOT_LOADED",
+        "ready": True,
+        "capability_id": "dr_grade",
+        "revision": "grading_state.pt-sha256:locked",
+        "preprocessing": "uspec-source-rgb-v1",
+        "release_status": "RESEARCH_ONLY",
+        "runtime_qualification": "ENGINEERING_QUALIFIED",
+        "rights_status": "UNVERIFIED",
+        "clinical_validation_status": "NOT_ESTABLISHED",
+        "production_authorization": "NOT_AUTHORIZED",
+    }
+
+
+def _qualified_prism(*, modality="CFP"):
+    return {
+        "model_id": "prism-dr-5fold",
+        "task": "lesion-roi",
+        "modalities": ["CFP", "UWF"],
+        "status": "LOADED",
+        "ready": True,
+        "capability_id": "core_lesion_localization",
+        "revision": "79637440a535e4f8118e939d3787121f82180125",
+        "preprocessing": "prism-legacy-cfp-plus-experimental-uwf-v1",
+        "release_status": "RESEARCH_ONLY",
+        "trained_domain": "CFP",
+        "uwf_use": "EXPERIMENTAL",
+        "clinical_validation_status": "NOT_VALIDATED_FOR_UWF",
+    }
+
+
+def test_locked_global_grading_routes_are_modality_bound():
+    cfp_route = route_capability(
+        _capability(), model_id="retfound-aptos5", task="global", modality="CFP",
+    )
+    uwf_route = route_capability(
+        _qualified_uspec(), model_id="uspec-uwf-grading", task="global", modality="UWF",
+    )
+    assert cfp_route.model_id == "retfound-aptos5"
+    assert uwf_route.model_id == "uspec-uwf-grading"
+
+    with pytest.raises(CapabilityRoutingError, match="UWF images only"):
+        route_capability(
+            _qualified_uspec(), model_id="uspec-uwf-grading", task="global", modality="CFP",
+        )
+    with pytest.raises(CapabilityRoutingError, match="CFP images only"):
+        route_capability(
+            _capability(modalities=["CFP", "UWF"]),
+            model_id="retfound-aptos5", task="global", modality="UWF",
+        )
+    with pytest.raises(CapabilityRoutingError, match="UWF images only"):
+        route_capability(
+            _qualified_uspec(modalities=["CFP", "UWF"]),
+            model_id="uspec-uwf-grading", task="global", modality="CFP",
+        )
+
+
+def test_known_uspec_identity_cannot_advertise_non_global_task():
+    descriptor = _qualified_uspec()
+    descriptor['task'] = 'lesion-roi'
+    with pytest.raises(CapabilityRoutingError, match="does not provide the requested"):
+        route_capability(
+            descriptor, model_id="uspec-uwf-grading", task="global", modality="UWF",
+        )
+
+
+@pytest.mark.parametrize("modality", ["CFP", "UWF"])
+def test_prism_lesion_assistance_keeps_both_advertised_modalities(modality):
+    descriptor = _qualified_prism()
+    if modality == "UWF":
+        descriptor["trained_domain"] = "CFP"
+        descriptor["uwf_use"] = "EXPERIMENTAL"
+        descriptor["clinical_validation_status"] = "NOT_VALIDATED_FOR_UWF"
+    route = route_capability(
+        descriptor, model_id="prism-dr-5fold", task="lesion-roi", modality=modality,
+    )
+    assert route.model_id == "prism-dr-5fold"
+    assert route.modality == modality
+
+
+def test_prism_uwf_route_requires_experimental_validation_metadata():
+    descriptor = _qualified_prism()
+    descriptor.update(uwf_use="NOT_SUPPORTED", clinical_validation_status="VALIDATED")
+    with pytest.raises(CapabilityRoutingError, match="explicit experimental"):
+        route_capability(
+            descriptor, model_id="prism-dr-5fold", task="lesion-roi", modality="UWF",
+        )
+
+
 def test_uwf_global_capability_requires_uwf_advertisement():
     route = route_capability(
         _capability(model_id="uspec-like", modalities=["UWF"]),
