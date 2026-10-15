@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 from pathlib import Path
 
 from .filesystem_privacy import has_reparse_component, private_hospital_root
@@ -23,6 +24,7 @@ PRIVATE_PROJECT_SCOPE = "PRIVATE_PROJECT_EVALUATION"
 HOSPITAL_MODALITIES = frozenset({"CFP", "UWF"})
 HOSPITAL_LINKAGE_KEY_ENV = "DR_SUPPORT_HOSPITAL_LINKAGE_KEY"
 HOSPITAL_ROOTS_ENV = "DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS"
+HOSPITAL_WINDOWS_READERS_ENV = "DR_SUPPORT_HOSPITAL_WINDOWS_READ_ONLY_SIDS"
 
 
 def _truthy(name: str) -> bool:
@@ -109,6 +111,45 @@ def authorized_hospital_roots() -> tuple[tuple[Path, str], ...]:
     return ((root, modality),) if root is not None and modality is not None else ()
 
 
+def _windows_read_only_sids(root: Path) -> tuple[str, ...] | None:
+    """Bind an explicitly approved Windows managed reader SID to an exact root.
+
+    The private operator config maps canonical hospital roots to one verified
+    machine/domain group SID each. Names and client-supplied claims are never
+    authority. Missing config keeps the strict default; malformed config denies.
+    This does not modify ACLs and is ignored on POSIX hosts.
+    """
+    if os.name != "nt":
+        return ()
+    raw = os.environ.get(HOSPITAL_WINDOWS_READERS_ENV, "").strip()
+    if not raw:
+        return ()
+    if os.environ.get("DR_SUPPORT_HOSPITAL_SCOPE", "").strip() != PRIVATE_PROJECT_SCOPE:
+        return None
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict) or not payload:
+        return None
+    authorized = {path for path, _ in authorized_hospital_roots()}
+    bindings: dict[Path, tuple[str, ...]] = {}
+    for value, sids in payload.items():
+        bound = _resolved_private_root(value)
+        if bound is None or bound not in authorized or bound in bindings:
+            return None
+        # Exclude Everyone, Users, Authenticated Users and other well-known SIDs.
+        # The verified managed SID is supplied only by private operator config.
+        if (
+            not isinstance(sids, list) or len(sids) != 1
+            or not isinstance(sids[0], str)
+            or re.fullmatch(r"S-1-5-21-(?:[0-9]+-){3}[0-9]+", sids[0]) is None
+        ):
+            return None
+        bindings[bound] = tuple(sids)
+    return bindings.get(root, ())
+
+
 def hospital_ingest_enabled(folder: str | Path) -> bool:
     """Return true only for an exact private root with an explicit modality."""
     if not _truthy("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL"):
@@ -118,10 +159,13 @@ def hospital_ingest_enabled(folder: str | Path) -> bool:
         if modality is None:
             continue
         try:
+            readers = _windows_read_only_sids(root)
+            if readers is None:
+                return False
             if (
                 not has_reparse_component(candidate)
                 and candidate.resolve() == root
-                and private_hospital_root(root)
+                and private_hospital_root(root, read_only_sids=readers)
             ):
                 return True
         except OSError:

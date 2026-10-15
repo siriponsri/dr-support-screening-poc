@@ -457,3 +457,114 @@ def test_configured_root_rejects_redirected_ancestor(tmp_path, monkeypatch):
             redirect.rmdir()
         else:
             redirect.unlink()
+
+
+_WINDOWS_FIXTURE_READER_SID = "S-1-5-21-111111111-222222222-333333333-9999"
+
+
+def _grant_synthetic_reader(root, sid, rights="RX"):
+    rights_name = {"RX": "ReadAndExecute", "W": "Write", "D": "Delete",
+                   "WDAC": "ChangePermissions", "WO": "TakeOwnership"}[rights]
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+         "$env:PSModulePath=Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/Modules'; "
+         "$ErrorActionPreference='Stop'; "
+         "$acl=[IO.Directory]::GetAccessControl($env:DR_TEST_PRIVATE_ROOT, "
+         "[Security.AccessControl.AccessControlSections]::Access); "
+         "$sid=[Security.Principal.SecurityIdentifier]::new($env:DR_TEST_READER_SID); "
+         "$rule=[Security.AccessControl.FileSystemAccessRule]::new($sid, "
+         "[Security.AccessControl.FileSystemRights]$env:DR_TEST_READER_RIGHTS, "
+         "'ContainerInherit,ObjectInherit','None','Allow'); "
+         "$acl.AddAccessRule($rule); [IO.Directory]::SetAccessControl($env:DR_TEST_PRIVATE_ROOT,$acl)"],
+        capture_output=True, check=True,
+        env={**os.environ, "DR_TEST_PRIVATE_ROOT": str(root),
+             "DR_TEST_READER_SID": sid, "DR_TEST_READER_RIGHTS": rights_name},
+    )
+
+
+def test_windows_managed_reader_requires_explicit_sid_and_exact_root(tmp_path, monkeypatch):
+    import pytest
+    if os.name != "nt":
+        pytest.skip("Real Windows ACL permissions")
+    from dr_support.services.source_policy import HOSPITAL_WINDOWS_READERS_ENV
+
+    uwf, cfp = tmp_path / "uwf", tmp_path / "cfp"
+    for root in (uwf, cfp):
+        root.mkdir()
+        _private_test_root(root)
+        (root / "synthetic.jpg").write_bytes(_jpeg_bytes())
+        _grant_synthetic_reader(root, _WINDOWS_FIXTURE_READER_SID)
+    monkeypatch.setenv("DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS", json.dumps({"UWF": str(uwf), "CFP": str(cfp)}))
+    monkeypatch.setenv("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "1")
+    monkeypatch.setenv("DR_SUPPORT_HOSPITAL_SCOPE", "PRIVATE_PROJECT_EVALUATION")
+    monkeypatch.delenv(HOSPITAL_WINDOWS_READERS_ENV, raising=False)
+    assert not hospital_ingest_enabled(uwf)
+    monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({str(uwf): [_WINDOWS_FIXTURE_READER_SID]}))
+    assert hospital_ingest_enabled(uwf)
+    assert not hospital_ingest_enabled(cfp)  # Same principal does not authorize another root.
+    monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({
+        str(uwf): [_WINDOWS_FIXTURE_READER_SID], str(cfp): [_WINDOWS_FIXTURE_READER_SID],
+    }))
+    assert hospital_ingest_enabled(cfp)
+    assert not hospital_ingest_enabled(uwf / "synthetic.jpg")
+    monkeypatch.setenv("DR_SUPPORT_HOSPITAL_SCOPE", "UNAPPROVED")
+    assert not hospital_ingest_enabled(uwf)
+
+
+def test_windows_reader_rejects_extra_rights_and_unrelated_principals(tmp_path, monkeypatch):
+    import pytest
+    if os.name != "nt":
+        pytest.skip("Real Windows ACL permissions")
+    from dr_support.services.source_policy import HOSPITAL_WINDOWS_READERS_ENV
+
+    for index, rights in enumerate(("W", "D", "WDAC", "WO")):
+        root = tmp_path / f"private-{index}"
+        _configure_hospital(monkeypatch, root)
+        (root / "synthetic.jpg").write_bytes(_jpeg_bytes())
+        monkeypatch.setenv("DR_SUPPORT_HOSPITAL_SCOPE", "PRIVATE_PROJECT_EVALUATION")
+        monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({str(root): [_WINDOWS_FIXTURE_READER_SID]}))
+        _grant_synthetic_reader(root, _WINDOWS_FIXTURE_READER_SID)
+        assert hospital_ingest_enabled(root)
+        _grant_synthetic_reader(root, _WINDOWS_FIXTURE_READER_SID, rights)
+        assert not hospital_ingest_enabled(root), rights
+
+    root = tmp_path / "unrelated-principal"
+    _configure_hospital(monkeypatch, root)
+    monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({str(root): [_WINDOWS_FIXTURE_READER_SID]}))
+    _grant_synthetic_reader(root, "S-1-5-21-111111111-222222222-333333333-8888")
+    assert not hospital_ingest_enabled(root)
+
+
+def test_windows_reader_config_rejects_broad_sids_unapproved_roots_and_names(tmp_path, monkeypatch):
+    import pytest
+    if os.name != "nt":
+        pytest.skip("Windows-only operator config")
+    from dr_support.services.source_policy import HOSPITAL_WINDOWS_READERS_ENV
+
+    root = tmp_path / "private"
+    _configure_hospital(monkeypatch, root)
+    unrelated = tmp_path / "unapproved"
+    unrelated.mkdir()
+    monkeypatch.setenv("DR_SUPPORT_HOSPITAL_SCOPE", "PRIVATE_PROJECT_EVALUATION")
+    for value in ("S-1-1-0", "S-1-5-11", "S-1-5-32-545", "CodexSandboxUsers", "S-1-5-21-bad"):
+        monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({str(root): [value]}))
+        assert not hospital_ingest_enabled(root)
+    for payload in ([], {}, {str(unrelated): [_WINDOWS_FIXTURE_READER_SID]}, {str(root): []}):
+        monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps(payload))
+        assert not hospital_ingest_enabled(root)
+    monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, "not-json")
+    assert not hospital_ingest_enabled(root)
+
+
+def test_posix_private_modes_are_not_relaxed_by_windows_reader_config(tmp_path, monkeypatch):
+    import pytest
+    if os.name == "nt":
+        pytest.skip("POSIX privacy regression")
+    from dr_support.services.source_policy import HOSPITAL_WINDOWS_READERS_ENV
+
+    root = tmp_path / "private"
+    _configure_hospital(monkeypatch, root)
+    monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({str(root): [_WINDOWS_FIXTURE_READER_SID]}))
+    assert hospital_ingest_enabled(root)
+    root.chmod(0o755)
+    assert not hospital_ingest_enabled(root)

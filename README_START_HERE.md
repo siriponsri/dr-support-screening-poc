@@ -25,8 +25,11 @@ images remain in their original folders and are read without rewriting them.
 An operator may bind both authorized UWF and CFP roots with the server-only
 `DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS` JSON configuration. This creates one
 mixed-modality queue, retaining hospital provenance. On Windows, admission
-requires readable ACLs restricted to the workstation operator, SYSTEM and local
-Administrators; redirected paths or other access grants fail closed. The app
+requires readable ACLs restricted to the workstation operator, SYSTEM, local
+Administrators, and any explicitly authorized managed reader SID bound to that
+exact root in private server configuration. Such a reader may have only
+read/execute/synchronize rights; extra write/delete/ACL grants, unrelated
+principals and redirected paths fail closed. The app
 does not change ACLs automatically. Do not bypass a failed privacy check.
 
 PostgreSQL stores review state locally when the checkout-owned Docker service is
