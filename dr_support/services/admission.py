@@ -14,7 +14,12 @@ from PIL import Image
 
 from ..contracts import AdmissionMetadata
 from ..images import BridgeImage
-from .source_policy import HOSPITAL_ORIGIN, source_origin_is_known
+from .source_policy import (
+    HOSPITAL_ORIGIN,
+    authorized_hospital_roots,
+    hospital_ingest_enabled,
+    source_origin_is_known,
+)
 from .source_policy import opaque_hospital_patient_key
 from .resolver import parse_filename
 from ..imaging import (
@@ -65,6 +70,7 @@ class AdmissionScan:
     images: dict[str, BridgeImage]
     records: dict[str, dict]
     warnings: list[str]
+    candidate_count: int = 0
 
 
 def utc_now() -> str:
@@ -853,9 +859,12 @@ def scan_input_folder(
     source_origin: str = "WORKSPACE",
     retinal_modality: str = "UNKNOWN",
     retinal_modality_method: str = "NONE",
+    case_number_start: int = 1,
 ) -> AdmissionScan:
     """Scan one workspace folder, top-level only, in deterministic order."""
     previous_records = previous_records or {}
+    if not isinstance(case_number_start, int) or isinstance(case_number_start, bool) or case_number_start < 1:
+        raise ValueError("case_number_start must be a positive integer")
     if not source_origin_is_known(source_origin):
         raise ValueError("Unknown source origin")
     if retinal_modality not in {"CFP", "UWF", "UNKNOWN"}:
@@ -883,7 +892,7 @@ def scan_input_folder(
     records: dict[str, dict] = {}
     warnings: list[str] = []
     for path in paths:
-        case_number = len(records) + 1
+        case_number = case_number_start + len(records)
         safe_filename = (
             f"hospital-case-{case_number:04d}{path.suffix.lower()}"
             if source_origin == HOSPITAL_ORIGIN else None
@@ -936,4 +945,70 @@ def scan_input_folder(
         )
         if image is not None:
             images.setdefault(image.image_id, image)
-    return AdmissionScan(images, records, warnings)
+    return AdmissionScan(images, records, warnings, len(paths))
+
+
+def scan_authorized_hospital_roots(
+    *,
+    previous_records: dict[str, dict] | None = None,
+) -> AdmissionScan:
+    """Scan the explicitly bound UWF and CFP hospital roots as one queue.
+
+    Each root keeps its configured modality binding.  The caller never supplies
+    a filename-derived modality, and a missing/insecure root fails closed
+    rather than returning a partial mixed-modality queue.
+    """
+    roots = authorized_hospital_roots()
+    if not roots:
+        return AdmissionScan({}, {}, ["Authorized hospital roots are not configured."])
+    if any(not hospital_ingest_enabled(root) for root, _modality in roots):
+        return AdmissionScan({}, {}, ["Authorized hospital roots are unavailable or insecure."])
+
+    previous_records = previous_records or {}
+    images: dict[str, BridgeImage] = {}
+    records: dict[str, dict] = {}
+    warnings: list[str] = []
+    next_case_number = 1
+    candidate_count = 0
+    for root, modality in roots:
+        scan = scan_input_folder(
+            root,
+            previous_records=previous_records,
+            source_origin=HOSPITAL_ORIGIN,
+            retinal_modality=modality,
+            retinal_modality_method="AUTHORIZED_SOURCE",
+            case_number_start=next_case_number,
+        )
+        for image_id, record in scan.records.items():
+            existing = records.get(image_id)
+            if existing is None:
+                records[image_id] = record
+            else:
+                aliases = [
+                    SourceAlias.model_validate(alias)
+                    for alias in (existing.get("integrity") or {}).get("aliases", [])
+                ] + [
+                    SourceAlias.model_validate(alias)
+                    for alias in (record.get("integrity") or {}).get("aliases", [])
+                ]
+                # Same bytes in two explicitly different modality roots are
+                # one immutable source but not two silently retyped cases.
+                if existing.get("retinal_modality") != record.get("retinal_modality"):
+                    warnings.append("A duplicate source appeared under conflicting modality bindings.")
+                    existing = dict(existing)
+                    existing["retinal_modality"] = "UNKNOWN"
+                    existing["retinal_modality_state"] = "NEEDS_CONFIRMATION"
+                    existing["retinal_modality_method"] = "NONE"
+                records[image_id] = _apply_integrity(
+                    existing, aliases=aliases, previous_records=previous_records
+                )
+        for image_id, image in scan.images.items():
+            # Preserve the first immutable source representation if identical
+            # bytes are encountered in both explicitly bound roots. The
+            # corresponding admission is marked UNKNOWN on a modality
+            # conflict, so it cannot be silently retyped by the second root.
+            images.setdefault(image_id, image)
+        warnings.extend(scan.warnings)
+        candidate_count += scan.candidate_count
+        next_case_number += scan.candidate_count
+    return AdmissionScan(images, records, warnings, candidate_count)

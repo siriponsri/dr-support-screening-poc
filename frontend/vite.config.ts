@@ -65,14 +65,24 @@ function outputSetDigest(entries: Array<{ path: string; sha256: string }>): stri
   return digest.digest('hex');
 }
 
+function frontendBuildSourceCommit(frontendRoot: string): string {
+  const configured = process.env.DR_FRONTEND_SOURCE_COMMIT?.trim();
+  if (configured) return configured;
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: path.resolve(frontendRoot, '..'),
+      encoding: 'utf8',
+    }).trim();
+  } catch {
+    return 'UNAVAILABLE_NO_GIT_METADATA';
+  }
+}
+
 function frontendBuildIdentityPlugin(frontendRoot: string): Plugin {
   return {
     name: 'dr-frontend-build-identity',
     writeBundle() {
-      const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
-        cwd: path.resolve(frontendRoot, '..'),
-        encoding: 'utf8',
-      }).trim();
+      const sourceCommit = frontendBuildSourceCommit(frontendRoot);
       const sourceDigest = frontendSourceDigest(frontendRoot);
       const distRoot = path.resolve(frontendRoot, 'dist');
       const outputFiles: Array<{ path: string; sha256: string }> = [];

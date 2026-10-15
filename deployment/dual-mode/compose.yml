@@ -1,0 +1,213 @@
+# Portable private deployment. Select exactly one GPU profile:
+#   docker compose --profile lightning-t4 ...
+#   docker compose --profile ceo-p40 ...
+#   docker compose --profile hospital-3090 ...
+# All host bindings are loopback-only. Model assets and secrets stay external.
+services:
+  postgres:
+    profiles: [lightning-t4, ceo-p40, hospital-3090]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DR_SUPPORT_POSTGRES_DB:?set a private database name}
+      POSTGRES_USER: ${DR_SUPPORT_POSTGRES_USER:?set a private database user}
+      POSTGRES_PASSWORD: ${DR_SUPPORT_POSTGRES_PASSWORD:?inject a private database password}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - portable_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  gateway:
+    profiles: [lightning-t4, ceo-p40, hospital-3090]
+    build:
+      context: ../..
+      dockerfile: deployment/dual-mode/gateway/Dockerfile
+    image: dr-screening/model-gateway:${DR_SCREENING_IMAGE_TAG:-portable}
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-8880}:8880"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8880
+      REMOTE_MODEL_TOKEN: ${REMOTE_MODEL_TOKEN:?inject a private model token}
+      USPEC_URL: http://uspec:7861
+      RETFOUND_URL: http://retfound:7864
+      PRISM_URL: http://prism:7862
+      GATEWAY_TIMEOUT_SECONDS: ${GATEWAY_TIMEOUT_SECONDS:-60}
+    depends_on:
+      uspec: {condition: service_started}
+      retfound: {condition: service_started}
+      prism: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8880/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  review:
+    profiles: [lightning-t4, ceo-p40, hospital-3090]
+    build:
+      context: ../..
+      dockerfile: deployment/dual-mode/Dockerfile.review
+      args:
+        SOURCE_COMMIT: ${DR_SCREENING_SOURCE_COMMIT:-portable-source-unpinned}
+    image: dr-screening/review:${DR_SCREENING_IMAGE_TAG:-portable}
+    ports:
+      - "127.0.0.1:${REVIEW_PORT:-8800}:8000"
+    environment:
+      APP_PROFILE: review
+      MODEL_RUNTIME: remote
+      HOST: 0.0.0.0
+      PORT: 8000
+      WORKERS: 1
+      REMOTE_MODEL_URL: http://gateway:8880
+      REMOTE_MODEL_TOKEN: ${REMOTE_MODEL_TOKEN:?inject a private model token}
+      DR_SUPPORT_CASE_STORE: postgres
+      DR_SUPPORT_DATABASE_URL: postgresql://${DR_SUPPORT_POSTGRES_USER:?set a private database user}:${DR_SUPPORT_POSTGRES_PASSWORD:?inject a private database password}@postgres:5432/${DR_SUPPORT_POSTGRES_DB:?set a private database name}
+      DR_SUPPORT_DATABASE_SCHEMA: ${DR_SUPPORT_DATABASE_SCHEMA:-dr_support_portable}
+      DR_SUPPORT_WORKSPACE_ID: ${DR_SUPPORT_WORKSPACE_ID:-portable-private-demo}
+    depends_on:
+      postgres: {condition: service_healthy}
+      gateway: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  uspec:
+    profiles: [lightning-t4, ceo-p40, hospital-3090]
+    build:
+      context: ../..
+      dockerfile: deployment/model-api/Dockerfile.uspec
+      args:
+        BASE_IMAGE: ${MODEL_API_BASE_IMAGE:?set a profile-specific PyTorch/CUDA image}
+    image: dr-screening/uspec-api:${DR_SCREENING_IMAGE_TAG:-portable}
+    ports:
+      - "127.0.0.1:${USPEC_PORT:-8871}:7861"
+    environment:
+      APP_PROFILE: model_api
+      MODEL_RUNTIME: local
+      MODEL_API_PROVIDER_SET: uspec
+      MODEL_REQUIRE_VERIFIED_ASSETS: "1"
+      INFERENCE_DEVICE: cuda:0
+      DR_SUPPORT_RELAX_DEVICE: "0"
+      USPEC_ENABLE_CANDIDATE_LOAD: "1"
+      HOST: 0.0.0.0
+      PORT: 7861
+      REMOTE_MODEL_TOKEN: ${REMOTE_MODEL_TOKEN:?inject a private model token}
+      USPEC_MODEL_DIR: /models/uspec
+      NVIDIA_VISIBLE_DEVICES: ${USPEC_GPU_ID:-0}
+    volumes:
+      - ${USPEC_MODEL_DIR:?mount the exact verified USPEC directory}:/models/uspec:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${USPEC_GPU_ID:-0}"]
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7861/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  prism:
+    profiles: [lightning-t4, ceo-p40, hospital-3090]
+    build:
+      context: ../..
+      dockerfile: deployment/model-api/Dockerfile.prism
+      args:
+        BASE_IMAGE: ${MODEL_API_BASE_IMAGE:?set a profile-specific PyTorch/CUDA image}
+    image: dr-screening/prism-api:${DR_SCREENING_IMAGE_TAG:-portable}
+    ports:
+      - "127.0.0.1:${PRISM_PORT:-8872}:7862"
+    environment:
+      APP_PROFILE: model_api
+      MODEL_RUNTIME: local
+      MODEL_API_PROVIDER_SET: prism
+      MODEL_REQUIRE_VERIFIED_ASSETS: "1"
+      INFERENCE_DEVICE: cuda:0
+      DR_SUPPORT_RELAX_DEVICE: "0"
+      HOST: 0.0.0.0
+      PORT: 7862
+      REMOTE_MODEL_TOKEN: ${REMOTE_MODEL_TOKEN:?inject a private model token}
+      PRISM_SOURCE: /models/PRISM-DR
+      PRISM_WEIGHTS: /weights/prism
+      NVIDIA_VISIBLE_DEVICES: ${PRISM_GPU_ID:-0}
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /models/PRISM-DR
+    volumes:
+      - ${PRISM_SOURCE:?mount the exact locked PRISM source}:/models/PRISM-DR:ro
+      - ${PRISM_WEIGHTS:?mount the exact verified PRISM weights}:/weights/prism:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${PRISM_GPU_ID:-0}"]
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7862/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  retfound:
+    profiles: [lightning-t4, ceo-p40, hospital-3090]
+    build:
+      context: ../..
+      dockerfile: deployment/model-api/Dockerfile.retfound
+      args:
+        BASE_IMAGE: ${MODEL_API_BASE_IMAGE:?set a profile-specific PyTorch/CUDA image}
+    image: dr-screening/retfound-api:${DR_SCREENING_IMAGE_TAG:-portable}
+    ports:
+      - "127.0.0.1:${RETFOUND_PORT:-8874}:7864"
+    environment:
+      APP_PROFILE: model_api
+      MODEL_RUNTIME: local
+      MODEL_API_PROVIDER_SET: retfound
+      MODEL_REQUIRE_VERIFIED_ASSETS: "1"
+      INFERENCE_DEVICE: cuda:0
+      DR_SUPPORT_RELAX_DEVICE: "0"
+      HOST: 0.0.0.0
+      PORT: 7864
+      REMOTE_MODEL_TOKEN: ${REMOTE_MODEL_TOKEN:?inject a private model token}
+      RETFOUND_SOURCE: /models/RETFound
+      RETFOUND_WEIGHTS: /weights/retfound-aptos.pth
+      NVIDIA_VISIBLE_DEVICES: ${RETFOUND_GPU_ID:-0}
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /models/RETFound
+    volumes:
+      - ${RETFOUND_SOURCE:?mount the exact pinned RETFound source}:/models/RETFound:ro
+      - ${RETFOUND_WEIGHTS:?mount the exact verified RETFound checkpoint}:/weights/retfound-aptos.pth:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${RETFOUND_GPU_ID:-0}"]
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7864/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  portable_postgres_data:
+    name: ${PORTABLE_POSTGRES_VOLUME:-dr_screening_portable_postgres}
