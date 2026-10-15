@@ -13,7 +13,7 @@ Wire format (POST /v1/predict/dr and POST /v1/predict/lesions)::
         "model_id": "retfound-aptos5" | "prism-dr-5fold",
         "image_b64": "<base64 of exact analysis payload bytes>",
         "image_sha256": "<hex>",
-        "source_type": "PUBLIC" | "SYNTHETIC",
+        "source_type": "PUBLIC" | "SYNTHETIC" | "HOSPITAL_AUTHORIZED",
         "width":  <px>,
         "height": <px>
     }
@@ -27,6 +27,7 @@ import os
 import time
 from typing import Any
 import httpx
+from dr_support.services.source_policy import source_allowed_for_model
 from dr_support.contracts import (
     GlobalResult, LesionResult, Phase3PredictRequest, Phase3ResultEnvelope,
 )
@@ -50,6 +51,10 @@ class RemoteSchemaError(RemoteModelError):
 
 class RemoteNotConfiguredError(RemoteModelError):
     """The review workstation has no remote model endpoint configured."""
+
+
+class RemoteAuthorizationError(RemoteModelError):
+    """The source origin is not authorized for Model API transmission."""
 
 
 INFERENCE_TIMEOUT_SECONDS = 30.0
@@ -150,6 +155,11 @@ class RemoteModelProvider:
         return response
 
     def infer(self, request, image):
+        if not source_allowed_for_model(image.source_type, model_api=True):
+            self.last_error = 'source origin blocked'
+            raise RemoteAuthorizationError(
+                'Remote model transmission is blocked for this source origin'
+            )
         if not self.base_url:
             self.last_error = 'remote endpoint not configured'
             raise RemoteNotConfiguredError('Remote model endpoint is not configured')
@@ -206,6 +216,11 @@ class RemoteModelProvider:
         mask_version: str | None = None,
     ) -> LesionResult:
         """Call the additive Bridge v2 PRISM endpoint and retain typed evidence."""
+        if not source_allowed_for_model(image.source_type, model_api=True):
+            self.last_error = 'source origin blocked'
+            raise RemoteAuthorizationError(
+                'Remote model transmission is blocked for this source origin'
+            )
         if not self.base_url:
             self.last_error = 'remote endpoint not configured'
             raise RemoteNotConfiguredError('Remote model endpoint is not configured')

@@ -72,6 +72,7 @@ from dr_support.providers.retfound import RETFound, REVISION as RETFOUND_REVISIO
 from dr_support.providers.uspec import USPEC
 from dr_support.runtime import DeviceUnavailable, assert_cuda_ready, runtime_snapshot
 from dr_support.services.admission import inspect_bytes, is_inference_eligible
+from dr_support.services.source_policy import HOSPITAL_ORIGIN, source_allowed_for_model
 
 log = logging.getLogger('dr_support.model_api')
 
@@ -91,7 +92,7 @@ class RemotePredictRequest(_Contract):
     model_id: str
     image_b64: str = Field(min_length=1, max_length=20_000_000)
     image_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
-    source_type: Literal['PUBLIC', 'SYNTHETIC']
+    source_type: Literal['PUBLIC', 'SYNTHETIC', 'HOSPITAL_AUTHORIZED']
     width: int = Field(gt=0)
     height: int = Field(gt=0)
 
@@ -248,14 +249,23 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
             overall = 'FAIL'
         else:
             overall = 'PASS' if app.state.assets_verified else 'PASS_WITH_WARNINGS'
+        hospital_lane = source_allowed_for_model('HOSPITAL_AUTHORIZED', model_api=True)
         warnings = [
-            'Public/synthetic research deployment only. No diagnosis or autonomous referral.',
+            (
+                'Private authorized project-evaluation lane enabled; no public disclosure, diagnosis, '
+                'autonomous referral, or hospital export.'
+                if hospital_lane else
+                'Public/synthetic research deployment only. No diagnosis or autonomous referral.'
+            ),
             'Pinned local assets are verified; model weights load on first use.',
         ]
         warnings.extend(device_warnings)
         return {
             'status': overall,
-            'lane': 'PUBLIC_SYNTHETIC_REMOTE_MODEL_API',
+            'lane': (
+                'PRIVATE_AUTHORIZED_RESEARCH_MODEL_API'
+                if hospital_lane else 'PUBLIC_SYNTHETIC_REMOTE_MODEL_API'
+            ),
             'warnings': warnings,
             'providers': statuses,
             'requested_device': snap.requested_device,
@@ -267,9 +277,22 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
         }
 
     # --------- /v1/models ---------
+    def _capability_metadata():
+        # Advertise hospital eligibility only when this exact Model API process
+        # has the private gate enabled. The review UI uses this field to keep a
+        # missing authorization gate in manual-review mode rather than
+        # presenting an action that the backend will reject.
+        authorized_origins = ['PUBLIC', 'SYNTHETIC']
+        if source_allowed_for_model(HOSPITAL_ORIGIN, model_api=True):
+            authorized_origins.append(HOSPITAL_ORIGIN)
+        return [
+            {**provider.metadata(), 'authorized_source_origins': authorized_origins}
+            for provider in app.state.providers.values()
+        ]
+
     @app.get('/v1/models')
     def models():
-        descriptors = [p.metadata() for p in app.state.providers.values()]
+        descriptors = _capability_metadata()
         # Stable, contract-defined order so the review workstation sees a
         # predictable list.
         descriptors.sort(key=lambda m: (0 if m['task'] == 'global' else 1, m['model_id']))
@@ -277,7 +300,7 @@ def create_app(state_path=None, *, device_strict: bool | None = None) -> FastAPI
 
     @app.get('/v1/capabilities')
     def capabilities():
-        return capability_descriptors([p.metadata() for p in app.state.providers.values()])
+        return capability_descriptors(_capability_metadata())
 
     # --------- /v1/predict/* ---------
     def _record_timing(provider: Any, started: float) -> dict[str, Any]:
@@ -323,12 +346,13 @@ class _ImageShim:
     Local providers accept a ``BridgeImage`` from ``dr_support.images``. This
     adapter supplies the same interface without coupling to that dataclass.
     """
-    __slots__ = ('image_id', 'data', 'source_type', 'modality', 'source')
+    __slots__ = ('image_id', 'data', 'source_type', 'source_origin', 'modality', 'source')
 
     def __init__(self, payload: RemotePredictRequest, raw: bytes, source: str):
         self.image_id = payload.image_id
         self.data = raw
         self.source_type = payload.source_type
+        self.source_origin = payload.source_type
         self.modality = payload.modality
         self.source = source
 
@@ -362,12 +386,33 @@ def _check_admission(payload: RemotePredictRequest) -> None:
         filename=f'{payload.image_id}.payload',
         source_reference=f'MODEL_API/{payload.image_id}',
     )
-    if not is_inference_eligible(admission):
-        raise HTTPException(409, 'Image needs review before analysis.')
+    if is_inference_eligible(admission):
+        return
+    # The private review workstation has already applied the explicit
+    # HOSPITAL_AUTHORIZED admission decision before transmitting these bytes.
+    # Preserve the model-boundary decode, dimensions, and integrity checks,
+    # but do not re-run the generic color heuristic on an authorized UWF
+    # payload: that heuristic is intentionally conservative and can reject a
+    # real UWF image that the source admission path has accepted.
+    if (
+        payload.source_type == HOSPITAL_ORIGIN
+        and admission.get('integrity_status') == 'OK'
+        and admission.get('modality_admission') in {'FUNDUS_ACCEPTED', 'NEEDS_REVIEW'}
+        and admission.get('width') == payload.width
+        and admission.get('height') == payload.height
+        and admission.get('channels_or_mode') in {'RGB', 'RGBA', 'L', 'I;16'}
+    ):
+        return
+    raise HTTPException(409, 'Image needs review before analysis.')
 
 
 def _predict_global(app: FastAPI, payload: RemotePredictRequest, lock: RLock) -> GlobalResult:
     _check_runtime()
+    if not source_allowed_for_model(payload.source_type, model_api=True):
+        raise HTTPException(
+            409,
+            'This source origin is blocked from Model API transmission; manual review remains available.',
+        )
     provider = app.state.providers.get(payload.model_id)
     if provider is None or provider.task != 'global':
         raise HTTPException(404, f"Unknown model_id '{payload.model_id}' for /v1/predict/dr")
@@ -418,6 +463,11 @@ def _predict_global(app: FastAPI, payload: RemotePredictRequest, lock: RLock) ->
 
 def _predict_lesions(app: FastAPI, payload: RemotePredictRequest, lock: RLock) -> LesionResult:
     _check_runtime()
+    if not source_allowed_for_model(payload.source_type, model_api=True):
+        raise HTTPException(
+            409,
+            'This source origin is blocked from Model API transmission; manual review remains available.',
+        )
     if payload.model_id != PRISM.model_id:
         raise HTTPException(404, f"Unknown model_id '{payload.model_id}' for /v1/predict/lesions")
     provider = app.state.providers[PRISM.model_id]
@@ -461,7 +511,7 @@ def _predict_phase3(
     """Handle the versioned context envelope without changing Bridge v1."""
 
     _check_runtime()
-    if payload.source_origin not in {'PUBLIC', 'SYNTHETIC'}:
+    if not source_allowed_for_model(payload.source_origin, model_api=True):
         raise HTTPException(
             409,
             'This source origin is blocked from Model API transmission; manual review remains available.',

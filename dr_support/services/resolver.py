@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
+from .source_policy import HOSPITAL_ORIGIN
+
 
 Laterality = Literal["LEFT", "RIGHT", "UNKNOWN"]
 ResolutionState = Literal["RESOLVED", "NEEDS_CONFIRMATION", "UNLINKED", "CONFLICT"]
@@ -302,6 +304,50 @@ class ResolverService:
                 # OCR is an optional enhancement; failure must leave the image usable.
                 ocr = OCREvidence(status="OCR_REQUEST_FAILED")
         return reconcile(parsed, ocr)
+
+
+def resolve_authorized_hospital_record(record: dict | None) -> dict | None:
+    """Project private admission linkage into the ordinary case identity fields.
+
+    Hospital linkage is accepted only from the admission contract's opaque,
+    keyed fields.  It never reparses the neutral display filename and never
+    returns the source patient token.
+    """
+    if not isinstance(record, dict) or record.get("source_origin") != HOSPITAL_ORIGIN:
+        return None
+    patient_key = record.get("trusted_patient_key")
+    laterality = record.get("trusted_laterality")
+    sequence = record.get("trusted_capture_sequence")
+    method = record.get("trusted_identity_method")
+    if (
+        method != "AUTHORIZED_FILENAME_SEMANTICS"
+        or not isinstance(patient_key, str)
+        or not patient_key
+        or laterality not in {"LEFT", "RIGHT"}
+        or not isinstance(sequence, int)
+        or isinstance(sequence, bool)
+        or sequence < 1
+    ):
+        return None
+    return {
+        "patient_key": patient_key,
+        "patient_resolution_state": "RESOLVED",
+        "patient_resolution_method": "AUTHORIZED_SOURCE",
+        "patient_reason_code": "AUTHORIZED_FILENAME_SEMANTICS",
+        "patient_candidate": None,
+        "patient_confidence_or_strength": "AUTHORIZED_SOURCE",
+        "laterality": laterality,
+        "laterality_resolution_state": "RESOLVED",
+        "laterality_resolution_method": "AUTHORIZED_SOURCE",
+        "laterality_reason_code": "AUTHORIZED_FILENAME_SEMANTICS",
+        "laterality_candidate": laterality,
+        "resolver_state": "RESOLVED",
+        "resolver_evidence": {
+            "version": "authorized-hospital-linkage-v1",
+            "source": "AUTHORIZED_FILENAME_SEMANTICS",
+            "capture_sequence": sequence,
+        },
+    }
 
 
 def _resolution_snapshot(case: dict) -> dict:

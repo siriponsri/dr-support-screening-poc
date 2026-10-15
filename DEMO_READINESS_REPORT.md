@@ -1,22 +1,22 @@
 # M1 PRISM integration — demo readiness and closeout report
 
 **Review status:** Ready for owner review; not merged or pushed
-**Latest checkpoint:** `M1_RIM_ASSISTED_DEMO_AND_E2E_REVIEW_READY` (mask gate incomplete; synthetic PostgreSQL/API workflow verified)
-**Branch / starting HEAD:** `feat/m1-prism-uwf-integration` / `2cf06ebc130eb5ae50fb4d3cfabcb3adab5ee93a`
+**Latest checkpoint:** `M1_DELIVERY_CHECKPOINT_WITH_BLOCKERS` (engineering evidence refreshed; owner review required)
+**Branch / current HEAD:** `feat/m1-prism-uwf-integration` / `0a9dbfb1f3780129902d0529b66d93a89794d77a`
 **Scope:** Closeout of the existing split-runtime PRISM integration. This report does not activate or change UWF preprocessing, add a feature, or claim clinical validation.
 
 ## Summary
 
-The current dirty branch contains the bounded PRISM integration and its tests. The existing PRISM fallback path can continue inference when FOV evidence is uncertain or native ROI detection fails; the FOV/ROI uncertainty itself is not an AI-unavailable condition. PRISM UWF assistance remains experimental, CFP-trained, and not clinically validated for UWF. Hospital qualification evidence supplied for this closeout records 20/20 native ROI detections and 20/20 AI READY results, but **0/20 PREPARED**. Do not report the trusted-FOV PREPARED path as passed.
+The current dirty branch contains the bounded PRISM integration and its tests. The existing PRISM fallback path can continue inference when FOV evidence is uncertain or native ROI detection fails; the FOV/ROI uncertainty itself is not an AI-unavailable condition. PRISM UWF assistance remains experimental, CFP-trained, and not clinically validated for UWF. The latest private hospital qualification evidence records **21/21** native ROI detections and **21/21 AI READY** results, with **0/21 trusted-FOV PREPARED** cases. The prior 20-case receipt is historical and is superseded by the 21-case aggregate. Do not report the trusted-FOV PREPARED path as passed.
 
 The isolated v2 rim-mask experiment is closed with **`NO_ACCEPTABLE_MASK_IMPROVEMENT_WITHIN_TIMEBOX`**. V1 and V2 remain unchanged and inactive. DeepLabV3+ and other segmentation research are deferred. The mask experiment is non-blocking for the supported native ROI/FALLBACK route.
 
-The sequential Tesla T4 **USPEC → PRISM → USPEC** smoke and 21/21 restricted checkpoint-load results are recorded in private qualification receipts. They are engineering/runtime evidence, not clinical-performance evidence. The full backend test suite is **not passing**: it has one release-builder test failure, also reproducible from the clean tracked HEAD baseline (details below).
+The sequential Tesla T4 **USPEC → PRISM → USPEC** smoke and 21/21 restricted checkpoint-load results are recorded in private qualification receipts. They are engineering/runtime evidence, not clinical-performance evidence. The latest current-candidate full backend suite passes; a separate clean-baseline release-builder diagnostic mismatch remains documented below.
 
 ## Verified functions and evidence
 
 - **Restricted PRISM loading:** the existing private receipt reports all 21 locked checkpoints loaded on Tesla T4 with `torch.load(weights_only=True)` and explicit safe globals. Unrestricted pickle loading is not used.
-- **PRISM inference / recoverable fallback:** the private hospital receipt reports 20 attempted/decodable images, 20 native ROI successes, 0 fatal inference failures, 20 AI READY, 0 AI UNAVAILABLE, and 0 PREPARED. Do not infer clinical utility or mask quality from these counts.
+- **PRISM inference / recoverable fallback:** the latest private hospital receipt reports 21 attempted/decodable images, 21 native ROI successes, 0 fatal inference failures, 21 AI READY, 0 AI UNAVAILABLE, and 0 PREPARED. Do not infer clinical utility or mask quality from these counts.
 - **Sequential coexistence:** the existing private receipt records a passing synthetic USPEC → PRISM → USPEC request sequence, stable USPEC result, both services healthy, and no provider crossover or CUDA OOM. This receipt was not regenerated for this closeout.
 - **Routing:** backend capability-routing tests cover CFP → RETFound and UWF → USPEC modality restrictions, with PRISM remaining lesion-assistance-only. Focused tests passed below.
 - **Clinician-facing behavior:** the existing Review integration shows model assistance as optional, keeps AI READY/AI UNAVAILABLE primary, and limits PREPARED/FALLBACK to processing details. Existing frontend tests include the prepared-field and fallback presentation states. UI-state tests do not prove a live Model API or database E2E path.
@@ -27,8 +27,8 @@ The sequential Tesla T4 **USPEC → PRISM → USPEC** smoke and 21/21 restricted
 
 | Check | Result |
 |---|---|
-| `python -m pytest -q` | **349 passed, 34 skipped, 1 failed** (74.72 s). Failure: `tests/test_release_engineering.py::test_release_builder_rejects_path_escape_and_symlink`. Full suite is not PASS. |
-| Release-builder failure on clean tracked baseline | **Reproduced.** Exported `git archive HEAD` to a temporary directory and ran the failing test there; same failure and message. The symlink resolves outside the repo, so `_root_relative` raises `release path escapes repository root` before the test's expected `unsafe symlink`. No test or builder changes were made. |
+| `python -m pytest -q` | **363 passed, 34 skipped, 0 failed** (39.75 s) on the current dirty candidate. |
+| Release-builder clean-baseline diagnostic | **Current candidate focused test: 1 passed.** Historical clean tracked baseline had a message/order mismatch (`release path escapes repository root` before expected `unsafe symlink`) while still rejecting the unsafe path; current candidate no longer has a failing focused test. |
 | Focused PRISM/routing/workflow/dataset regression | **107 passed, 2 skipped** (13.07 s). Included PRISM provider, Bridge, safe loader, capability routing, Phase 3, USPEC Model API, review workflow, and dataset tests. Two skips are expected optional integration skips; PostgreSQL tests require explicitly configured test-only PostgreSQL. |
 | `python -m ruff check dr_support tests` | **Passed** (`All checks passed!`). |
 | `git diff --check` | **Passed** after report creation (including whitespace check of this new file). |
@@ -38,7 +38,7 @@ The sequential Tesla T4 **USPEC → PRISM → USPEC** smoke and 21/21 restricted
 | PostgreSQL integration | **Live PostgreSQL 16 synthetic workflow verified** using a run-owned loopback database/workspace; see the dated evidence section below. This is not browser E2E or clinical validation. |
 | Live clinician-to-PostgreSQL end-to-end | **Partial, API/runtime/DB path verified** for synthetic data: actual USPEC T4 suggestion, test-actor grade correction, Grade 4 `REFER`, separate ungradable `UNDETERMINED`, DB restart/reload and permitted synthetic export. Browser-driven UI E2E remains unverified. |
 
-The clean-baseline failure is in tracked HEAD code (`scripts/release/build_release.py` and `tests/test_release_engineering.py`) and does not overlap the dirty PRISM integration changes. The safe behavior still rejects the escaping symlink; it rejects it with a different earlier diagnostic than the test expects. This closeout does not modify release-builder logic or weaken symlink checks.
+The historical clean-baseline release-builder discrepancy is retained as provenance: unsafe symlink/path escape behavior was rejected safely, but an earlier diagnostic differed from the old expectation. The current candidate focused test passes, and no unsafe-path acceptance or unsafe deserialization fallback was introduced.
 
 ## Clinician workflow status and handling
 
@@ -55,11 +55,11 @@ Ungradable is a separate clinician outcome. It must not be encoded as Grade 0, m
 
 ## Deferred features and remaining blockers
 
-1. **PREPARED qualification:** no genuine hospital trusted-FOV → exact native ROI → lesion preprocessing/models → CUDA inference → PREPARED result was established. Existing receipt says 0/20 PREPARED. No claim of PREPARED pass.
+1. **PREPARED qualification:** no genuine hospital trusted-FOV → exact native ROI → lesion preprocessing/models → CUDA inference → PREPARED result was established. Latest hospital aggregate says 0/21 PREPARED. No claim of PREPARED pass.
 2. **Rim masks:** no acceptable v2 improvement was established; keep V1/V2 inactive and unchanged. DeepLabV3+ and segmentation research are deferred. Do not make external masking a prerequisite for supported fallback inference.
-3. **Backend release-builder suite:** one baseline-reproducible expectation/diagnostic mismatch remains. Full backend validation cannot be called passing.
+3. **Release-builder provenance:** the old clean-baseline diagnostic mismatch remains documented, but the current candidate full suite and focused release-builder test pass.
 4. **Browser clinician workflow:** API/runtime/PostgreSQL synthetic path has evidence; a browser-driven workflow against the deployable candidate remains unverified. Hospital-source intake-to-database workflow was not run.
-5. **Deployment status:** no merge, push, production authorization, rights clearance, clinical validation, containerization, or external network deployment is included in this closeout.
+5. **Deployment status:** the current candidate Compose build and synthetic-only single-service GPU smoke passed, but no coherent browser/private workstation demo, merge, push, production authorization, rights clearance, clinical validation, or external network deployment is claimed.
 
 ## Demo prerequisites and reproducible steps
 
@@ -85,7 +85,7 @@ For a reproducible automated check in a development checkout, run the focused py
 - **Input and processing:** Original image handling and native ROI/FALLBACK behavior are unchanged. The unsuccessful V2 experiment is not active. PREPARED is explicitly unqualified on the hospital sample.
 - **Output and human authority:** PRISM detections remain suggestions; an empty result is not evidence of no lesions. Clinician grade and ungradable status remain distinct; Grade 4 referral is based on the confirmed human grade.
 - **Persistence/export:** live synthetic API/runtime/PostgreSQL save, restart/reload, and allowed export are verified; browser E2E and clinical workflow are not claimed.
-- **Validation:** all passing/failing/skipped results are reported, including the baseline-reproduced backend failure, the API/runtime/PostgreSQL synthetic pass, and the remaining browser E2E gap.
+- **Validation:** current passing/skipped results, the historical clean-baseline diagnostic discrepancy, the API/runtime/PostgreSQL synthetic pass, the Compose synthetic-only smoke, and the remaining browser E2E gap are reported.
 - **Review independence:** this is a local self-audit only. Independent review is unavailable in this session; independence is reduced.
 
 **Owner handoff:** Preserve the dirty feature worktree for review. Stop before merge or push.
@@ -1306,3 +1306,332 @@ A fresh bounded live PostgreSQL negative/security-path check was completed on a 
 The final evidence package and report were refreshed at local HEAD `80dcd1454793e19a0857fa675293df1fa21e14f6` (docs-only commits after implementation checkpoint `bbfb0c7e9467598ee35ea6d2591c0a6cca23906a`). The separate protected-origin live TEST_ONLY receipt confirms blocked WORKSPACE exports and workspace record separation. Package ZIP hash is recorded in the external delivery folder; candidate worktree is clean. No push/merge occurred due missing authorized Git credential helper.
 
 The fresh protected-export test used an ephemeral separate database on the existing run-owned PostgreSQL 16 service, not the older shared synthetic workspace. It created WORKSPACE-origin records by ordinary workspace folder admission (no provenance rewriting): manifest `can_export=false`, regular and grouped exports returned HTTP 409, and after switching between two workspaces each retained only its own admitted record. The ephemeral DB was dropped; cluster and prior DB volume were preserved. Evidence is a sanitized aggregate receipt with no identifiers or content.
+
+### Owner decision — rim-assisted demo rescue: final resumed-session audit (2026-10-14)
+
+**Terminal: `M1_RIM_ASSISTED_DEMO_AND_E2E_REVIEW_READY` — owner review only; required gates remain incomplete.** The current checkout was rechecked at `feat/m1-prism-uwf-integration`, HEAD `0a9dbfb1f3780129902d0529b66d93a89794d77a`; worktree was clean at start. No tracked source, model, dependency, active inference, or existing evidence was changed. Hospital images were not opened or processed.
+
+#### Rim mask demo
+
+No operator-assisted mask or masked PRISM request was created. Prior evidence remains 0 accepted masks / 0 masked-to-PRISM cases, and the supported API rejection of external masked UWF inputs remains in place. Thus there is no visual acceptance, coordinate-bound mask handoff, actual masked-input identity, or masked CUDA inference. The previously reported native ROI visual review (0 adequate / 5 partial / 16 inadequate) and trusted-FOV PREPARED result (0/20) are unchanged. Do not represent rim exclusion as achieved or manual masks as automatic segmentation. No fallback or active preprocessing behavior changed.
+
+#### Bounded synthetic PostgreSQL follow-up attempt
+
+Inspected the interrupted run-owned API/logs and diagnosed its first assertion error: the Phase3 envelope puts the model state under `result.state`, while the harness had checked a top-level `status`. Correcting that assertion demonstrated a fresh supported UWF USPEC request with `result.state=AI_SUGGESTION` and `status=APPLIED`; source origin was synthetic. On a subsequent bounded attempt, controlled TEST_ONLY synthetic cases for grades 0–4 were accepted by the review route and their expected referrals (Grade 4 `REFER`, other grades `NOT_REFER`) were confirmed by assertions. These are API test-actor actions, not clinician labels or clinical outcomes.
+
+The run then stopped at the ungradable step: the fixture server admitted five generated images (indices 0–4), but the harness requested a sixth (`SYNTH_UWF_5`), producing HTTP 404 `Image not admitted`. Therefore this fresh attempt did **not** verify ungradable state, annotation add/correct/remove, post-restart reload, or dataset export. It is not a full E2E PASS. The prior, separately hash-verified synthetic browser/PostgreSQL receipt remains the bounded evidence for a Grade 4 correction / REFER, annotation completion, restart/reload, and export; other grade and ungradable cases are separate receipts, not one atomic workflow.
+
+The API process started only for this run was stopped. The run-owned synthetic PostgreSQL database and generated fixture files were left untouched after the failed partial run because safe database cleanup could not be established without risking the shared PostgreSQL service/volume. They remain private runtime state and are not evidence of a clean completed E2E. No database container, shared service, or volume was stopped or dropped.
+
+#### Closeout and remaining blockers
+
+`CODEX_SELF_AUDIT / REDUCED_INDEPENDENCE`: verified no PHI/images/weights/secrets were added to the repository; no exception was converted into an empty model result; no model, mask, threshold, dependency, or active inference path was changed; API workflow evidence is explicitly TEST_ONLY and partial where appropriate. This is self-audit, not independent review.
+
+Remaining gates: (1) an authorized operator must create and visually accept safe exclusion masks, with a supported authorized masked-input handoff and actual PRISM inference; (2) the incomplete fresh database run must not be called full E2E—ungradable, annotation mutation, reload, and export were not reached in this attempt; (3) no real clinician/hospital transaction was performed; (4) institutional model rights, deployment and clinical authorization remain unresolved. Historical bounded synthetic workflow receipts remain available with their stated limitations. No commit, merge, or push was made.
+
+### Autonomous delivery continuation — live isolated PostgreSQL workflow (2026-10-14)
+
+This continuation followed the approved `/teamspace/studios/this_studio/DR_M1_START_HERE.md` authority. Current branch/HEAD remain `feat/m1-prism-uwf-integration` / `0a9dbfb1f3780129902d0529b66d93a89794d77a`; the pre-existing report-only modification was preserved. An external recovery snapshot of that exact initial report diff and launch instruction is stored under `/teamspace/studios/this_studio/dr-screening/runtime/m1-autonomous-20261015T0000Z/recovery/` with SHA-256 entries. No source changes were made.
+
+#### Fresh end-to-end engineering run
+
+A new TEST_ONLY database and database role were created on the already-running PostgreSQL 16 service using unique run-scoped identities and private credentials outside Git; no existing DB or volume was reset. Six generated synthetic UWF fixtures passed the normal Workspace folder admission path as `SYNTHETIC`. On review API port 8783, the UWF case received an actual USPEC `AI_SUGGESTION` through the supported review-to-Model-API route. TEST_ONLY actor grade corrections were persisted for grades 0–4; the project rule yielded `NOT_REFER` for 0–3 and `REFER` for 4. A separate case was marked `UNGRADABLE`, with null grade and `UNDETERMINED` referral. On the Grade 4 case, human annotation add, correction, removal and explicit annotation-review completion were exercised; human review remained separate from the AI suggestion.
+
+The run-owned review API process was stopped and restarted against the same test DB. Subsequent case reads verified persisted Grade 4 / REFER, separate ungradable / null / UNDETERMINED, and AI suggestion state. A dataset export request returned HTTP 200 under synthetic-origin policy; the generated CSV was inspected and included the Grade 4 case with `clinician_grade=4`. `/health` after restart was `PASS_WITH_WARNINGS`. This is a synthetic API/PostgreSQL engineering workflow with a test actor, not clinician, hospital, clinical validation, or production evidence. Annotation actions were exercised before the restart; the post-restart assertions checked grade/referral, ungradable, AI state, and export inclusion. Evidence retained privately: `phase1.json` and `phase2-restart-export.json` in `/teamspace/studios/this_studio/dr-screening/runtime/m1-e2e-live-20261014T2208Z/`; raw case payloads and export remain private.
+
+#### Existing service/model evidence reviewed
+
+Existing native loopback health checks returned HTTP 200 on review/model ports 7861, 7863, 7864, 8766, and the existing container smoke port 8861. Metadata on 7861/7863 identified USPEC UWF; 7864 identified RETFound CFP and `LOADED`. Existing private receipts include a sequential USPEC → PRISM → RETFound → USPEC Tesla T4 synthetic smoke (all `AI_SUGGESTION`, source hashes bound, no OOM reported; GPU snapshot is not isolated attribution), a fresh rebuilt-container RETFound synthetic CFP inference, and a direct RETFound API receipt including wrong-modality `UNSUPPORTED`. Their source/checkpoint locks match the pinned RETFound identity and SHA-256. These receipts are reused, not new inference in this continuation. Rights remain CC-BY-NC research/non-commercial and no clinical/production authorization is implied.
+
+#### Remaining scope and runtime state
+
+Mask/residual-rim and human acceptance gates remain incomplete; no accepted mask or masked PRISM inference was generated. The API process for the PostgreSQL run was stopped after restart/export verification. PostgreSQL container/volume and unrelated pre-existing Model API services were preserved. The run-specific database and role were subsequently identity-checked and dropped; credentials were cleared from the private runtime directory (see the later cleanup receipt). Docker and Compose are available; existing individual model image build/inference receipts do not establish an integrated review/PostgreSQL stack or simultaneous residency. No image export/import was tested. No feature push, main merge/push, or branch cleanup occurred.
+
+A clean-baseline comparison was completed for the previously reported release-builder mismatch. A `git archive origin/main` at `3c12ffd45953fd839b2da54de10fa5ef224e2c1d` ran `tests/test_release_engineering.py::test_release_builder_rejects_path_escape_and_symlink`: **1 failed** because the in-root symlink is safely rejected after resolving its target, but the observed error is `release path escapes repository root` instead of the test's expected `unsafe symlink`. The feature-candidate test returns **1 passed** due to the additional lexical in-root symlink check. Baseline files were not modified; this is a specific message/order mismatch with both paths rejecting the unsafe symlink, not a full backend baseline PASS.
+
+The fresh isolated synthetic PostgreSQL E2E was completed in this continuation: six admitted generated UWF images, live USPEC AI suggestion, test actor grades 0–4 with Grade 4 REFER, separate ungradable/null/UNDETERMINED, human annotation add/correct/remove + review confirmation, review API restart/reload, and permitted synthetic CSV export confirmed to contain Grade 4. Aggregate sanitized receipt is external at `/teamspace/studios/this_studio/dr-screening/qualification/evidence/m1-autonomous-live-pg-20261014/sanitized-aggregate-receipt.json`. The run-created database and same-name role were verified by exact identity and zero sessions, then removed; shared PostgreSQL service/volume and other databases were preserved. No test database credentials remain in the run dir.
+
+Latest test evidence in this continuation: `python -m pytest -q` 352 passed / 34 skipped; `python -m ruff check dr_support tests` pass; frontend 147/22 pass, typecheck and production build pass (813.69 kB main JS chunk warning); root `npm test` pass; docs QA pass; focused release-builder test pass on candidate; `git diff --check` pass. No application source changes were made. The synthetic E2E is API-backed and PostgreSQL-backed, not a fresh browser run.
+
+### Owner update — approved hospital UWF as primary M1 demo data (2026-10-14)
+
+The owner confirms authorization to use the approved UWF sample for this private project evaluation. This authorizes the stated data use only; it does not establish public dissemination rights, model/checkpoint rights, clinician confirmation, clinical validation, or production deployment permission. No changes were made to PRISM/USPEC runtime, inference, source-image handling, or exports in this continuation.
+
+#### Bounded source audit (private input, no patient-level output retained here)
+
+The configured source directory is `/teamspace/studios/this_studio/dr-screening/private/hospital_uwf`, outside Git, directory mode `0700`. A metadata-only decode audit found **21/21** readable JPEG images, all **1920×835**; no EXIF blocks were present. Filenames and per-image identities were intentionally not emitted. Input bytes were not copied, changed, transmitted, added to fixtures, or committed. The images were not viewed or passed to a model during this continuation.
+
+#### Hospital-use gate findings
+
+The existing normal workspace admission path already preserves source bytes and hashes and classifies staged originals as `source_origin=WORKSPACE`; it does not retain the hospital acquisition provenance as a typed hospital origin. Existing policy/contracts intentionally block model inference for `WORKSPACE` and `UNKNOWN` origins. The Bridge v1 prediction/provenance contract permits only `PUBLIC`/`SYNTHETIC`, and the Model API Phase 3 endpoint also rejects `WORKSPACE`; the currently running model APIs advertise a public/synthetic-only lane. Frontend capability gates likewise suppress inference on `WORKSPACE`. This is an end-to-end safety boundary, not a missing inference URL. Bypassing any one gate would misstate provenance or lose authorization lineage.
+
+The existing dataset service explicitly denies export for `WORKSPACE` and `UNKNOWN`, including grouped exports. This remains the safe default: owner authorization for private project evaluation does not authorize patient-level export or external disclosure. No export was attempted.
+
+The current 7863 USPEC API is loaded on T4 but is still the existing public/synthetic-only service. The usual 7861 API reports `QUALIFIED_NOT_LOADED`. The existing service at 8766 is an older bridge runtime, not a configured isolated hospital demo. No PRISM API is listening on 7862. The registered PRISM and USPEC integrations retain experimental/research and rights warnings. Accordingly, no hospital pixels were sent to any model, external API, or additional service, and no real hospital AI inference/review/PostgreSQL transaction is claimed.
+
+#### Required status separation
+
+| Gate | Status | Evidence / limitation |
+|---|---|---|
+| `REAL_HOSPITAL_UWF_INFERENCE` | **NOT RUN / BLOCKED** | Model API, remote Bridge, provenance schema, frontend, and providers reject hospital-origin inference; no bypass attempted. USPEC rights remain `UNVERIFIED`; PRISM UWF remains experimental/not clinically validated. |
+| `REAL_HOSPITAL_REVIEW` | **NOT RUN** | No hospital-backed Review UI/PostgreSQL workspace was opened in this continuation; no clinician acted and no confirmation/correction was fabricated. |
+| `REAL_HOSPITAL_POSTGRES_E2E` | **NOT RUN** | Latest actual PostgreSQL end-to-end receipt is TEST_ONLY synthetic data and actor actions only. No real hospital case was modified. |
+| `REAL_HOSPITAL_DATASET_EXPORT` | **NOT RUN / BLOCKED** | Existing `WORKSPACE` export policy denies dataset and grouped exports; no hospital export or disclosure authorization was inferred. |
+| `SYNTHETIC_AUTOMATED_E2E` | **PASS (separate evidence)** | Existing fresh isolated PostgreSQL workflow: real USPEC API suggestion, test-actor grades 0–4 with Grade 4 → REFER, separate ungradable → null grade / UNDETERMINED, annotation review, service restart/reload, and allowed synthetic export. It is not hospital or clinician evidence. Receipt: `/teamspace/studios/this_studio/dr-screening/qualification/evidence/m1-autonomous-live-pg-20261014/sanitized-aggregate-receipt.json`. |
+
+#### Closeout and safe next step
+
+No source code or runtime change is made because the approved hospital source use does not override the frozen `WORKSPACE`/Bridge/Model API provenance contract, and a unilateral gate bypass would misrepresent hospital provenance. A proper path needs a versioned hospital-origin/authorization contract propagated through Review admission, Bridge v2, each Model API, provider provenance, audit, frontend, persistence, and dataset policy; it must remain local/private and keep hospital exports blocked by default. It also needs isolated deployment of both model runtimes and evidence of applicable model-use rights before execution. This continuation does not declare those model or export rights cleared. Existing PRISM experimental/UWF and no-rim-mask status remain unchanged.
+
+`CODEX_SELF_AUDIT / REDUCED_INDEPENDENCE`: verified branch/HEAD and preserved the pre-existing report diff; no PHI, filenames, image bytes, per-image hashes, predictions, weights, or secrets entered Git; no model API guard, export restriction, source image, shared database, or qualified runtime was altered. This is a self-audit, not independent review. No commit, push, merge, container build, or service shutdown was performed.
+
+**Terminal: `DELIVERY_CHECKPOINT_WITH_BLOCKERS`.** The primary real-hospital demonstration is not ready. Existing synthetic E2E remains distinct and verified as above.
+
+### Owner update — private hospital-origin pathway implementation and validation (2026-10-15)
+
+A bounded private hospital-origin pathway was added to the dirty feature worktree without changing the qualified USPEC/PRISM runtimes, native ROI semantics, rejected rim-mask experiments, or dataset export authorization. This is an implementation checkpoint, not a hospital inference claim.
+
+#### Implemented safety boundary
+
+- The hospital lane is opt-in and exact-root bound through `DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOT`, `DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL=1`, `DR_SUPPORT_AUTHORIZED_HOSPITAL_MODALITY=CFP|UWF`, and `DR_SUPPORT_HOSPITAL_SCOPE=PRIVATE_PROJECT_EVALUATION`.
+- The configured root must resolve exactly and have no group/world permissions. Unrelated folders remain `WORKSPACE`; no path or filename guess promotes a record to hospital origin.
+- Hospital records retain immutable original bytes and source SHA-256, while the displayed filename and source reference use neutral case identifiers (`hospital-case-NNNN`, `HOSPITAL_AUTHORIZED/CASE-NNNN`). No source filename, image, EXIF, patient identifier, or patient-level result is written to Git.
+- `HOSPITAL_AUTHORIZED` is propagated through admission, Bridge/Phase 3 provenance, Model API request validation, provider checks, review capability gates, and audit metadata. The remote provider now fails closed before transmitting hospital bytes unless the private Model API scope, explicit allow flag, and a runtime bearer token are all present.
+- Hospital export and grouped image export remain denied by policy (`BLOCKED_HOSPITAL_EXPORT_NOT_AUTHORIZED`). This owner approval for private project evaluation was not interpreted as permission for external disclosure, training export, public release, or model licensing.
+- The clinician UI labels the origin as `Approved hospital source`; internal origin values are not used as clinician-facing failure text. Synthetic fixtures remain separate.
+
+#### Current evidence and blockers
+
+The private source inventory remains metadata-only: **21/21** approved UWF JPEGs decode as RGB 1920×835; the source directory is outside Git with restricted permissions. No hospital image was opened, copied, uploaded, passed to a model, persisted as a review case, or exported in this continuation.
+
+The currently observed model endpoints advertise research-only lanes; USPEC reports `rights_status=UNVERIFIED`, and the existing endpoints do not advertise the explicit private hospital gate. PRISM UWF remains experimental/not clinically validated, and the historical hospital result remains **native ROI 20/20, AI READY 20/20, PREPARED 0/20**. No accepted rubber-rim mask exists. Therefore no hospital inference, review transaction, clinician confirmation, PostgreSQL case mutation, or dataset export is claimed.
+
+| Required lane | Status | Exact limitation |
+|---|---|---|
+| `REAL_HOSPITAL_UWF_INFERENCE` | **NOT RUN / BLOCKED** | No explicit private Model API scope/token and no cleared model-use rights were present; the fail-closed path prevented hospital bytes from leaving the authorized source boundary. |
+| `REAL_HOSPITAL_REVIEW` | **NOT RUN** | No hospital-backed Review UI case was opened; no clinician action was fabricated. |
+| `REAL_HOSPITAL_POSTGRES_E2E` | **NOT RUN** | No real hospital record was persisted or edited. |
+| `REAL_HOSPITAL_DATASET_EXPORT` | **NOT RUN / BLOCKED** | Export remains denied; no separate disclosure permission was inferred. |
+| `SYNTHETIC_AUTOMATED_E2E` | **PASS — separate evidence** | Fresh isolated PostgreSQL + actual USPEC API + TEST_ONLY actor workflow, including Grade 4 → REFER, separate ungradable → UNDETERMINED, restart/reload, and permitted synthetic export. This is not hospital or clinician evidence. |
+
+#### Validation after the pathway changes
+
+- Backend: **359 passed, 34 skipped** (`python -m pytest -q`); warnings are existing dependency/Pillow deprecations.
+- Focused authorization/remote/PRISM/USPEC group: **76 passed**.
+- Ruff: **passed** (`python -m ruff check dr_support tests`).
+- Frontend: **147 passed across 22 files** (`npm test -- --run`).
+- Frontend typecheck: **passed**.
+- Frontend production build: **passed**; existing main-bundle size warning (~814 kB minified) remains.
+- Root JavaScript smoke: **passed** (`npm test`).
+- Documentation QA: **passed** (`scripts/docs/check_docs.py`).
+- `git diff --check`: **passed**.
+- The previously documented clean-baseline release-builder assertion/message-order mismatch remains a known baseline discrepancy; it is not reported as a full-suite baseline pass.
+
+`CODEX_SELF_AUDIT / REDUCED_INDEPENDENCE`: source and untracked test files were reviewed; no PHI, hospital images, weights, secrets, private screenshots, or patient-level predictions entered Git; no existing service was stopped; no exception was converted to an empty result; no V1/V2/DeepLab mask was activated; and no hospital bytes were transmitted. This is a self-audit, not independent review.
+
+**Terminal: `DELIVERY_CHECKPOINT_WITH_BLOCKERS`.** The implementation is ready for owner/institutional model-rights and private-runtime configuration review, but `PRIVATE_M1_DEMO_WITH_APPROVED_HOSPITAL_UWF` is not yet achieved. No commit, merge, or push was performed.
+
+
+### Owner update — hospital-origin pathway validation checkpoint (2026-10-15)
+
+The dirty feature worktree remains preserved on `feat/m1-prism-uwf-integration` at
+HEAD `0a9dbfb1f3780129902d0529b66d93a89794d77a`. No reset, clean, merge, commit,
+or push was performed. The existing `DEMO_READINESS_REPORT.md` history and
+hospital privacy boundary were retained.
+
+#### Validation refreshed after the latest UI correction
+
+- Backend: **359 passed, 34 skipped** (`python -m pytest -q`).
+- Focused hospital-origin/remote/PRISM group: **46 passed**.
+- Ruff: **passed** (`python -m ruff check dr_support tests`).
+- `git diff --check`: **passed**.
+- Documentation QA: **passed** (`python scripts/docs/check_docs.py`).
+- Frontend: **147 passed across 22 files** (`npm test -- --run`).
+- Frontend typecheck: **passed**.
+- Frontend production build: **passed**; existing ~814 kB main-bundle warning remains.
+- Root JavaScript smoke: **passed** (`npm test`).
+
+The clean-baseline release-builder mismatch remains as previously documented:
+`origin/main` rejects the unsafe in-root symlink but emits the path-escape message
+rather than the test's expected unsafe-symlink message. It is not reported as a
+clean-baseline full-suite PASS.
+
+#### Required hospital lanes remain explicitly separated
+
+| Lane | Status | Current evidence boundary |
+|---|---|---|
+| `REAL_HOSPITAL_UWF_INFERENCE` | **NOT RUN / BLOCKED** | No private model endpoint with cleared rights and configured model gate was available; no hospital bytes were transmitted. Historical native ROI is 20/20, AI READY 20/20, PREPARED 0/20. |
+| `REAL_HOSPITAL_REVIEW` | **NOT RUN** | No real hospital Review UI session or clinician confirmation was performed. |
+| `REAL_HOSPITAL_POSTGRES_E2E` | **NOT RUN** | No real hospital record was persisted or edited. |
+| `REAL_HOSPITAL_DATASET_EXPORT` | **NOT RUN / BLOCKED** | Hospital and grouped image export remain fail-closed as `BLOCKED_HOSPITAL_EXPORT_NOT_AUTHORIZED`. |
+| `SYNTHETIC_AUTOMATED_E2E` | **PASS — separate evidence** | Isolated PostgreSQL + actual USPEC + TEST_ONLY actor workflow only; Grade 4 → REFER, ungradable → UNDETERMINED, restart/reload and permitted synthetic export are not hospital or clinician evidence. |
+
+The approved source inventory remains outside Git and was not processed in this
+checkpoint. The implementation only adds the opt-in exact-root
+`HOSPITAL_AUTHORIZED` provenance contract, neutral display/reference IDs, model
+boundary checks, and private UI/export labels. It does not activate a mask,
+change PRISM/USPEC runtimes, claim PREPARED, or authorize export.
+
+`CODEX_SELF_AUDIT / REDUCED_INDEPENDENCE`: reviewed the complete tracked diff and
+both untracked source/test files, confirmed no PHI, hospital images, filenames,
+weights, secrets, screenshots, or patient-level outputs entered Git, and confirmed
+that existing model/PostgreSQL services were preserved. This is a self-audit,
+not independent review.
+
+**Terminal: `DELIVERY_CHECKPOINT_WITH_BLOCKERS`.** The implementation is ready for
+owner/institutional model-rights and private-runtime configuration review; the
+goal `PRIVATE_M1_DEMO_WITH_APPROVED_HOSPITAL_UWF` is not claimed.
+
+### Owner inject — authorized real hospital UWF/CFP and longitudinal comparison closeout (2026-10-15)
+
+This section records the private engineering evaluation performed under the
+owner-confirmed hospital authorization. It contains aggregate results only.
+Hospital originals, identifying filenames, patient-level predictions, EXIF,
+weights, credentials, and raw private evidence remain outside Git.
+
+#### REAL_HOSPITAL_UWF_INFERENCE
+
+The bounded private UWF run attempted **21** approved hospital images. All
+were decodable and admitted as `HOSPITAL_AUTHORIZED`; all 21 completed the
+actual modality-aware USPEC global path and the experimental PRISM lesion path.
+Native PRISM ROI returned a valid result for **21/21**. The trusted external
+FOV detector returned READY for **0/21**, so processing mode was **FALLBACK for
+21/21** and **PREPARED for 0/21**. There were **0** fatal decode, model,
+CUDA/runtime, or inference failures; clinician-facing AI state was **READY
+21/21** and **UNAVAILABLE 0/21**.
+
+This is a runtime/engineering result, not clinical validation. FOV uncertainty
+was not treated as inference failure. The native ROI bounding box is not an
+accepted retinal FOV mask, and no rubber-rim removal is claimed.
+
+#### REAL_HOSPITAL_CFP_INFERENCE
+
+The bounded private CFP run attempted **10** approved hospital images.
+RETFound global inference succeeded **10/10**, and PRISM lesion assistance
+succeeded **10/10** through the authorized private Model API/Bridge path, with
+no fatal or transport failures. CFP remains routed to RETFound for global
+grading; PRISM remains lesion assistance and is not a DR grader.
+
+#### REAL_HOSPITAL_REVIEW
+
+The private PostgreSQL-backed Review services persisted **21 UWF** and **10
+CFP** hospital cases with source-bound model evidence. Review projections
+retain immutable Original RGB references, modality, laterality/sequence
+metadata, separate AI suggestions, and per-exam PRISM processing/lesion
+records. The implemented comparison panel is explicitly `PREVIOUS EXAM |
+CURRENT EXAM`; it can show the actual recorded native ROI bounding box, clearly
+labeled as not a verified anatomical/FOV mask. Original-image comparison is
+not blocked when PRISM evidence is unavailable.
+
+This checkpoint did not include a genuine clinician browser session or a
+clinician-confirmed label. The one persisted Grade 4 / REFER event in the
+hospital receipt is explicitly **TEST_ONLY** and is not clinical evidence or
+ground truth. No clinician sign-off was fabricated.
+
+#### REAL_HOSPITAL_POSTGRES_E2E
+
+Private admission, Model API/Bridge persistence, case reads, and restart/reload
+checks passed for the authorized hospital workspaces. The persistence receipt
+verified 21 cases, sequence metadata, model evidence, and comparison data
+surviving the Review API restart. The complete clinician workflow remains
+**PARTIAL / NOT CLINICIAN-VERIFIED**: no genuine clinician performed the
+Grade 0–4 decision, Grade 4 referral confirmation, annotation confirmation,
+or final dataset-readiness action in this checkpoint. The separate synthetic
+TEST_ONLY automated E2E remains clearly labeled as synthetic evidence.
+
+#### REAL_UWF_LONGITUDINAL_PAIRING
+
+The protected runtime matched only verified same-patient/same-eye/immediate-
+prior UWF examinations using opaque linkage, laterality, modality, and capture
+sequence; it did not pair by list order or by display filename. Of **5**
+sequence-2 records, **4** eligible pairs were found: **2 LEFT** and **2
+RIGHT**. The four pairs had verified previous/current roles, sequence order
+`[1, 2]`, Original image availability, PRISM processing evidence, and PRISM
+lesion evidence for both visits. One sequence-2 record remained unmatched with
+`NO_VERIFIED_PREVIOUS_EXAM`; cross-eye/cross-patient/modality mismatches were
+**0**.
+
+This is an engineering side-by-side comparison only. No pixel correspondence,
+lesion progression, new/resolved lesion, improvement, sensitivity,
+specificity, or clinical conclusion was inferred.
+
+#### REAL_UWF_PRISM_COMPARISON
+
+For all **4/4** eligible real UWF pairs, the private comparison payload exposed
+separate per-exam PRISM processing and lesion evidence and retained Original
+RGB display for both exams. UWF records were `FALLBACK` rather than `PREPARED`.
+The UI and API distinguish native ROI/FALLBACK evidence from an accepted
+retinal FOV mask; no fabricated segmentation boundary was added.
+
+#### REAL_HOSPITAL_DATASET_EXPORT
+
+Hospital export remains fail-closed. UWF and CFP manifests reported
+`can_export=false`; regular export, grouped-by-grade export, and canonical
+snapshot requests returned HTTP **409**, and no output files were written.
+Private project authorization was not interpreted as authorization for public
+disclosure, training export, or external release.
+
+#### SYNTHETIC_AUTOMATED_E2E
+
+The separate synthetic PostgreSQL/API evidence remains **PASS** for its stated
+scope: actual USPEC suggestion, TEST_ONLY grade/referral paths including Grade
+4 → REFER, separate ungradable → `UNDETERMINED`, annotation workflow,
+restart/reload, and permitted synthetic export. It is not hospital evidence,
+not clinician evidence, and not clinical validation.
+
+#### Deferred/open gates
+
+- `PRISM_PREPARED`: **OPEN / NOT QUALIFIED** (`0` hospital cases).
+- `RIM_MASK_ACCEPTANCE`: **OPEN / NOT ACCEPTED**. V1/V2 and blocked DeepLab
+  work remain deferred; no preprocessing was activated.
+- Genuine clinician hospital review/sign-off: **OPEN**.
+- Hospital dataset export/disclosure authorization: **BLOCKED by policy**.
+- Integrated private deployment/container handoff and branch integration:
+  **owner review pending**.
+
+#### Validation and self-audit
+
+Latest recorded validation remains: backend **363 passed, 34 skipped**;
+frontend **147 passed across 22 files**; frontend typecheck, production build,
+Ruff, root JavaScript smoke, documentation QA, and `git diff --check` passed.
+The known clean-`origin/main` release-builder discrepancy remains documented:
+its unsafe in-root symlink is rejected safely but emits a path-escape message
+instead of the test's expected unsafe-symlink message, so no clean-baseline
+full-suite PASS is claimed.
+
+`CODEX_SELF_AUDIT / REDUCED_INDEPENDENCE`: no PHI, hospital images,
+identifying filenames, weights, secrets, patient-level predictions, or raw
+private evidence were added to Git; no model, threshold, preprocessing, or
+qualified runtime was changed; no test-actor action was relabeled as clinician
+confirmation; and no export authorization was inferred. This is a self-audit,
+not independent review.
+
+**Terminal:** `PRIVATE_M1_DEMO_WITH_APPROVED_HOSPITAL_UWF — ENGINEERING EVIDENCE READY; CLINICIAN SIGN-OFF, PRISM_PREPARED, RIM_MASK_ACCEPTANCE, HOSPITAL EXPORT, AND OWNER INTEGRATION REVIEW REMAIN OPEN/BLOCKED.`
+
+Private aggregate handoff files for this checkpoint are outside Git at
+`/teamspace/studios/this_studio/dr-screening/delivery/m1-private-hospital-closeout-20261015T021734Z/`:
+`HANDOFF.md`, `STATUS_MATRIX.json`, and `DEPLOY_HANDOFF.md`. No raw hospital
+material is in that folder.
+
+
+## Latest final-candidate validation (2026-10-15)
+
+This section supersedes earlier historical counts in this report for the current dirty candidate. It does not change the clinical, mask, PREPARED, export, or owner-review limitations.
+
+- `python -m pytest -q`: **363 passed, 34 skipped, 0 failed** in 39.75 seconds.
+- `python -m pytest -q tests/test_release_engineering.py::test_release_builder_rejects_path_escape_and_symlink`: **1 passed**.
+- `python -m ruff check dr_support tests`: **passed**.
+- `git diff --check`: **passed**.
+- `bash -n deployment/model-api/bin/*.sh`: **passed**.
+- `python scripts/docs/check_docs.py`: **passed** (104 Markdown/Quarto sources).
+- Root JavaScript smoke (`npm test`): **passed**.
+- Frontend tests: **147 passed across 22 files**.
+- Frontend typecheck: **passed**.
+- Frontend production build: **passed** with the existing large-chunk warning.
+- Compose config validation: **passed** with private runtime variables supplied in-process.
+- Current candidate Compose image build: **passed**.
+- Current candidate synthetic-only Compose smoke: **passed** for separate USPEC, PRISM, and RETFound services on Tesla T4; services were stopped after the run. Receipt: `/teamspace/studios/this_studio/dr-screening/runtime/m1-final-smoke-20261015t023638z/compose-smoke.json`.
+
+The Compose receipt proves isolated service build/health/synthetic routing and CUDA availability; it does not prove simultaneous three-model residency, hospital-image execution, PREPARED, accepted rim exclusion, clinician confirmation, or browser workflow.
+
+**Current terminal state:** `M1_DELIVERY_CHECKPOINT_WITH_BLOCKERS`.

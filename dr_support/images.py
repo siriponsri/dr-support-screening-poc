@@ -1,4 +1,8 @@
-"""Only server-admitted, hashed public/synthetic images enter the review app."""
+"""Only server-admitted, hashed images enter the review app.
+
+Private authorized-hospital records are admitted only through the explicit
+source policy and remain bound to their immutable source provenance.
+"""
 import hashlib
 import io
 from dataclasses import dataclass

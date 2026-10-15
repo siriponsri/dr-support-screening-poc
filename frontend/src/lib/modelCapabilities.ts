@@ -75,6 +75,8 @@ export function isModelUsable(
   if (!READY_MODEL_STATUSES.has(model.status ?? '') || releaseStatusBlocked(model.release_status)) return false;
   if (model.ready === false || !hasQualifiedCapability(model)) return false;
   if (model.model_id.startsWith('mock-') && sourceOrigin !== 'SYNTHETIC') return false;
+  if (sourceOrigin === 'HOSPITAL_AUTHORIZED'
+    && !model.authorized_source_origins?.includes('HOSPITAL_AUTHORIZED')) return false;
   const modalities = model.modalities ?? model.supported_modalities ?? [];
   if (modality === 'UWF' && model.model_id === 'prism-dr-5fold') {
     if (model.uwf_use !== 'EXPERIMENTAL'
@@ -87,7 +89,7 @@ export function isModelUsable(
 export function hasCompatibleModel(item: CaseRecord, models: ModelDescriptor[]): boolean {
   const sourceOrigin = item.source_origin ?? 'UNKNOWN';
   if (
-    !['PUBLIC', 'SYNTHETIC'].includes(sourceOrigin)
+    !['PUBLIC', 'SYNTHETIC', 'HOSPITAL_AUTHORIZED'].includes(sourceOrigin)
     || item.admission?.modality_admission !== 'FUNDUS_ACCEPTED'
     || !['GRADABLE', 'NOT_EVALUATED'].includes(item.admission?.quality_state ?? '')
   ) return false;

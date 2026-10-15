@@ -13,7 +13,7 @@ from pydantic import Field, model_validator
 from ._schema import Contract, GlobalResult, LesionResult
 
 
-SourceOrigin = Literal["PUBLIC", "SYNTHETIC", "WORKSPACE", "UNKNOWN"]
+SourceOrigin = Literal["PUBLIC", "SYNTHETIC", "WORKSPACE", "HOSPITAL_AUTHORIZED", "UNKNOWN"]
 
 
 class Phase3ModelIdentity(Contract):
@@ -151,7 +151,7 @@ class Phase3ResultEnvelope(Contract):
 
 
 class Phase3PredictRequest(Contract):
-    """A public/synthetic-only versioned Model API request.
+    """A provenance-bound versioned Model API request.
 
     ``image_sha256`` is the exact bytes transmitted to the Model API and must
     equal ``analysis_sha256``.  ``source_sha256`` identifies the immutable

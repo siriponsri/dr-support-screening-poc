@@ -20,6 +20,7 @@ from pathlib import Path
 
 from dr_support.contracts import LABELS, Lesion, LesionResult, Provenance
 from dr_support.runtime import resolve_device, runtime_snapshot
+from dr_support.services.source_policy import source_allowed_for_model
 from .assets import verify_source, verify_weight
 from .prism_safe_loader import safe_load_detection_model
 
@@ -288,6 +289,8 @@ class PRISM:
         from PIL import Image
 
         self.last_processing_evidence = None
+        if not source_allowed_for_model(image.source_type, model_api=True):
+            raise ValueError("PRISM source origin is blocked")
         if request.modality not in {"CFP", "UWF"}:
             return self.result(request, image, [], "UNSUPPORTED")
         if not self.loaded:

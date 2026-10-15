@@ -1,4 +1,4 @@
-"""Lazy, UWF-only USPEC provider for public/synthetic engineering inference."""
+"""Lazy, UWF-only USPEC provider for explicitly authorized engineering inference."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from dr_support.models.uspec_artifact import (
     TRANSFORM,
 )
 from dr_support.runtime import DeviceUnavailable, resolve_device, runtime_snapshot
+from dr_support.services.source_policy import source_allowed_for_model
 
 
 class USPEC:
@@ -167,7 +168,7 @@ class USPEC:
         )
 
     def infer(self, request, image) -> GlobalResult:
-        if image.source_type not in {"PUBLIC", "SYNTHETIC"}:
+        if not source_allowed_for_model(image.source_type, model_api=True):
             raise ValueError("USPEC source origin is blocked")
         if request.model_id != self.model_id or request.modality != image.modality:
             raise ValueError("USPEC invocation identity mismatch")

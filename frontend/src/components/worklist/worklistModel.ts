@@ -63,7 +63,7 @@ export type AiState = 'manual-only' | 'model-available' | 'ai-suggestion';
 export function aiState(item: CaseRecord, models: ModelDescriptor[] = []): AiState {
   if (item.global || item.lesion) return 'ai-suggestion';
   if (
-    item.source_origin === 'WORKSPACE'
+    ['WORKSPACE', 'UNKNOWN'].includes(item.source_origin ?? 'UNKNOWN')
       || item.modality === 'UNKNOWN'
       || ['Cannot analyze', 'Unsupported modality'].includes(item.admission_ui?.label ?? '')
       || !hasCompatibleModel(item, models)

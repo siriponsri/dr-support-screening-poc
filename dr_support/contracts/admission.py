@@ -17,7 +17,7 @@ ModalityAdmission = Literal[
 ]
 QualityState = Literal["GRADABLE", "UNGRADABLE", "NEEDS_REVIEW", "NOT_EVALUATED"]
 RetinalModality = Literal["CFP", "UWF", "UNKNOWN"]
-SourceOrigin = Literal["PUBLIC", "SYNTHETIC", "WORKSPACE", "UNKNOWN"]
+SourceOrigin = Literal["PUBLIC", "SYNTHETIC", "WORKSPACE", "HOSPITAL_AUTHORIZED", "UNKNOWN"]
 AdmissionMethod = Literal["AUTOMATIC", "MANUAL", "LEGACY_COMPAT", "DATASET_IMPORT"]
 AdmissionReviewAction = Literal[
     "ACCEPT_RETINAL",
@@ -45,7 +45,9 @@ class AdmissionMetadata(Contract):
     # Missing fields on existing workspace records migrate to UNKNOWN.
     retinal_modality: RetinalModality = "UNKNOWN"
     retinal_modality_state: Literal["RESOLVED", "NEEDS_CONFIRMATION"] = "NEEDS_CONFIRMATION"
-    retinal_modality_method: Literal["NONE", "MANUAL", "LEGACY_COMPAT", "DICOM_METADATA"] = "NONE"
+    retinal_modality_method: Literal[
+        "NONE", "MANUAL", "LEGACY_COMPAT", "DICOM_METADATA", "AUTHORIZED_SOURCE"
+    ] = "NONE"
     retinal_modality_candidate: RetinalModality | None = None
     source_origin: SourceOrigin = "UNKNOWN"
     admission_method: AdmissionMethod
@@ -64,6 +66,12 @@ class AdmissionMetadata(Contract):
     source_metadata: SourceMetadata | None = None
     integrity_status: IntegrityStatus = IntegrityStatus.OK
     integrity: SourceIntegrity = Field(default_factory=SourceIntegrity)
+    # Private, non-identifying linkage facts for authorized hospital review.
+    # These are never populated for ordinary workspace/public records.
+    trusted_patient_key: str | None = Field(default=None, max_length=64)
+    trusted_laterality: Literal["LEFT", "RIGHT"] | None = None
+    trusted_capture_sequence: int | None = Field(default=None, ge=1)
+    trusted_identity_method: Literal["NONE", "AUTHORIZED_FILENAME_SEMANTICS"] = "NONE"
 
 
 class AdmissionReview(Contract):

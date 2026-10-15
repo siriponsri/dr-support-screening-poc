@@ -12,7 +12,6 @@ import {
   Grid,
   Heading,
   HStack,
-  Image,
   SimpleGrid,
   Select,
   Spinner,
@@ -42,6 +41,8 @@ import { caseComplete } from '@/lib/caseProgress';
 type ComparisonResponse = {
   eligible: boolean;
   reason?: string;
+  comparison_state?: string;
+  modality?: string;
   chronology?: string;
   limitation?: string;
   visits?: Array<{
@@ -49,10 +50,16 @@ type ComparisonResponse = {
     image_id: string;
     display_name?: string;
     image_url?: string | null;
+    width?: number;
+    height?: number;
     visit_context?: CaseRecord['visit_context'];
     grade?: number | null;
     grade_status?: string;
     findings_reviewed?: boolean;
+    laterality?: string;
+    modality?: string;
+    prism_processing?: CaseRecord['prism_processing'] | null;
+    lesion?: CaseRecord['lesion'] | null;
   }>;
 };
 
@@ -260,6 +267,7 @@ function sourceOriginLabel(sourceOrigin: CaseRecord['source_origin']): string {
   if (sourceOrigin === 'PUBLIC') return 'Public source';
   if (sourceOrigin === 'SYNTHETIC') return 'Synthetic fixture';
   if (sourceOrigin === 'WORKSPACE') return 'Workspace input';
+  if (sourceOrigin === 'HOSPITAL_AUTHORIZED') return 'Approved hospital source';
   return 'Not recorded';
 }
 
@@ -455,7 +463,7 @@ export function ReviewPage() {
   const modelUnavailable = Boolean(models.length > 0 && !globalModel && !lesionModel);
   const analysisAllowed = admissionReady
     && item?.modality !== 'UNKNOWN'
-    && ['PUBLIC', 'SYNTHETIC'].includes(origin)
+    && ['PUBLIC', 'SYNTHETIC', 'HOSPITAL_AUTHORIZED'].includes(origin)
     && Boolean(globalModel || lesionModel)
     && !modelError;
   const analysisPreparationStatus = item?.analysis_preparation?.status;
@@ -514,6 +522,8 @@ export function ReviewPage() {
         && candidate.patient_key === item.patient_key
         && candidate.laterality_resolution_state === 'RESOLVED'
         && candidate.laterality === item.laterality
+        && candidate.modality === item.modality
+        && candidate.visit_context?.capture_sequence !== null
       )));
     } catch (err) {
       setComparisonError(errorText(err));
@@ -535,6 +545,50 @@ export function ReviewPage() {
       setComparisonLoading(false);
     }
   };
+
+  const runAutomaticComparison = async () => {
+    if (!item) return;
+    setComparisonLoading(true);
+    setComparisonError(null);
+    try {
+      setComparison(await apiJson<ComparisonResponse>(`/v1/cases/${encodeURIComponent(item.image_id)}/comparison`));
+    } catch (err) {
+      setComparisonError(errorText(err));
+      setComparison(null);
+    } finally {
+      setComparisonLoading(false);
+    }
+  };
+
+  // Pairing is automatic for a verified longitudinal case. The clinician can
+  // still open the panel and choose an explicit alternate pair when needed;
+  // this request only locates the safe immediate-prior exam and never infers
+  // progression or pixel correspondence.
+  useEffect(() => {
+    if (!item || !comparisonIdentityResolved) {
+      setComparison(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setComparisonLoading(true);
+    setComparisonError(null);
+    void apiJson<ComparisonResponse>(`/v1/cases/${encodeURIComponent(item.image_id)}/comparison`)
+      .then((result) => {
+        if (cancelled) return;
+        setComparison(result);
+        if (result.eligible) setComparisonOpen(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setComparisonError(errorText(err));
+        setComparison(null);
+      })
+      .finally(() => {
+        if (!cancelled) setComparisonLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [comparisonIdentityResolved, item?.image_id, item?.revision]);
+
   const manualOnly = !hasRecordedEvidence && (
     origin === 'WORKSPACE'
       || modelUnavailable
@@ -729,8 +783,8 @@ export function ReviewPage() {
       </Grid>
       <Box mt={5}>
         <Section
-          title="Compare resolved visit"
-          description="Optional side-by-side review for the same explicitly resolved patient and eye."
+          title="Previous exam comparison"
+          description="Automatic same-patient, same-eye comparison uses verified private linkage and sequence metadata."
           action={<Button size="sm" variant="ghost" rightIcon={comparisonOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} aria-expanded={comparisonOpen} aria-controls="comparison-panel" onClick={() => { const next = !comparisonOpen; setComparisonOpen(next); if (next) void loadComparisonCases(); }}>{comparisonOpen ? 'Hide comparison' : 'Show comparison'}</Button>}
         >
           <Collapse in={comparisonOpen} animateOpacity>
@@ -739,6 +793,10 @@ export function ReviewPage() {
                 <Text fontSize="sm" color="text.secondary">Comparison is unavailable until patient and eye are explicitly resolved.</Text>
               ) : (
                 <>
+                  <HStack flexWrap="wrap" spacing={3}>
+                    <Button size="sm" variant="solid" onClick={() => void runAutomaticComparison()} isLoading={comparisonLoading}>Find previous exam</Button>
+                    <Text fontSize="xs" color="text.secondary">Current: {item.laterality} · {item.modality} · exam {item.visit_context?.capture_sequence ?? 'unverified'}</Text>
+                  </HStack>
                   <HStack align="end" flexWrap="wrap" spacing={3}>
                     <Select aria-label="Comparison visit" maxW="360px" value={comparisonCaseId} onChange={(event) => setComparisonCaseId(event.target.value)}>
                       <option value="">Choose another resolved visit</option>
@@ -750,25 +808,47 @@ export function ReviewPage() {
                   {comparison && !comparison.eligible && <Alert status="warning"><AlertIcon /><Text fontSize="sm">This pair is not eligible for side-by-side review.</Text></Alert>}
                   {comparison?.eligible && comparison.visits && (
                     <Grid templateColumns={{ base: '1fr', tablet: '1fr 1fr' }} gap={3}>
-                      {comparison.visits.map((visit) => <Box key={visit.image_id} borderWidth="1px" borderColor="border.subtle" p={3}>
-                        <Text fontWeight="semibold">{visit.label}</Text>
-                        <Text fontSize="sm" color="text.secondary">{visit.display_name}</Text>
-                        {visit.image_url ? (
-                          <Image
-                            src={visit.image_url}
-                            alt={`${visit.label} retinal image`}
-                            width="100%"
-                            maxH="260px"
-                            objectFit="contain"
-                            bg="surface.subtle"
-                            mt={2}
-                          />
-                        ) : (
-                          <Text mt={2} fontSize="sm" color="text.secondary">Retinal image unavailable.</Text>
-                        )}
-                        <Text mt={2} fontSize="sm">Grade: {visit.grade_status === 'CONFIRMED' && visit.grade != null ? drGradeLabel(visit.grade) : 'Not confirmed'}</Text>
-                        <Text fontSize="sm">Findings: {visit.findings_reviewed ? 'Reviewed' : 'Not confirmed'}</Text>
-                      </Box>)}
+                      {comparison.visits.map((visit) => {
+                        const nativeBbox = visit.prism_processing?.native_roi_bbox;
+                        const comparisonViewerItem: CaseRecord = {
+                          ...item,
+                          image_id: visit.image_id,
+                          display_name: visit.display_name ?? visit.image_id,
+                          image_url: visit.image_url ?? null,
+                          width: visit.width ?? item.width,
+                          height: visit.height ?? item.height,
+                          modality: (visit.modality ?? item.modality) as CaseRecord['modality'],
+                          laterality: (visit.laterality ?? item.laterality) as CaseRecord['laterality'],
+                          global: null,
+                          lesion: visit.lesion ?? null,
+                          prism_processing: visit.prism_processing ?? null,
+                        };
+                        return (
+                          <Box key={visit.image_id} borderWidth="1px" borderColor="border.subtle" p={3}>
+                            <Text fontWeight="semibold">{visit.label}</Text>
+                            <Text fontSize="sm" color="text.secondary">{visit.display_name}</Text>
+                            <Text fontSize="xs" color="text.secondary">{visit.laterality ?? 'Unknown eye'} · {visit.modality ?? 'Unknown modality'} · exam {visit.visit_context?.capture_sequence ?? 'unverified'}</Text>
+                            {visit.image_url ? (
+                              <RetinalCanvas
+                                item={comparisonViewerItem}
+                                showAi={Boolean(visit.lesion)}
+                                showHuman={false}
+                                renderInStage={nativeBbox ? () => {
+                                  const [x1, y1, x2, y2] = nativeBbox;
+                                  return <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} fill="none" stroke="#F59E0B" strokeWidth={Math.max(3, (x2 - x1) / 180)} strokeDasharray="14 8" vectorEffect="non-scaling-stroke"><title>Actual native PRISM ROI bounding box; not an anatomical segmentation mask.</title></rect>;
+                                } : undefined}
+                              />
+                            ) : (
+                              <Text mt={2} fontSize="sm" color="text.secondary">Retinal image unavailable.</Text>
+                            )}
+                            <Text mt={2} fontSize="xs" color="text.secondary">Native PRISM ROI: {visit.prism_processing ? `${visit.prism_processing.native_roi_status.toLowerCase()}${nativeBbox ? ' · bounding box shown' : ''}` : 'Not recorded for this examination'}. A bounding box is not a verified retinal FOV mask.</Text>
+                            <Text mt={2} fontSize="sm">Grade: {visit.grade_status === 'CONFIRMED' && visit.grade != null ? drGradeLabel(visit.grade) : 'Not confirmed'}</Text>
+                            <Text fontSize="sm">Findings: {visit.findings_reviewed ? 'Reviewed' : 'Not confirmed'}</Text>
+                            <Text fontSize="sm">PRISM processing: {visit.prism_processing ? `${visit.prism_processing.processing_mode} · native ROI ${visit.prism_processing.native_roi_status.toLowerCase()}` : 'Unavailable'}</Text>
+                            <Text fontSize="sm">Lesion suggestions: {visit.lesion?.lesions.length ?? 'Unavailable'}</Text>
+                          </Box>
+                        );
+                      })}
                     </Grid>
                   )}
                   {comparison?.eligible && <Text fontSize="xs" color="text.secondary">{comparison.limitation}</Text>}

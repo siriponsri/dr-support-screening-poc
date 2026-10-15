@@ -156,7 +156,7 @@ export interface DerivativeLineage {
 
 export interface AnalysisDerivativeAudit {
   source_sha256: string;
-  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'UNKNOWN' | string;
+  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'HOSPITAL_AUTHORIZED' | 'UNKNOWN' | string;
   derivative_sha256: string;
   analysis_sha256: string;
   purpose: 'DISPLAY' | 'ANALYSIS' | 'MASTER';
@@ -278,7 +278,7 @@ export interface CaseRecord {
   display_name: string;
   filename: string | null;
   source_type: string;
-  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'UNKNOWN' | string;
+  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'HOSPITAL_AUTHORIZED' | 'UNKNOWN' | string;
   source: string;
   modality: RetinalModality;
   width: number;
@@ -416,9 +416,9 @@ export interface AdmissionMetadata {
   quality_state: QualityState;
   retinal_modality?: RetinalModality;
   retinal_modality_state?: 'RESOLVED' | 'NEEDS_CONFIRMATION';
-  retinal_modality_method?: 'NONE' | 'MANUAL' | 'LEGACY_COMPAT' | 'DICOM_METADATA';
+  retinal_modality_method?: 'NONE' | 'MANUAL' | 'LEGACY_COMPAT' | 'DICOM_METADATA' | 'AUTHORIZED_SOURCE';
   retinal_modality_candidate?: RetinalModality | null;
-  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'UNKNOWN' | string;
+  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'HOSPITAL_AUTHORIZED' | 'UNKNOWN' | string;
   admission_method: 'AUTOMATIC' | 'MANUAL' | 'LEGACY_COMPAT' | 'DATASET_IMPORT';
   admission_reason_code: string;
   quality_reason_code: string | null;
@@ -507,6 +507,7 @@ export interface ModelDescriptor {
   revision?: string;
   preprocessing?: string;
   preprocessing_version?: string;
+  authorized_source_origins?: string[];
 }
 
 export interface WorkspaceProfile {
@@ -621,7 +622,7 @@ export interface DatasetImageRow {
   lesion_eligibility_reason?: string;
   training_group_key?: string | null;
   source_sha256?: string | null;
-  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'UNKNOWN';
+  source_origin?: 'PUBLIC' | 'SYNTHETIC' | 'WORKSPACE' | 'HOSPITAL_AUTHORIZED' | 'UNKNOWN';
   source_available?: boolean;
   source_integrity_status?: string | null;
   export_authorization?: string;

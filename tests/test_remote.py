@@ -13,12 +13,13 @@ from fastapi.testclient import TestClient
 
 from dr_support.api import create_app
 from dr_support.contracts import GlobalResult, InferenceRequest
-from dr_support.images import synthetic_image
+from dr_support.images import BridgeImage, synthetic_image
 from dr_support.providers.remote import (
     RemoteGlobalProvider,
     RemoteHTTPError,
     RemoteLesionProvider,
     RemoteModelProvider,
+    RemoteAuthorizationError,
     RemoteNotConfiguredError,
     RemoteSchemaError,
     RemoteTimeoutError,
@@ -178,6 +179,24 @@ def test_remote_provider_proxies_inference_payload_and_token(monkeypatch):
     assert provider.last_inference_ms is not None and provider.last_inference_ms >= 0
     assert provider.last_remote_revision == 'remote-rev-aaaa'
     assert provider.last_remote_checkpoint_sha256 == {'retfound-remote': 'a' * 64}
+
+
+def test_remote_provider_blocks_hospital_transmission_without_private_model_gate(monkeypatch):
+    monkeypatch.setenv('REMOTE_MODEL_URL', 'https://remote.test')
+    monkeypatch.delenv('MODEL_HOSPITAL_SCOPE', raising=False)
+    monkeypatch.delenv('MODEL_ALLOW_AUTHORIZED_HOSPITAL', raising=False)
+    monkeypatch.delenv('REMOTE_MODEL_TOKEN', raising=False)
+    hospital = BridgeImage(
+        'hospital-case-0001', FIXTURE_IMAGE.data, 'HOSPITAL_AUTHORIZED',
+        'HOSPITAL_AUTHORIZED/CASE-0001', modality='CFP',
+        source_origin='HOSPITAL_AUTHORIZED',
+    )
+    provider = RemoteGlobalProvider(transport=httpx.MockTransport(lambda request: httpx.Response(500)))
+    request = InferenceRequest(image_id=hospital.image_id, modality='CFP', model_id=provider.model_id)
+
+    with pytest.raises(RemoteAuthorizationError):
+        provider.infer(request, hospital)
+    assert provider.last_error == 'source origin blocked'
 
 
 def test_remote_provider_omits_authorization_when_token_unset(monkeypatch):

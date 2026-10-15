@@ -30,12 +30,19 @@ function makeCase(overrides: Partial<CaseRecord> = {}): CaseRecord {
 }
 
 describe('S3 worklist selectors', () => {
-  it('requires an explicit public or synthetic source origin for model routing', () => {
-    const model = [{ model_id: 'retfound-aptos5', task: 'global', modalities: ['CFP'], status: 'LOADED', release_status: 'RESEARCH_ONLY' }];
+  it('requires an explicit authorized source origin for model routing', () => {
+    const model = [{ model_id: 'retfound-aptos5', task: 'global', modalities: ['CFP'], status: 'LOADED', release_status: 'RESEARCH_ONLY', authorized_source_origins: ['PUBLIC', 'SYNTHETIC', 'HOSPITAL_AUTHORIZED'] }];
     const explicitPublic = makeCase({ source_origin: 'PUBLIC', source_type: 'PUBLIC' });
     const missingOrigin = makeCase({ source_origin: undefined, source_type: 'PUBLIC' });
 
+    const authorizedHospital = makeCase({ source_origin: 'HOSPITAL_AUTHORIZED', source_type: 'HOSPITAL_AUTHORIZED' });
+
+    const hospitalWithoutPrivateCapability = makeCase({ source_origin: 'HOSPITAL_AUTHORIZED', source_type: 'HOSPITAL_AUTHORIZED' });
+    const publicOnlyModel = [{ ...model[0], authorized_source_origins: ['PUBLIC', 'SYNTHETIC'] }];
+
     expect(hasCompatibleModel(explicitPublic, model)).toBe(true);
+    expect(hasCompatibleModel(authorizedHospital, model)).toBe(true);
+    expect(hasCompatibleModel(hospitalWithoutPrivateCapability, publicOnlyModel)).toBe(false);
     expect(hasCompatibleModel(missingOrigin, model)).toBe(false);
   });
 

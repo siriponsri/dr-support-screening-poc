@@ -56,6 +56,12 @@ from ..imaging import (
     map_lesion_result_to_review,
 )
 from ..services.admission import is_inference_eligible, legacy_admission, scan_input_folder
+from ..services.source_policy import (
+    HOSPITAL_ORIGIN,
+    authorized_hospital_modality,
+    hospital_ingest_enabled,
+    source_allowed_for_model,
+)
 from ..services.capability_routing import CapabilityRoutingError, route_capability
 from ..services.workspaces import WorkspaceManager
 from ..services.resolver import ResolverService
@@ -198,7 +204,10 @@ def create_app(
                     }]
                 for alias in aliases:
                     reference = alias.get('source_reference')
-                    if isinstance(reference, str) and reference.startswith('WORKSPACE_INPUT/'):
+                    if isinstance(reference, str) and (
+                        reference.startswith('WORKSPACE_INPUT/')
+                        or reference.startswith(f'{HOSPITAL_ORIGIN}/')
+                    ):
                         previous[reference] = admission
         return previous
 
@@ -218,7 +227,10 @@ def create_app(
             for case in store.all_cases():
                 admission = case.get('admission') or {}
                 reference = admission.get('source_reference')
-                if not isinstance(reference, str) or not reference.startswith('WORKSPACE_INPUT/'):
+                if not isinstance(reference, str) or not (
+                    reference.startswith('WORKSPACE_INPUT/')
+                    or reference.startswith(f'{HOSPITAL_ORIGIN}/')
+                ):
                     continue
                 aliases = (admission.get('integrity') or {}).get('aliases') or [{
                     'filename': admission.get('filename') or case.get('image_id') or 'unknown',
@@ -311,9 +323,13 @@ def create_app(
         if profile is None:
             app.state.admission_warnings = ['No active workspace input folder is configured.']
             return {'records': [], 'warnings': list(app.state.admission_warnings), 'scanned': False}
+        hospital_lane = hospital_ingest_enabled(profile.input_folder)
         scan = scan_input_folder(
             profile.input_folder,
             previous_records=previous_source_records(),
+            source_origin=HOSPITAL_ORIGIN if hospital_lane else 'WORKSPACE',
+            retinal_modality=authorized_hospital_modality() if hospital_lane else 'UNKNOWN',
+            retinal_modality_method='AUTHORIZED_SOURCE' if hospital_lane and authorized_hospital_modality() else 'NONE',
         )
         apply_scan(scan)
         return {
@@ -497,7 +513,12 @@ def create_app(
         snap = runtime_snapshot()
         return {
             'status': 'PASS_WITH_WARNINGS',
-            'lane': 'PUBLIC_SYNTHETIC_BRIDGE',
+            'lane': (
+                'PRIVATE_AUTHORIZED_RESEARCH_BRIDGE'
+                if os.environ.get('DR_SUPPORT_HOSPITAL_SCOPE', '').strip() == 'PRIVATE_PROJECT_EVALUATION'
+                and os.environ.get('DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL') == '1'
+                else 'PUBLIC_SYNTHETIC_BRIDGE'
+            ),
             'warnings': ['Research-only; model readiness is reported separately'],
             'requested_device': snap.requested_device,
             'effective_device': snap.effective_device,
@@ -555,7 +576,7 @@ def create_app(
             # decision before it can reach either provider path.
             admission = legacy_admission(image)
             app.state.admissions[request.image_id] = admission
-        if admission.get('source_origin') not in {'PUBLIC', 'SYNTHETIC'}:
+        if not source_allowed_for_model(admission.get('source_origin', 'UNKNOWN')):
             raise HTTPException(
                 409,
                 'This source is available for manual review only; model analysis is not approved for its origin.',
