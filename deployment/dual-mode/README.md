@@ -41,7 +41,10 @@ service uses the existing Bridge contract and PostgreSQL schema.
 
 ## Status boundary
 
-The current host has one Tesla T4. The portable Compose definition and gateway
-are statically validated here; a portable GPU build/residency smoke was not
-run because it would require private assets and image pulls. P40 and RTX 3090
-are unavailable and remain `NOT_RUN`. See `GPU_COMPATIBILITY.md`.
+The current host has one Tesla T4. The portable Compose images and gateway
+were exercised in a synthetic-only, sequential single-T4 smoke: UWF→USPEC,
+CFP→RETFound, and CFP lesions→PRISM each returned HTTP 200. This is not
+hospital portable inference and does not prove simultaneous three-GPU residency.
+P40 and RTX 3090 are unavailable and remain `NOT_RUN`; the P40 profile image is
+only a candidate Pascal base image, not P40 qualification. See
+`GPU_COMPATIBILITY.md`.
