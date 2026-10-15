@@ -53,6 +53,8 @@ services:
     build:
       context: ../..
       dockerfile: deployment/dual-mode/Dockerfile.review
+      args:
+        SOURCE_COMMIT: ${DR_SCREENING_SOURCE_COMMIT:-portable-source-unpinned}
     image: dr-screening/review:${DR_SCREENING_IMAGE_TAG:-portable}
     ports:
       - "127.0.0.1:${REVIEW_PORT:-8800}:8000"

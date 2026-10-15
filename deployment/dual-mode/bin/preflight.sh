@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 PROFILE=${DUAL_MODE_GPU_PROFILE:?Set DUAL_MODE_GPU_PROFILE to lightning-t4, ceo-p40, or hospital-3090}
 case "$PROFILE" in lightning-t4|ceo-p40|hospital-3090) ;; *) echo "Unsupported profile: $PROFILE" >&2; exit 2 ;; esac
 : "${MODEL_API_BASE_IMAGE:?Set a profile-specific MODEL_API_BASE_IMAGE}"
