@@ -2,7 +2,7 @@
 
 **Review status:** Ready for owner review; not merged or pushed
 **Latest checkpoint:** `M1_DELIVERY_CHECKPOINT_WITH_BLOCKERS` (engineering evidence refreshed; owner review required)
-**Branch / current HEAD:** `feat/m1-prism-uwf-integration` / `5227c50c4e87407e6b93fcf4ca940566be82b688`
+**Branch / current HEAD:** `feat/m1-prism-uwf-integration` / `744194680a8cc37fc463d4698be62d091383a029`
 **Scope:** Closeout of the existing split-runtime PRISM integration. This report does not activate or change UWF preprocessing, add a feature, or claim clinical validation.
 
 ## Summary
