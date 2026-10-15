@@ -2,7 +2,7 @@
 
 **Review status:** Ready for owner review; not merged or pushed
 **Latest checkpoint:** `M1_DELIVERY_CHECKPOINT_WITH_BLOCKERS` (engineering evidence refreshed; owner review required)
-**Branch / current HEAD:** `feat/m1-prism-uwf-integration` / `0a9dbfb1f3780129902d0529b66d93a89794d77a`
+**Branch / current HEAD:** `feat/m1-prism-uwf-integration` / `5227c50c4e87407e6b93fcf4ca940566be82b688`
 **Scope:** Closeout of the existing split-runtime PRISM integration. This report does not activate or change UWF preprocessing, add a feature, or claim clinical validation.
 
 ## Summary
@@ -1635,3 +1635,23 @@ This section supersedes earlier historical counts in this report for the current
 The Compose receipt proves isolated service build/health/synthetic routing and CUDA availability; it does not prove simultaneous three-model residency, hospital-image execution, PREPARED, accepted rim exclusion, clinician confirmation, or browser workflow.
 
 **Current terminal state:** `M1_DELIVERY_CHECKPOINT_WITH_BLOCKERS`.
+
+## Current feature checkpoint — 2026-10-15
+
+The authorized-hospital provenance, Model API/Bridge gate, modality-aware routing,
+longitudinal comparison, private export restriction, and regression tests were
+committed as checkpoint `5227c50c4e87407e6b93fcf4ca940566be82b688`
+(`feat: add authorized hospital review lane`) and pushed to the feature branch.
+The branch is clean and tracks `origin/feat/m1-prism-uwf-integration`; `main` was
+not modified.
+
+A fresh read-only runtime audit (no hospital filenames or patient-level values)
+confirmed 21 UWF and 10 CFP records remain `HOSPITAL_AUTHORIZED`, hospital
+export remains fail-closed, and the 4/5 verified UWF longitudinal comparisons
+remain same-eye/same-modality. Audit receipt:
+`/teamspace/studios/this_studio/dr-screening/runtime/m1-final-current-audit-20261015t030115Z/CURRENT_STATE_AUDIT.json`.
+
+This checkpoint does not change the open gates: PRISM PREPARED 0/21, no accepted
+rim mask, no genuine clinician confirmation/browser E2E, no hospital export
+authorization, no simultaneous three-model residency, and no main integration
+review.
