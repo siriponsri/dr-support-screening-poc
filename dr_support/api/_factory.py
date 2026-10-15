@@ -55,10 +55,17 @@ from ..imaging import (
     SourceIntegrity,
     map_lesion_result_to_review,
 )
-from ..services.admission import is_inference_eligible, legacy_admission, scan_input_folder
+from ..services.admission import (
+    is_inference_eligible,
+    legacy_admission,
+    scan_authorized_hospital_roots,
+    scan_input_folder,
+)
 from ..services.source_policy import (
     HOSPITAL_ORIGIN,
     authorized_hospital_modality,
+    authorized_hospital_roots,
+    hospital_roots_configured,
     hospital_ingest_enabled,
     source_allowed_for_model,
 )
@@ -319,17 +326,32 @@ def create_app(
         app.state.admission_warnings = list(scan.warnings) + missing_warnings
 
     def scan_active_workspace():
+        # The unified private lane has two explicit server-side roots. It does
+        # not use the workspace folder or filename heuristics to assign a
+        # modality, and it deliberately shares one case store/workspace.
+        if hospital_roots_configured() or authorized_hospital_roots():
+            scan = scan_authorized_hospital_roots(
+                previous_records=previous_source_records(),
+            )
+            apply_scan(scan)
+            return {
+                'records': [app.state.admissions[image_id] for image_id in scan.records],
+                'warnings': list(app.state.admission_warnings),
+                'scanned': True,
+            }
+
         profile = workspace_manager.active_workspace
         if profile is None:
             app.state.admission_warnings = ['No active workspace input folder is configured.']
             return {'records': [], 'warnings': list(app.state.admission_warnings), 'scanned': False}
         hospital_lane = hospital_ingest_enabled(profile.input_folder)
+        modality = authorized_hospital_modality(profile.input_folder) if hospital_lane else None
         scan = scan_input_folder(
             profile.input_folder,
             previous_records=previous_source_records(),
             source_origin=HOSPITAL_ORIGIN if hospital_lane else 'WORKSPACE',
-            retinal_modality=authorized_hospital_modality() if hospital_lane else 'UNKNOWN',
-            retinal_modality_method='AUTHORIZED_SOURCE' if hospital_lane and authorized_hospital_modality() else 'NONE',
+            retinal_modality=modality or 'UNKNOWN',
+            retinal_modality_method='AUTHORIZED_SOURCE' if hospital_lane and modality else 'NONE',
         )
         apply_scan(scan)
         return {
@@ -340,7 +362,7 @@ def create_app(
 
     app.state.scan_active_workspace = scan_active_workspace
     app.state.admission_warnings = []
-    if workspace_manager.active_workspace is not None:
+    if workspace_manager.active_workspace is not None or hospital_roots_configured() or authorized_hospital_roots():
         scan_active_workspace()
     inference_lock = RLock()
 

@@ -104,3 +104,55 @@ def test_gateway_masks_backend_server_errors(monkeypatch):
     assert response.status_code == 503
     assert "backend secret" not in response.text
     assert "Model backend unavailable" in response.text
+
+
+def test_gateway_deduplicates_combined_backend_discovery(monkeypatch):
+    monkeypatch.setenv("USPEC_URL", "http://combined")
+    monkeypatch.setenv("RETFOUND_URL", "http://retfound")
+    monkeypatch.setenv("PRISM_URL", "http://combined")
+
+    assert _gateway._configured_backends() == ("http://combined", "http://retfound")
+    assert _gateway._merge_discovery([
+        [
+            {"model_id": "uspec-uwf-grading"},
+            {"model_id": "prism-dr-5fold"},
+            {"model_id": "retfound-aptos5", "ready": False},
+        ],
+        [
+            {"model_id": "prism-dr-5fold"},
+            {"model_id": "retfound-aptos5", "ready": True},
+        ],
+    ]) == [
+        {"model_id": "uspec-uwf-grading"},
+        {"model_id": "prism-dr-5fold"},
+        {"model_id": "retfound-aptos5", "ready": True},
+    ]
+
+
+def test_gateway_supports_versioned_prediction_routes(monkeypatch):
+    monkeypatch.setenv("REMOTE_MODEL_TOKEN", "test-token")
+    monkeypatch.setenv("USPEC_URL", "http://uspec")
+    monkeypatch.setenv("PRISM_URL", "http://prism")
+    captured: list[str] = []
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            del args, kwargs
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            del args
+
+        async def post(self, url, **kwargs):
+            del kwargs
+            captured.append(url)
+            return httpx.Response(200, json={"status": "PASS"})
+
+    monkeypatch.setattr(_gateway.httpx, "AsyncClient", FakeAsyncClient)
+    client = TestClient(_gateway.app)
+    headers={"Authorization": "Bearer test-token"}
+    assert client.post("/v2/predict/dr", headers=headers, json={"modality": "UWF"}).status_code == 200
+    assert client.post("/v2/predict/lesions", headers=headers, json={"modality": "UWF"}).status_code == 200
+    assert captured == ["http://uspec/v2/predict/dr", "http://prism/v2/predict/lesions"]

@@ -9,7 +9,7 @@ from PIL import Image
 
 from dr_support.api import create_app
 from dr_support.services.model_api import create_app as create_model_api_app
-from dr_support.services.admission import scan_input_folder
+from dr_support.services.admission import scan_authorized_hospital_roots, scan_input_folder
 from dr_support.services.source_policy import (
     HOSPITAL_ORIGIN,
     hospital_ingest_enabled,
@@ -263,3 +263,108 @@ def test_authorized_hospital_api_pairs_previous_same_eye_and_sequence(tmp_path, 
         f"/v1/cases/{left_current['image_id']}/comparison?other_image_id={right_current['image_id']}"
     ).json()
     assert cross_eye == {"eligible": False, "reason": "EYE_MISMATCH"}
+
+
+def test_multi_root_hospital_admission_keeps_one_mixed_modality_queue(tmp_path, monkeypatch):
+    uwf = tmp_path / "uwf"
+    cfp = tmp_path / "cfp"
+    for root in (uwf, cfp):
+        root.mkdir()
+        root.chmod(0o700)
+    (uwf / "PRIVATE_L1.jpg").write_bytes(_jpeg_bytes((30, 90, 60)))
+    (cfp / "PRIVATE_R1.jpg").write_bytes(_jpeg_bytes((70, 30, 20)))
+    monkeypatch.setenv(
+        "DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS",
+        json.dumps({"UWF": str(uwf), "CFP": str(cfp)}),
+    )
+    monkeypatch.setenv("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "1")
+    monkeypatch.setenv("DR_SUPPORT_HOSPITAL_LINKAGE_KEY", "test-private-linkage-key-0123456789012345")
+
+    scan = scan_authorized_hospital_roots()
+
+    assert len(scan.records) == 2
+    assert {record["retinal_modality"] for record in scan.records.values()} == {"UWF", "CFP"}
+    assert all(record["source_origin"] == HOSPITAL_ORIGIN for record in scan.records.values())
+    serialized = json.dumps(scan.records)
+    assert "PRIVATE_L1" not in serialized
+    assert "PRIVATE_R1" not in serialized
+    assert "HOSPITAL_AUTHORIZED/CASE-0001" in serialized
+    assert "HOSPITAL_AUTHORIZED/CASE-0002" in serialized
+
+
+def test_multi_root_app_scans_without_workspace_profile_and_preserves_one_queue(tmp_path, monkeypatch):
+    uwf = tmp_path / "uwf"
+    cfp = tmp_path / "cfp"
+    for root in (uwf, cfp):
+        root.mkdir()
+        root.chmod(0o700)
+    (uwf / "patient-a.jpg").write_bytes(_jpeg_bytes((30, 90, 60)))
+    (cfp / "patient-b.jpg").write_bytes(_jpeg_bytes((70, 30, 20)))
+    monkeypatch.setenv(
+        "DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS",
+        json.dumps({"UWF": str(uwf), "CFP": str(cfp)}),
+    )
+    monkeypatch.setenv("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "1")
+    monkeypatch.setenv("DR_SUPPORT_HOSPITAL_LINKAGE_KEY", "test-private-linkage-key-0123456789012345")
+
+    app = create_app(tmp_path / "state.sqlite", include_samples=False, include_demo_fixtures=False)
+    client = TestClient(app)
+    cases = client.get("/v1/cases").json()
+
+    assert len(cases) == 2
+    assert {case["modality"] for case in cases} == {"UWF", "CFP"}
+    assert all(case["source_origin"] == HOSPITAL_ORIGIN for case in cases)
+    assert client.get("/v1/workspaces/active").json()["workspace"] is None
+    assert str(uwf) not in json.dumps(cases)
+    assert str(cfp) not in json.dumps(cases)
+
+
+def test_invalid_multi_root_binding_fails_closed(tmp_path, monkeypatch):
+    uwf = tmp_path / "uwf"
+    uwf.mkdir()
+    uwf.chmod(0o700)
+    monkeypatch.setenv(
+        "DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS",
+        json.dumps({"UWF": str(uwf), "CFP": str(tmp_path / "missing-cfp")}),
+    )
+    monkeypatch.setenv("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "1")
+
+    scan = scan_authorized_hospital_roots()
+
+    assert scan.records == {}
+    assert scan.images == {}
+    assert scan.warnings == ["Authorized hospital roots are not configured."]
+
+
+def test_multi_root_case_references_remain_unique_when_content_is_duplicated(tmp_path, monkeypatch):
+    uwf = tmp_path / "uwf"
+    cfp = tmp_path / "cfp"
+    for root in (uwf, cfp):
+        root.mkdir()
+        root.chmod(0o700)
+    duplicate = _jpeg_bytes((30, 90, 60))
+    (uwf / "same-a.jpg").write_bytes(duplicate)
+    (uwf / "same-b.jpg").write_bytes(duplicate)
+    (cfp / "different.jpg").write_bytes(_jpeg_bytes((70, 30, 20)))
+    monkeypatch.setenv(
+        "DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS",
+        json.dumps({"UWF": str(uwf), "CFP": str(cfp)}),
+    )
+    monkeypatch.setenv("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "1")
+    monkeypatch.setenv("DR_SUPPORT_HOSPITAL_LINKAGE_KEY", "test-private-linkage-key-0123456789012345")
+
+    scan = scan_authorized_hospital_roots()
+
+    references = [
+        alias["source_reference"]
+        for record in scan.records.values()
+        for alias in (record.get("integrity") or {}).get("aliases", [])
+    ]
+    assert scan.candidate_count == 3
+    assert len(scan.records) == 2
+    assert len(references) == len(set(references))
+    assert set(references) == {
+        "HOSPITAL_AUTHORIZED/CASE-0001",
+        "HOSPITAL_AUTHORIZED/CASE-0002",
+        "HOSPITAL_AUTHORIZED/CASE-0003",
+    }
