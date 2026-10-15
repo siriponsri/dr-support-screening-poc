@@ -19,7 +19,11 @@ this release.
 
 The Model API is the hospital-side inference service. Bridge v1 remains the
 legacy provider-neutral contract. Phase 3 adds an additive, versioned v2
-context/result contract and capability discovery; neither contract adds MRI,
+context/result contract and capability discovery. Experimental PRISM UWF
+lesion responses use the additive `bridge.v2.1` envelope with typed
+processing/FOV evidence; non-PRISM results and legacy CFP PRISM responses
+remain `bridge.v2`. A strict v2-only client must reject the unknown v2.1
+version rather than silently ignore its evidence. Neither contract adds MRI,
 OCT, PACS, DICOMweb, calibration, or unsupported explainability claims.
 
 ## One-time online setup
@@ -72,7 +76,7 @@ provider_set="${MODEL_API_PROVIDER_SET:-legacy}"
 
 That command never downloads or mutates assets. If verification fails, startup stops with an actionable error. Model weights are loaded lazily on the first inference, but the source and checkpoint integrity gate is performed before the service becomes ready.
 
-The default `MODEL_API_PROVIDER_SET=legacy` is equivalent to the existing RETFound + PRISM-DR host. An additive USPEC-only host can instead be started with:
+The default `MODEL_API_PROVIDER_SET=legacy` is equivalent to the existing RETFound + PRISM-DR host. A RETFound-only API profile is available with `MODEL_API_PROVIDER_SET=retfound`; it verifies only the pinned RETFound source/checkpoint and defaults to loopback port 7864, allowing isolated CFP API qualification without requiring PRISM assets. An additive USPEC-only host can instead be started with:
 
 ```bash
 MODEL_API_PROVIDER_SET=uspec \
@@ -85,7 +89,24 @@ INFERENCE_DEVICE=cuda:0 \
 
 The configured USPEC directory must contain the exact `manifest.json` and `grading_state.pt` artifact. Startup verifies their identities without deserializing weights and does not require RETFound or PRISM assets in this provider set. USPEC inference is lazy, only accepts UWF, and requires CUDA when candidate loading is enabled. Use the manifest-compatible environment in an isolated venv: the repository model extra pins Torch 2.5.1, TorchVision 0.20.1, and timm 0.9.2, while the recorded USPEC runtime uses Torch 2.11.0+cu128; do not run the normal model setup installer over that environment. The manifest-listed `requirements-local.txt` was unavailable during preflight, so the similarly named PRISM requirements file is not a substitute.
 
-USPEC receives original RGB and applies its own hash-reviewed native v4 preprocessing: internal conservative FOV masking, RGB letterboxing to 1424, row-major 7x7 patches of 224 pixels at stride 200, and the source RGB mean/std normalization. The USPEC mask status is model provenance only; this path does not read or modify the clinician-facing PRISM analysis mask. The manifest research identity is `NBeye-research/USPEC`; the local application model and capability IDs are `uspec-uwf-grading`. USPEC stays disabled for clinician routing pending qualification, rights review, and clinical validation. Its 0..4 class scores are raw model output and are not calibrated clinical probabilities. The application referral policy is unchanged: grade 4 refers, lower gradable grades do not, and ungradable cases remain undetermined.
+USPEC receives original RGB and applies its own hash-reviewed native v4 preprocessing: internal conservative FOV masking, RGB letterboxing to 1424, row-major 7x7 patches of 224 pixels at stride 200, and the source RGB mean/std normalization. The USPEC mask status is model provenance only; this path does not read or modify the clinician-facing PRISM analysis mask. The manifest research identity is `NBeye-research/USPEC`; the local application model and capability IDs are `uspec-uwf-grading`. Its Tesla T4 runtime is engineering-qualified for public/synthetic UWF research/demo use, so a verified `RESEARCH_ONLY` capability may be discoverable and routed. Rights remain `UNVERIFIED`, clinical validation remains `NOT_ESTABLISHED`, and production authorization remains `NOT_AUTHORIZED`. Its 0..4 class scores are raw model output and are not calibrated clinical probabilities. The application referral policy is unchanged: grade 4 refers, lower gradable grades do not, and ungradable cases remain undetermined.
+
+### Isolated PRISM profile
+
+PRISM may run independently of RETFound and USPEC with `MODEL_API_PROVIDER_SET=prism`. Use a dedicated interpreter containing the application runtime and only the inference dependencies required by the locked PRISM source; do not install the repository `models` extra into the qualified USPEC interpreter. The supported engineering profile uses the locked PRISM source and weights through read-only `PRISM_SOURCE` and `PRISM_WEIGHTS` paths:
+
+```bash
+MODEL_API_PROVIDER_SET=prism \
+MODEL_API_PYTHON=/path/to/prism-venv/bin/python \
+PRISM_SOURCE=/path/to/locked/prism-dr-source \
+PRISM_WEIGHTS=/path/to/verified/lesion_prism_v1 \
+INFERENCE_DEVICE=cuda:0 \
+./scripts/model-server/start.sh
+```
+
+For this provider set, the launcher defaults to `127.0.0.1:7862`; it verifies PRISM assets only and does not require RETFound or USPEC files. Check `/health`, `/v1/models`, and `/v1/capabilities` before use. The qualified PRISM runtime uses a restricted `torch.load(..., weights_only=True)` path with a reviewed explicit `torch.serialization.safe_globals` allowlist; do not use unrestricted pickle loading or `YOLO(checkpoint_path)`. Record the exact isolated environment package inventory with the qualification evidence.
+
+PRISM remains `prism-dr-5fold`, trained for CFP, task `lesion-roi`, source revision `79637440a535e4f8118e939d3787121f82180125`. CFP legacy behavior remains available. UWF is an experimental adaptation only, explicitly `NOT_VALIDATED_FOR_UWF`; the released weights' academic/research restrictions remain, rights are not cleared for production, and production use is not authorized. Trusted external FOV masking and native ROI failures are recoverable processing paths; fallback mode uses Original RGB and does not present a fabricated analysis boundary. PRISM raw lesion proposals remain review suggestions, and empty output does not establish absence of lesions.
 
 ## Health and model metadata
 

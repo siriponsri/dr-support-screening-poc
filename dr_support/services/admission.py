@@ -14,6 +14,9 @@ from PIL import Image
 
 from ..contracts import AdmissionMetadata
 from ..images import BridgeImage
+from .source_policy import HOSPITAL_ORIGIN, source_origin_is_known
+from .source_policy import opaque_hospital_patient_key
+from .resolver import parse_filename
 from ..imaging import (
     DicomIngestStatus,
     IntegrityStatus,
@@ -154,6 +157,10 @@ def _metadata(
     source_metadata: SourceMetadata | None = None,
     integrity_status: IntegrityStatus = IntegrityStatus.OK,
     integrity: SourceIntegrity | None = None,
+    trusted_patient_key: str | None = None,
+    trusted_laterality: str | None = None,
+    trusted_capture_sequence: int | None = None,
+    trusted_identity_method: str = "NONE",
 ) -> dict:
     now = updated_at or utc_now()
     if source_metadata is not None and source_metadata.integrity_status != integrity_status:
@@ -186,6 +193,10 @@ def _metadata(
         source_metadata=source_metadata,
         integrity_status=integrity_status,
         integrity=integrity or SourceIntegrity(status=integrity_status),
+        trusted_patient_key=trusted_patient_key,
+        trusted_laterality=trusted_laterality,
+        trusted_capture_sequence=trusted_capture_sequence,
+        trusted_identity_method=trusted_identity_method,
     ).model_dump(mode="json")
 
 
@@ -201,6 +212,9 @@ def _invalid_record(
     source_metadata: SourceMetadata | None = None,
     integrity_status: IntegrityStatus = IntegrityStatus.DECODE_FAILED,
     integrity: SourceIntegrity | None = None,
+    source_origin: str = "WORKSPACE",
+    retinal_modality: str = "UNKNOWN",
+    retinal_modality_method: str = "NONE",
 ) -> dict:
     return _metadata(
         image_id=image_id,
@@ -215,6 +229,9 @@ def _invalid_record(
         quality_state="NOT_EVALUATED",
         admission_reason_code=reason,
         quality_reason_code=None,
+        source_origin=source_origin,
+        retinal_modality=retinal_modality,
+        retinal_modality_method=retinal_modality_method,
         source_sha256=source_sha256,
         source_metadata=source_metadata,
         integrity_status=integrity_status,
@@ -304,6 +321,9 @@ def _inspect_dicom(
     source_reference: str,
     filename: str,
     extension: str,
+    source_origin: str = "WORKSPACE",
+    retinal_modality: str = "UNKNOWN",
+    retinal_modality_method: str = "NONE",
 ) -> tuple[dict, BridgeImage | None]:
     """Admit DICOM through the S5B handler, never through Pillow."""
     handler = _DICOM_REGISTRY.resolve(filename=filename)
@@ -324,6 +344,9 @@ def _inspect_dicom(
                     status=result.status,
                     aliases=[_alias(filename, source_reference)],
                 ),
+                source_origin=source_origin,
+                retinal_modality=retinal_modality,
+                retinal_modality_method=retinal_modality_method,
             ),
             None,
         )
@@ -348,6 +371,9 @@ def _inspect_dicom(
                 admission_reason_code="DICOM_REVIEW_REQUIRED",
                 quality_reason_code=None,
                 source_metadata=source,
+                source_origin=source_origin,
+                retinal_modality=retinal_modality,
+                retinal_modality_method=retinal_modality_method,
                 integrity=SourceIntegrity(
                     status=IntegrityStatus.OK,
                     aliases=[_alias(filename, source_reference)],
@@ -356,12 +382,13 @@ def _inspect_dicom(
             BridgeImage(
                 image_id,
                 data,
-                "PUBLIC",
-                "WORKSPACE_INPUT",
+                source_origin if source_origin == HOSPITAL_ORIGIN else "PUBLIC",
+                source_reference,
                 filename=filename,
                 media_type=SUPPORTED_INPUT_TYPES[extension],
                 dimensions=(source.dimensions.width, source.dimensions.height),
-                source_origin="WORKSPACE",
+                modality=retinal_modality,
+                source_origin=source_origin,
             ),
         )
 
@@ -395,6 +422,9 @@ def _inspect_dicom(
         admission_reason_code=admission_reason_code,
         quality_reason_code=None,
         source_metadata=source,
+        source_origin=source_origin,
+        retinal_modality=retinal_modality,
+        retinal_modality_method=retinal_modality_method,
         integrity_status=result.status,
         integrity=SourceIntegrity(
             status=result.status,
@@ -404,9 +434,38 @@ def _inspect_dicom(
     return record, None
 
 
-def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[dict, BridgeImage | None]:
-    """Inspect one top-level input file without modifying it."""
-    filename = path.name
+def inspect_file(
+    path: Path, *, source_reference: str | None = None,
+    source_origin: str = "WORKSPACE", display_filename: str | None = None,
+    retinal_modality: str = "UNKNOWN", retinal_modality_method: str = "NONE",
+) -> tuple[dict, BridgeImage | None]:
+    """Inspect one top-level input file without modifying it.
+
+    The restricted hospital lane can provide neutral display/reference names
+    while retaining the hash of the exact source bytes.
+    """
+    if not source_origin_is_known(source_origin):
+        raise ValueError("Unknown source origin")
+    if retinal_modality not in {"CFP", "UWF", "UNKNOWN"}:
+        raise ValueError("Unknown retinal modality")
+    if retinal_modality_method not in {"NONE", "MANUAL", "LEGACY_COMPAT", "DICOM_METADATA", "AUTHORIZED_SOURCE"}:
+        raise ValueError("Unknown retinal modality method")
+    filename = display_filename or path.name
+    trusted_patient_key = None
+    trusted_laterality = None
+    trusted_capture_sequence = None
+    trusted_identity_method = "NONE"
+    if source_origin == HOSPITAL_ORIGIN:
+        # The owner-approved filename semantics are used only inside the
+        # private admission boundary.  The original name never leaves this
+        # function; the API receives a neutral display filename and an opaque
+        # keyed patient reference.
+        evidence = parse_filename(path.name)
+        trusted_patient_key = opaque_hospital_patient_key(evidence.patient_candidate or "")
+        if trusted_patient_key and evidence.laterality in {"LEFT", "RIGHT"}:
+            trusted_laterality = evidence.laterality
+            trusted_capture_sequence = evidence.capture_sequence
+            trusted_identity_method = "AUTHORIZED_FILENAME_SEMANTICS"
     extension = path.suffix.lower() or "[none]"
     reference = source_reference or _source_reference(filename)
     try:
@@ -425,6 +484,9 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
                     status=IntegrityStatus.SOURCE_MISSING,
                     aliases=[_alias(filename, reference)],
                 ),
+                source_origin=source_origin,
+                retinal_modality=retinal_modality,
+                retinal_modality_method=retinal_modality_method,
             ),
             None,
         )
@@ -445,6 +507,9 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
                     status=IntegrityStatus.UNSUPPORTED_FORMAT,
                     aliases=[_alias(filename, reference)],
                 ),
+                source_origin=source_origin,
+                retinal_modality=retinal_modality,
+                retinal_modality_method=retinal_modality_method,
             ),
             None,
         )
@@ -457,6 +522,9 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
                 source_reference=reference,
                 filename=filename,
                 extension=extension,
+                source_origin=source_origin,
+                retinal_modality=retinal_modality,
+                retinal_modality_method=retinal_modality_method,
             )
         except Exception:
             return (
@@ -473,6 +541,9 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
                         status=IntegrityStatus.DECODE_FAILED,
                         aliases=[_alias(filename, reference)],
                     ),
+                    source_origin=source_origin,
+                    retinal_modality=retinal_modality,
+                    retinal_modality_method=retinal_modality_method,
                 ),
                 None,
             )
@@ -496,6 +567,9 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
                         status=IntegrityStatus.UNSUPPORTED_FORMAT,
                         aliases=[_alias(filename, reference)],
                     ),
+                    source_origin=source_origin,
+                    retinal_modality=retinal_modality,
+                    retinal_modality_method=retinal_modality_method,
                 ),
                 None,
             )
@@ -521,6 +595,9 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
                     status=IntegrityStatus.DECODE_FAILED,
                     aliases=[_alias(filename, reference)],
                 ),
+                source_origin=source_origin,
+                retinal_modality=retinal_modality,
+                retinal_modality_method=retinal_modality_method,
             ),
             None,
         )
@@ -538,8 +615,14 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
         quality_state=quality,
         admission_reason_code="FUNDUS_PLAUSIBLE" if modality == "FUNDUS_ACCEPTED" else "FUNDUS_UNCERTAIN",
         quality_reason_code=quality_reason,
+        source_origin=source_origin,
+        retinal_modality=retinal_modality,
+        retinal_modality_method=retinal_modality_method,
+        trusted_patient_key=trusted_patient_key,
+        trusted_laterality=trusted_laterality,
+        trusted_capture_sequence=trusted_capture_sequence,
+        trusted_identity_method=trusted_identity_method,
         source_metadata=source_metadata,
-        source_origin="WORKSPACE",
         integrity=SourceIntegrity(
             status=IntegrityStatus.OK,
             aliases=[_alias(filename, reference)],
@@ -550,11 +633,12 @@ def inspect_file(path: Path, *, source_reference: str | None = None) -> tuple[di
         BridgeImage(
             image_id,
             data,
-            "PUBLIC",
-            "WORKSPACE_INPUT",
+            source_origin if source_origin == HOSPITAL_ORIGIN else "PUBLIC",
+            reference,
             filename=filename,
             media_type=SUPPORTED_INPUT_TYPES[extension],
-            source_origin="WORKSPACE",
+            modality=retinal_modality,
+            source_origin=source_origin,
         ),
     )
 
@@ -640,7 +724,7 @@ def legacy_admission(image: BridgeImage) -> dict:
         width = height = None
         mode = None
     source_origin = getattr(image, "source_origin", None)
-    if source_origin not in {"PUBLIC", "SYNTHETIC", "WORKSPACE", "UNKNOWN"}:
+    if not source_origin_is_known(source_origin):
         source_origin = "UNKNOWN"
     if source_origin == "UNKNOWN" and image.source_type in {"PUBLIC", "SYNTHETIC"}:
         source_origin = image.source_type
@@ -747,6 +831,13 @@ def clinician_view(record: dict) -> dict:
             "tone": "neutral",
             "action_required": False,
         }
+    if record.get("source_origin") == HOSPITAL_ORIGIN:
+        return {
+            "label": "Private project image",
+            "note": "Approved private-project source. Model access and data export remain restricted; clinician review is authoritative.",
+            "tone": "neutral",
+            "action_required": False,
+        }
     return {
         "label": "Ready for analysis",
         "note": "Retinal image accepted for automated analysis.",
@@ -759,9 +850,18 @@ def scan_input_folder(
     folder: str | Path,
     *,
     previous_records: dict[str, dict] | None = None,
+    source_origin: str = "WORKSPACE",
+    retinal_modality: str = "UNKNOWN",
+    retinal_modality_method: str = "NONE",
 ) -> AdmissionScan:
     """Scan one workspace folder, top-level only, in deterministic order."""
     previous_records = previous_records or {}
+    if not source_origin_is_known(source_origin):
+        raise ValueError("Unknown source origin")
+    if retinal_modality not in {"CFP", "UWF", "UNKNOWN"}:
+        raise ValueError("Unknown retinal modality")
+    if retinal_modality_method not in {"NONE", "MANUAL", "LEGACY_COMPAT", "DICOM_METADATA", "AUTHORIZED_SOURCE"}:
+        raise ValueError("Unknown retinal modality method")
     root = Path(folder)
     if not root.is_dir():
         return AdmissionScan({}, {}, ["Input folder is unavailable."])
@@ -783,25 +883,41 @@ def scan_input_folder(
     records: dict[str, dict] = {}
     warnings: list[str] = []
     for path in paths:
+        case_number = len(records) + 1
+        safe_filename = (
+            f"hospital-case-{case_number:04d}{path.suffix.lower()}"
+            if source_origin == HOSPITAL_ORIGIN else None
+        )
+        safe_reference = (
+            f"{HOSPITAL_ORIGIN}/CASE-{case_number:04d}"
+            if source_origin == HOSPITAL_ORIGIN else None
+        )
         try:
-            record, image = inspect_file(path)
+            record, image = inspect_file(
+                path, source_reference=safe_reference, source_origin=source_origin,
+                display_filename=safe_filename, retinal_modality=retinal_modality,
+                retinal_modality_method=retinal_modality_method,
+            )
         except Exception as exc:  # One unexpected file must not stop the scan.
-            reference = _source_reference(path.name)
+            reference = safe_reference or _source_reference(path.name)
             record = _invalid_record(
                 image_id=_image_id_for_unreadable(reference),
                 source_reference=reference,
-                filename=path.name,
+                filename=safe_filename or path.name,
                 extension=path.suffix.lower() or "[none]",
                 file_size_bytes=0,
                 reason="ADMISSION_RULE_ERROR",
                 integrity_status=IntegrityStatus.DECODE_FAILED,
                 integrity=SourceIntegrity(
                     status=IntegrityStatus.DECODE_FAILED,
-                    aliases=[_alias(path.name, reference)],
+                    aliases=[_alias(safe_filename or path.name, reference)],
                 ),
+                source_origin=source_origin,
+                retinal_modality=retinal_modality,
+                retinal_modality_method=retinal_modality_method,
             )
             image = None
-            warnings.append(f"{path.name}: admission could not be completed ({type(exc).__name__}).")
+            warnings.append(f"{safe_filename or path.name}: admission could not be completed ({type(exc).__name__}).")
         image_id = record["image_id"]
         current_aliases = [
             SourceAlias.model_validate(alias)

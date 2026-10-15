@@ -18,7 +18,9 @@ from .services.resolver import (
     combined_resolution_state,
     normalize_patient_key,
     resolver_clinician_view,
+    resolve_authorized_hospital_record,
 )
+from .services.source_policy import HOSPITAL_ORIGIN, source_allowed_for_model
 from .imaging import DerivativeError
 from .imaging.derivatives import (
     ANALYSIS_COORDINATE_SPACE,
@@ -27,6 +29,8 @@ from .imaging.derivatives import (
     ANALYSIS_SOURCE_TRANSFORM,
     ANALYSIS_TIFF_PNG_TRANSFORM,
     ANALYSIS_UWF_MASK_TRANSFORM,
+    ANALYSIS_UWF_SOURCE_REPRESENTATION_VERSION,
+    ANALYSIS_UWF_SOURCE_TRANSFORM,
     MASK_OVERLAY_REPRESENTATION_VERSION,
     ORIGINAL_COORDINATE_SPACE,
     render_mask_overlay,
@@ -48,12 +52,13 @@ KNOWN_ANALYSIS_TRANSFORMS = frozenset({
     ANALYSIS_TIFF_PNG_TRANSFORM,
     ANALYSIS_DICOM_PNG_TRANSFORM,
     ANALYSIS_UWF_MASK_TRANSFORM,
+    ANALYSIS_UWF_SOURCE_TRANSFORM,
 })
 
 
 def _source_origin(record, image):
     """Resolve origin from explicit admission/image facts without relabeling unknown data."""
-    allowed = {'PUBLIC', 'SYNTHETIC', 'WORKSPACE', 'UNKNOWN'}
+    allowed = {'PUBLIC', 'SYNTHETIC', 'WORKSPACE', HOSPITAL_ORIGIN, 'UNKNOWN'}
     record_origin = (record or {}).get('source_origin')
     if record_origin in allowed:
         return record_origin
@@ -63,6 +68,34 @@ def _source_origin(record, image):
     if image is not None and image.source_type in {'PUBLIC', 'SYNTHETIC'}:
         return image.source_type
     return 'UNKNOWN'
+
+
+def _global_result_matches_modality(result, modality, source_origin):
+    if not isinstance(result, dict) or result.get('modality') != modality:
+        return False
+    if not source_allowed_for_model(source_origin):
+        return False
+    model_id = result.get('model_id')
+    if modality == 'CFP':
+        return model_id == 'retfound-aptos5' or (
+            model_id == 'mock-global' and source_origin == 'SYNTHETIC'
+        )
+    if modality == 'UWF':
+        return model_id == 'uspec-uwf-grading'
+    return False
+
+
+def _lesion_result_matches_modality(result, modality, source_origin):
+    return (
+        isinstance(result, dict)
+        and (
+            result.get('model_id') == 'prism-dr-5fold'
+            or (result.get('model_id') == 'mock-lesion' and source_origin == 'SYNTHETIC')
+        )
+        and result.get('modality') == modality
+        and modality in {'CFP', 'UWF'}
+        and source_allowed_for_model(source_origin)
+    )
 
 
 def _spatial_ai_display(case, image, *, source_origin='UNKNOWN'):
@@ -80,7 +113,7 @@ def _spatial_ai_display(case, image, *, source_origin='UNKNOWN'):
             'reason': 'SOURCE_UNAVAILABLE',
             'note': 'AI overlay is hidden because the immutable source is unavailable. Review the Original image manually.',
         }
-    if source_origin not in {'PUBLIC', 'SYNTHETIC'}:
+    if not source_allowed_for_model(source_origin):
         return {
             'status': 'BLOCKED',
             'reason': 'SOURCE_ORIGIN_UNSUPPORTED',
@@ -113,7 +146,10 @@ def _spatial_ai_display(case, image, *, source_origin='UNKNOWN'):
             reason = 'SOURCE_ORIGIN_MISMATCH'
         elif derivative.get('source_origin') != source_origin:
             reason = 'SOURCE_ORIGIN_MISMATCH'
-        elif derivative.get('representation_version') != ANALYSIS_REPRESENTATION_VERSION:
+        elif derivative.get('representation_version') not in {
+            ANALYSIS_REPRESENTATION_VERSION,
+            ANALYSIS_UWF_SOURCE_REPRESENTATION_VERSION,
+        }:
             reason = 'REPRESENTATION_VERSION_MISMATCH'
         elif derivative.get('transform_id') not in KNOWN_ANALYSIS_TRANSFORMS:
             reason = 'TRANSFORM_MISMATCH'
@@ -322,6 +358,29 @@ def install_workflow(app, store):
 
     def ensure_resolution(image_id, case, record):
         """Resolve local evidence, refreshing only unresolved automatic state."""
+        authorized = resolve_authorized_hospital_record(record)
+        if authorized is not None and not any(
+            event.get('action') == 'CONFIRM_IMAGE'
+            for history in (case.get('resolution_history', []), case.get('events', []))
+            for event in history
+            if isinstance(event, dict)
+        ):
+            changed = any(case.get(key) != value for key, value in authorized.items())
+            if changed:
+                case.update(authorized)
+                visit_context = dict(case.get('visit_context') or {})
+                visit_context.update({
+                    'capture_sequence': record.get('trusted_capture_sequence'),
+                    'evidence_state': 'PROVIDED',
+                })
+                case['visit_context'] = visit_context
+                case.setdefault('resolution_history', []).append({
+                    'action': 'AUTHORIZED_SOURCE_RESOLUTION',
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'method': 'AUTHORIZED_FILENAME_SEMANTICS',
+                })
+                current_store().put(case)
+            return case
         image = app.state.images.get(image_id)
         filename = (image.filename if image is not None else None) or (record or {}).get('filename') or image_id
         decision = app.state.resolver.resolve(image, filename)
@@ -358,23 +417,35 @@ def install_workflow(app, store):
         )
         source_modality = (record or {}).get('retinal_modality', 'UNKNOWN')
         source_origin = _source_origin(record, image)
-        spatial_ai = _spatial_ai_display(case, image, source_origin=source_origin)
-        # CFP evidence from a legacy case is not current evidence for UWF.
-        visible_ai = source_modality == 'CFP' and source_origin in {'PUBLIC', 'SYNTHETIC'}
-        visible_lesion = case.get('lesion') if spatial_ai['status'] == 'AVAILABLE' else None
-        evidence_case = (case if visible_ai else {
-            **case, 'global': None, 'lesion': None, 'ai_annotation_reviews': []
-        })
-        if visible_ai and visible_lesion is None:
-            evidence_case = {**evidence_case, 'lesion': None, 'ai_annotation_reviews': []}
+        visible_global = (
+            case.get('global')
+            if _global_result_matches_modality(case.get('global'), source_modality, source_origin)
+            else None
+        )
+        modality_matched_lesion = (
+            case.get('lesion')
+            if _lesion_result_matches_modality(case.get('lesion'), source_modality, source_origin)
+            else None
+        )
+        spatial_ai = _spatial_ai_display(
+            {**case, 'lesion': modality_matched_lesion}, image,
+            source_origin=source_origin,
+        )
+        visible_lesion = modality_matched_lesion if spatial_ai['status'] == 'AVAILABLE' else None
+        evidence_case = {
+            **case,
+            'global': visible_global,
+            'lesion': visible_lesion,
+            'ai_annotation_reviews': case.get('ai_annotation_reviews', []) if visible_lesion else [],
+        }
         explanation = case.get('explainability')
         if not isinstance(explanation, dict):
             explanation = {
                 'status': 'UNAVAILABLE',
                 'note': 'Explainability evidence is unavailable for this result. It is not lesion localization or a clinical probability.',
             }
-        return {**case, 'global': case.get('global') if visible_ai else None,
-                'lesion': visible_lesion if visible_ai else None,
+        return {**case, 'global': visible_global,
+                'lesion': visible_lesion,
                 'source_type': image.source_type if image is not None else None,
                 'source_origin': source_origin,
                 'source': image.source if image is not None else 'WORKSPACE_INPUT',
@@ -476,16 +547,30 @@ def install_workflow(app, store):
         return detail(image_id)
 
     @app.get('/v1/cases/{image_id}/comparison')
-    def comparison(image_id: str, other_image_id: str):
-        if image_id == other_image_id:
-            return {'eligible': False, 'reason': 'SAME_IMAGE'}
-        left = current_store().get(image_id)
-        right = current_store().get(other_image_id)
-        if not left or not right:
+    def comparison(image_id: str, other_image_id: str | None = None):
+        if image_id not in app.state.images and image_id not in app.state.admissions:
             raise HTTPException(404, 'Comparison image is not available in this workspace')
-        result = compare_cases({**left, 'image_id': image_id, 'display_name': detail(image_id).get('display_name'), 'image_url': detail(image_id).get('image_url')}, {
-            **right, 'image_id': other_image_id, 'display_name': detail(other_image_id).get('display_name'), 'image_url': detail(other_image_id).get('image_url'),
-        })
+        current = detail(image_id)
+        if other_image_id is not None:
+            if image_id == other_image_id:
+                return {'eligible': False, 'reason': 'SAME_IMAGE'}
+            if other_image_id not in app.state.images and other_image_id not in app.state.admissions:
+                raise HTTPException(404, 'Comparison image is not available in this workspace')
+            previous = detail(other_image_id)
+        else:
+            from .comparison import resolve_previous_case
+
+            candidates = [detail(candidate_id) for candidate_id in app.state.admissions
+                          if candidate_id != image_id]
+            resolved = resolve_previous_case(current, candidates)
+            if resolved is None:
+                return {'eligible': False, 'reason': 'NO_VERIFIED_PREVIOUS_EXAM'}
+            if isinstance(resolved, dict) and resolved.get('reason'):
+                return {'eligible': False, 'reason': resolved['reason']}
+            previous = resolved
+        result = compare_cases(previous, current)
+        if result.get('eligible'):
+            result['comparison_state'] = 'AUTO_PREVIOUS' if other_image_id is None else 'EXPLICIT_PAIR'
         return result
 
     @app.get('/v1/images/{image_id}')
@@ -632,9 +717,14 @@ def install_workflow(app, store):
             # source whose image type is now UWF or still unknown.
             current_admission = admission_record(image_id) or {}
             current_source_origin = _source_origin(current_admission, app.state.images.get(image_id))
-            current_ai = (case.get('global') if current_admission.get('retinal_modality') == 'CFP'
-                          and current_source_origin in {'PUBLIC', 'SYNTHETIC'}
-                          else None)
+            current_modality = current_admission.get('retinal_modality', 'UNKNOWN')
+            current_ai = (
+                case.get('global')
+                if _global_result_matches_modality(
+                    case.get('global'), current_modality, current_source_origin,
+                )
+                else None
+            )
             if request.revision != case['revision']:
                 already_confirmed = (
                     request.action == 'CONFIRM_ANNOTATIONS'

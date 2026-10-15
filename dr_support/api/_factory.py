@@ -27,6 +27,7 @@ from dr_support.contracts import (
     Phase3InputContext,
     Phase3ModelIdentity,
     Phase3ResultEnvelope,
+    PrismProcessingEvidence,
     Phase3ReviewInferenceRequest,
     Phase3Runtime,
 )
@@ -55,6 +56,12 @@ from ..imaging import (
     map_lesion_result_to_review,
 )
 from ..services.admission import is_inference_eligible, legacy_admission, scan_input_folder
+from ..services.source_policy import (
+    HOSPITAL_ORIGIN,
+    authorized_hospital_modality,
+    hospital_ingest_enabled,
+    source_allowed_for_model,
+)
 from ..services.capability_routing import CapabilityRoutingError, route_capability
 from ..services.workspaces import WorkspaceManager
 from ..services.resolver import ResolverService
@@ -197,7 +204,10 @@ def create_app(
                     }]
                 for alias in aliases:
                     reference = alias.get('source_reference')
-                    if isinstance(reference, str) and reference.startswith('WORKSPACE_INPUT/'):
+                    if isinstance(reference, str) and (
+                        reference.startswith('WORKSPACE_INPUT/')
+                        or reference.startswith(f'{HOSPITAL_ORIGIN}/')
+                    ):
                         previous[reference] = admission
         return previous
 
@@ -217,7 +227,10 @@ def create_app(
             for case in store.all_cases():
                 admission = case.get('admission') or {}
                 reference = admission.get('source_reference')
-                if not isinstance(reference, str) or not reference.startswith('WORKSPACE_INPUT/'):
+                if not isinstance(reference, str) or not (
+                    reference.startswith('WORKSPACE_INPUT/')
+                    or reference.startswith(f'{HOSPITAL_ORIGIN}/')
+                ):
                     continue
                 aliases = (admission.get('integrity') or {}).get('aliases') or [{
                     'filename': admission.get('filename') or case.get('image_id') or 'unknown',
@@ -310,9 +323,13 @@ def create_app(
         if profile is None:
             app.state.admission_warnings = ['No active workspace input folder is configured.']
             return {'records': [], 'warnings': list(app.state.admission_warnings), 'scanned': False}
+        hospital_lane = hospital_ingest_enabled(profile.input_folder)
         scan = scan_input_folder(
             profile.input_folder,
             previous_records=previous_source_records(),
+            source_origin=HOSPITAL_ORIGIN if hospital_lane else 'WORKSPACE',
+            retinal_modality=authorized_hospital_modality() if hospital_lane else 'UNKNOWN',
+            retinal_modality_method='AUTHORIZED_SOURCE' if hospital_lane and authorized_hospital_modality() else 'NONE',
         )
         apply_scan(scan)
         return {
@@ -496,7 +513,12 @@ def create_app(
         snap = runtime_snapshot()
         return {
             'status': 'PASS_WITH_WARNINGS',
-            'lane': 'PUBLIC_SYNTHETIC_BRIDGE',
+            'lane': (
+                'PRIVATE_AUTHORIZED_RESEARCH_BRIDGE'
+                if os.environ.get('DR_SUPPORT_HOSPITAL_SCOPE', '').strip() == 'PRIVATE_PROJECT_EVALUATION'
+                and os.environ.get('DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL') == '1'
+                else 'PUBLIC_SYNTHETIC_BRIDGE'
+            ),
             'warnings': ['Research-only; model readiness is reported separately'],
             'requested_device': snap.requested_device,
             'effective_device': snap.effective_device,
@@ -554,7 +576,7 @@ def create_app(
             # decision before it can reach either provider path.
             admission = legacy_admission(image)
             app.state.admissions[request.image_id] = admission
-        if admission.get('source_origin') not in {'PUBLIC', 'SYNTHETIC'}:
+        if not source_allowed_for_model(admission.get('source_origin', 'UNKNOWN')):
             raise HTTPException(
                 409,
                 'This source is available for manual review only; model analysis is not approved for its origin.',
@@ -643,11 +665,36 @@ def create_app(
                 raise HTTPException(502, 'The Model API capability could not be verified; manual review remains available.') from None
             raise HTTPException(409, str(exc)) from None
         try:
+            source_modality = admission['retinal_modality']
+            provider_owned_uwf_preprocessing = (
+                source_modality == 'UWF'
+                and request.model_id in {'prism-dr-5fold', 'uspec-uwf-grading'}
+            )
             analysis_image, analysis_derivative = app.state.derivatives.analysis_image(
-                image, source_modality=admission['retinal_modality'],
+                image,
+                source_modality=source_modality,
+                apply_uwf_mask=not provider_owned_uwf_preprocessing,
             )
             with inference_lock:
-                result = provider.infer(request, analysis_image)
+                if (
+                    isinstance(provider, RemoteModelProvider)
+                    and request.model_id == 'prism-dr-5fold'
+                    and source_modality == 'UWF'
+                ):
+                    result = provider.infer_phase3_lesions(
+                        request,
+                        analysis_image,
+                        capability_id=route.capability_id or 'core_lesion_localization',
+                        model_version=str(descriptor.get('revision') or descriptor.get('model_version') or ''),
+                        source_sha256=analysis_derivative.lineage.source_sha256,
+                        source_origin=admission['source_origin'],
+                        representation_version=analysis_derivative.audit_record()['representation_version'],
+                        transform_id=analysis_derivative.lineage.transform_id,
+                        request_case_revision=request_case_revision,
+                        invocation_id=invocation_id,
+                    )
+                else:
+                    result = provider.infer(request, analysis_image)
             if task == 'lesion-roi':
                 result = map_lesion_result_to_review(
                     result,
@@ -660,6 +707,13 @@ def create_app(
                 analysis_derivative,
                 capability_id=route.capability_id,
                 invocation_id=invocation_id,
+                processing_evidence=(
+                    getattr(provider, 'last_processing_evidence', None)
+                    if request.model_id == 'prism-dr-5fold'
+                    and request.modality == 'UWF'
+                    and task == 'lesion-roi'
+                    else None
+                ),
                 request_case_revision=request_case_revision,
             )
             return result
@@ -691,6 +745,7 @@ def create_app(
         capability_id=None,
         invocation_id=None,
         request_case_revision=None,
+        processing_evidence=None,
     ):
         key = 'global' if task == 'global' else 'lesion'
         store = app.state.store
@@ -704,6 +759,10 @@ def create_app(
             value = result.model_dump(mode='json')
             derivative_record = analysis_derivative.audit_record() if analysis_derivative else None
             derivative_changed = derivative_record is not None and case.get('analysis_derivative') != derivative_record
+            processing_changed = (
+                processing_evidence is not None
+                and case.get('prism_processing') != processing_evidence
+            )
             request_case_revision = case['revision'] if request_case_revision is None else request_case_revision
             stale = case['revision'] != request_case_revision
             provider = app.state.providers.get(request.model_id)
@@ -746,10 +805,12 @@ def create_app(
                 })
                 store.put(case)
                 return False
-            if case[key] != value or derivative_changed:
+            if case[key] != value or derivative_changed or processing_changed:
                 case[key] = value
                 if derivative_record is not None:
                     case['analysis_derivative'] = derivative_record
+                if processing_evidence is not None:
+                    case['prism_processing'] = processing_evidence
                 case['revision'] += 1
                 event = {
                     'action': 'INFERENCE',
@@ -819,7 +880,12 @@ def create_app(
         )
         descriptor = descriptor_for(request.model_id)
         provider = app.state.providers.get(request.model_id)
+        prism_processing = (
+            PrismProcessingEvidence.model_validate(entry['prism_processing'])
+            if entry.get('prism_processing') is not None else None
+        )
         return Phase3ResultEnvelope(
+            schema_version='bridge.v2.1' if prism_processing is not None else 'bridge.v2',
             invocation_id=request.invocation_id,
             capability_id=request.capability_id,
             task=task,
@@ -833,6 +899,7 @@ def create_app(
             ),
             input=context,
             result=result,
+            prism_processing=prism_processing,
             explanation=Phase3Explanation(
                 status='UNAVAILABLE',
                 invocation_id=request.invocation_id,
@@ -850,11 +917,11 @@ def create_app(
             status=entry.get('status', 'APPLIED'),
         )
 
-    @app.post('/v2/infer/global', response_model=Phase3ResultEnvelope)
+    @app.post('/v2/infer/global', response_model=Phase3ResultEnvelope, response_model_exclude_none=True)
     def phase3_global_inference(request: Phase3ReviewInferenceRequest):
         return phase3_review_inference(request, 'global')
 
-    @app.post('/v2/infer/lesion-roi', response_model=Phase3ResultEnvelope)
+    @app.post('/v2/infer/lesion-roi', response_model=Phase3ResultEnvelope, response_model_exclude_none=True)
     def phase3_lesion_inference(request: Phase3ReviewInferenceRequest):
         return phase3_review_inference(request, 'lesion-roi')
 

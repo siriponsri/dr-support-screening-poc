@@ -5,6 +5,7 @@ import os
 
 from dr_support.contracts import GlobalResult, Provenance
 from dr_support.runtime import resolve_device, runtime_snapshot
+from dr_support.services.source_policy import source_allowed_for_model
 from .assets import verify_source, verify_weight
 
 REVISION = 'ae9a9ecf37857cf47b8aa9f87cd6f710d75db287'
@@ -96,6 +97,8 @@ class RETFound:
         import torch
         from PIL import Image
         from torchvision import transforms
+        if not source_allowed_for_model(image.source_type, model_api=True):
+            raise ValueError('RETFound source origin is blocked')
         provenance = Provenance(image_sha256=image.sha256, source_type=image.source_type,
                                 source_revision=REVISION, preprocessing=PREPROCESSING,
                                 checkpoint_sha256={'aptos5': WEIGHT_SHA256})

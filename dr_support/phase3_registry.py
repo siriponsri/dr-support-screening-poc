@@ -37,6 +37,9 @@ class CapabilityDescriptor(Contract):
     clinical_validation_status: str
     rights_status: str
     release_status: str
+    production_authorization: str = "NOT_AUTHORIZED"
+    runtime_qualification: str | None = None
+    uwf_use: str | None = None
     enabled: bool = False
     ready: bool = False
     status: str
@@ -80,23 +83,27 @@ _REGISTRY: tuple[dict[str, Any], ...] = (
         "model_version": "79637440a535e4f8118e939d3787121f82180125",
         "artifact_role": "legacy_cfp_comparator",
         "artifact_digest": None,
-        "supported_modalities": ["CFP"],
-        "trained_domain": "CFP_DOMAIN",
-        "input_representation": "Phase3 provider input; CFP only",
+        "supported_modalities": ["CFP", "UWF"],
+        "trained_domain": "CFP",
+        "input_representation": "CFP legacy input; UWF experimental provider-side FOV adaptation",
         "taxonomy_or_class_order": ["MA", "HE", "EX", "SE"],
-        "preprocessing_version": "prism-cfp-v1",
+        "preprocessing_version": "prism-legacy-cfp-plus-experimental-uwf-v1",
         "postprocessing_version": "review-policy-v1",
         "explanation_types": ["LESION_PROPOSALS"],
-        "required_runtime_profile": "legacy-cfp-model-api",
+        "required_runtime_profile": "isolated-prism-model-api",
         "runtime_status": "NOT_LOADED",
-        "domain_status": "NOT_VALIDATED_FOR_UWF",
-        "clinical_validation_status": "NOT_ESTABLISHED",
+        "runtime_qualification": "PENDING_LOAD",
+        "domain_status": "EXPERIMENTAL_UWF_ADAPTATION",
+        "uwf_use": "EXPERIMENTAL",
+        "clinical_validation_status": "NOT_VALIDATED_FOR_UWF",
         "rights_status": "ACADEMIC_USE_REVIEW_REQUIRED",
-        "release_status": "COMPARATOR_ONLY",
+        "production_authorization": "NOT_AUTHORIZED",
+        "release_status": "RESEARCH_ONLY",
         "enabled": False,
         "status": "NOT_LOADED",
         "warnings": [
-            "CFP comparator; not validated for UWF.",
+            "PRISM is trained on CFP; UWF lesion assistance is EXPERIMENTAL and NOT_VALIDATED_FOR_UWF.",
+            "Existing academic/research restrictions remain; production use is not authorized.",
             "Empty proposals do not mean that no lesions exist.",
         ],
     },
@@ -116,16 +123,19 @@ _REGISTRY: tuple[dict[str, Any], ...] = (
         "postprocessing_version": "softmax-argmax-5-v1",
         "explanation_types": [],
         "required_runtime_profile": "phase3-qualified-model-api",
-        "runtime_status": "NEEDS_QUALIFICATION",
+        "runtime_status": "QUALIFIED_NOT_LOADED",
+        "runtime_qualification": "ENGINEERING_QUALIFIED",
         "domain_status": "UWF_RESEARCH_CANDIDATE",
         "clinical_validation_status": "NOT_ESTABLISHED",
         "rights_status": "UNVERIFIED",
-        "release_status": "DISABLED",
+        "production_authorization": "NOT_AUTHORIZED",
+        "release_status": "RESEARCH_ONLY",
         "enabled": False,
-        "status": "NEEDS_QUALIFICATION",
+        "status": "QUALIFIED_NOT_LOADED",
         "warnings": [
-            "Checkpoint identity is verified; this integration's safe load and runtime qualification remain pending.",
-            "No clinical or production claim is made.",
+            "USPEC engineering runtime is qualified for public/synthetic UWF research/demo; model weights load lazily.",
+            "Rights remain unverified; clinical validation is not established; production use is not authorized.",
+            "Raw model scores are not calibrated clinical probabilities.",
         ],
     },
     {
@@ -291,6 +301,7 @@ def capability_descriptors(
         # Compute actionability from the live provider record before registry
         # fallback fields can make an incomplete capability look complete.
         merged["ready"] = _runtime_ready(item, merged.get("release_status"))
+        merged["enabled"] = merged["ready"]
         merged["warnings"] = list(dict.fromkeys([*merged.get("warnings", []), *(item.get("warnings") or [])]))
         descriptors[model_id] = merged
     if include_registry:

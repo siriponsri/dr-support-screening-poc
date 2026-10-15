@@ -1,0 +1,9 @@
+.git
+.venv
+**/__pycache__
+local-state
+/teamspace
+*.pt
+*.pth
+*.ckpt
+.env

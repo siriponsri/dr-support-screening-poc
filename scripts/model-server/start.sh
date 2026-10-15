@@ -13,12 +13,24 @@ fi
 export APP_PROFILE=model_api
 export MODEL_RUNTIME=local
 export INFERENCE_DEVICE="${INFERENCE_DEVICE:-cuda:0}"
-export HOST="${HOST:-0.0.0.0}"
-export PORT="${PORT:-7860}"
 export WORKERS="${WORKERS:-1}"
 export MODEL_REQUIRE_VERIFIED_ASSETS=1
 export DR_SUPPORT_RELAX_DEVICE="${DR_SUPPORT_RELAX_DEVICE:-0}"
 export MODEL_API_PROVIDER_SET="${MODEL_API_PROVIDER_SET:-legacy}"
+
+if [[ "$MODEL_API_PROVIDER_SET" == "prism" ]]; then
+  export HOST="${HOST:-127.0.0.1}"
+  export PORT="${PORT:-7862}"
+elif [[ "$MODEL_API_PROVIDER_SET" == "uspec" ]]; then
+  export HOST="${HOST:-127.0.0.1}"
+  export PORT="${PORT:-7861}"
+elif [[ "$MODEL_API_PROVIDER_SET" == "retfound" ]]; then
+  export HOST="${HOST:-127.0.0.1}"
+  export PORT="${PORT:-7864}"
+else
+  export HOST="${HOST:-0.0.0.0}"
+  export PORT="${PORT:-7860}"
+fi
 
 # Read-only verification. This command never downloads or clones anything.
 "$python_bin" -m dr_support.setup_models --model "$MODEL_API_PROVIDER_SET" --verify

@@ -12,7 +12,6 @@ import {
   Grid,
   Heading,
   HStack,
-  Image,
   SimpleGrid,
   Select,
   Spinner,
@@ -23,6 +22,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { RetinalCanvas, LESION_COLORS } from '@/components/review/RetinalCanvas';
+import { PrismAnalysisFieldOverlay } from '@/components/review/PrismAnalysisFieldOverlay';
 import { displayedLesions } from '@/components/review/lesionPresentation';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
 import { GuideHint } from '@/components/common/GuideHint';
@@ -41,6 +41,8 @@ import { caseComplete } from '@/lib/caseProgress';
 type ComparisonResponse = {
   eligible: boolean;
   reason?: string;
+  comparison_state?: string;
+  modality?: string;
   chronology?: string;
   limitation?: string;
   visits?: Array<{
@@ -48,10 +50,16 @@ type ComparisonResponse = {
     image_id: string;
     display_name?: string;
     image_url?: string | null;
+    width?: number;
+    height?: number;
     visit_context?: CaseRecord['visit_context'];
     grade?: number | null;
     grade_status?: string;
     findings_reviewed?: boolean;
+    laterality?: string;
+    modality?: string;
+    prism_processing?: CaseRecord['prism_processing'] | null;
+    lesion?: CaseRecord['lesion'] | null;
   }>;
 };
 
@@ -61,7 +69,8 @@ function errorText(err: unknown): string {
 
 function clinicianModelStatus(status?: string | null) {
   switch (status) {
-    case 'LOADED': return 'Ready';
+    case 'LOADED':
+    case 'QUALIFIED_NOT_LOADED': return 'Ready';
     case 'REMOTE_NOT_CONFIGURED': return 'Model service unavailable';
     case 'ASSET_REQUIRED': return 'Model setup required';
     case 'CONFIGURED_NOT_VERIFIED': return 'Verification required';
@@ -258,6 +267,7 @@ function sourceOriginLabel(sourceOrigin: CaseRecord['source_origin']): string {
   if (sourceOrigin === 'PUBLIC') return 'Public source';
   if (sourceOrigin === 'SYNTHETIC') return 'Synthetic fixture';
   if (sourceOrigin === 'WORKSPACE') return 'Workspace input';
+  if (sourceOrigin === 'HOSPITAL_AUTHORIZED') return 'Approved hospital source';
   return 'Not recorded';
 }
 
@@ -274,7 +284,7 @@ function selectedMaskLabel(item: CaseRecord): string {
       : 'Unavailable - mask needs review; Original/manual review only';
   }
   if (preparation?.status === 'FAILED') {
-    return 'Unavailable - mask preparation failed; Original/manual review only';
+    return 'Mask preparation failed; Original remains available; PRISM may use fallback processing';
   }
   if (audit?.retinal_field_status === 'READY' && audit.valid_retina_mask_sha256) {
     return 'Retinal-field mask recorded; no fallback used';
@@ -300,7 +310,7 @@ function analysisPreparationNote(item: CaseRecord): string {
         ? 'A candidate mask is available in Mask preview for inspection only; it is not approved model input.'
         : 'No candidate mask is available; Original and manual review remain available.';
     case 'FAILED':
-      return 'Mask preparation failed; Original and manual review remain available.';
+      return 'Mask preparation failed; Original remains available. PRISM may still attempt inference using its fallback path.';
     default:
       return 'No recorded analysis-area or mask representation is available; Original remains the review source.';
   }
@@ -343,7 +353,7 @@ export function ReviewPage() {
   const { imageId } = useParams<{ imageId: string }>();
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
-  const [imageView, setImageView] = useState<'original' | 'analysis-area' | 'mask-overlay' | 'ai-evidence' | 'explainability'>('original');
+  const [imageView, setImageView] = useState<'original' | 'analysis-area' | 'mask-overlay' | 'ai-evidence' | 'explainability' | 'prism-field'>('original');
   const [lesionFilter, setLesionFilter] = useState<LesionLabel | 'ALL'>('ALL');
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -361,14 +371,17 @@ export function ReviewPage() {
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [confirmDialog, confirm] = useConfirmDialog();
 
-  const loadCase = useCallback(async () => {
-    if (!imageId) return;
+  const loadCase = useCallback(async (): Promise<CaseRecord | null> => {
+    if (!imageId) return null;
     setLoading(true);
     setError(null);
     try {
-      setItem(await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`));
+      const nextCase = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
+      setItem(nextCase);
+      return nextCase;
     } catch (err) {
       setError(errorText(err));
+      return null;
     } finally {
       setLoading(false);
     }
@@ -429,10 +442,12 @@ export function ReviewPage() {
         });
       }
       setProgress('Reloading returned case results...');
-      await loadCase();
+      const refreshed = await loadCase();
+      setImageView(refreshed?.prism_processing?.processing_mode === 'PREPARED' ? 'prism-field' : 'original');
       await loadModels();
     } catch (err) {
       setAnalysisError(errorText(err));
+      setImageView('original');
       await loadCase();
     } finally {
       setProgress('');
@@ -448,7 +463,7 @@ export function ReviewPage() {
   const modelUnavailable = Boolean(models.length > 0 && !globalModel && !lesionModel);
   const analysisAllowed = admissionReady
     && item?.modality !== 'UNKNOWN'
-    && ['PUBLIC', 'SYNTHETIC'].includes(origin)
+    && ['PUBLIC', 'SYNTHETIC', 'HOSPITAL_AUTHORIZED'].includes(origin)
     && Boolean(globalModel || lesionModel)
     && !modelError;
   const analysisPreparationStatus = item?.analysis_preparation?.status;
@@ -463,7 +478,31 @@ export function ReviewPage() {
   const maskOverlayAvailable = maskCandidateAvailable && !maskOverlayLoadError;
   const analysisAreaUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/analysis-area` : '';
   const maskOverlayUrl = item ? `/v1/images/${encodeURIComponent(item.image_id)}/mask-overlay` : '';
+  const prismProcessing = item?.prism_processing;
+  const prismField = prismProcessing?.analysis_field;
+  const prismFieldAvailable = Boolean(
+    item?.modality === 'UWF'
+      && item.image_url
+      && item.lesion?.model_id === 'prism-dr-5fold'
+      && item.lesion.modality === 'UWF'
+      && item.lesion.provenance?.image_sha256 === prismProcessing?.input_image_sha256
+      && prismProcessing?.processing_mode === 'PREPARED'
+      && prismProcessing.fov_used_for_model_input
+      && prismField?.status === 'READY'
+      && prismField.used_for_model_input
+      && prismField.image_width === item.width
+      && prismField.image_height === item.height
+      && prismField.source_rgb_sha256.length === 64
+      && prismField.mask_sha256.length === 64
+      && Boolean(prismField.field_mask_png_base64)
+      && prismField.boundary.length >= 3,
+  );
+  const prismMaskImageUrl = prismFieldAvailable && prismField?.field_mask_png_base64
+    ? `data:image/png;base64,${prismField.field_mask_png_base64}`
+    : undefined;
   const hasRecordedEvidence = Boolean(item?.global || item?.lesion);
+  const aiReady = analysisAllowed && !analysisError;
+  const prismUwfResult = item?.modality === 'UWF' && item.lesion?.model_id === 'prism-dr-5fold';
   const comparisonIdentityResolved = Boolean(
     item?.patient_resolution_state === 'RESOLVED'
       && item.patient_key
@@ -483,6 +522,8 @@ export function ReviewPage() {
         && candidate.patient_key === item.patient_key
         && candidate.laterality_resolution_state === 'RESOLVED'
         && candidate.laterality === item.laterality
+        && candidate.modality === item.modality
+        && candidate.visit_context?.capture_sequence !== null
       )));
     } catch (err) {
       setComparisonError(errorText(err));
@@ -504,6 +545,50 @@ export function ReviewPage() {
       setComparisonLoading(false);
     }
   };
+
+  const runAutomaticComparison = async () => {
+    if (!item) return;
+    setComparisonLoading(true);
+    setComparisonError(null);
+    try {
+      setComparison(await apiJson<ComparisonResponse>(`/v1/cases/${encodeURIComponent(item.image_id)}/comparison`));
+    } catch (err) {
+      setComparisonError(errorText(err));
+      setComparison(null);
+    } finally {
+      setComparisonLoading(false);
+    }
+  };
+
+  // Pairing is automatic for a verified longitudinal case. The clinician can
+  // still open the panel and choose an explicit alternate pair when needed;
+  // this request only locates the safe immediate-prior exam and never infers
+  // progression or pixel correspondence.
+  useEffect(() => {
+    if (!item || !comparisonIdentityResolved) {
+      setComparison(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setComparisonLoading(true);
+    setComparisonError(null);
+    void apiJson<ComparisonResponse>(`/v1/cases/${encodeURIComponent(item.image_id)}/comparison`)
+      .then((result) => {
+        if (cancelled) return;
+        setComparison(result);
+        if (result.eligible) setComparisonOpen(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setComparisonError(errorText(err));
+        setComparison(null);
+      })
+      .finally(() => {
+        if (!cancelled) setComparisonLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [comparisonIdentityResolved, item?.image_id, item?.revision]);
+
   const manualOnly = !hasRecordedEvidence && (
     origin === 'WORKSPACE'
       || modelUnavailable
@@ -563,7 +648,19 @@ export function ReviewPage() {
               </Text>
             </Stack>
           )}
-          {item.image_url ? <RetinalCanvas
+          {imageView === 'prism-field' && prismFieldAvailable && prismMaskImageUrl ? (
+            <PrismAnalysisFieldOverlay
+              imageUrl={item.image_url!}
+              imageWidth={prismField!.image_width}
+              imageHeight={prismField!.image_height}
+              status="READY"
+              fieldMaskImageUrl={prismMaskImageUrl}
+              maskSha256={prismField!.mask_sha256}
+              maskVersion={prismField!.mask_version}
+              excludedFraction={prismField!.excluded_fraction}
+              boundary={prismField!.boundary}
+            />
+          ) : item.image_url ? <RetinalCanvas
             item={imageView === 'analysis-area' && analysisCandidateAvailable ? { ...item, image_url: analysisAreaUrl } : item}
             maskOverlayUrl={imageView === 'mask-overlay' && maskOverlayAvailable ? maskOverlayUrl : null}
             onMaskOverlayError={handleMaskOverlayError}
@@ -583,6 +680,7 @@ export function ReviewPage() {
               <Button size="sm" variant={imageView === 'original' ? 'solid' : 'outline'} aria-pressed={imageView === 'original'} onClick={() => setImageView('original')}>Original</Button>
               {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'analysis-area' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'analysis-area'} isDisabled={!analysisCandidateAvailable} onClick={() => setImageView('analysis-area')}>Analysis area</Button>}
               {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'mask-overlay' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'mask-overlay'} onClick={() => setImageView('mask-overlay')}>Mask preview</Button>}
+              {prismFieldAvailable && <Button size="sm" variant={imageView === 'prism-field' ? 'solid' : 'outline'} aria-pressed={imageView === 'prism-field'} onClick={() => setImageView('prism-field')}>PRISM analysis field</Button>}
               <Button size="sm" variant={imageView === 'ai-evidence' ? 'solid' : 'outline'} aria-pressed={imageView === 'ai-evidence'} isDisabled={item.spatial_ai_display?.status !== 'AVAILABLE' || (!item.global && !item.lesion)} onClick={() => setImageView('ai-evidence')}>AI evidence</Button>
               <Button size="sm" variant={imageView === 'explainability' ? 'solid' : 'outline'} aria-pressed={imageView === 'explainability'} onClick={() => setImageView('explainability')}>Explainability</Button>
             </HStack>
@@ -606,7 +704,7 @@ export function ReviewPage() {
                 <AlertIcon />
                 <Stack spacing={1}>
                   <Text fontWeight="semibold">Mask preview unavailable</Text>
-                  <Text fontSize="sm">A safe analysis mask could not be produced for this image. The original image remains available for manual review; AI processing is unavailable for this image.</Text>
+                  <Text fontSize="sm">A mask preview is unavailable. The original image remains available; PRISM may still attempt inference using its fallback path.</Text>
                   <Button alignSelf="flex-start" size="sm" variant="outline" onClick={() => setImageView('original')}>Continue with original</Button>
                 </Stack>
               </Alert>
@@ -630,10 +728,11 @@ export function ReviewPage() {
         <Stack spacing={5} minW={0}>
           {manualOnly ? (
             <Section title="AI assistance" description="Model evidence is optional; manual review remains available.">
+              <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone="warning">AI UNAVAILABLE</StatusBadge></HStack>
               <Alert status="info" variant="subtle">
                 <AlertIcon />
                 <Stack spacing={1}>
-                  <Text fontWeight="semibold">{item.modality === 'UWF' ? 'No ready UWF grading capability is connected.' : item.modality === 'UNKNOWN' ? 'Confirm the image type before using model assistance.' : 'Model assistance is unavailable.'}</Text>
+                  <Text fontWeight="semibold">{item.modality === 'UWF' ? 'No ready UWF model capability is connected.' : item.modality === 'UNKNOWN' ? 'Confirm the image type before using model assistance.' : 'Model assistance is unavailable.'}</Text>
                   <Text fontSize="sm">Manual review remains available. No unqualified model result is shown.</Text>
                 </Stack>
               </Alert>
@@ -645,6 +744,8 @@ export function ReviewPage() {
                 description="Optional model evidence; manual review remains available."
                 action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
               >
+                <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiReady ? 'AI READY' : 'AI UNAVAILABLE'}</StatusBadge></HStack>
+                {prismUwfResult && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">Experimental PRISM UWF lesion assistance; not validated for UWF. Human review remains authoritative.</Text></Alert>}
                 {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
                 {modelUnavailable && hasRecordedEvidence && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">New analysis is unavailable. Recorded model evidence remains visible with its provenance and warnings.</Text></Alert>}
                 {analysisError && <Alert status="error"><AlertIcon /><Stack spacing={2}><Text>{analysisError}</Text><Button size="sm" variant="outline" onClick={() => void analyze()}>Retry</Button></Stack></Alert>}
@@ -664,7 +765,7 @@ export function ReviewPage() {
                 {!analysisError && !analyzing && item.modality === 'CFP' && admissionReady && (
                   item.global || item.lesion ? <Text fontSize="sm" color="text.secondary">Actual returned results are shown below.</Text> : (
                     <HStack spacing={2}>
-                      <StatusBadge tone="success">Ready for analysis</StatusBadge>
+                      <StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiReady ? 'AI READY' : 'AI UNAVAILABLE'}</StatusBadge>
                       <Text fontSize="sm" color="text.secondary">Not analyzed</Text>
                     </HStack>
                   )
@@ -682,8 +783,8 @@ export function ReviewPage() {
       </Grid>
       <Box mt={5}>
         <Section
-          title="Compare resolved visit"
-          description="Optional side-by-side review for the same explicitly resolved patient and eye."
+          title="Previous exam comparison"
+          description="Automatic same-patient, same-eye comparison uses verified private linkage and sequence metadata."
           action={<Button size="sm" variant="ghost" rightIcon={comparisonOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} aria-expanded={comparisonOpen} aria-controls="comparison-panel" onClick={() => { const next = !comparisonOpen; setComparisonOpen(next); if (next) void loadComparisonCases(); }}>{comparisonOpen ? 'Hide comparison' : 'Show comparison'}</Button>}
         >
           <Collapse in={comparisonOpen} animateOpacity>
@@ -692,6 +793,10 @@ export function ReviewPage() {
                 <Text fontSize="sm" color="text.secondary">Comparison is unavailable until patient and eye are explicitly resolved.</Text>
               ) : (
                 <>
+                  <HStack flexWrap="wrap" spacing={3}>
+                    <Button size="sm" variant="solid" onClick={() => void runAutomaticComparison()} isLoading={comparisonLoading}>Find previous exam</Button>
+                    <Text fontSize="xs" color="text.secondary">Current: {item.laterality} · {item.modality} · exam {item.visit_context?.capture_sequence ?? 'unverified'}</Text>
+                  </HStack>
                   <HStack align="end" flexWrap="wrap" spacing={3}>
                     <Select aria-label="Comparison visit" maxW="360px" value={comparisonCaseId} onChange={(event) => setComparisonCaseId(event.target.value)}>
                       <option value="">Choose another resolved visit</option>
@@ -703,25 +808,47 @@ export function ReviewPage() {
                   {comparison && !comparison.eligible && <Alert status="warning"><AlertIcon /><Text fontSize="sm">This pair is not eligible for side-by-side review.</Text></Alert>}
                   {comparison?.eligible && comparison.visits && (
                     <Grid templateColumns={{ base: '1fr', tablet: '1fr 1fr' }} gap={3}>
-                      {comparison.visits.map((visit) => <Box key={visit.image_id} borderWidth="1px" borderColor="border.subtle" p={3}>
-                        <Text fontWeight="semibold">{visit.label}</Text>
-                        <Text fontSize="sm" color="text.secondary">{visit.display_name}</Text>
-                        {visit.image_url ? (
-                          <Image
-                            src={visit.image_url}
-                            alt={`${visit.label} retinal image`}
-                            width="100%"
-                            maxH="260px"
-                            objectFit="contain"
-                            bg="surface.subtle"
-                            mt={2}
-                          />
-                        ) : (
-                          <Text mt={2} fontSize="sm" color="text.secondary">Retinal image unavailable.</Text>
-                        )}
-                        <Text mt={2} fontSize="sm">Grade: {visit.grade_status === 'CONFIRMED' && visit.grade != null ? drGradeLabel(visit.grade) : 'Not confirmed'}</Text>
-                        <Text fontSize="sm">Findings: {visit.findings_reviewed ? 'Reviewed' : 'Not confirmed'}</Text>
-                      </Box>)}
+                      {comparison.visits.map((visit) => {
+                        const nativeBbox = visit.prism_processing?.native_roi_bbox;
+                        const comparisonViewerItem: CaseRecord = {
+                          ...item,
+                          image_id: visit.image_id,
+                          display_name: visit.display_name ?? visit.image_id,
+                          image_url: visit.image_url ?? null,
+                          width: visit.width ?? item.width,
+                          height: visit.height ?? item.height,
+                          modality: (visit.modality ?? item.modality) as CaseRecord['modality'],
+                          laterality: (visit.laterality ?? item.laterality) as CaseRecord['laterality'],
+                          global: null,
+                          lesion: visit.lesion ?? null,
+                          prism_processing: visit.prism_processing ?? null,
+                        };
+                        return (
+                          <Box key={visit.image_id} borderWidth="1px" borderColor="border.subtle" p={3}>
+                            <Text fontWeight="semibold">{visit.label}</Text>
+                            <Text fontSize="sm" color="text.secondary">{visit.display_name}</Text>
+                            <Text fontSize="xs" color="text.secondary">{visit.laterality ?? 'Unknown eye'} · {visit.modality ?? 'Unknown modality'} · exam {visit.visit_context?.capture_sequence ?? 'unverified'}</Text>
+                            {visit.image_url ? (
+                              <RetinalCanvas
+                                item={comparisonViewerItem}
+                                showAi={Boolean(visit.lesion)}
+                                showHuman={false}
+                                renderInStage={nativeBbox ? () => {
+                                  const [x1, y1, x2, y2] = nativeBbox;
+                                  return <rect x={x1} y={y1} width={x2 - x1} height={y2 - y1} fill="none" stroke="#F59E0B" strokeWidth={Math.max(3, (x2 - x1) / 180)} strokeDasharray="14 8" vectorEffect="non-scaling-stroke"><title>Actual native PRISM ROI bounding box; not an anatomical segmentation mask.</title></rect>;
+                                } : undefined}
+                              />
+                            ) : (
+                              <Text mt={2} fontSize="sm" color="text.secondary">Retinal image unavailable.</Text>
+                            )}
+                            <Text mt={2} fontSize="xs" color="text.secondary">Native PRISM ROI: {visit.prism_processing ? `${visit.prism_processing.native_roi_status.toLowerCase()}${nativeBbox ? ' · bounding box shown' : ''}` : 'Not recorded for this examination'}. A bounding box is not a verified retinal FOV mask.</Text>
+                            <Text mt={2} fontSize="sm">Grade: {visit.grade_status === 'CONFIRMED' && visit.grade != null ? drGradeLabel(visit.grade) : 'Not confirmed'}</Text>
+                            <Text fontSize="sm">Findings: {visit.findings_reviewed ? 'Reviewed' : 'Not confirmed'}</Text>
+                            <Text fontSize="sm">PRISM processing: {visit.prism_processing ? `${visit.prism_processing.processing_mode} · native ROI ${visit.prism_processing.native_roi_status.toLowerCase()}` : 'Unavailable'}</Text>
+                            <Text fontSize="sm">Lesion suggestions: {visit.lesion?.lesions.length ?? 'Unavailable'}</Text>
+                          </Box>
+                        );
+                      })}
                     </Grid>
                   )}
                   {comparison?.eligible && <Text fontSize="xs" color="text.secondary">{comparison.limitation}</Text>}
@@ -766,6 +893,7 @@ export function ReviewPage() {
                   </Stack>
                 </Box>
               </Stack>
+              {item.prism_processing && <Stack spacing={1} mb={4}><Text color="text.secondary">PRISM processing mode</Text><Text>{item.prism_processing.processing_mode}</Text>{item.prism_processing.processing_mode === 'FALLBACK' && <Text fontSize="sm">Fallback processing used</Text>}{item.prism_processing.processing_mode === 'PREPARED' && <Text fontSize="sm">Trusted external field evidence was used for PRISM model input.</Text>}</Stack>}
               <SimpleGrid columns={{ base: 1, tablet: 2, laptop: 4 }} spacing={3} fontSize="sm">
                 <Stack spacing={1}><Text color="text.secondary">Source origin</Text><Text>{sourceOriginLabel(item.source_origin)}</Text></Stack>
                 <Stack spacing={1}><Text color="text.secondary">Visit / capture</Text><Text>{item.visit_context?.visit_key ?? 'Unknown'}{item.visit_context?.captured_at ? ` · ${item.visit_context.captured_at}` : ''}</Text></Stack>

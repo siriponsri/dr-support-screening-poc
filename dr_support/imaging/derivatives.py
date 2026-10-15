@@ -36,7 +36,9 @@ ANALYSIS_SOURCE_TRANSFORM = "analysis-source-v1"
 ANALYSIS_TIFF_PNG_TRANSFORM = "analysis-tiff-png-rgb-v1"
 ANALYSIS_DICOM_PNG_TRANSFORM = "analysis-dicom-png-rgb-v1"
 ANALYSIS_UWF_MASK_TRANSFORM = "analysis-uwf-retinal-mask-v1"
+ANALYSIS_UWF_SOURCE_TRANSFORM = "analysis-uwf-unmasked-source-v1"
 ANALYSIS_REPRESENTATION_VERSION = "uwf-analysis-representation-v1"
+ANALYSIS_UWF_SOURCE_REPRESENTATION_VERSION = "uwf-source-analysis-v1"
 MASK_OVERLAY_REPRESENTATION_VERSION = "uwf-mask-overlay-v1"
 ORIGINAL_COORDINATE_SPACE = "original_image_pixels"
 ANALYSIS_COORDINATE_SPACE = "analysis_pixels"
@@ -152,7 +154,11 @@ class PreparedDerivative:
         if self.lineage.purpose is DerivativePurpose.ANALYSIS:
             record["analysis_sha256"] = self.lineage.derivative_sha256
             record["transform_version"] = 1
-            record["representation_version"] = ANALYSIS_REPRESENTATION_VERSION
+            record["representation_version"] = (
+                ANALYSIS_UWF_SOURCE_REPRESENTATION_VERSION
+                if self.lineage.transform_id == ANALYSIS_UWF_SOURCE_TRANSFORM
+                else ANALYSIS_REPRESENTATION_VERSION
+            )
             record["analysis_coordinate_space"] = ANALYSIS_COORDINATE_SPACE
             record["original_coordinate_space"] = ORIGINAL_COORDINATE_SPACE
             record["spatial_mapping_version"] = "analysis-to-original-v1"
@@ -184,17 +190,28 @@ class DerivativeService:
     """Cache deterministic representations by source identity and transform."""
 
     def __init__(self) -> None:
-        self._cache: dict[tuple[str, DerivativePurpose, str, str], PreparedDerivative] = {}
+        self._cache: dict[tuple[str, DerivativePurpose, str, str, bool], PreparedDerivative] = {}
 
     def prepare_display(self, image: BridgeImage) -> PreparedDerivative:
         return self._prepare(image, DerivativePurpose.DISPLAY)
 
-    def prepare_analysis(self, image: BridgeImage, *, source_modality: str | None = None) -> PreparedDerivative:
-        return self._prepare(image, DerivativePurpose.ANALYSIS, source_modality=source_modality)
+    def prepare_analysis(
+        self, image: BridgeImage, *, source_modality: str | None = None,
+        apply_uwf_mask: bool = True,
+    ) -> PreparedDerivative:
+        return self._prepare(
+            image, DerivativePurpose.ANALYSIS, source_modality=source_modality,
+            apply_uwf_mask=apply_uwf_mask,
+        )
 
-    def analysis_image(self, image: BridgeImage, *, source_modality: str | None = None) -> tuple[BridgeImage, PreparedDerivative]:
+    def analysis_image(
+        self, image: BridgeImage, *, source_modality: str | None = None,
+        apply_uwf_mask: bool = True,
+    ) -> tuple[BridgeImage, PreparedDerivative]:
         modality = source_modality or image.modality
-        prepared = self.prepare_analysis(image, source_modality=modality)
+        prepared = self.prepare_analysis(
+            image, source_modality=modality, apply_uwf_mask=apply_uwf_mask,
+        )
         return (
             BridgeImage(
                 image_id=image.image_id,
@@ -225,13 +242,18 @@ class DerivativeService:
         except Exception as exc:
             raise DerivativeError("UWF retinal-field inspection failed") from exc
 
-    def _prepare(self, image: BridgeImage, purpose: DerivativePurpose, *, source_modality: str | None = None) -> PreparedDerivative:
+    def _prepare(
+        self, image: BridgeImage, purpose: DerivativePurpose, *,
+        source_modality: str | None = None, apply_uwf_mask: bool = True,
+    ) -> PreparedDerivative:
         source_sha256 = image.sha256
         modality = source_modality or image.modality
         source_origin = _resolved_source_origin(image)
         if purpose is DerivativePurpose.ANALYSIS and modality == "UNKNOWN":
             raise DerivativeError("Image type must be confirmed before analysis preparation")
-        key = (source_sha256, purpose, modality, source_origin)
+        if apply_uwf_mask is False and (purpose is not DerivativePurpose.ANALYSIS or modality != "UWF"):
+            raise DerivativeError("Unmasked source analysis is reserved for UWF inference")
+        key = (source_sha256, purpose, modality, source_origin, apply_uwf_mask)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -248,7 +270,7 @@ class DerivativeService:
         mask_sha = None
         valid_fraction = None
         field_status = "NOT_APPLICABLE"
-        if purpose is DerivativePurpose.ANALYSIS and modality == "UWF":
+        if purpose is DerivativePurpose.ANALYSIS and modality == "UWF" and apply_uwf_mask:
             try:
                 inspection = self.inspect_analysis_mask(image, source_modality=modality)
                 if inspection.reason_code or inspection.mask is None or inspection.mask_sha256 is None:
@@ -284,27 +306,42 @@ class DerivativeService:
             output_format = source.source_format
             transform_id = (
                 DISPLAY_SOURCE_TRANSFORM if purpose is DerivativePurpose.DISPLAY
+                else ANALYSIS_UWF_SOURCE_TRANSFORM if modality == "UWF" and not apply_uwf_mask
                 else ANALYSIS_SOURCE_TRANSFORM
             )
-            description = "Original browser/model-compatible source bytes reused"
+            description = (
+                "Original UWF source bytes reused without an external retinal-field mask; provider-owned preprocessing"
+                if modality == "UWF" and not apply_uwf_mask
+                else "Original browser/model-compatible source bytes reused"
+            )
         elif source.source_format == "TIFF":
             data = _tiff_to_png(image.data)
             media_type = "image/png"
             output_format = "PNG"
             transform_id = (
                 DISPLAY_TIFF_PNG_TRANSFORM if purpose is DerivativePurpose.DISPLAY
+                else ANALYSIS_UWF_SOURCE_TRANSFORM if modality == "UWF" and not apply_uwf_mask
                 else ANALYSIS_TIFF_PNG_TRANSFORM
             )
-            description = "Deterministic TIFF decode and RGB PNG representation; source bytes unchanged"
+            description = (
+                "Deterministic source RGB PNG decode without an external UWF retinal-field mask; provider-owned preprocessing"
+                if modality == "UWF" and not apply_uwf_mask
+                else "Deterministic TIFF decode and RGB PNG representation; source bytes unchanged"
+            )
         elif source.source_format == "DICOM":
             data = _dicom_to_png(image.data)
             media_type = "image/png"
             output_format = "PNG"
             transform_id = (
                 DISPLAY_DICOM_PNG_TRANSFORM if purpose is DerivativePurpose.DISPLAY
+                else ANALYSIS_UWF_SOURCE_TRANSFORM if modality == "UWF" and not apply_uwf_mask
                 else ANALYSIS_DICOM_PNG_TRANSFORM
             )
-            description = "Deterministic DICOM pixel decode and RGB PNG representation; source bytes unchanged"
+            description = (
+                "Deterministic source RGB PNG decode without an external UWF retinal-field mask; provider-owned preprocessing"
+                if modality == "UWF" and not apply_uwf_mask
+                else "Deterministic DICOM pixel decode and RGB PNG representation; source bytes unchanged"
+            )
         else:
             raise DerivativeError("This image format has no validated delivery representation")
 

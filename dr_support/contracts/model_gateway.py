@@ -57,6 +57,14 @@ class ModelConnectionModel(Contract):
     revision: str | None = None
     preprocessing: str | None = None
     release_status: str | None = None
+    trained_domain: str | None = None
+    uwf_use: str | None = None
+    domain_status: str | None = None
+    clinical_validation_status: str | None = None
+    rights_status: str | None = None
+    production_authorization: str | None = None
+    runtime_qualification: str | None = None
+    warnings: list[str] = Field(default_factory=list)
 
 
 class ModelConnectionResponse(Contract):

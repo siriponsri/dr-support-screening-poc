@@ -1,4 +1,4 @@
-from dr_support.comparison import compare_cases
+from dr_support.comparison import compare_cases, resolve_previous_case
 
 
 def case(image_id: str, *, patient: str | None = "PATIENT-1", eye: str = "LEFT", patient_state: str = "RESOLVED", eye_state: str = "RESOLVED"):
@@ -18,11 +18,11 @@ def case(image_id: str, *, patient: str | None = "PATIENT-1", eye: str = "LEFT",
     }
 
 
-def test_comparison_uses_neutral_visits_without_chronology_or_progression():
+def test_comparison_labels_previous_and_current_without_progression_claims():
     result = compare_cases(case("one"), case("two"))
 
     assert result["eligible"] is True
-    assert [visit["label"] for visit in result["visits"]] == ["Visit 1", "Visit 2"]
+    assert [visit["label"] for visit in result["visits"]] == ["PREVIOUS EXAM", "CURRENT EXAM"]
     assert result["chronology"] == "UNKNOWN"
     assert "progression" in result["limitation"]
     assert result["visits"][0]["grade"] == 2
@@ -34,3 +34,31 @@ def test_comparison_rejects_unknown_or_conflicting_identity():
     assert compare_cases(case("one"), case("two", patient="PATIENT-2"))["reason"] == "PATIENT_MISMATCH"
     assert compare_cases(case("one"), case("two", eye="RIGHT"))["reason"] == "EYE_MISMATCH"
     assert compare_cases(case("one", eye="UNKNOWN"), case("two", eye="UNKNOWN"))["reason"] == "IDENTITY_NOT_EXPLICITLY_RESOLVED"
+
+
+def test_previous_exam_requires_same_eye_modality_and_immediate_sequence():
+    current = case("current") | {
+        "modality": "UWF",
+        "visit_context": {"capture_sequence": 2},
+    }
+    previous = case("previous") | {
+        "modality": "UWF",
+        "visit_context": {"capture_sequence": 1},
+    }
+    wrong_eye = case("wrong-eye", eye="RIGHT") | {
+        "modality": "UWF",
+        "visit_context": {"capture_sequence": 1},
+    }
+    wrong_modality = case("wrong-modality") | {
+        "modality": "CFP",
+        "visit_context": {"capture_sequence": 1},
+    }
+    assert resolve_previous_case(current, [previous, wrong_eye, wrong_modality]) is previous
+    assert resolve_previous_case(current, [wrong_eye]) is None
+
+
+def test_previous_exam_rejects_duplicate_sequence():
+    current = case("current") | {"modality": "UWF", "visit_context": {"capture_sequence": 2}}
+    one = case("one") | {"modality": "UWF", "visit_context": {"capture_sequence": 1}}
+    two = case("two") | {"modality": "UWF", "visit_context": {"capture_sequence": 1}}
+    assert resolve_previous_case(current, [one, two]) == {"reason": "AMBIGUOUS_PREVIOUS_EXAM"}

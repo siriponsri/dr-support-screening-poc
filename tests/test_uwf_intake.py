@@ -272,6 +272,12 @@ def test_corrected_source_type_supersedes_cfp_evidence_without_losing_human_revi
     assert manual.json()["grade_review_source"] == "MANUAL"
 
 
-def test_current_providers_advertise_only_cfp():
-    assert RETFound(allow_cpu_fallback=True).metadata()["modalities"] == ["CFP"]
-    assert PRISM(allow_cpu_fallback=True).metadata()["modalities"] == ["CFP"]
+def test_current_provider_domains_are_advertised_truthfully():
+    retfound = RETFound(allow_cpu_fallback=True).metadata()
+    prism = PRISM(allow_cpu_fallback=True).metadata()
+
+    assert retfound["modalities"] == ["CFP"]
+    assert prism["modalities"] == ["CFP", "UWF"]
+    assert prism["trained_domain"] == "CFP"
+    assert prism["uwf_use"] == "EXPERIMENTAL"
+    assert prism["clinical_validation_status"] == "NOT_VALIDATED_FOR_UWF"

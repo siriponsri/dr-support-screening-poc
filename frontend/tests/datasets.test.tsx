@@ -70,6 +70,7 @@ describe('Datasets page', () => {
     expect(await screen.findByText('April DR Screening')).toBeInTheDocument();
     expect(screen.getByText('ready.png')).toBeInTheDocument();
     expect(screen.getByText('review.png')).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Approved hospital' })).toBeInTheDocument();
     expect(screen.queryByText('Datasets (reserved)')).not.toBeInTheDocument();
     expect(screen.getByRole('tablist', { name: 'Workspace Data views' })).toHaveStyle({
       maxWidth: '100%',
@@ -112,8 +113,8 @@ describe('Datasets page', () => {
     withProviders(<DatasetsPage />, '/datasets');
 
     const row = (await screen.findByText('ready.png')).closest('tr');
-    expect(row).toHaveTextContent('UNKNOWN');
-    expect(row).not.toHaveTextContent('PUBLIC');
+    expect(row).toHaveTextContent('Not recorded');
+    expect(row).not.toHaveTextContent('Public source');
   });
 
   it('uses the bounded Workspace Data API and opens record audit details', async () => {

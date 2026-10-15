@@ -28,6 +28,8 @@ from .model_gateway import (
 )
 from .phase3 import (
     Phase3Explanation,
+    PrismAnalysisFieldEvidence,
+    PrismProcessingEvidence,
     Phase3InputContext,
     Phase3ModelIdentity,
     Phase3PredictRequest,
@@ -57,6 +59,8 @@ __all__ = [
     'ModelConnectionModel',
     'ModelConnectionResponse',
     'Phase3Explanation',
+    'PrismAnalysisFieldEvidence',
+    'PrismProcessingEvidence',
     'Phase3InputContext',
     'Phase3ModelIdentity',
     'Phase3PredictRequest',

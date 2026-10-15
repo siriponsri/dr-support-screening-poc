@@ -18,7 +18,7 @@ class InferenceRequest(Contract):
 
 class Provenance(Contract):
     image_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
-    source_type: Literal['PUBLIC', 'SYNTHETIC']
+    source_type: Literal['PUBLIC', 'SYNTHETIC', 'HOSPITAL_AUTHORIZED']
     preprocessing: str
     checkpoint_sha256: dict[str, str] = Field(default_factory=dict)
     source_revision: str

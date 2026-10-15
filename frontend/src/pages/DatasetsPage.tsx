@@ -62,6 +62,22 @@ function annotationSummary(row: DatasetImageRow): string {
   return parts.length ? parts.join(' / ') : 'No lesion records';
 }
 
+function sourceOriginLabel(sourceOrigin: DatasetImageRow['source_origin']): string {
+  if (sourceOrigin === 'PUBLIC') return 'Public source';
+  if (sourceOrigin === 'SYNTHETIC') return 'Synthetic fixture';
+  if (sourceOrigin === 'WORKSPACE') return 'Workspace input';
+  if (sourceOrigin === 'HOSPITAL_AUTHORIZED') return 'Approved hospital source';
+  if (sourceOrigin === 'UNKNOWN') return 'Not recorded';
+  return 'Not recorded';
+}
+
+function exportAuthorizationLabel(authorization?: string): string {
+  if (authorization === 'BLOCKED_HOSPITAL_EXPORT_NOT_AUTHORIZED') return 'Hospital export restricted';
+  if (authorization === 'BLOCKED_WORKSPACE_NOT_AUTHORIZED') return 'Workspace export restricted';
+  if (authorization?.startsWith('BLOCKED_')) return 'Export restricted';
+  return authorization?.startsWith('ALLOWED_') ? 'Engineering export allowed' : 'Export status unavailable';
+}
+
 function readinessLabel(row: DatasetImageRow, kind: 'dr' | 'lesion'): string {
   if (kind === 'dr') return (row.dr_grade_training_ready ?? row.include_in_training) ? `Ready${row.clinician_grade === null ? '' : ` - ${drGradeLabel(row.clinician_grade)}`}` : (row.grade_eligibility_reason ?? 'Needs review').replace(/_/g, ' ');
   if (row.lesion_positive_training_ready ?? false) return 'Positive labels ready';
@@ -84,7 +100,7 @@ function WorkspaceDataTable({ records, onSelect }: { records: DatasetImageRow[];
             <Td><StatusBadge tone={(row.dr_grade_training_ready ?? row.include_in_training) ? 'success' : 'warning'}>{readinessLabel(row, 'dr')}</StatusBadge></Td>
             <Td><Stack spacing={1} fontSize="xs"><Text>{annotationSummary(row)}</Text><Text color="text.secondary">{readinessLabel(row, 'lesion')}</Text></Stack></Td>
             <Td><Stack spacing={0.5} fontSize="xs"><Text>{row.core_completeness_state?.replace(/_/g, ' ') ?? 'Core not reviewed'}</Text><Text color="text.secondary">Advanced: {row.advanced_completeness_state?.replace(/_/g, ' ') ?? 'Not reviewed'}</Text></Stack></Td>
-            <Td><Stack spacing={0.5} fontSize="xs"><Text>{row.source_origin ?? 'UNKNOWN'}{row.source_available === false ? ' - source unavailable' : ''}</Text><Text color={row.export_authorization?.startsWith('BLOCKED_') ? 'status.warning' : 'text.secondary'}>{row.export_authorization?.replace(/_/g, ' ')}</Text></Stack></Td>
+            <Td><Stack spacing={0.5} fontSize="xs"><Text>{sourceOriginLabel(row.source_origin)}{row.source_available === false ? ' - source unavailable' : ''}</Text><Text color={row.export_authorization?.startsWith('BLOCKED_') ? 'status.warning' : 'text.secondary'}>{exportAuthorizationLabel(row.export_authorization)}</Text></Stack></Td>
             <Td><Button size="xs" variant="outline" leftIcon={<Eye size={13} />} onClick={() => onSelect(row.image_id)}>Details</Button></Td>
           </Tr>
         ))}</Tbody>
@@ -100,14 +116,14 @@ function DetailModal({ detail, onClose }: { detail: WorkspaceDataDetail | null; 
         <ModalHeader>{detail?.record.filename ?? 'Workspace record'}</ModalHeader><ModalCloseButton />
         <ModalBody pb={6}>
           {detail && <Stack spacing={4}>
-            <Stack spacing={1}><Text fontSize="sm" color="text.secondary">Case ID</Text><Code>{detail.record.image_id}</Code><Text fontSize="sm">Revision {detail.record.case_revision ?? 0} / {detail.record.source_origin ?? 'UNKNOWN'} / {detail.record.source_available === false ? 'Source unavailable' : 'Source available'}</Text></Stack>
+            <Stack spacing={1}><Text fontSize="sm" color="text.secondary">Case ID</Text><Code>{detail.record.image_id}</Code><Text fontSize="sm">Revision {detail.record.case_revision ?? 0} / {sourceOriginLabel(detail.record.source_origin)} / {detail.record.source_available === false ? 'Source unavailable' : 'Source available'}</Text></Stack>
             <Tabs variant="line" isLazy>
               <TabList><Tab>Review</Tab><Tab>Processing</Tab><Tab>AI evidence</Tab><Tab>Eligibility</Tab></TabList>
               <TabPanels>
                 <TabPanel px={0}><Stack spacing={3}>{detail.completeness.map((item) => <Box key={item.group} borderWidth="1px" borderColor="border.subtle" p={3}><Text fontWeight="semibold">{item.group}</Text><Text fontSize="sm">{item.state.replace(/_/g, ' ')}</Text><Text fontSize="xs" color="text.secondary">{item.reviewer ?? 'No reviewer recorded'}{item.timestamp ? ` / ${item.timestamp}` : ''}</Text>{item.state === 'REVIEWED_NONE_FOUND' && <Text fontSize="xs" color="status.warning">Training negative: not authorized by current policy.</Text>}</Box>)}</Stack></TabPanel>
                 <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>Status: {String(detail.processing.status ?? 'UNAVAILABLE')}</Text><Text>Source SHA-256: {String(detail.processing.source_sha256 ?? 'Unavailable')}</Text><Text>Analysis SHA-256: {String(detail.processing.analysis_sha256 ?? 'Unavailable')}</Text><Text>Representation: {String(detail.processing.representation_version ?? 'Unavailable')}</Text><Text color="text.secondary">Processing details are recorded evidence only; Phase 4 does not recompute model results.</Text></Stack></TabPanel>
                 <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>Status: {detail.explainability.status}</Text><Text>Evidence identity: {detail.explainability.evidence_identity ?? 'Unavailable'}</Text><Text>AI evidence items: {detail.ai_evidence_counts.items} / unresolved {detail.ai_evidence_counts.unresolved}</Text><Text color="text.secondary">AI evidence is separate from gold labels and does not establish clinical accuracy.</Text></Stack></TabPanel>
-                <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>DR: {readinessLabel(detail.record, 'dr')}</Text><Text>Lesion-positive: {readinessLabel(detail.record, 'lesion')}</Text><Text>Gold DR rows: {detail.gold_label_counts.dr_grade}</Text><Text>Gold lesion rows: {detail.gold_label_counts.lesion_positive}</Text><Text>Training negatives: not authorized</Text><Text>Source authorization: {detail.record.export_authorization?.replace(/_/g, ' ')}</Text></Stack></TabPanel>
+                <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>DR: {readinessLabel(detail.record, 'dr')}</Text><Text>Lesion-positive: {readinessLabel(detail.record, 'lesion')}</Text><Text>Gold DR rows: {detail.gold_label_counts.dr_grade}</Text><Text>Gold lesion rows: {detail.gold_label_counts.lesion_positive}</Text><Text>Training negatives: not authorized</Text><Text>Source authorization: {exportAuthorizationLabel(detail.record.export_authorization)}</Text></Stack></TabPanel>
               </TabPanels>
             </Tabs>
           </Stack>}
@@ -235,7 +251,7 @@ export function DatasetsPage() {
             <HStack spacing={3} flexWrap="wrap" align="end">
               <FormControl maxW="220px"><FormLabel htmlFor="workspace-data-search" fontSize="sm">Case search</FormLabel><HStack><Input id="workspace-data-search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="ID or filename" /><Search size={16} /></HStack></FormControl>
               <FormControl maxW="150px"><FormLabel htmlFor="workspace-data-laterality" fontSize="sm">Eye</FormLabel><Select id="workspace-data-laterality" value={laterality} onChange={(event) => { setLaterality(event.target.value); setPage(1); }}><option value="">All eyes</option><option value="LEFT">Left</option><option value="RIGHT">Right</option><option value="UNKNOWN">Unknown</option></Select></FormControl>
-              <FormControl maxW="170px"><FormLabel htmlFor="workspace-data-origin" fontSize="sm">Source origin</FormLabel><Select id="workspace-data-origin" value={sourceOrigin} onChange={(event) => { setSourceOrigin(event.target.value); setPage(1); }}><option value="">All origins</option><option value="SYNTHETIC">Synthetic</option><option value="PUBLIC">Public</option><option value="WORKSPACE">Workspace</option><option value="UNKNOWN">Unknown</option></Select></FormControl>
+              <FormControl maxW="170px"><FormLabel htmlFor="workspace-data-origin" fontSize="sm">Source origin</FormLabel><Select id="workspace-data-origin" value={sourceOrigin} onChange={(event) => { setSourceOrigin(event.target.value); setPage(1); }}><option value="">All origins</option><option value="SYNTHETIC">Synthetic</option><option value="PUBLIC">Public</option><option value="WORKSPACE">Workspace</option><option value="HOSPITAL_AUTHORIZED">Approved hospital</option><option value="UNKNOWN">Unknown</option></Select></FormControl>
             </HStack>
             <Tabs index={['all', 'dr-ready', 'lesion-positive-ready', 'needs-review', 'excluded'].indexOf(filter)} onChange={(index) => { setFilter(['all', 'dr-ready', 'lesion-positive-ready', 'needs-review', 'excluded'][index] as DatasetFilter); setPage(1); }} variant="line" isLazy>
               <TabList aria-label="Workspace Data views" maxW="100%" minW={0} overflowX="auto" whiteSpace="nowrap">

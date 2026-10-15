@@ -13,12 +13,13 @@ from fastapi.testclient import TestClient
 
 from dr_support.api import create_app
 from dr_support.contracts import GlobalResult, InferenceRequest
-from dr_support.images import synthetic_image
+from dr_support.images import BridgeImage, synthetic_image
 from dr_support.providers.remote import (
     RemoteGlobalProvider,
     RemoteHTTPError,
     RemoteLesionProvider,
     RemoteModelProvider,
+    RemoteAuthorizationError,
     RemoteNotConfiguredError,
     RemoteSchemaError,
     RemoteTimeoutError,
@@ -112,6 +113,8 @@ def _success_handler(global_body=None, lesion_body=None):
                     'checkpoint_sha256': {'retfound-remote': 'a' * 64},
                     'modalities': ['CFP'],
                     'status': 'LOADED',
+                    'release_status': 'RESEARCH_ONLY',
+                    'capability_id': 'dr_grade',
                     'warnings': ['Remote is healthy'],
                     'preprocessing': 'remote-v1',
                 },
@@ -122,6 +125,9 @@ def _success_handler(global_body=None, lesion_body=None):
                     'checkpoint_sha256': {'prism-remote': 'b' * 64},
                     'modalities': ['CFP'],
                     'status': 'LOADED',
+                    'release_status': 'RESEARCH_ONLY',
+                    'capability_id': 'core_lesion_localization',
+                    'trained_domain': 'CFP',
                     'warnings': ['Remote is healthy'],
                     'preprocessing': 'remote-v1',
                 },
@@ -173,6 +179,24 @@ def test_remote_provider_proxies_inference_payload_and_token(monkeypatch):
     assert provider.last_inference_ms is not None and provider.last_inference_ms >= 0
     assert provider.last_remote_revision == 'remote-rev-aaaa'
     assert provider.last_remote_checkpoint_sha256 == {'retfound-remote': 'a' * 64}
+
+
+def test_remote_provider_blocks_hospital_transmission_without_private_model_gate(monkeypatch):
+    monkeypatch.setenv('REMOTE_MODEL_URL', 'https://remote.test')
+    monkeypatch.delenv('MODEL_HOSPITAL_SCOPE', raising=False)
+    monkeypatch.delenv('MODEL_ALLOW_AUTHORIZED_HOSPITAL', raising=False)
+    monkeypatch.delenv('REMOTE_MODEL_TOKEN', raising=False)
+    hospital = BridgeImage(
+        'hospital-case-0001', FIXTURE_IMAGE.data, 'HOSPITAL_AUTHORIZED',
+        'HOSPITAL_AUTHORIZED/CASE-0001', modality='CFP',
+        source_origin='HOSPITAL_AUTHORIZED',
+    )
+    provider = RemoteGlobalProvider(transport=httpx.MockTransport(lambda request: httpx.Response(500)))
+    request = InferenceRequest(image_id=hospital.image_id, modality='CFP', model_id=provider.model_id)
+
+    with pytest.raises(RemoteAuthorizationError):
+        provider.infer(request, hospital)
+    assert provider.last_error == 'source origin blocked'
 
 
 def test_remote_provider_omits_authorization_when_token_unset(monkeypatch):
@@ -465,7 +489,7 @@ def test_api_rechecks_remote_health_before_inference(monkeypatch):
     assert predict_calls == []
 
 
-def test_api_does_not_promote_registry_disabled_uwf_identity(monkeypatch):
+def test_api_uses_reconciled_research_only_uwf_identity(monkeypatch):
     predict_calls = []
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -480,10 +504,18 @@ def test_api_does_not_promote_registry_disabled_uwf_identity(monkeypatch):
                 'capability_id': 'dr_grade',
                 'revision': 'r1',
                 'preprocessing': 'uwf-v1',
-                'release_status': 'QUALIFIED',
+                'release_status': 'RESEARCH_ONLY',
+                'runtime_qualification': 'ENGINEERING_QUALIFIED',
+                'rights_status': 'UNVERIFIED',
+                'clinical_validation_status': 'NOT_ESTABLISHED',
+                'production_authorization': 'NOT_AUTHORIZED',
             }])
         predict_calls.append(request.url.path)
-        return httpx.Response(200, json=SAMPLE_GLOBAL_BODY)
+        payload = json.loads(request.read())
+        result = json.loads(json.dumps(SAMPLE_GLOBAL_BODY))
+        result.update(model_id='uspec-uwf-grading', modality='UWF')
+        result['provenance']['image_sha256'] = payload['image_sha256']
+        return httpx.Response(200, json=result)
 
     app = _wire_remote_app(monkeypatch, handle)
     app.state.images[FIXTURE_IMAGE.image_id] = FIXTURE_IMAGE
@@ -496,17 +528,22 @@ def test_api_does_not_promote_registry_disabled_uwf_identity(monkeypatch):
     saved = client.put('/v1/model-connection', json={'name': 'Remote', 'url': 'https://remote.test'})
     assert saved.status_code == 200
     advertised = next(item for item in client.get('/v1/models').json() if item['model_id'] == 'uspec-uwf-grading')
-    assert advertised['release_status'] == 'DISABLED'
-    assert advertised['ready'] is False
+    assert advertised['release_status'] == 'RESEARCH_ONLY'
+    assert advertised['runtime_qualification'] == 'ENGINEERING_QUALIFIED'
+    assert advertised['rights_status'] == 'UNVERIFIED'
+    assert advertised['clinical_validation_status'] == 'NOT_ESTABLISHED'
+    assert advertised['production_authorization'] == 'NOT_AUTHORIZED'
+    assert advertised['ready'] is True
 
     response = client.post('/v1/infer/global', json={
         'image_id': FIXTURE_IMAGE.image_id,
         'model_id': 'uspec-uwf-grading',
         'modality': 'UWF',
     })
-    assert response.status_code == 409
-    assert 'manual review remains available' in response.json()['detail']
-    assert predict_calls == []
+    assert response.status_code == 200
+    assert response.json()['model_id'] == 'uspec-uwf-grading'
+    assert response.json()['modality'] == 'UWF'
+    assert predict_calls == ['/v1/predict/dr']
 
 
 def test_api_rejects_non_boolean_ready_advertisement(monkeypatch):
@@ -546,6 +583,7 @@ def test_api_returns_504_when_remote_times_out(monkeypatch):
                 'task': 'global',
                 'modalities': ['CFP'],
                 'status': 'LOADED',
+                'release_status': 'RESEARCH_ONLY',
             }])
         raise httpx.ReadTimeout('simulated', request=request)
 
@@ -569,6 +607,7 @@ def test_api_returns_502_when_remote_returns_non_2xx(monkeypatch):
                 'task': 'global',
                 'modalities': ['CFP'],
                 'status': 'LOADED',
+                'release_status': 'RESEARCH_ONLY',
             }])
         return httpx.Response(500, json={'error': 'upstream'})
 
@@ -592,6 +631,7 @@ def test_api_returns_502_when_remote_returns_malformed_payload(monkeypatch):
                 'task': 'global',
                 'modalities': ['CFP'],
                 'status': 'LOADED',
+                'release_status': 'RESEARCH_ONLY',
             }])
         return httpx.Response(200, json={'not': 'a bridge result'})
 

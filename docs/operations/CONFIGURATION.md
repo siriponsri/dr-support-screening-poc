@@ -21,7 +21,7 @@ Copy `.env.example` into a private environment file or configure variables throu
 | `INFERENCE_DEVICE` | Model API | `cuda:0` | no |
 | `MODEL_CPU_THREADS` | local runtime | `4` | no |
 | `MODEL_REQUIRE_VERIFIED_ASSETS` | Model API | `1` in `start.sh`; `0` in example for tests | no |
-| `MODEL_API_PROVIDER_SET` | Model API | `legacy`; `legacy`, `uspec`, or `combined` | no |
+| `MODEL_API_PROVIDER_SET` | Model API | `legacy`; `legacy`, `retfound`, `prism`, `uspec`, or `combined` | no |
 | `MODEL_API_PYTHON` | Model API launcher | `.venv/bin/python`; optional isolated runtime interpreter | no |
 | `DR_SUPPORT_RELAX_DEVICE` | development/tests | `0` | no |
 | `RETFOUND_SOURCE` | Model API | `local-state/bridge/sources/RETFound` | no |
@@ -45,6 +45,8 @@ The review profile requires `MODEL_RUNTIME=remote` and never loads local weights
 | --- | --- | --- | --- |
 | Review workstation | `review` | `remote` | Clinician UI, local review state, and proxy calls to the hospital Model API. |
 | Hospital Model API | `model_api` | `local` | GPU inference endpoints with verified RETFound and PRISM-DR assets (`MODEL_API_PROVIDER_SET=legacy`). |
+| RETFound-only Model API | `model_api` | `local` | CFP-only research comparator with pinned RETFound assets verified (`MODEL_API_PROVIDER_SET=retfound`). |
+| PRISM-only Model API | `model_api` | `local` | Lesion assistance with pinned PRISM assets verified (`MODEL_API_PROVIDER_SET=prism`). |
 | USPEC-only Model API | `model_api` | `local` | UWF grading candidate with only the exact external USPEC artifact verified (`MODEL_API_PROVIDER_SET=uspec`). |
 | Combined Model API | `model_api` | `local` | RETFound, PRISM-DR, and USPEC (`MODEL_API_PROVIDER_SET=combined`); every enabled provider is verified independently. |
 | Combined local demo | `full` | `local` | Development-only combined surface for synthetic smoke work. |

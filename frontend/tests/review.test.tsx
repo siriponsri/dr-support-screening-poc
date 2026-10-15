@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { CaseRecord, ModelDescriptor } from '@/lib/api';
 import { renderAppAt } from './testUtils';
@@ -236,11 +236,11 @@ describe('Review responsibility boundary', () => {
     mockReviewApi(undefined, unavailableCase);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByText('Unavailable - mask preparation failed; Original/manual review only')).toBeInTheDocument();
+    expect(await screen.findByText('Mask preparation failed; Original remains available; PRISM may use fallback processing')).toBeInTheDocument();
     expect(screen.getByLabelText('Mask status')).toHaveTextContent('Unavailable');
     expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Mask preview' }));
-    expect(screen.getByText(/A safe analysis mask could not be produced/i)).toBeInTheDocument();
+    expect(screen.getByText(/A mask preview is unavailable.*PRISM may still attempt inference/i)).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Continue with original' }));
     expect(screen.getByRole('button', { name: 'Original' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Unavailable - no transform recorded')).toBeInTheDocument();
@@ -334,7 +334,7 @@ describe('Review responsibility boundary', () => {
     renderAppAt('/review/ready');
 
     expect(await screen.findByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
-    expect(screen.getByText('No ready UWF grading capability is connected.')).toBeInTheDocument();
+    expect(screen.getByText('No ready UWF model capability is connected.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Analysis' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
   });
@@ -385,6 +385,117 @@ describe('Review responsibility boundary', () => {
     expect(screen.getByText('AI lesion suggestions')).toBeInTheDocument();
     expect(screen.getByText(/Recorded model evidence remains visible/i)).toBeInTheDocument();
   });
+
+
+
+  const prismUwfDescriptor: ModelDescriptor = {
+    model_id: 'prism-dr-5fold',
+    task: 'lesion-roi',
+    status: 'LOADED',
+    ready: true,
+    modalities: ['CFP', 'UWF'],
+    capability_id: 'core_lesion_localization',
+    revision: '79637440a535e4f8118e939d3787121f82180125',
+    preprocessing: 'prism-legacy-cfp-plus-experimental-uwf-v1',
+    release_status: 'RESEARCH_ONLY',
+    trained_domain: 'CFP',
+    uwf_use: 'EXPERIMENTAL',
+    clinical_validation_status: 'NOT_VALIDATED_FOR_UWF',
+    rights_status: 'ACADEMIC_USE_REVIEW_REQUIRED',
+  };
+
+  function prismUwfCase(processingMode: 'PREPARED' | 'FALLBACK'): CaseRecord {
+    const imageHash = 'd'.repeat(64);
+    const prepared = processingMode === 'PREPARED';
+    return {
+      ...readyCase,
+      modality: 'UWF',
+      image_url: '/v1/images/ready/display',
+      admission: { ...readyCase.admission!, retinal_modality: 'UWF' },
+      global: null,
+      lesion: {
+        ...readyCase.lesion!,
+        modality: 'UWF',
+        provenance: {
+          image_sha256: imageHash,
+          source_type: 'PUBLIC',
+          preprocessing: 'PRISM UWF provider input',
+          checkpoint_sha256: {},
+          source_revision: '79637440a535e4f8118e939d3787121f82180125',
+        },
+      },
+      prism_processing: {
+        input_image_sha256: imageHash,
+        processing_mode: processingMode,
+        native_roi_status: prepared ? 'SUCCEEDED' : 'FAILED',
+        native_roi_bbox: prepared ? [8, 12, 632, 468] : null,
+        native_roi_failure_code: prepared ? null : 'NO_VALID_NATIVE_ROI',
+        external_fov_status: prepared ? 'READY' : 'UNCERTAIN',
+        external_fov_reason_code: null,
+        fov_used_for_model_input: prepared,
+        raw_boundary_classes: prepared ? ['INSIDE_ANALYSIS_FIELD'] : [null],
+        analysis_field: prepared ? {
+          status: 'READY',
+          mask_version: 'uwf_white_rim_fov_v1',
+          mask_sha256: 'a'.repeat(64),
+          source_rgb_sha256: 'b'.repeat(64),
+          image_width: 640,
+          image_height: 480,
+          boundary_confidence: 0.98,
+          excluded_fraction: 0.2,
+          boundary: [[32, 240], [160, 40], [480, 40], [608, 240], [480, 440], [160, 440]],
+          used_for_model_input: true,
+          field_mask_png_base64: 'iVBORw0KGgo=',
+        } : null,
+      },
+    };
+  }
+
+  it('shows the exact source-bound prepared PRISM field while keeping AI READY primary', async () => {
+    const preparedCase = prismUwfCase('PREPARED');
+    mockReviewApi(undefined, preparedCase, [prismUwfDescriptor]);
+    renderAppAt('/review/ready');
+
+    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('AI READY');
+    expect(screen.queryByText('AI UNAVAILABLE')).not.toBeInTheDocument();
+    const fieldButton = screen.getByRole('button', { name: 'PRISM analysis field' });
+    expect(fieldButton).toBeEnabled();
+    await userEvent.setup().click(fieldButton);
+
+    expect(screen.getByRole('region', { name: 'PRISM Lesion Analysis Field' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Original image, unchanged' })).toHaveAttribute(
+      'src', preparedCase.image_url,
+    );
+    expect(screen.getByRole('img', { name: /PRISM analysis boundary/ })).toHaveAttribute(
+      'data-mask-sha256', 'a'.repeat(64),
+    );
+    expect(screen.getByText('PRISM remains experimental and is not validated for UWF.')).toBeInTheDocument();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Show details' }));
+    expect(screen.getByText('PREPARED')).toBeInTheDocument();
+  });
+
+  it('keeps FALLBACK image unbounded, AI READY, and the mode in Processing details only', async () => {
+    const fallbackCase = prismUwfCase('FALLBACK');
+    mockReviewApi(undefined, fallbackCase, [prismUwfDescriptor]);
+    renderAppAt('/review/ready');
+
+    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('AI READY');
+    expect(screen.queryByRole('button', { name: 'PRISM analysis field' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /PRISM analysis boundary/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Original' })).toHaveAttribute('aria-pressed', 'true');
+    const processingMode = screen.getByText('FALLBACK');
+    expect(processingMode.closest('#processing-details-panel')).not.toBeNull();
+    expect(processingMode).not.toBeVisible();
+    expect(screen.getByText('Fallback processing used')).not.toBeVisible();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Show details' }));
+    await waitFor(() => {
+      expect(processingMode).toBeVisible();
+      expect(screen.getByText('Fallback processing used')).toBeVisible();
+    });
+  });
+
 
   it('keeps a legacy escalation record readable without restoring the retired action', async () => {
     const legacy = {
