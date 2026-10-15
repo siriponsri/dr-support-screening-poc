@@ -381,3 +381,28 @@ def test_gitignore_excludes_release_runtime():
     assert "local-state/release/" in text
     assert "*.pt" in text
     assert ".env" in text
+
+
+def test_windows_empty_database_url_is_a_readiness_result_not_a_null_crash(tmp_path):
+    import os
+    if os.name != "nt":
+        pytest.skip("Windows PowerShell 5.1 launcher regression")
+    probe = tmp_path / "empty-url.ps1"
+    common = str(ROOT / "scripts/windows/release-common.ps1").replace("'", "''")
+    probe.write_text(
+        f". '{common}'\n"
+        "function Read-ReleaseDotEnv {}\n"
+        "function Import-ReleaseLocalDatabaseConfig { return $null }\n"
+        "$env:DR_SUPPORT_DATABASE_URL = $null\n"
+        "$env:DR_SUPPORT_CASE_STORE = $null\n"
+        "$r = Test-ReleasePostgres\n"
+        "if ($r.Ready -or $r.Source -ne 'none') { exit 2 }\n"
+        "Write-Output 'EXPECTED_NOT_READY'\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(probe)],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "EXPECTED_NOT_READY" in result.stdout

@@ -334,7 +334,7 @@ function Stop-ReleaseLocalPostgres([object] $Database) {
 
 function Test-ReleasePostgres {
     Read-ReleaseDotEnv
-    $mode = ($env:DR_SUPPORT_CASE_STORE | ForEach-Object { $_.Trim().ToLowerInvariant() })
+    $mode = ([string]$env:DR_SUPPORT_CASE_STORE).Trim().ToLowerInvariant()
     if ($mode -eq "sqlite") {
         return [pscustomobject]@{
             Ready = $false
@@ -345,7 +345,7 @@ function Test-ReleasePostgres {
         }
     }
     $source = if ($script:ReleaseDatabaseSource -eq "local") { "local" } else { "external" }
-    $dsn = ($env:DR_SUPPORT_DATABASE_URL | ForEach-Object { $_.Trim() })
+    $dsn = ([string]$env:DR_SUPPORT_DATABASE_URL).Trim()
     if (-not $dsn) {
         $local = Import-ReleaseLocalDatabaseConfig
         if ($local) {
@@ -394,11 +394,11 @@ print('READY')
 
 function Ensure-ReleasePostgres {
     Read-ReleaseDotEnv
-    $mode = ($env:DR_SUPPORT_CASE_STORE | ForEach-Object { $_.Trim().ToLowerInvariant() })
+    $mode = ([string]$env:DR_SUPPORT_CASE_STORE).Trim().ToLowerInvariant()
     if ($mode -eq "sqlite") {
         throw "DR_SUPPORT_CASE_STORE=sqlite is legacy compatibility mode and cannot be used by the normal Windows workstation launcher."
     }
-    $externalDsn = ($env:DR_SUPPORT_DATABASE_URL | ForEach-Object { $_.Trim() })
+    $externalDsn = ([string]$env:DR_SUPPORT_DATABASE_URL).Trim()
     if ($externalDsn) {
         $script:ReleaseDatabaseSource = "external"
         $status = Test-ReleasePostgres
@@ -466,6 +466,17 @@ function Test-ReleaseFrontend {
         -not (Test-Path -LiteralPath (Join-Path $script:ReleaseRepoRoot ($_ -replace '^/app/', 'frontend/dist/')) -PathType Leaf)
     })) {
         throw "The prebuilt frontend assets are incomplete. Re-extract the complete workstation release package."
+    }
+    $python = Join-Path $script:ReleaseRepoRoot ".venv\Scripts\python.exe"
+    $verifier = Join-Path $script:ReleaseRepoRoot "scripts\release\build_release.py"
+    if ((Test-Path -LiteralPath (Join-Path $script:ReleaseRepoRoot ".git")) -and
+        (Test-Path -LiteralPath $python -PathType Leaf) -and
+        (Test-Path -LiteralPath $verifier -PathType Leaf)) {
+        $probe = "import sys; sys.path.insert(0, sys.argv[1]); from scripts.release.build_release import verify_frontend_build; verify_frontend_build(sys.argv[2])"
+        $null = & $python -c $probe $script:ReleaseRepoRoot ([string]$identity.source_commit) 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "The frontend source or output differs from its build identity. Rebuild frontend/dist in this developer checkout."
+        }
     }
 }
 

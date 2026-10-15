@@ -57,7 +57,7 @@ try {
     } else {
         Write-Host "[NOT_RUN] Workspace API readiness: start the workstation to verify the active workspace endpoint."
     }
-    $modelUrl = ($env:REMOTE_MODEL_URL | ForEach-Object { $_.Trim() })
+    $modelUrl = ([string]$env:REMOTE_MODEL_URL).Trim()
     if (-not $modelUrl) {
         Write-Host "[PASS] Model API / manual mode: no remote URL is configured; manual review remains available."
     } else {

@@ -107,6 +107,7 @@ def _model_api(monkeypatch, *, provider_set="uspec"):
     return create_app(device_strict=False)
 
 
+@pytest.mark.skipif(not hasattr(os, "O_NOFOLLOW"), reason="Linux model-host artifact verification requires O_NOFOLLOW")
 def test_checkpoint_identity_matches_and_rejects_mismatch(tmp_path):
     contract = _artifact_bundle(tmp_path / "bundle")
     with verified_artifact(tmp_path / "bundle", contract) as (stream, observed):
@@ -119,6 +120,7 @@ def test_checkpoint_identity_matches_and_rejects_mismatch(tmp_path):
             pass
 
 
+@pytest.mark.skipif(not hasattr(os, "O_NOFOLLOW"), reason="Linux model-host artifact verification requires O_NOFOLLOW")
 def test_checkpoint_bytes_mismatch_is_rejected(tmp_path):
     contract = _artifact_bundle(tmp_path / "bundle")
     (tmp_path / "bundle" / "grading_state.pt").write_bytes(b"changed")
@@ -127,6 +129,7 @@ def test_checkpoint_bytes_mismatch_is_rejected(tmp_path):
             pass
 
 
+@pytest.mark.skipif(not hasattr(os, "O_NOFOLLOW"), reason="Linux model-host artifact verification requires O_NOFOLLOW")
 def test_source_file_hash_verification_matches_and_rejects_mismatch(tmp_path):
     root = tmp_path / "source"
     root.mkdir()
@@ -483,3 +486,11 @@ def test_strict_uspec_runtime_rejects_cpu_device(monkeypatch, tmp_path):
 
     with pytest.raises(DeviceUnavailable, match="requires CUDA"):
         provider.load()
+
+
+@pytest.mark.skipif(hasattr(os, "O_NOFOLLOW"), reason="Unsupported artifact-host platform only")
+def test_workstation_platform_cannot_load_uspec_artifacts(tmp_path):
+    contract = _artifact_bundle(tmp_path / "bundle")
+    with pytest.raises(RuntimeError, match="cannot safely open USPEC artifacts"):
+        with verified_artifact(tmp_path / "bundle", contract):
+            raise AssertionError("Windows workstation must not load a model artifact")

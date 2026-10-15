@@ -13,6 +13,8 @@ import json
 import os
 from pathlib import Path
 
+from .filesystem_privacy import has_reparse_component, private_hospital_root
+
 PUBLIC_ORIGINS = frozenset({"PUBLIC", "SYNTHETIC"})
 HOSPITAL_ORIGIN = "HOSPITAL_AUTHORIZED"
 WORKSPACE_ORIGINS = frozenset({"WORKSPACE", "UNKNOWN"})
@@ -32,9 +34,11 @@ def _resolved_private_root(value: object) -> Path | None:
     if not isinstance(value, str) or not value.strip():
         return None
     candidate = Path(value.strip())
-    if not candidate.is_absolute() or candidate.is_symlink():
+    if not candidate.is_absolute():
         return None
     try:
+        if has_reparse_component(candidate):
+            return None
         resolved = candidate.resolve(strict=True)
     except OSError:
         return None
@@ -114,7 +118,11 @@ def hospital_ingest_enabled(folder: str | Path) -> bool:
         if modality is None:
             continue
         try:
-            if candidate.resolve() == root and (root.stat().st_mode & 0o077) == 0:
+            if (
+                not has_reparse_component(candidate)
+                and candidate.resolve() == root
+                and private_hospital_root(root)
+            ):
                 return True
         except OSError:
             return False
