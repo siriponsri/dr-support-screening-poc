@@ -26,7 +26,9 @@ set -a; . /private/secure/dual-mode-lightning-t4.env; set +a
 ```
 
 The scripts scope operations to the Compose project
-`dr-screening-dual-mode` (or `COMPOSE_PROJECT_NAME`). `stop.sh` only stops
+`dr-screening-dual-mode` (or `COMPOSE_PROJECT_NAME`). Preflight also requires
+`DR_SCREENING_SOURCE_COMMIT` to be the exact 40-character Git SHA used for the
+review image build identity. `stop.sh` only stops
 that project and does not remove its PostgreSQL volume. There is no CPU
 fallback: preflight requires `nvidia-smi`, exact target GPU identity, verified
 external read-only assets, private credentials, and a non-placeholder base

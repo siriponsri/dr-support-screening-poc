@@ -26,6 +26,8 @@ case "$PROFILE:$GPU_NAME:$COMPUTE_CAP" in
   *) echo "GPU/profile mismatch: profile=$PROFILE actual=$GPU_LINE" >&2; exit 3 ;;
 esac
 docker compose version >/dev/null
+: "${DR_SCREENING_SOURCE_COMMIT:?Set the exact 40-character source commit for the review build identity}"
+[[ "$DR_SCREENING_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || { echo 'DR_SCREENING_SOURCE_COMMIT must be a 40-character lowercase Git SHA' >&2; exit 2; }
 export DR_SCREENING_IMAGE_TAG=${DR_SCREENING_IMAGE_TAG:-portable}
 docker compose --profile "$PROFILE" -f "$ROOT/deployment/dual-mode/compose.yml" config --quiet
 echo "PASS profile=$PROFILE gpu=$GPU_LINE"
