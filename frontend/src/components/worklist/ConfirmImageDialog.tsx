@@ -27,6 +27,7 @@ import { admissionApi } from '@/lib/api';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 import { ReviewerField } from '@/components/common/ReviewerField';
 import { GuideHint } from '@/components/common/GuideHint';
+import { hasInternalPatientKey, patientLabel } from '@/lib/patientPresentation';
 import { ChevronDown, ChevronUp, Pencil } from '@/lib/icons';
 
 function filenameMethod(method?: string): boolean {
@@ -74,6 +75,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [editImageType, setEditImageType] = useState(false);
   const [editPatient, setEditPatient] = useState(false);
+  const [unlinkPatient, setUnlinkPatient] = useState(false);
   const [editEye, setEditEye] = useState(false);
   const initialFocusRef = useRef<HTMLElement | null>(null);
 
@@ -106,6 +108,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
     setMetadataOpen(false);
     setEditImageType(false);
     setEditPatient(false);
+    setUnlinkPatient(false);
     setEditEye(false);
     setError(null);
     setPatientError(false);
@@ -123,7 +126,8 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
       const saved = await admissionApi.confirmImage(item.image_id, {
         revision: item.revision,
         reviewer: reviewer.trim(),
-        patient_key: patientKey.trim() || null,
+        patient_key: hasInternalPatientKey(item) && editPatient && !patientKey.trim() && !unlinkPatient
+          ? item.patient_key ?? null : patientKey.trim() || null,
         laterality,
         retinal_modality: imageType,
         visit_key: visitKey.trim() || null,
@@ -137,6 +141,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
       onClose();
     } catch (saveError) {
       if (saveError instanceof Error && saveError.message === 'Patient key must be a short pseudonymous identifier') {
+        if (hasInternalPatientKey(item)) setPatientKey('');
         setEditPatient(true);
         setPatientError(true);
       } else {
@@ -195,14 +200,16 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
               </FormControl>
             )}
             {patientResolved && !editPatient ? (
-              <SummaryRow label="Patient" value={patientKey} note={patientSource} onEdit={() => setEditPatient(true)} />
+              <SummaryRow label="Patient" value={item && hasInternalPatientKey(item) ? patientLabel(item) : patientKey} note={item && hasInternalPatientKey(item) ? 'workspace label · existing link kept' : patientSource} onEdit={() => { if (item && hasInternalPatientKey(item)) setPatientKey(''); setEditPatient(true); }} />
             ) : (
               <FormControl isInvalid={patientError}>
                 <FormLabel htmlFor="confirm-image-patient-key">Patient</FormLabel>
-                <Input ref={(node) => { patientInputRef.current = node; if (imageTypeResolved && (editPatient || !patientResolved)) initialFocusRef.current = node; }} id="confirm-image-patient-key" value={patientKey} onChange={(event) => { setPatientKey(event.target.value.toUpperCase()); setPatientError(false); }} placeholder="Enter a pseudonymous key or leave blank" />
-                <Text fontSize="xs" color="text.secondary" mt={1}>{item?.patient_candidate ? 'Suggested from available evidence; confirm or correct it.' : 'Unknown is allowed when no supported evidence is available.'}</Text>
-                <FormErrorMessage fontSize="sm" color="status.danger">Use a pseudonymous key with 3–32 characters, starting with a letter and including a number. Use only letters, numbers, hyphens, or underscores; or leave it blank to keep the image unlinked.</FormErrorMessage>
-                {editPatient && patientResolved && <Button type="button" size="xs" variant="ghost" mt={1} isDisabled={patientError} onClick={() => setEditPatient(false)}>Done</Button>}
+                <Input ref={(node) => { patientInputRef.current = node; if (imageTypeResolved && (editPatient || !patientResolved)) initialFocusRef.current = node; }} id="confirm-image-patient-key" value={patientKey} onChange={(event) => { setPatientKey(event.target.value.toUpperCase()); setUnlinkPatient(false); setPatientError(false); }} placeholder="Enter a pseudonymous key or leave blank" />
+                <Text fontSize="xs" color="text.secondary" mt={1}>{item && hasInternalPatientKey(item) ? 'Enter an approved pseudonymous key to replace this link. Leaving it blank keeps the current link. Workspace labels are not replacement keys.' : item?.patient_candidate ? 'Suggested from available evidence; confirm or correct it.' : 'Unknown is allowed when no supported evidence is available.'}</Text>
+                <FormErrorMessage fontSize="sm" color="status.danger">Use a pseudonymous key with 3–32 characters, starting with a letter and including a number. Use only letters, numbers, hyphens, or underscores.</FormErrorMessage>
+                {editPatient && item && hasInternalPatientKey(item) && <Button type="button" size="xs" variant="outline" onClick={() => { setPatientKey(item.patient_key ?? ''); setUnlinkPatient(false); setPatientError(false); setEditPatient(false); }}>Keep current patient link</Button>}
+                {editPatient && item && hasInternalPatientKey(item) && <><Button type="button" size="xs" variant="ghost" onClick={() => { setPatientKey(''); setUnlinkPatient(true); setPatientError(false); }}>Leave this image unlinked</Button>{unlinkPatient && <Text fontSize="sm" color="status.warning">This image will be left unlinked when you confirm.</Text>}</>}
+                {editPatient && patientResolved && item && !hasInternalPatientKey(item) && <Button type="button" size="xs" variant="ghost" mt={1} isDisabled={patientError} onClick={() => setEditPatient(false)}>Done</Button>}
               </FormControl>
             )}
             {eyeResolved && !editEye ? (

@@ -43,6 +43,8 @@
 ::::
 :::::
 
+Hospital workspaces show a short workspace label, such as **Patient 1**, instead of an internal identifier. The label is a navigation aid within this Workspace, not a verified real-world identity or a label to copy between Workspaces. The existing patient link is kept when you confirm unchanged context. Use **Edit patient** or **Change patient link** only to correct the assignment: enter an approved pseudonymous replacement, keep the current link, or deliberately leave the image unlinked. You do not need to type a generated internal ID.
+
 Filename or resolver suggestions are evidence only; nothing is inferred from a filename until you confirm it. A manual patient or eye value is never overwritten by a later automatic refresh. The reviewer default is a convenience and is not authentication.
 
 ## Admission exceptions

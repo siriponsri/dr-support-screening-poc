@@ -93,3 +93,45 @@ describe('Confirm Image error recovery', () => {
   });
 });
 
+
+describe('Private hospital confirmation presentation', () => {
+  const key = 'HOSPITAL-' + 'A1'.repeat(12);
+  const hospital: CaseRecord = { ...item, source_origin: 'HOSPITAL_AUTHORIZED', patient_key: key, patient_display_label: 'Patient 7', patient_resolution_method: 'AUTHORIZED_SOURCE' };
+
+  it('shows only the workspace label and submits the unchanged identity without asking the operator to type it', async () => {
+    const save = vi.spyOn(admissionApi, 'confirmImage').mockResolvedValue(hospital);
+    const { container } = openDialog(hospital);
+    expect(screen.getByText('Patient 7')).toBeInTheDocument();
+    expect(container.innerHTML).not.toContain(key);
+    expect(document.body.innerHTML).not.toContain(key);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Confirm image & continue' }));
+    expect(save).toHaveBeenCalledWith(hospital.image_id, expect.objectContaining({ patient_key: key }));
+  });
+
+  it('keeps the current identity when correction is opened without a replacement and requires an explicit unlink action', async () => {
+    const user = userEvent.setup();
+    const save = vi.spyOn(admissionApi, 'confirmImage').mockResolvedValue(hospital);
+    openDialog(hospital);
+    await user.click(screen.getByRole('button', { name: 'Edit patient' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm image & continue' }));
+    expect(save).toHaveBeenLastCalledWith(hospital.image_id, expect.objectContaining({ patient_key: key }));
+    await user.click(screen.getByRole('button', { name: 'Leave this image unlinked' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm image & continue' }));
+    expect(save).toHaveBeenLastCalledWith(hospital.image_id, expect.objectContaining({ patient_key: null }));
+  });
+
+  it('starts explicit correction blank, supports keeping the link and validates a supplied replacement through the existing API', async () => {
+    const user = userEvent.setup();
+    const save = vi.spyOn(admissionApi, 'confirmImage').mockResolvedValue(hospital);
+    openDialog(hospital);
+    await user.click(screen.getByRole('button', { name: 'Edit patient' }));
+    expect(screen.getByLabelText('Patient')).toHaveValue('');
+    expect(document.body.innerHTML).not.toContain(key);
+    await user.click(screen.getByRole('button', { name: 'Keep current patient link' }));
+    expect(screen.queryByLabelText('Patient')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Edit patient' }));
+    await user.type(screen.getByLabelText('Patient'), 'demo008');
+    await user.click(screen.getByRole('button', { name: 'Confirm image & continue' }));
+    expect(save).toHaveBeenCalledWith(hospital.image_id, expect.objectContaining({ patient_key: 'DEMO008' }));
+  });
+});

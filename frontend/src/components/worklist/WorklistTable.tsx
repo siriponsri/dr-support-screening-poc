@@ -28,7 +28,7 @@ function CaseRow({ item, models, onResolve, onReadiness, onConfirmImage, onQueue
 
 function PatientGroupRows({ group, models, onResolve, onReadiness, onConfirmImage, onQueueAction }: { group: PatientGroup; models: ModelDescriptor[]; onResolve: (item: CaseRecord) => void; onReadiness: (item: CaseRecord) => void; onConfirmImage: (item: CaseRecord) => void; onQueueAction: (item: CaseRecord, action: 'EXCLUDE' | 'RESTORE') => void }) {
   return <>
-    <Tr data-testid={`patient-group-${group.key ?? 'unlinked'}`}><Td colSpan={5} bg="surface.subtle" py={3}><HStack justify="space-between"><Text fontWeight="semibold">{group.label}</Text><Text fontSize="xs" color="text.secondary">{group.eyes.reduce((count, eye) => count + eye.cases.length, 0)} {group.eyes.reduce((count, eye) => count + eye.cases.length, 0) === 1 ? 'image' : 'images'}</Text></HStack></Td></Tr>
+    <Tr data-testid={`patient-group-${group.key ? group.label : 'unlinked'}`}><Td colSpan={5} bg="surface.subtle" py={3}><HStack justify="space-between"><Text fontWeight="semibold">{group.label}</Text><Text fontSize="xs" color="text.secondary">{group.eyes.reduce((count, eye) => count + eye.cases.length, 0)} {group.eyes.reduce((count, eye) => count + eye.cases.length, 0) === 1 ? 'image' : 'images'}</Text></HStack></Td></Tr>
     {group.eyes.map((eye) => <Fragment key={`${group.key ?? 'unlinked'}-${eye.laterality}`}><Tr><Td colSpan={5} py={2} pl={7} borderBottomWidth="0"><Text fontSize="sm" color="text.secondary" fontWeight="semibold">{eye.label}</Text></Td></Tr>{eye.cases.map((item) => <CaseRow key={item.image_id} item={item} models={models} onResolve={onResolve} onReadiness={onReadiness} onConfirmImage={onConfirmImage} onQueueAction={onQueueAction} />)}</Fragment>)}
   </>;
 }

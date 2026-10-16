@@ -1,3 +1,4 @@
+import { patientLabel } from '@/lib/patientPresentation';
 import type { CaseRecord, Laterality, ModelDescriptor } from '@/lib/api';
 import { annotationsConfirmed, gradeConfirmed } from '@/lib/caseProgress';
 import { hasCompatibleModel } from '@/lib/modelCapabilities';
@@ -216,7 +217,7 @@ export function groupCases(cases: CaseRecord[]): PatientGroup[] {
     const groupKey = key ?? '__unlinked__';
     let group = grouped.get(groupKey);
     if (!group) {
-      group = { key, label: key ?? 'Patient not linked', eyes: [] };
+      group = { key, label: key ? patientLabel(item) : 'Patient not linked', eyes: [] };
       grouped.set(groupKey, group);
     }
     const laterality = item.laterality ?? 'UNKNOWN';
