@@ -101,3 +101,29 @@ export authorization or clinician confirmation, and must not be accepted from
 browser requests or persisted in the review database. Do not remove a managed
 sandbox group, alter its membership, or disable execution protections to pass
 admission. Synthetic permission tests must never change real image-root ACLs.
+
+
+## Authorized hospital transmission from a Windows Review workstation
+
+Hospital admission and remote model transmission have separate opt-ins. After
+explicit authorization to send the named hospital roots to the selected private
+research Model API, configure both the Review hospital-root settings and this
+model boundary in the workstation's private environment:
+
+```dotenv
+MODEL_HOSPITAL_SCOPE=PRIVATE_PROJECT_EVALUATION
+MODEL_ALLOW_AUTHORIZED_HOSPITAL=1
+```
+
+The same model-boundary opt-in is required on the Model API host. A nonempty
+`REMOTE_MODEL_TOKEN` and verified `REMOTE_MODEL_URL` are also required; keep the
+token in private operator configuration. The remote adapter checks this model
+boundary on Windows before transmission, even when the Review has already
+admitted the roots. Missing settings must remain fail-closed. Admission alone
+does not authorize transmission, and these flags do not authorize export.
+
+Keep `HOSPITAL_AUTHORIZED` provenance. Do not relabel real hospital inputs as
+public or synthetic to pass the gate. Images marked as needing admission review
+remain blocked until the existing human review flow resolves them. Update only
+private configuration after authorization and restart the existing workstation;
+never weaken source/privacy checks or change source images to make a run pass.
