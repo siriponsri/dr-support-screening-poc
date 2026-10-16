@@ -15,6 +15,7 @@ try {
     $record = Get-ReleaseRecord
     if ($record -and (Test-ReleaseManagedProcess ([int]$record.pid)) -and (Test-ReleaseHealth)) {
         Write-Host "Retinal Review Workbench is already running at $($record.url)."
+        Write-ReleaseShowcaseReadiness
         if (-not $NoBrowser) { Start-Process $record.url }
         exit 0
     }
@@ -44,6 +45,7 @@ try {
         throw "The workstation did not become healthy at http://127.0.0.1:8000/health. Review the credential-safe logs under local-state/logs/ and retry after correcting the reported startup issue."
     }
     Write-Host "Retinal Review Workbench is running at http://127.0.0.1:8000/app/"
+    Write-ReleaseShowcaseReadiness
     if (-not $NoBrowser) { Start-Process "http://127.0.0.1:8000/app/" }
     exit 0
 } catch {

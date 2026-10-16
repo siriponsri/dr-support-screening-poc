@@ -55,7 +55,7 @@ export function WorklistToolbar({ search, onSearchChange, filters, onFiltersChan
       <HStack spacing={2} align="stretch" flexWrap="wrap">
         <InputGroup size="sm" flex={{ base: '1 1 100%', tablet: '1 1 260px' }} maxW={{ tablet: '360px' }}>
           <InputLeftElement pointerEvents="none"><Search size={15} aria-hidden="true" /></InputLeftElement>
-          <Input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search filename or patient key" aria-label="Search worklist" pl={9} />
+          <Input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search image or patient label" aria-label="Search worklist" pl={9} />
         </InputGroup>
         <Popover placement="bottom-start" closeOnBlur>
           <PopoverTrigger>
@@ -116,7 +116,7 @@ export function WorklistToolbar({ search, onSearchChange, filters, onFiltersChan
           <Button variant={viewMode === 'patients' ? 'solid' : 'outline'} aria-pressed={viewMode === 'patients'} onClick={() => onViewModeChange('patients')}>Patients</Button>
         </ButtonGroup>
       </HStack>
-      <Text color="text.secondary" fontSize="sm">Search by filename or pseudonymous patient key.</Text>
+      <Text color="text.secondary" fontSize="sm">Search by image filename or patient label.</Text>
     </Stack>
   );
 }

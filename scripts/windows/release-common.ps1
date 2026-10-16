@@ -105,7 +105,7 @@ function Get-ReleaseLocalPostgresPort {
 }
 
 function Get-ReleaseModelCapabilityStatus([string] $Json) {
-    $empty = [pscustomobject]@{ Valid = $false; Ready = $false }
+    $empty = [pscustomobject]@{ Valid = $false; Ready = $false; Capabilities = @() }
     if (-not $Json) { return $empty }
     $trimmed = $Json.Trim()
     if (-not $trimmed.StartsWith("[") -or -not $trimmed.EndsWith("]")) { return $empty }
@@ -168,10 +168,10 @@ function Get-ReleaseModelCapabilityStatus([string] $Json) {
         $blocked = $release -in @("DISABLED", "COMPARATOR_ONLY", "DEFERRED") -or $release.StartsWith("BLOCKED") -or $release.StartsWith("DEFERRED")
         $status = if ($properties -contains "status") { ([string]$_.status).Trim().ToUpperInvariant() } else { "" }
         $actionableModality = @($modalities | Where-Object { $_ -in @("CFP", "UWF") }).Count -gt 0
-        $reportedReady -and $status -eq "LOADED" -and -not $blocked -and $taskMatches -and $actionableModality -and $knownCfpOnly -or
-            $reportedReady -and $status -eq "LOADED" -and -not $blocked -and $taskMatches -and $actionableModality -and $genericReleaseValid -and -not $knownModel -and $genericQualified
+        ($reportedReady -and $status -eq "LOADED" -and -not $blocked -and $taskMatches -and $actionableModality -and $knownCfpOnly) -or
+            ($reportedReady -and $status -eq "LOADED" -and -not $blocked -and $taskMatches -and $actionableModality -and $genericReleaseValid -and -not $knownModel -and $genericQualified)
     })
-    return [pscustomobject]@{ Valid = $true; Ready = $ready.Count -gt 0 }
+    return [pscustomobject]@{ Valid = $true; Ready = $ready.Count -gt 0; Capabilities = @($ready) }
 }
 
 function Test-ReleaseModelHealth([object] $Body) {
@@ -502,6 +502,92 @@ function Test-ReleaseHealth {
         $response = Invoke-WebRequest -Uri "http://127.0.0.1:8000/health" -UseBasicParsing -TimeoutSec 2
         return $response.StatusCode -eq 200
     } catch { return $false }
+}
+
+function Test-ReleaseSelectedWorkspace([string] $Json) {
+    try {
+        $body = ConvertFrom-Json -InputObject $Json
+        if (-not $body -or $body.PSObject.Properties.Name -notcontains "workspace") { return $false }
+        $workspace = $body.workspace
+        return [bool]($workspace -and $workspace.PSObject.Properties.Name -contains "id" -and ([string]$workspace.id).Trim())
+    } catch { return $false }
+}
+
+function Test-ReleaseCompatibleCapability([object] $Capability, [string] $Modality, [string] $Task) {
+    if ($Capability.task -ne $Task -or $Modality -notin @($Capability.modalities)) { return $false }
+    # Match the clinician UI fixed model identities and PRISM experimental UWF boundary.
+    $modelId = [string]$Capability.model_id
+    if ($modelId -in @("retfound-aptos5", "uspec-uwf-grading")) {
+        $fixed = if ($modelId -eq "retfound-aptos5") { "CFP" } else { "UWF" }
+        if ($Task -ne "global" -or @($Capability.modalities | Where-Object { $_ -ne $fixed }).Count -gt 0) { return $false }
+    }
+    if ($modelId -eq "prism-dr-5fold") {
+        $properties = $Capability.PSObject.Properties.Name
+        if ($Task -ne "lesion-roi" -or $properties -notcontains "release_status" -or
+            $Capability.release_status -notin @("AVAILABLE", "QUALIFIED", "RESEARCH_ONLY")) { return $false }
+        if ($Modality -eq "UWF") {
+            if ($properties -notcontains "uwf_use" -or $properties -notcontains "clinical_validation_status" -or
+                $properties -notcontains "trained_domain") { return $false }
+            if ($Capability.uwf_use -ne "EXPERIMENTAL" -or
+                $Capability.clinical_validation_status -notin @("NOT_VALIDATED_FOR_UWF", "NOT_ESTABLISHED") -or
+                $Capability.trained_domain -ne "CFP") { return $false }
+        }
+    }
+    return $true
+}
+
+function Get-ReleaseShowcaseReadiness {
+    # Read-only local APIs use the configured server-side connection. Never start cloud compute.
+    $result = [pscustomobject]@{ Ready = $false; WorkspaceReady = $false; QueueReady = $false; ModelsReady = $false; ImageCount = 0; Detail = "Open Settings and select the intended workspace; manual review remains available." }
+    try {
+        $active = Invoke-WebRequest -Uri "http://127.0.0.1:8000/v1/workspaces/active" -UseBasicParsing -TimeoutSec 5
+        $result.WorkspaceReady = $active.StatusCode -eq 200 -and (Test-ReleaseSelectedWorkspace $active.Content)
+        if (-not $result.WorkspaceReady) { return $result }
+        $result.Detail = "Open Worklist and scan the intended image folders; no review decisions were changed."
+        $queue = Invoke-WebRequest -Uri "http://127.0.0.1:8000/v1/cases" -UseBasicParsing -TimeoutSec 8
+        if ($queue.StatusCode -ne 200 -or -not $queue.Content.Trim().StartsWith("[")) { return $result }
+        $cases = @(ConvertFrom-Json -InputObject $queue.Content | ForEach-Object { $_ })
+        $result.ImageCount = $cases.Count
+        $result.QueueReady = $cases.Count -gt 0
+        if (-not $result.QueueReady) { return $result }
+        $result.Detail = "AI is not ready. Check Settings > Model connection and the existing Lightning service. Manual review remains available; cloud compute was not started."
+        $response = Invoke-WebRequest -Uri "http://127.0.0.1:8000/v1/models" -UseBasicParsing -TimeoutSec 12
+        if ($response.StatusCode -ne 200) { return $result }
+        $models = Get-ReleaseModelCapabilityStatus $response.Content
+        if (-not $models.Valid -or -not $models.Ready) { return $result }
+        foreach ($case in $cases) {
+            $properties = $case.PSObject.Properties.Name
+            if ($properties -notcontains "modality" -or $properties -notcontains "source_origin") { return $result }
+            $modality = [string]$case.modality
+            $origin = [string]$case.source_origin
+            if ($modality -notin @("CFP", "UWF") -or $origin -notin @("PUBLIC", "SYNTHETIC", "HOSPITAL_AUTHORIZED")) {
+                $result.Detail = "Some image context needs review. Use Worklist > Confirm Image; no image approval was performed by startup."
+                return $result
+            }
+            foreach ($task in @("global", "lesion-roi")) {
+                $compatible = @($models.Capabilities | Where-Object {
+                    Test-ReleaseCompatibleCapability $_ $modality $task
+                })
+                if ($compatible.Count -eq 0) { return $result }
+            }
+        }
+        $result.ModelsReady = $true
+        $result.Ready = $true
+        $result.Detail = "Selected workspace, $($result.ImageCount) images and compatible grading/lesion capabilities verified. Technical readiness only; image admission and upload authorization remain separate backend gates."
+    } catch {
+        # Do not print exception bodies, configured credentials, or connection URLs.
+        $result.Detail = "Readiness could not be verified. Check Settings, the local queue and the existing Lightning service; manual review remains available. Cloud compute was not started."
+    }
+    return $result
+}
+
+function Write-ReleaseShowcaseReadiness {
+    $readiness = Get-ReleaseShowcaseReadiness
+    if ($readiness.Ready) {
+        Write-Host "[SHOWCASE_READY] $($readiness.Detail)"
+    } else {
+        Write-Host "[SERVER_RUNNING / MANUAL_MODE] $($readiness.Detail)"
+    }
 }
 
 function Get-ReleaseProcessStatus([object] $Record) {

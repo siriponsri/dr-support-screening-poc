@@ -406,3 +406,95 @@ def test_windows_empty_database_url_is_a_readiness_result_not_a_null_crash(tmp_p
     )
     assert result.returncode == 0, result.stderr
     assert "EXPECTED_NOT_READY" in result.stdout
+
+
+@pytest.mark.parametrize("scenario, expected", [
+    ("null-workspace", False), ("empty-queue", False),
+    ("ready", True), ("incompatible-uwf", False), ("remote-down", False),
+    ("retfound-wrong-modality", False), ("uspec-wrong-modality", False),
+    ("prism-missing-uwf-qualification", False), ("prism-wrong-domain", False),
+    ("prism-unqualified-release", False),
+])
+def test_showcase_readiness_checks_workspace_queue_and_compatible_models(tmp_path, scenario, expected):
+    shell = shutil.which("powershell") or shutil.which("pwsh")
+    if not shell:
+        pytest.skip("PowerShell is unavailable")
+    cases = [{"modality": "CFP", "source_origin": "HOSPITAL_AUTHORIZED"},
+             {"modality": "UWF", "source_origin": "HOSPITAL_AUTHORIZED"}]
+    models = [
+        {"model_id": "retfound-aptos5", "task": "global", "status": "LOADED", "ready": True, "modalities": ["CFP"]},
+        {"model_id": "prism-dr-5fold", "task": "lesion-roi", "status": "LOADED", "ready": True, "modalities": ["CFP", "UWF"],
+         "release_status": "RESEARCH_ONLY", "uwf_use": "EXPERIMENTAL", "clinical_validation_status": "NOT_VALIDATED_FOR_UWF", "trained_domain": "CFP"},
+        {"model_id": "uspec-uwf-grading", "task": "global", "status": "LOADED", "ready": True, "modalities": ["UWF"],
+         "capability_id": "dr-grade", "revision": "r1", "preprocessing": "uwf-v1", "release_status": "RESEARCH_ONLY"},
+    ]
+    if scenario == "incompatible-uwf":
+        models.pop()
+    if scenario == "retfound-wrong-modality":
+        models.pop()
+        models[0]["modalities"] = ["CFP", "UWF"]
+    if scenario == "uspec-wrong-modality":
+        models[2]["modalities"] = ["CFP", "UWF"]
+    if scenario == "prism-missing-uwf-qualification":
+        models[1].pop("uwf_use")
+    if scenario == "prism-wrong-domain":
+        models[1]["trained_domain"] = "UWF"
+    if scenario == "prism-unqualified-release":
+        models[1]["release_status"] = "NOT_STATED"
+    fixture = {"/v1/workspaces/active": {"workspace": None if scenario == "null-workspace" else {"id": "approved-test-workspace"}},
+               "/v1/cases": [] if scenario == "empty-queue" else cases, "/v1/models": models}
+    fixture_path = tmp_path / "responses.json"
+    fixture_path.write_text(json.dumps(fixture), encoding="utf-8")
+    probe = tmp_path / "readiness.ps1"
+    common = (ROOT / "scripts/windows/release-common.ps1").as_posix()
+    probe.write_text(f"""
+. '{common}'
+$fixtures = Get-Content -Raw '{fixture_path.as_posix()}' | ConvertFrom-Json
+function Invoke-WebRequest {{
+    param($Uri, [switch]$UseBasicParsing, $TimeoutSec)
+    $route = ([uri]$Uri).AbsolutePath
+    if ('{scenario}' -eq 'remote-down' -and $route -eq '/v1/models') {{ throw 'PRIVATE_TEST_MARKER' }}
+    return [pscustomobject]@{{ StatusCode = 200; Content = (ConvertTo-Json -InputObject $fixtures.$route -Depth 8 -Compress) }}
+}}
+Get-ReleaseShowcaseReadiness | ConvertTo-Json -Compress
+""", encoding="utf-8")
+    result = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-File", str(probe)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    readiness = json.loads(result.stdout)
+    assert readiness["Ready"] is expected
+    assert "PRIVATE_TEST_MARKER" not in result.stdout + result.stderr
+    if scenario == "null-workspace":
+        assert readiness["WorkspaceReady"] is False
+    if scenario == "empty-queue":
+        assert readiness["WorkspaceReady"] is True and readiness["QueueReady"] is False
+
+
+@pytest.mark.parametrize("reuse", [True, False])
+def test_original_start_reports_readiness_for_reuse_and_fresh_start(tmp_path, reuse):
+    shell = shutil.which("powershell") or shutil.which("pwsh")
+    if not shell:
+        pytest.skip("PowerShell is unavailable")
+    start = tmp_path / "release-start.ps1"
+    start.write_bytes((ROOT / "scripts/windows/release-start.ps1").read_bytes())
+    common = tmp_path / "release-common.ps1"
+    record = "[pscustomobject]@{pid=42;url='http://127.0.0.1:8000/app/'}" if reuse else "$null"
+    common.write_text(f"""
+$script:ReleaseLogRoot = '{tmp_path.as_posix()}'
+$script:ReleaseRepoRoot = '{tmp_path.as_posix()}'
+function Set-ReleaseReviewEnvironment {{}}
+function Ensure-ReleaseDirectories {{}}
+function Test-ReleaseFrontend {{}}
+function Ensure-ReleasePostgres {{ return [pscustomobject]@{{Ready=$true}} }}
+function Test-ReleasePostgres {{ return [pscustomobject]@{{Ready=$true}} }}
+function Get-ReleaseRecord {{ return {record} }}
+function Test-ReleaseManagedProcess {{ param($Id) return $true }}
+function Test-ReleaseHealth {{ return $true }}
+function Get-ReleasePythonPath {{ return 'unused-python' }}
+function Get-NetTCPConnection {{ param($LocalAddress,$LocalPort,$State,$ErrorAction) return $null }}
+function Start-Process {{ param($FilePath,$ArgumentList,$WorkingDirectory,$RedirectStandardOutput,$RedirectStandardError,$WindowStyle,[switch]$PassThru) return [pscustomobject]@{{Id=42}} }}
+function Write-ReleaseRecord {{ param($Id,$Database) }}
+function Write-ReleaseShowcaseReadiness {{ Write-Output 'READINESS_VERIFIED' }}
+""", encoding="utf-8")
+    result = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-File", str(start), "-NoBrowser"], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "READINESS_VERIFIED" in result.stdout

@@ -183,7 +183,7 @@ export function sortCases(cases: CaseRecord[], sort: SortOption): CaseRecord[] {
 export function matchesSearch(item: CaseRecord, search: string): boolean {
   const query = search.trim().toLocaleLowerCase();
   if (!query) return true;
-  return [item.filename, item.display_name, item.patient_key]
+  return [item.filename, item.display_name, item.patient_display_label, item.patient_key]
     .filter((value): value is string => Boolean(value))
     .some((value) => value.toLocaleLowerCase().includes(query));
 }
