@@ -350,6 +350,7 @@ export interface CaseRecord {
   admission_ui: AdmissionUi | null;
   admission_history?: Array<Record<string, unknown>>;
   patient_key?: string | null;
+  patient_display_label?: string | null;
   patient_resolution_state?: ResolverState;
   patient_resolution_method?: string;
   patient_reason_code?: string;

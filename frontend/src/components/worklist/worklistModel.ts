@@ -1,3 +1,4 @@
+import { patientLabel } from '@/lib/patientPresentation';
 import type { CaseRecord, Laterality, ModelDescriptor } from '@/lib/api';
 import { annotationsConfirmed, gradeConfirmed } from '@/lib/caseProgress';
 import { hasCompatibleModel } from '@/lib/modelCapabilities';
@@ -182,7 +183,7 @@ export function sortCases(cases: CaseRecord[], sort: SortOption): CaseRecord[] {
 export function matchesSearch(item: CaseRecord, search: string): boolean {
   const query = search.trim().toLocaleLowerCase();
   if (!query) return true;
-  return [item.filename, item.display_name, item.patient_key]
+  return [item.filename, item.display_name, item.patient_display_label, item.patient_key]
     .filter((value): value is string => Boolean(value))
     .some((value) => value.toLocaleLowerCase().includes(query));
 }
@@ -216,7 +217,7 @@ export function groupCases(cases: CaseRecord[]): PatientGroup[] {
     const groupKey = key ?? '__unlinked__';
     let group = grouped.get(groupKey);
     if (!group) {
-      group = { key, label: key ?? 'Patient not linked', eyes: [] };
+      group = { key, label: key ? patientLabel(item) : 'Patient not linked', eyes: [] };
       grouped.set(groupKey, group);
     }
     const laterality = item.laterality ?? 'UNKNOWN';

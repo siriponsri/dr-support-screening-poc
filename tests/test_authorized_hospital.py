@@ -3,6 +3,8 @@
 import hashlib
 import io
 import json
+import os
+import subprocess
 
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -24,12 +26,28 @@ def _jpeg_bytes(color=(30, 90, 60)) -> bytes:
     return output.getvalue()
 
 
+
+def _private_test_root(root) -> None:
+    """Apply privacy to synthetic fixtures using the host's actual permission model."""
+    if os.name != "nt":
+        root.chmod(0o700)
+        return
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+         "$p = $env:DR_TEST_PRIVATE_ROOT; $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value; "
+         "& icacls.exe $p /inheritance:r /grant:r "
+         "('*' + $sid + ':(OI)(CI)F') '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F'; "
+         "exit $LASTEXITCODE"],
+        check=True, capture_output=True, env={**os.environ, "DR_TEST_PRIVATE_ROOT": str(root)},
+    )
+
+
 def _configure_hospital(monkeypatch, root, *, modality="UWF") -> None:
     monkeypatch.setenv("DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOT", str(root))
     monkeypatch.setenv("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "1")
     monkeypatch.setenv("DR_SUPPORT_AUTHORIZED_HOSPITAL_MODALITY", modality)
     root.mkdir(parents=True, exist_ok=True)
-    root.chmod(0o700)
+    _private_test_root(root)
 
 
 def test_authorized_hospital_linkage_is_opaque_and_sequence_bound(tmp_path, monkeypatch):
@@ -51,7 +69,7 @@ def test_authorized_hospital_linkage_is_opaque_and_sequence_bound(tmp_path, monk
 def test_default_workspace_remains_workspace_and_unrelated_root_is_not_promoted(tmp_path, monkeypatch):
     root = tmp_path / "hospital"
     root.mkdir()
-    root.chmod(0o700)
+    _private_test_root(root)
     (root / "source.jpg").write_bytes(_jpeg_bytes())
     _configure_hospital(monkeypatch, root)
 
@@ -101,7 +119,7 @@ def test_hospital_admission_is_neutral_source_bound_and_preserves_bytes(tmp_path
 def test_hospital_lane_requires_explicit_modality_binding(tmp_path, monkeypatch):
     root = tmp_path / "hospital"
     root.mkdir()
-    root.chmod(0o700)
+    _private_test_root(root)
     monkeypatch.setenv("DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOT", str(root))
     monkeypatch.setenv("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "1")
     monkeypatch.delenv("DR_SUPPORT_AUTHORIZED_HOSPITAL_MODALITY", raising=False)
@@ -270,7 +288,7 @@ def test_multi_root_hospital_admission_keeps_one_mixed_modality_queue(tmp_path, 
     cfp = tmp_path / "cfp"
     for root in (uwf, cfp):
         root.mkdir()
-        root.chmod(0o700)
+        _private_test_root(root)
     (uwf / "PRIVATE_L1.jpg").write_bytes(_jpeg_bytes((30, 90, 60)))
     (cfp / "PRIVATE_R1.jpg").write_bytes(_jpeg_bytes((70, 30, 20)))
     monkeypatch.setenv(
@@ -297,7 +315,7 @@ def test_multi_root_app_scans_without_workspace_profile_and_preserves_one_queue(
     cfp = tmp_path / "cfp"
     for root in (uwf, cfp):
         root.mkdir()
-        root.chmod(0o700)
+        _private_test_root(root)
     (uwf / "patient-a.jpg").write_bytes(_jpeg_bytes((30, 90, 60)))
     (cfp / "patient-b.jpg").write_bytes(_jpeg_bytes((70, 30, 20)))
     monkeypatch.setenv(
@@ -341,7 +359,7 @@ def test_multi_root_case_references_remain_unique_when_content_is_duplicated(tmp
     cfp = tmp_path / "cfp"
     for root in (uwf, cfp):
         root.mkdir()
-        root.chmod(0o700)
+        _private_test_root(root)
     duplicate = _jpeg_bytes((30, 90, 60))
     (uwf / "same-a.jpg").write_bytes(duplicate)
     (uwf / "same-b.jpg").write_bytes(duplicate)
@@ -368,3 +386,185 @@ def test_multi_root_case_references_remain_unique_when_content_is_duplicated(tmp
         "HOSPITAL_AUTHORIZED/CASE-0002",
         "HOSPITAL_AUTHORIZED/CASE-0003",
     }
+
+
+def test_root_privacy_rejects_broad_access_and_preserves_source(tmp_path):
+    from dr_support.services.filesystem_privacy import private_hospital_root
+
+    root = tmp_path / "synthetic-private"
+    root.mkdir()
+    _private_test_root(root)
+    image = root / "synthetic.jpg"
+    source = _jpeg_bytes()
+    image.write_bytes(source)
+    assert private_hospital_root(root)
+    if os.name == "nt":
+        subprocess.run(
+            ["icacls.exe", str(image), "/grant", "*S-1-1-0:R"],
+            check=True, capture_output=True,
+        )
+    else:
+        root.chmod(0o755)
+    assert not private_hospital_root(root)
+    assert image.read_bytes() == source
+
+
+def test_windows_privacy_probe_errors_and_invalid_json_fail_closed(tmp_path, monkeypatch):
+    import pytest
+    from dr_support.services import filesystem_privacy
+
+    if os.name != "nt":
+        pytest.skip("Windows ACL probe behavior")
+    root = tmp_path / "private"
+    root.mkdir()
+    for output in ('{}', '[]', 'null', '{"private":false}', 'not-json', '{"private":1}'):
+        monkeypatch.setattr(
+            filesystem_privacy.subprocess, "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, output, ""),
+        )
+        assert not filesystem_privacy.private_hospital_root(root)
+    def unavailable(*args, **kwargs):
+        raise subprocess.TimeoutExpired("privacy-probe", 30)
+    monkeypatch.setattr(filesystem_privacy.subprocess, "run", unavailable)
+    assert not filesystem_privacy.private_hospital_root(root)
+
+
+def test_configured_root_rejects_redirected_ancestor(tmp_path, monkeypatch):
+    import pytest
+    from dr_support.services.source_policy import authorized_hospital_roots
+
+    real = tmp_path / "real"
+    real.mkdir()
+    nested = real / "nested"
+    nested.mkdir()
+    redirect = tmp_path / "redirect"
+    if os.name == "nt":
+        result = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(redirect), str(real)],
+            capture_output=True,
+        )
+        if result.returncode:
+            pytest.skip("junction creation unavailable")
+    else:
+        redirect.symlink_to(real, target_is_directory=True)
+    try:
+        monkeypatch.setenv("DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOT", str(redirect / "nested"))
+        monkeypatch.setenv("DR_SUPPORT_AUTHORIZED_HOSPITAL_MODALITY", "UWF")
+        monkeypatch.delenv("DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS", raising=False)
+        assert authorized_hospital_roots() == ()
+    finally:
+        if os.name == "nt":
+            redirect.rmdir()
+        else:
+            redirect.unlink()
+
+
+_WINDOWS_FIXTURE_READER_SID = "S-1-5-21-111111111-222222222-333333333-9999"
+
+
+def _grant_synthetic_reader(root, sid, rights="RX"):
+    rights_name = {"RX": "ReadAndExecute", "W": "Write", "D": "Delete",
+                   "WDAC": "ChangePermissions", "WO": "TakeOwnership"}[rights]
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+         "$env:PSModulePath=Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/Modules'; "
+         "$ErrorActionPreference='Stop'; "
+         "$acl=[IO.Directory]::GetAccessControl($env:DR_TEST_PRIVATE_ROOT, "
+         "[Security.AccessControl.AccessControlSections]::Access); "
+         "$sid=[Security.Principal.SecurityIdentifier]::new($env:DR_TEST_READER_SID); "
+         "$rule=[Security.AccessControl.FileSystemAccessRule]::new($sid, "
+         "[Security.AccessControl.FileSystemRights]$env:DR_TEST_READER_RIGHTS, "
+         "'ContainerInherit,ObjectInherit','None','Allow'); "
+         "$acl.AddAccessRule($rule); [IO.Directory]::SetAccessControl($env:DR_TEST_PRIVATE_ROOT,$acl)"],
+        capture_output=True, check=True,
+        env={**os.environ, "DR_TEST_PRIVATE_ROOT": str(root),
+             "DR_TEST_READER_SID": sid, "DR_TEST_READER_RIGHTS": rights_name},
+    )
+
+
+def test_windows_managed_reader_requires_explicit_sid_and_exact_root(tmp_path, monkeypatch):
+    import pytest
+    if os.name != "nt":
+        pytest.skip("Real Windows ACL permissions")
+    from dr_support.services.source_policy import HOSPITAL_WINDOWS_READERS_ENV
+
+    uwf, cfp = tmp_path / "uwf", tmp_path / "cfp"
+    for root in (uwf, cfp):
+        root.mkdir()
+        _private_test_root(root)
+        (root / "synthetic.jpg").write_bytes(_jpeg_bytes())
+        _grant_synthetic_reader(root, _WINDOWS_FIXTURE_READER_SID)
+    monkeypatch.setenv("DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS", json.dumps({"UWF": str(uwf), "CFP": str(cfp)}))
+    monkeypatch.setenv("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "1")
+    monkeypatch.setenv("DR_SUPPORT_HOSPITAL_SCOPE", "PRIVATE_PROJECT_EVALUATION")
+    monkeypatch.delenv(HOSPITAL_WINDOWS_READERS_ENV, raising=False)
+    assert not hospital_ingest_enabled(uwf)
+    monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({str(uwf): [_WINDOWS_FIXTURE_READER_SID]}))
+    assert hospital_ingest_enabled(uwf)
+    assert not hospital_ingest_enabled(cfp)  # Same principal does not authorize another root.
+    monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({
+        str(uwf): [_WINDOWS_FIXTURE_READER_SID], str(cfp): [_WINDOWS_FIXTURE_READER_SID],
+    }))
+    assert hospital_ingest_enabled(cfp)
+    assert not hospital_ingest_enabled(uwf / "synthetic.jpg")
+    monkeypatch.setenv("DR_SUPPORT_HOSPITAL_SCOPE", "UNAPPROVED")
+    assert not hospital_ingest_enabled(uwf)
+
+
+def test_windows_reader_rejects_extra_rights_and_unrelated_principals(tmp_path, monkeypatch):
+    import pytest
+    if os.name != "nt":
+        pytest.skip("Real Windows ACL permissions")
+    from dr_support.services.source_policy import HOSPITAL_WINDOWS_READERS_ENV
+
+    for index, rights in enumerate(("W", "D", "WDAC", "WO")):
+        root = tmp_path / f"private-{index}"
+        _configure_hospital(monkeypatch, root)
+        (root / "synthetic.jpg").write_bytes(_jpeg_bytes())
+        monkeypatch.setenv("DR_SUPPORT_HOSPITAL_SCOPE", "PRIVATE_PROJECT_EVALUATION")
+        monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({str(root): [_WINDOWS_FIXTURE_READER_SID]}))
+        _grant_synthetic_reader(root, _WINDOWS_FIXTURE_READER_SID)
+        assert hospital_ingest_enabled(root)
+        _grant_synthetic_reader(root, _WINDOWS_FIXTURE_READER_SID, rights)
+        assert not hospital_ingest_enabled(root), rights
+
+    root = tmp_path / "unrelated-principal"
+    _configure_hospital(monkeypatch, root)
+    monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({str(root): [_WINDOWS_FIXTURE_READER_SID]}))
+    _grant_synthetic_reader(root, "S-1-5-21-111111111-222222222-333333333-8888")
+    assert not hospital_ingest_enabled(root)
+
+
+def test_windows_reader_config_rejects_broad_sids_unapproved_roots_and_names(tmp_path, monkeypatch):
+    import pytest
+    if os.name != "nt":
+        pytest.skip("Windows-only operator config")
+    from dr_support.services.source_policy import HOSPITAL_WINDOWS_READERS_ENV
+
+    root = tmp_path / "private"
+    _configure_hospital(monkeypatch, root)
+    unrelated = tmp_path / "unapproved"
+    unrelated.mkdir()
+    monkeypatch.setenv("DR_SUPPORT_HOSPITAL_SCOPE", "PRIVATE_PROJECT_EVALUATION")
+    for value in ("S-1-1-0", "S-1-5-11", "S-1-5-32-545", "CodexSandboxUsers", "S-1-5-21-bad"):
+        monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({str(root): [value]}))
+        assert not hospital_ingest_enabled(root)
+    for payload in ([], {}, {str(unrelated): [_WINDOWS_FIXTURE_READER_SID]}, {str(root): []}):
+        monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps(payload))
+        assert not hospital_ingest_enabled(root)
+    monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, "not-json")
+    assert not hospital_ingest_enabled(root)
+
+
+def test_posix_private_modes_are_not_relaxed_by_windows_reader_config(tmp_path, monkeypatch):
+    import pytest
+    if os.name == "nt":
+        pytest.skip("POSIX privacy regression")
+    from dr_support.services.source_policy import HOSPITAL_WINDOWS_READERS_ENV
+
+    root = tmp_path / "private"
+    _configure_hospital(monkeypatch, root)
+    monkeypatch.setenv(HOSPITAL_WINDOWS_READERS_ENV, json.dumps({str(root): [_WINDOWS_FIXTURE_READER_SID]}))
+    assert hospital_ingest_enabled(root)
+    root.chmod(0o755)
+    assert not hospital_ingest_enabled(root)

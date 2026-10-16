@@ -7,6 +7,7 @@ import {
   Button,
   Collapse,
   FormControl,
+  FormErrorMessage,
   FormLabel,
   HStack,
   Input,
@@ -26,6 +27,7 @@ import { admissionApi } from '@/lib/api';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 import { ReviewerField } from '@/components/common/ReviewerField';
 import { GuideHint } from '@/components/common/GuideHint';
+import { hasInternalPatientKey, patientLabel } from '@/lib/patientPresentation';
 import { ChevronDown, ChevronUp, Pencil } from '@/lib/icons';
 
 function filenameMethod(method?: string): boolean {
@@ -34,10 +36,10 @@ function filenameMethod(method?: string): boolean {
 
 function SummaryRow({ label, value, note, onEdit }: { label: string; value: string; note: string; onEdit: () => void }) {
   return (
-    <HStack justify="space-between" align="flex-start" borderWidth="1px" borderColor="border.subtle" borderRadius="md" px={3} py={2}>
-      <Stack spacing={0} minW={0}>
+    <HStack justify="space-between" align="flex-start" flexWrap="wrap" gap={2} borderWidth="1px" borderColor="border.subtle" borderRadius="md" px={3} py={2}>
+      <Stack spacing={0} minW={0} flex="1 1 160px">
         <Text fontSize="sm" color="text.secondary">{label}</Text>
-        <Text fontWeight="semibold" noOfLines={1}>{value || 'Unknown'}</Text>
+        <Text fontSize="md" fontWeight="semibold" overflowWrap="anywhere">{value || 'Unknown'}</Text>
       </Stack>
       <HStack spacing={2} flexShrink={0}>
         <Badge colorScheme="blue" variant="subtle">{note}</Badge>
@@ -68,9 +70,12 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
   const [useAsDefault, setUseAsDefault] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [patientError, setPatientError] = useState(false);
+  const patientInputRef = useRef<HTMLInputElement | null>(null);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const [editImageType, setEditImageType] = useState(false);
   const [editPatient, setEditPatient] = useState(false);
+  const [unlinkPatient, setUnlinkPatient] = useState(false);
   const [editEye, setEditEye] = useState(false);
   const initialFocusRef = useRef<HTMLElement | null>(null);
 
@@ -103,9 +108,15 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
     setMetadataOpen(false);
     setEditImageType(false);
     setEditPatient(false);
+    setUnlinkPatient(false);
     setEditEye(false);
     setError(null);
+    setPatientError(false);
   }, [item]);
+
+  useEffect(() => {
+    if (patientError) patientInputRef.current?.focus();
+  }, [patientError]);
 
   const save = async () => {
     if (!item || !reviewer.trim()) { setError('Reviewer name is required.'); return; }
@@ -115,7 +126,8 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
       const saved = await admissionApi.confirmImage(item.image_id, {
         revision: item.revision,
         reviewer: reviewer.trim(),
-        patient_key: patientKey.trim() || null,
+        patient_key: hasInternalPatientKey(item) && editPatient && !patientKey.trim() && !unlinkPatient
+          ? item.patient_key ?? null : patientKey.trim() || null,
         laterality,
         retinal_modality: imageType,
         visit_key: visitKey.trim() || null,
@@ -128,7 +140,13 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
       onSaved(saved);
       onClose();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Image confirmation could not be saved.');
+      if (saveError instanceof Error && saveError.message === 'Patient key must be a short pseudonymous identifier') {
+        if (hasInternalPatientKey(item)) setPatientKey('');
+        setEditPatient(true);
+        setPatientError(true);
+      } else {
+        setError('Image confirmation could not be saved. Check your entries and try again.');
+      }
     } finally { setSaving(false); }
   };
 
@@ -141,17 +159,30 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
         : undefined;
 
   return (
-    <Modal isOpen={Boolean(item)} onClose={onClose} isCentered initialFocusRef={firstUnresolvedRef}>
+    <Modal isOpen={Boolean(item)} onClose={onClose} isCentered scrollBehavior="inside" initialFocusRef={firstUnresolvedRef}>
       <ModalOverlay />
-      <ModalContent as="form" noValidate onSubmit={(event) => { event.preventDefault(); void save(); }}>
-        <ModalHeader>Confirm Image</ModalHeader>
+      <ModalContent
+        as="form"
+        fontSize="md"
+        lineHeight="normal"
+        my={4}
+        maxH="calc(100dvh - 32px)"
+        w="calc(100% - 32px)"
+        sx={{
+          '.chakra-form__label': { fontSize: 'sm', lineHeight: 'normal', mb: 1.5 },
+          '.chakra-checkbox__label': { fontSize: 'sm', lineHeight: 'normal' },
+        }}
+        noValidate
+        onSubmit={(event) => { event.preventDefault(); void save(); }}
+      >
+        <ModalHeader flexShrink={0}>Confirm Image</ModalHeader>
         <ModalCloseButton />
-        <ModalBody>
+        <ModalBody minH={0} overflowY="auto">
           <Stack spacing={4}>
             <GuideHint step="confirm-image" />
-            {error && <Alert status="error"><AlertIcon /><Text>{error}</Text></Alert>}
+            {error && <Alert status="error" bg="status.dangerSoft" color="status.danger" alignItems="flex-start"><AlertIcon /><Text fontSize="md" overflowWrap="anywhere">{error}</Text></Alert>}
             <Stack spacing={1}>
-              <Text fontWeight="semibold">{item?.filename ?? item?.display_name}</Text>
+              <Text fontSize="md" fontWeight="semibold" overflowWrap="anywhere">{item?.filename ?? item?.display_name}</Text>
               <Text fontSize="sm" color="text.secondary">Only uncertain context needs confirmation. Filename and source metadata are evidence, not clinical truth.</Text>
             </Stack>
             {imageTypeResolved && !editImageType ? (
@@ -169,13 +200,16 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
               </FormControl>
             )}
             {patientResolved && !editPatient ? (
-              <SummaryRow label="Patient" value={patientKey} note={patientSource} onEdit={() => setEditPatient(true)} />
+              <SummaryRow label="Patient" value={item && hasInternalPatientKey(item) ? patientLabel(item) : patientKey} note={item && hasInternalPatientKey(item) ? 'workspace label · existing link kept' : patientSource} onEdit={() => { if (item && hasInternalPatientKey(item)) setPatientKey(''); setEditPatient(true); }} />
             ) : (
-              <FormControl>
+              <FormControl isInvalid={patientError}>
                 <FormLabel htmlFor="confirm-image-patient-key">Patient</FormLabel>
-                <Input ref={imageTypeResolved && (editPatient || !patientResolved) ? (node) => { initialFocusRef.current = node; } : undefined} id="confirm-image-patient-key" value={patientKey} onChange={(event) => setPatientKey(event.target.value.toUpperCase())} placeholder="Enter a pseudonymous key or leave blank" />
-                <Text fontSize="xs" color="text.secondary" mt={1}>{item?.patient_candidate ? 'Suggested from available evidence; confirm or correct it.' : 'Unknown is allowed when no supported evidence is available.'}</Text>
-                {editPatient && patientResolved && <Button type="button" size="xs" variant="ghost" mt={1} onClick={() => setEditPatient(false)}>Done</Button>}
+                <Input ref={(node) => { patientInputRef.current = node; if (imageTypeResolved && (editPatient || !patientResolved)) initialFocusRef.current = node; }} id="confirm-image-patient-key" value={patientKey} onChange={(event) => { setPatientKey(event.target.value.toUpperCase()); setUnlinkPatient(false); setPatientError(false); }} placeholder="Enter a pseudonymous key or leave blank" />
+                <Text fontSize="xs" color="text.secondary" mt={1}>{item && hasInternalPatientKey(item) ? 'Enter an approved pseudonymous key to replace this link. Leaving it blank keeps the current link. Workspace labels are not replacement keys.' : item?.patient_candidate ? 'Suggested from available evidence; confirm or correct it.' : 'Unknown is allowed when no supported evidence is available.'}</Text>
+                <FormErrorMessage fontSize="sm" color="status.danger">Use a pseudonymous key with 3–32 characters, starting with a letter and including a number. Use only letters, numbers, hyphens, or underscores.</FormErrorMessage>
+                {editPatient && item && hasInternalPatientKey(item) && <Button type="button" size="xs" variant="outline" onClick={() => { setPatientKey(item.patient_key ?? ''); setUnlinkPatient(false); setPatientError(false); setEditPatient(false); }}>Keep current patient link</Button>}
+                {editPatient && item && hasInternalPatientKey(item) && <><Button type="button" size="xs" variant="ghost" onClick={() => { setPatientKey(''); setUnlinkPatient(true); setPatientError(false); }}>Leave this image unlinked</Button>{unlinkPatient && <Text fontSize="sm" color="status.warning">This image will be left unlinked when you confirm.</Text>}</>}
+                {editPatient && patientResolved && item && !hasInternalPatientKey(item) && <Button type="button" size="xs" variant="ghost" mt={1} isDisabled={patientError} onClick={() => setEditPatient(false)}>Done</Button>}
               </FormControl>
             )}
             {eyeResolved && !editEye ? (
@@ -223,8 +257,11 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
             </Box>
           </Stack>
         </ModalBody>
-        <ModalFooter>
-          <HStack spacing={2}><Button type="button" variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button><Button type="submit" variant="solid" isLoading={saving}>Confirm image &amp; continue</Button></HStack>
+        <ModalFooter flexShrink={0}>
+          <Stack direction={{ base: 'column-reverse', tablet: 'row' }} spacing={2} w="full" align={{ base: 'stretch', tablet: 'center' }} justify="flex-end">
+            <Button type="button" variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button>
+            <Button type="submit" variant="solid" whiteSpace="normal" h="auto" minH="36px" py={2} isLoading={saving}>Confirm image &amp; continue</Button>
+          </Stack>
         </ModalFooter>
       </ModalContent>
     </Modal>

@@ -50,14 +50,14 @@ try {
     if ($processStatus.State -eq "RUNNING" -and $processStatus.Ready) {
         try {
             $workspaceResponse = Invoke-WebRequest -Uri "http://127.0.0.1:8000/v1/workspaces/active" -UseBasicParsing -TimeoutSec 2
-            Report "Workspace API readiness" ($workspaceResponse.StatusCode -eq 200) "active workspace endpoint responded"
+            Report "Selected workspace readiness" ($workspaceResponse.StatusCode -eq 200 -and (Test-ReleaseSelectedWorkspace $workspaceResponse.Content)) "Open Settings and select the intended workspace if none is selected"
         } catch {
             Report "Workspace API readiness" $false "The running workstation did not return its active workspace state."
         }
     } else {
         Write-Host "[NOT_RUN] Workspace API readiness: start the workstation to verify the active workspace endpoint."
     }
-    $modelUrl = ($env:REMOTE_MODEL_URL | ForEach-Object { $_.Trim() })
+    $modelUrl = ([string]$env:REMOTE_MODEL_URL).Trim()
     if (-not $modelUrl) {
         Write-Host "[PASS] Model API / manual mode: no remote URL is configured; manual review remains available."
     } else {
@@ -90,6 +90,7 @@ try {
             Write-Host "[WARN] Model API connection: health or capability discovery failed; manual review remains available."
         }
     }
+    if ($processStatus.State -eq "RUNNING" -and $processStatus.Ready) { Write-ReleaseShowcaseReadiness }
     if ($failures -gt 0) {
         Write-Host "System check is not ready. Fix the reported items, then run CHECK_SYSTEM.bat again."
         exit 1

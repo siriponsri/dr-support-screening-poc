@@ -45,6 +45,9 @@ from .grade import (
 )
 from .referral import current_referral, derive_referral
 from .comparison import compare_cases
+from .services.patient_presentation import (
+    DISPLAY_INDICES, hospital_patient_label, preserves_trusted_hospital_key,
+)
 
 
 KNOWN_ANALYSIS_TRANSFORMS = frozenset({
@@ -359,6 +362,12 @@ def install_workflow(app, store):
     def ensure_resolution(image_id, case, record):
         """Resolve local evidence, refreshing only unresolved automatic state."""
         authorized = resolve_authorized_hospital_record(record)
+        if authorized is not None and (
+            case.get('patient_resolution_method') == 'MANUAL'
+            or case.get('laterality_resolution_method') == 'MANUAL'
+            or any(event.get('action') == 'CONFIRM_IMAGE' for event in case.get('events', []))
+        ):
+            return case
         if authorized is not None and not any(
             event.get('action') == 'CONFIRM_IMAGE'
             for history in (case.get('resolution_history', []), case.get('events', []))
@@ -417,6 +426,9 @@ def install_workflow(app, store):
         )
         source_modality = (record or {}).get('retinal_modality', 'UNKNOWN')
         source_origin = _source_origin(record, image)
+        case, patient_display_label = hospital_patient_label(
+            current_store(), case, source_origin=source_origin,
+        )
         visible_global = (
             case.get('global')
             if _global_result_matches_modality(case.get('global'), source_modality, source_origin)
@@ -444,7 +456,8 @@ def install_workflow(app, store):
                 'status': 'UNAVAILABLE',
                 'note': 'Explainability evidence is unavailable for this result. It is not lesion localization or a clinical probability.',
             }
-        return {**case, 'global': visible_global,
+        return {**{key: value for key, value in case.items() if key != DISPLAY_INDICES},
+                'patient_display_label': patient_display_label, 'global': visible_global,
                 'lesion': visible_lesion,
                 'source_type': image.source_type if image is not None else None,
                 'source_origin': source_origin,
@@ -1163,6 +1176,13 @@ def install_workflow(app, store):
                 raise HTTPException(409, 'Case changed; reload before confirming image')
             if current is None:
                 current = legacy_admission(image)
+            preserve_patient = preserves_trusted_hospital_key(case, current, request.patient_key)
+            patient_key = request.patient_key.strip() if request.patient_key else ''
+            if patient_key and not preserve_patient:
+                try:
+                    patient_key = normalize_patient_key(patient_key)
+                except ValueError as error:
+                    raise HTTPException(422, str(error)) from None
             timestamp = datetime.now(timezone.utc).isoformat()
             admission = dict(current)
             prior_modality = admission.get('retinal_modality', 'UNKNOWN')
@@ -1243,12 +1263,9 @@ def install_workflow(app, store):
                 else 'UNKNOWN',
             }
 
-            patient_key = request.patient_key.strip() if request.patient_key else ''
-            if patient_key:
-                try:
-                    patient_key = normalize_patient_key(patient_key)
-                except ValueError as error:
-                    raise HTTPException(422, str(error)) from None
+            if preserve_patient:
+                pass  # Preserve the trusted key and its authorized-source provenance.
+            elif patient_key:
                 case['patient_key'] = patient_key
                 case['patient_resolution_state'] = 'RESOLVED'
                 case['patient_resolution_method'] = 'MANUAL'
@@ -1260,11 +1277,12 @@ def install_workflow(app, store):
                 case['patient_resolution_method'] = 'MANUAL'
                 case['patient_reason_code'] = 'MANUAL_LEFT_UNLINKED'
                 case['patient_confidence_or_strength'] = None
-            case['laterality'] = request.laterality
-            case['laterality_candidate'] = request.laterality
-            case['laterality_resolution_state'] = 'RESOLVED'
-            case['laterality_resolution_method'] = 'MANUAL'
-            case['laterality_reason_code'] = 'MANUAL_UNKNOWN' if request.laterality == 'UNKNOWN' else 'MANUAL_SET'
+            if not (preserve_patient and request.laterality == case.get('laterality')):
+                case['laterality'] = request.laterality
+                case['laterality_candidate'] = request.laterality
+                case['laterality_resolution_state'] = 'RESOLVED'
+                case['laterality_resolution_method'] = 'MANUAL'
+                case['laterality_reason_code'] = 'MANUAL_UNKNOWN' if request.laterality == 'UNKNOWN' else 'MANUAL_SET'
             case['resolver_state'] = combined_resolution_state(
                 case.get('patient_resolution_state', 'UNLINKED'),
                 case.get('laterality_resolution_state', 'UNLINKED'),

@@ -66,3 +66,64 @@ The packaged Windows workstation does not treat `FIRST_RUN.bat` or `CHECK_SYSTEM
 Case-store mode precedence follows `_resolve_case_store_mode`: an explicit `DR_SUPPORT_CASE_STORE` is used first; otherwise `DR_SUPPORT_DATABASE_URL` selects PostgreSQL; otherwise function-level `case_store_mode` or `state_path` compatibility arguments apply; if none is supplied, the default remains PostgreSQL. `DR_SUPPORT_STATE` and `DR_SUPPORT_WORKSPACE_CATALOG` alone do not implicitly select SQLite. Set `DR_SUPPORT_CASE_STORE=sqlite` for an explicit legacy compatibility run, with the legacy paths supplied for that run. Managed PostgreSQL workspace creation and switching do not require or open a local SQLite database path; any legacy path retained on an imported profile is provenance only.
 
 PostgreSQL integration tests are opt-in and require both `DR_SUPPORT_TEST_DATABASE_URL` and `DR_SUPPORT_TEST_DATABASE_NAME`. The configured URL's database name must exactly match the explicit name, which must contain a distinct `test` token such as `dr_support_test`. Tests create and remove only uniquely named `dr_support_test_*` schemas; they never drop, truncate, or recreate the configured database.
+
+
+## Authorized Windows managed readers
+
+The owner-approved Windows private-evaluation policy can retain an existing
+platform-managed read-only reader without changing Windows ACLs or sandbox
+protections. This is opt-in and server-only. Never authorize a group by display
+name alone: independently verify its SID, membership, purpose and effective
+rights, and obtain approval for the exact hospital roots.
+
+`DR_SUPPORT_HOSPITAL_WINDOWS_READ_ONLY_SIDS` is a private JSON object mapping
+exact authorized root paths to one verified machine/domain group SID each:
+
+```json
+{"C:/approved/uwf":["<verified-managed-reader-SID>"],"C:/approved/cfp":["<verified-managed-reader-SID>"]}
+```
+
+Both roots must already be authorized by the existing hospital-root configuration.
+The reader mapping also requires `DR_SUPPORT_HOSPITAL_SCOPE=PRIVATE_PROJECT_EVALUATION`.
+No entry means no extra reader is accepted. Invalid JSON, relative/unavailable/
+redirected or unapproved roots, duplicate canonical bindings, display names and
+well-known broad-group SIDs fail closed. This setting does not grant access or
+modify ACLs; it recognizes only an existing approved read grant.
+
+On Windows, the approved reader can have at most ReadAndExecute plus Synchronize.
+Write, append, delete, ownership and permission-change grants remain rejected,
+including grants on descendants. Operator, SYSTEM and Administrators keep their
+existing administrative role. Unknown principals remain rejected. POSIX hosts
+ignore this Windows setting and retain the private mode-bit requirement.
+
+Keep actual paths/SIDs in private configuration. They are not image provenance,
+export authorization or clinician confirmation, and must not be accepted from
+browser requests or persisted in the review database. Do not remove a managed
+sandbox group, alter its membership, or disable execution protections to pass
+admission. Synthetic permission tests must never change real image-root ACLs.
+
+
+## Authorized hospital transmission from a Windows Review workstation
+
+Hospital admission and remote model transmission have separate opt-ins. After
+explicit authorization to send the named hospital roots to the selected private
+research Model API, configure both the Review hospital-root settings and this
+model boundary in the workstation's private environment:
+
+```dotenv
+MODEL_HOSPITAL_SCOPE=PRIVATE_PROJECT_EVALUATION
+MODEL_ALLOW_AUTHORIZED_HOSPITAL=1
+```
+
+The same model-boundary opt-in is required on the Model API host. A nonempty
+`REMOTE_MODEL_TOKEN` and verified `REMOTE_MODEL_URL` are also required; keep the
+token in private operator configuration. The remote adapter checks this model
+boundary on Windows before transmission, even when the Review has already
+admitted the roots. Missing settings must remain fail-closed. Admission alone
+does not authorize transmission, and these flags do not authorize export.
+
+Keep `HOSPITAL_AUTHORIZED` provenance. Do not relabel real hospital inputs as
+public or synthetic to pass the gate. Images marked as needing admission review
+remain blocked until the existing human review flow resolves them. Update only
+private configuration after authorization and restart the existing workstation;
+never weaken source/privacy checks or change source images to make a run pass.

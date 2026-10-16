@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CaseRecord } from '@/lib/api';
 import { hasCompatibleModel } from '@/lib/modelCapabilities';
-import { DEFAULT_FILTERS, filterCases, groupCases, identityNeedsAction, sortCases } from '@/components/worklist/worklistModel';
+import { DEFAULT_FILTERS, filterCases, groupCases, identityNeedsAction, matchesSearch, sortCases } from '@/components/worklist/worklistModel';
 
 function makeCase(overrides: Partial<CaseRecord> = {}): CaseRecord {
   return {
@@ -127,4 +127,18 @@ describe('S3 worklist selectors', () => {
     const pendingCases = filterCases([pending, needsAnnotation, escalated, reviewed, excluded], '', { ...DEFAULT_FILTERS, review: 'pending' });
     expect(pendingCases.map((item) => item.image_id)).toEqual(['pending', 'needs-annotation', 'escalated']);
   });
+});
+
+
+it('searches visible hospital labels without changing complete-key grouping', () => {
+  const firstKey = 'HOSPITAL-' + 'A1'.repeat(12);
+  const secondKey = 'HOSPITAL-' + 'B2'.repeat(12);
+  const first = makeCase({ image_id: 'first', patient_key: firstKey, patient_display_label: 'Patient 1', source_origin: 'HOSPITAL_AUTHORIZED' });
+  const previous = { ...first, image_id: 'previous' };
+  const second = makeCase({ image_id: 'second', patient_key: secondKey, patient_display_label: 'Patient 2', source_origin: 'HOSPITAL_AUTHORIZED' });
+  const cases = [first, previous, second];
+  expect(cases.filter((c) => matchesSearch(c, ' patient 1 ')).map((c) => c.image_id)).toEqual(['first', 'previous']);
+  expect(cases.filter((c) => matchesSearch(c, 'PATIENT 2')).map((c) => c.image_id)).toEqual(['second']);
+  expect(groupCases(cases).map((g) => g.key)).toEqual([firstKey, secondKey]);
+  expect(first.patient_key).toBe(firstKey);
 });

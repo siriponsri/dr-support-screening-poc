@@ -37,6 +37,7 @@ import { isModelUsable } from '@/lib/modelCapabilities';
 import { ArrowLeft, ChevronDown, ChevronUp, Play, UserRound } from '@/lib/icons';
 import { LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
 import { caseComplete } from '@/lib/caseProgress';
+import { hasInternalPatientKey, patientLabel } from '@/lib/patientPresentation';
 
 type ComparisonResponse = {
   eligible: boolean;
@@ -244,7 +245,7 @@ function admissionAllowsAnalysis(item: CaseRecord | null) {
 }
 
 function patientEyeContext(item: CaseRecord) {
-  const patient = item.patient_key ?? item.patient_candidate ?? item.display_name;
+  const patient = hasInternalPatientKey(item) ? patientLabel(item) : item.patient_key ?? item.patient_candidate ?? item.display_name;
   const eye = item.laterality === 'LEFT' ? 'Left' : item.laterality === 'RIGHT' ? 'Right' : 'Eye not confirmed';
   return `${patient} \u00b7 ${eye}`;
 }
