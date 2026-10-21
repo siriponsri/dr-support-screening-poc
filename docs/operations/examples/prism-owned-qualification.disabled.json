@@ -1,0 +1,83 @@
+{
+  "schema": "prism-owned-qualification-proposal.v1",
+  "enabled": false,
+  "qualification_mode": "DISABLED_PENDING_REVIEW_AND_SEPARATE_AUTHORIZATION",
+  "executable_configuration": false,
+  "activation_factory": "scripts.qa.prism_owned_profile:worker_factory",
+  "factory_behavior": "ALWAYS_RAISES",
+  "scope": "FIXED_SYNTHETIC_UWF_SINGLE_WORKER",
+  "phase": "FAKE_WORKER_LINUX_FIRST_REAL_MODEL_SEPARATE",
+  "existing_credentials": {
+    "token_reader_reference": "<EXISTING_APPROVED_SERVER_SIDE_READER_REFERENCE>",
+    "token_value": null,
+    "ssh_forward_reference": "<EXISTING_APPROVED_PRIVATE_FORWARD_REFERENCE>",
+    "create_or_reconfigure_credentials": false
+  },
+  "source_identity": {
+    "integration_commit": "<REVIEWED_INTEGRATION_COMMIT>",
+    "runtime_file_sha256_manifest": "<REVIEWED_MANIFEST_PATH>",
+    "model_pins": "<EXISTING_VERIFIED_PRISM_PINS_OBJECT>",
+    "epoch": "<FRESH_REVIEWED_SESSION_EPOCH>",
+    "owner_scope": "<FRESH_REVIEWED_OWNER_SCOPE_16_TO_128_CHARACTERS>",
+    "windows_journal_directory": "<NEW_EMPTY_SESSION_DIRECTORY_NOT_AN_OLD_QUARANTINE>",
+    "synthetic_sources_manifest": "<REVIEWED_HASHED_SYNTHETIC_SOURCES_ONLY>"
+  },
+  "network": {
+    "worker_host": "127.0.0.1",
+    "worker_port": 7862,
+    "gateway_host": "127.0.0.1",
+    "gateway_port": 17860,
+    "windows_existing_forward_port": 17860,
+    "route_prefix": "/v1/prism-bound",
+    "http_transport_retries": 0,
+    "trust_environment_proxies": false,
+    "follow_redirects": false,
+    "rpc_absolute_seconds": 5,
+    "read_chunk_timeout_seconds": 0.2
+  },
+  "owned_worker": {
+    "argv": [
+      "<EXISTING_APPROVED_INTERPRETER_ABSOLUTE_PATH>", "-m", "uvicorn",
+      "scripts.qa.prism_owned_profile:worker_factory", "--factory",
+      "--host", "127.0.0.1", "--port", "7862", "--lifespan", "on",
+      "--no-access-log", "--log-level", "critical"
+    ],
+    "argv_sha256": "<HASH_OF_EXACT_REVIEWED_ARGV>",
+    "workers": 1,
+    "max_jobs": 2,
+    "soft_lifetime_seconds": 270,
+    "drain_seconds": 25,
+    "hard_child_alarm_seconds": 300,
+    "request_seconds": 30,
+    "watchdog_tick_seconds": 0.25,
+    "monitor_seconds": 1,
+    "resource_sample_aggregate_seconds": 0.5,
+    "resource_command_max_timeout_seconds": 0.2,
+    "vram_limit_mib": 10240,
+    "rss_limit_bytes": 25769803776,
+    "project_limit_bytes": 42949672960,
+    "cuda_visible_devices": "GPU-044a8b11-4729-458b-a07b-297e45439419",
+    "resource_project_root": "/home/siripon/projects/dr-model-api-qa",
+    "spawn_only": true,
+    "restart_or_attach_existing_pid": false
+  },
+  "current_authorization": {
+    "real_requests_remaining": 0,
+    "start_listener": false,
+    "server_contact": false,
+    "real_model_load_or_forward": false
+  },
+  "future_real_model_proposal_only": {
+    "requests": 2,
+    "serial": true,
+    "retries": 0,
+    "first": "NO_APPLIED_MASK_RECORD_ORIGINAL_OR_FALLBACK",
+    "second": "APPLIED_MASK_CONDITIONAL_ON_UNCHANGED_CPU_READY_AND_ACTUAL_CONSUMPTION",
+    "native_roi_fallback_counts_as_applied_mask_validation": false
+  },
+  "stop_conditions": [
+    "SOURCE_OR_PINS_CHANGED", "FOREIGN_LISTENER", "UNVERIFIED_OWNED_IDENTITY",
+    "RESOURCE_OR_DEADLINE_LIMIT", "UNKNOWN_GRANT_OR_TERMINATION_PROOF"
+  ],
+  "cleanup": "CLOSE_ONLY_OWNED_SESSION_REQUIRE_STOPPED_AND_CLOSE_CONFIRMED_PRESERVE_QUARANTINE"
+}
