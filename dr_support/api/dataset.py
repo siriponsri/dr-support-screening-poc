@@ -15,6 +15,13 @@ class GroupedGradeExportRequest(Contract):
     jpeg_quality: int = Field(default=90, ge=1, le=100)
 
 
+class DatasetSnapshotRequest(Contract):
+    include_grade_folders: bool = Field(default=False, strict=True)
+    expected_workspace_id: str | None = Field(default=None, max_length=200)
+    expected_source_state_digest: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    expected_grading_plan_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+
 def install_dataset_routes(app) -> None:
     service = DatasetManifestService(app)
 
@@ -95,16 +102,16 @@ def install_dataset_routes(app) -> None:
             raise HTTPException(status_code=404, detail=str(error)) from None
 
     @app.get("/v2/dataset/snapshot/preview")
-    def dataset_snapshot_preview():
+    def dataset_snapshot_preview(include_grade_folders: bool = Query(default=False)):
         try:
-            return service.snapshot_preview()
+            return service.snapshot_preview(include_grade_folders=include_grade_folders)
         except DatasetManifestError as error:
             raise HTTPException(status_code=409, detail=str(error)) from None
 
     @app.post("/v2/dataset/snapshot")
-    def dataset_snapshot():
+    def dataset_snapshot(request: DatasetSnapshotRequest | None = None):
         try:
-            return service.export_snapshot()
+            return service.export_snapshot(**(request or DatasetSnapshotRequest()).model_dump())
         except DatasetManifestError as error:
             raise HTTPException(status_code=409, detail=str(error)) from None
         except OSError:

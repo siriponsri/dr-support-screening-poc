@@ -37,6 +37,7 @@ import {
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { StatusBadge } from '@/components/common/StatusBadge';
+import { GradingFolderSnapshot } from '@/components/dataset/GradingFolderSnapshot';
 import {
   datasetApi,
   drGradeLabel,
@@ -262,7 +263,8 @@ export function DatasetsPage() {
             <HStack justify="space-between"><Text fontSize="sm" color="text.secondary">Page {data.page} of {Math.max(1, Math.ceil(data.total / data.limit))}</Text><HStack><Button size="sm" variant="outline" leftIcon={<ChevronLeft size={14} />} onClick={() => setPage((value) => Math.max(1, value - 1))} isDisabled={page <= 1}>Previous</Button><Button size="sm" variant="outline" rightIcon={<ChevronRight size={14} />} onClick={() => setPage((value) => value + 1)} isDisabled={!data.has_next}>Next</Button></HStack></HStack>
           </Stack>
         </Section> : null}
-        <Section title="Export tools" description="Canonical snapshots contain metadata, physician-confirmed labels, completeness, and separate non-gold AI evidence. Source images are not copied.">
+        <GradingFolderSnapshot workspaceId={manifest?.workspace_id ?? null} exportAllowed={manifest?.can_export === true} refreshToken={manifest?.created_at} />
+        <Section title="Legacy export tools" description="Metadata-only canonical snapshots do not copy images. The older grouped-image export updates a shared folder; use Grading-folder snapshot for a new immutable copy.">
           <Stack spacing={3} align="flex-start">
             {!manifest?.can_export && <Text fontSize="sm" color="status.warning">{manifest?.workspace_id ? 'Export is restricted for this Workspace. Review source authorization; hospital export remains disabled.' : 'Open an active Workspace to export a dataset manifest.'}</Text>}
             <HStack flexWrap="wrap"><Button leftIcon={<Download size={15} />} onClick={() => void createExport()} isLoading={exporting} isDisabled={!manifest?.can_export}>Export manifest</Button><Button variant="outline" onClick={() => void createGroupedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export}>Export grouped images</Button></HStack>

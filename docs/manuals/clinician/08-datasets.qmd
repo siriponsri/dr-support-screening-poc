@@ -26,6 +26,15 @@ One task can be ready while the other is not. AI-only evidence is never promoted
 
 ## Export the manifest
 
+For image organization, use **Preview grading folders**, inspect the counts and
+skipped sources, then **Create grading-folder snapshot**. Grade0–4 contains current
+recorded clinician confirmations with source provenance; UNREVIEWED, UNGRADABLE
+and UNDETERMINED are separate. The new snapshot copies original bytes and preserves
+previous snapshots after a grade revision. Folder membership does not certify
+lesion labels or clinician credentials. Hospital export remains disabled.
+See [grade-organized snapshots](../../operations/GRADING_FOLDER_SNAPSHOTS.md) for
+completion, authorization and recovery limits.
+
 **Steps.**
 
 1. Check the readiness of the active Workspace.

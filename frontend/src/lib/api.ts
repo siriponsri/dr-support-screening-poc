@@ -736,6 +736,21 @@ export interface DatasetSnapshotPreview {
   blocked_record_count: number;
   negative_policy_version: string;
   can_export: boolean;
+  grading_folders?: GradingFolderSummary;
+}
+
+export interface GradingFolderSummary {
+  schema_version?: string;
+  status: string;
+  reason?: string;
+  plan_sha256?: string;
+  group_counts?: Record<string, number>;
+  record_count?: number;
+  file_count?: number;
+  copy_bytes?: number;
+  skipped_count?: number;
+  skipped_reasons?: Record<string, number>;
+  duplicate_record_count?: number;
 }
 
 export interface DatasetSnapshotResponse {
@@ -890,8 +905,8 @@ export const datasetApi = {
     return apiJson<WorkspaceDataResponse>(`/v2/workspace-data/records?${query.toString()}`);
   },
   workspaceDataDetail: (imageId: string) => apiJson<WorkspaceDataDetail>(`/v2/workspace-data/records/${encodeURIComponent(imageId)}`),
-  snapshotPreview: () => apiJson<DatasetSnapshotPreview>('/v2/dataset/snapshot/preview'),
-  snapshot: () => apiJson<DatasetSnapshotResponse>('/v2/dataset/snapshot', jsonRequest({ method: 'POST' })),
+  snapshotPreview: (includeGradeFolders = false, signal?: AbortSignal) => apiJson<DatasetSnapshotPreview>(`/v2/dataset/snapshot/preview${includeGradeFolders ? '?include_grade_folders=true' : ''}`, { signal }),
+  snapshot: (options?: { include_grade_folders: true; expected_workspace_id: string; expected_source_state_digest: string; expected_grading_plan_sha256: string }, signal?: AbortSignal) => apiJson<DatasetSnapshotResponse>('/v2/dataset/snapshot', jsonRequest({ method: 'POST', signal, ...(options ? { body: JSON.stringify(options) } : {}) })),
   exportGrouped: (imageFormat: 'PNG' | 'JPEG', jpegQuality: number) => apiJson<GroupedGradeExportResponse>(
     '/v1/dataset/export/grouped-by-grade',
     jsonRequest({ method: 'POST', body: JSON.stringify({ image_format: imageFormat, jpeg_quality: jpegQuality }) }),

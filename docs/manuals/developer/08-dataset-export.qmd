@@ -27,6 +27,13 @@ AI-only evidence is never promoted to ground truth. Untouched AI, human, correct
 
 ## Export package
 
+The existing canonical snapshot endpoint also accepts an opt-in immutable
+grading-folder copy plan. Preview and POST bind the Workspace, source-state digest
+and grading-plan hash; strict numeric-folder labels remain separate from AI and
+non-numeric states. Source bytes are copied without transcoding. See
+[grade-organized snapshots](../../operations/GRADING_FOLDER_SNAPSHOTS.md) for the
+additive API, collision handling, completion marker and unqualified runtime limits.
+
 `export()` writes `<output>/dataset-export-<UTC timestamp>-<8 hex>/`. The directory is created exclusively, and it is removed again on any failure. It contains:
 
 - `manifest.json`: counts, `coordinate_system: original_image_pixels`, lesion taxonomy, `grouping_policy: patient_key_only; no automatic train-validation-test split`, and the SHA-256 of both CSV files;

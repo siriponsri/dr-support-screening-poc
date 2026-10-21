@@ -7,8 +7,10 @@ import hashlib
 import io
 import json
 import math
+import os
 import re
 import shutil
+from copy import deepcopy
 from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +18,8 @@ from uuid import uuid4
 
 from .admission import legacy_admission
 from .source_identity import source_identity_reason
+from .grading_folders import GradingFolderError, plan_grading_folders
+from .filesystem_privacy import has_reparse_component
 from ..presentation import annotation_set_hash, lesion_detection_id, review_evidence_view
 from ..imaging import DerivativeError
 from .resolver import normalize_patient_key
@@ -1076,10 +1080,10 @@ class DatasetManifestService:
     def workspace_data_explainability(self, image_id: str) -> dict:
         return self._record_detail(image_id)["explainability"] | {"schema_version": "s4.workspace-data-explainability.v1", "image_id": image_id}
 
-    def snapshot_preview(self) -> dict:
+    def snapshot_preview(self, *, include_grade_folders: bool = False) -> dict:
         images, annotations, cases, source_state, workspace_id, workspace_name = self._workspace_data_context()
         ai_evidence = self._snapshot_ai_evidence(cases, images)
-        return {
+        result = {
             "schema_version": SNAPSHOT_SCHEMA_VERSION,
             "workspace_id": workspace_id,
             "workspace_name": workspace_name,
@@ -1098,6 +1102,18 @@ class DatasetManifestService:
             "negative_policy_version": NEGATIVE_POLICY_VERSION,
             "can_export": workspace_id is not None and not any(str(row.get("export_authorization", "")).startswith("BLOCKED_") for row in images),
         }
+        if include_grade_folders:
+            try:
+                plan = plan_grading_folders(cases, images, dict(self.app.state.images), deepcopy(self.app.state.admissions))
+                result["grading_folders"] = plan.summary()
+                copied = {item["record_key"] for item in plan.manifest["items"] if item["output_path"]}
+                result["row_counts"]["dr_labels.csv"] = sum(item["confirmed_grade"] is not None for item in plan.manifest["items"])
+                result["row_counts"]["lesion_labels.csv"] = sum(bool(item.get("include_in_training"))
+                    and _sha256(str(item["image_id"]).encode()) in copied for item in annotations)
+            except GradingFolderError:
+                result["grading_folders"] = {"status": "BLOCKED_AUTHORIZATION", "reason": "Source authorization is required; hospital export remains disabled."}
+                result["can_export"] = False
+        return result
 
     @staticmethod
     def _snapshot_records(images: list[dict]) -> list[dict]:
@@ -1163,10 +1179,19 @@ class DatasetManifestService:
             if actual_digest != expected_digest:
                 raise DatasetManifestError("Canonical snapshot file hash verification failed.")
 
-    def export_snapshot(self) -> dict:
+    def export_snapshot(self, *, include_grade_folders: bool = False,
+                        expected_workspace_id: str | None = None,
+                        expected_source_state_digest: str | None = None,
+                        expected_grading_plan_sha256: str | None = None) -> dict:
         workspace = self._workspace()
         if workspace is None:
             raise DatasetManifestError("Open an active Workspace before creating a canonical snapshot.")
+        folder_plan = None
+        store_at_start = self.app.state.store
+        output_root = Path(workspace.output_folder)
+        if include_grade_folders and (expected_workspace_id != workspace.id
+                                      or not expected_source_state_digest or not expected_grading_plan_sha256):
+            raise DatasetManifestError("Preview grading folders for the current Workspace before creating a snapshot.")
         with self._read_snapshot_cases() as snapshot_cases:
             cases = list(snapshot_cases) if hasattr(self.app.state.store, "repeatable_read_cases") else self._merge_case_records(snapshot_cases)
             images, annotations = self._rows(cases)
@@ -1174,8 +1199,38 @@ class DatasetManifestService:
             blocked = [row for row in images if str(row.get("export_authorization", "")).startswith("BLOCKED_")]
             if blocked:
                 raise DatasetManifestError("Canonical snapshot is blocked because one or more records lack approved engineering export authorization.")
+            if include_grade_folders:
+                if self.app.state.store is not store_at_start or self._workspace() is not workspace:
+                    raise DatasetManifestError("Workspace changed; refresh the grading-folder preview.")
+                try:
+                    folder_plan = plan_grading_folders(cases, images, dict(self.app.state.images), deepcopy(self.app.state.admissions))
+                except GradingFolderError as error:
+                    raise DatasetManifestError(str(error)) from None
+                if (source_state["digest"] != expected_source_state_digest
+                        or folder_plan.manifest["plan_sha256"] != expected_grading_plan_sha256):
+                    raise DatasetManifestError("Snapshot inputs changed; refresh the grading-folder preview.")
+                if not folder_plan.files:
+                    raise DatasetManifestError("No supported, source-verified image can be copied; inspect the preview reasons.")
+                if (not output_root.is_absolute() or ".." in output_root.parts
+                        or not output_root.is_dir() or has_reparse_component(output_root)):
+                    raise DatasetManifestError("A direct existing Workspace output directory is required.")
+                input_root = Path(workspace.input_folder).resolve()
+                if output_root.resolve().is_relative_to(input_root):
+                    raise DatasetManifestError("Grading-folder output must be outside the original input directory.")
+                if shutil.disk_usage(output_root).free < folder_plan.manifest["copy_bytes"] + 1024 * 1024:
+                    raise DatasetManifestError("Insufficient free space for a new grading-folder snapshot.")
+                folder_items = {item["record_key"]: item for item in folder_plan.manifest["items"]}
+                for row in images:
+                    item = folder_items[_sha256(str(row["image_id"]).encode())]
+                    row["dr_grade_training_ready"] = item["confirmed_grade"] is not None
+                    if item["confirmed_grade"] is None:
+                        row["grade_eligibility_reason"] = item["reason"]
+                    if item["output_path"] is None:
+                        row["lesion_training_ready"] = False
+                        row["lesion_eligibility_reason"] = item["reason"]
+                annotations = [item for item in annotations if folder_items[_sha256(str(item["image_id"]).encode())]["output_path"]]
         snapshot_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid4().hex[:8]}"
-        export_dir = Path(workspace.output_folder) / f"dataset-snapshot-{snapshot_id}"
+        export_dir = output_root / f"dataset-snapshot-{snapshot_id}"
         completeness = self._snapshot_completeness(images)
         ai_evidence = self._snapshot_ai_evidence(cases, images)
         dr_labels = [
@@ -1228,6 +1283,11 @@ class DatasetManifestService:
             "review_completeness.csv": _csv_bytes(completeness, COMPLETENESS_FIELDS),
             "ai_evidence.csv": _csv_bytes(ai_evidence, AI_EVIDENCE_FIELDS),
         }
+        if folder_plan is not None:
+            files.update(folder_plan.files)
+            files["grading_folders/manifest.json"] = _canonical_json_bytes({
+                "snapshot_id": snapshot_id, "source_state_digest": source_state["digest"], **folder_plan.manifest,
+            })
         file_hashes = {name: _sha256(data) for name, data in files.items()}
         source_origins = self._source_summary(images)
         authorizations = self._authorization_summary(images)
@@ -1269,15 +1329,36 @@ class DatasetManifestService:
             "authorization_status": authorizations,
             "status": "SUCCESS",
         }
+        if folder_plan is not None:
+            details = {**folder_plan.summary(), "manifest": "grading_folders/manifest.json"}
+            manifest["grading_folders"] = details
+            receipt["grading_folders"] = details
+            manifest["grade_label_selection_policy"] = "grading-folders.v1: current explicit source-bound confirmations only"
+            manifest["limitations"][0] = "Optional grading_folders copies original bytes; folder membership is not clinical UAT or lesion-training readiness."
+            if os.name == "nt" and any(len(str((export_dir / name).absolute())) >= 260 for name in files):
+                raise DatasetManifestError("Workspace output path is too long; choose a shorter output directory.")
+        created = False
         try:
             export_dir.mkdir(parents=False, exist_ok=False)
-            (export_dir / "manifest.json").write_bytes(_canonical_json_bytes(manifest))
+            created = True
             for name, data in files.items():
-                (export_dir / name).write_bytes(data)
-            (export_dir / "receipt.json").write_bytes(_canonical_json_bytes(receipt))
+                relative = Path(name)
+                target = export_dir / relative
+                if (relative.is_absolute() or ".." in relative.parts or "\\" in name or ":" in name
+                        or not target.resolve().is_relative_to(export_dir.resolve())):
+                    raise DatasetManifestError("Snapshot output path is invalid.")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if has_reparse_component(target.parent):
+                    raise DatasetManifestError("Snapshot output contains a redirected directory.")
+                with target.open("xb") as output:
+                    output.write(data)
             self._verify_snapshot_file_hashes(export_dir, file_hashes)
+            (export_dir / "manifest.json").write_bytes(_canonical_json_bytes(manifest))
+            # Completion marker is written only after every copied file verifies.
+            (export_dir / "receipt.json").write_bytes(_canonical_json_bytes(receipt))
         except Exception:
-            if export_dir.exists():
+            if (created and export_dir.exists() and not has_reparse_component(export_dir)
+                    and export_dir.resolve().parent == output_root.resolve()):
                 shutil.rmtree(export_dir)
             raise
         return {"schema_version": SNAPSHOT_SCHEMA_VERSION, "snapshot_id": snapshot_id, "workspace_id": workspace.id, "workspace_name": workspace.name, "directory_name": export_dir.name, "manifest": manifest, "receipt": receipt}
