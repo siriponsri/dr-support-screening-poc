@@ -25,7 +25,7 @@ from pydantic import Field
 
 from ..contracts import Contract
 
-PROTOCOL = "prism-wire-binding.v1"
+PROTOCOL = "prism-wire-binding.source-attested.v2"
 MODEL_ID = "prism-dr-5fold"
 MASK_VERSION = "uwf_white_rim_fov_v1"
 MAX_PIXELS = 50_000_000
@@ -86,6 +86,7 @@ class PreviewSnapshot:
     transform: dict
     preparation_context: str
     admission: dict
+    recorded_source_identity: dict
     external_fov_status: str
     external_fov_reason_code: str | None
     mask: bytes | None  # Encoded L-mode PNG, binary, source-provider coordinates.
@@ -129,9 +130,10 @@ class PrismPreviewService:
     """
     def __init__(self, snapshot: Callable[[str], PreviewSnapshot], execute: Callable,
                  *, lock=None, clock=time.monotonic, ttl=300, max_plans=16,
-                 max_cache_bytes=128 * 1024 * 1024):
+                 max_cache_bytes=128 * 1024 * 1024, refresh: Callable | None = None):
         self.snapshot = snapshot
         self.execute = execute
+        self.refresh = refresh
         self.lock = lock or RLock()
         self.clock = clock
         self.ttl = ttl
@@ -142,6 +144,17 @@ class PrismPreviewService:
 
     @staticmethod
     def _freeze(snapshot: PreviewSnapshot) -> tuple[dict, dict[str, bytes]]:
+        recorded = deepcopy(snapshot.recorded_source_identity)
+        required = {"case_source_sha256", "admission_source_sha256", "image_recorded_sha256",
+                    "integrity_status", "source_origin", "case_revision", "admission_sha256"}
+        if (not isinstance(recorded, dict) or set(recorded) != required
+                or recorded["integrity_status"] != "OK"
+                or any(recorded[key] != sha(snapshot.source) for key in
+                       ("case_source_sha256", "admission_source_sha256", "image_recorded_sha256"))
+                or recorded["case_revision"] != snapshot.revision
+                or recorded["source_origin"] != snapshot.admission.get("source_origin")
+                or recorded["admission_sha256"] != sha(canonical(snapshot.admission))):
+            raise HTTPException(409, "Authoritative recorded source identity is incomplete or changed.")
         source, wire = rgb(snapshot.source), rgb(snapshot.wire)
         with Image.open(io.BytesIO(snapshot.wire)) as encoded:
             if {"PNG": "image/png", "JPEG": "image/jpeg"}.get(encoded.format) != snapshot.wire_media_type:
@@ -213,7 +226,8 @@ class PrismPreviewService:
                         transform=transform, preparation_context=snapshot.preparation_context,
                         admission={key: snapshot.admission.get(key) for key in (
                             "source_origin", "retinal_modality", "modality_admission", "quality_state")},
-                        admission_sha256=sha(canonical(snapshot.admission)), external_fov_status=status,
+                        admission_sha256=sha(canonical(snapshot.admission)), recorded_source_identity=recorded,
+                        binding_protocol=PROTOCOL, external_fov_status=status,
                         external_fov_reason_code=snapshot.external_fov_reason_code,
                         mask_sha256=mask_hash, mask_version=snapshot.mask_version,
                         mask_png_sha256=sha(snapshot.mask) if snapshot.mask else None)
@@ -228,9 +242,9 @@ class PrismPreviewService:
                        fallback_reason=snapshot.external_fov_reason_code or "No external FOV mask is planned")
         return display, assets
 
-    def _current(self, image_id: str):
+    def _current(self, image_id: str, frozen: PreviewSnapshot | None = None):
         try:
-            current = self.snapshot(image_id)
+            current = self.refresh(frozen) if frozen is not None and self.refresh else self.snapshot(image_id)
             return current, self._freeze(current)
         except HTTPException:
             raise
@@ -263,7 +277,7 @@ class PrismPreviewService:
             binding = dict(identity, plan_id=token, generation=generation, expires_at=expires_at)
             binding_hash = sha(canonical(binding))
             display = deepcopy(identity)
-            for key in ("scope", "admission"):
+            for key in ("scope", "admission", "recorded_source_identity"):
                 display.pop(key)
             display.update(schema_version="prism-input-preview.v1", status="READY", plan_id=token,
                            plan_sha256=binding_hash, baseline_preserved=True, candidate_applied=False,
@@ -286,7 +300,7 @@ class PrismPreviewService:
         plan = self.plans.get(token)
         if plan is None or plan.snapshot.image_id != image_id or plan.consumed:
             raise HTTPException(409, "Preview is missing, consumed or belongs to another case.")
-        current, (identity, _) = self._current(image_id)
+        current, (identity, _) = self._current(image_id, plan.snapshot)
         if (plan.identity != sha(canonical(identity)) or current.scope != plan.snapshot.scope
                 or self.generations.get((current.scope, image_id), 0) != plan.generation):
             raise HTTPException(409, "Preview is stale; prepare a new input plan.")

@@ -284,7 +284,7 @@ class PRISM:
         finally:
             self._release_cuda_memory(self.device)
 
-    def _infer_loaded(self, request, image):
+    def _infer_loaded(self, request, image, *, _frozen_preparation=None):
         import numpy as np
         from PIL import Image
 
@@ -318,7 +318,16 @@ class PRISM:
         fov_prepared_rgb = None
         fov_status = "NOT_APPLICABLE"
         fov_reason = None
-        if request.modality == "UWF":
+        if _frozen_preparation is not None:
+            # Only the separate, unregistered bound adapter supplies this value.
+            # No detector is rerun: consume the validated frozen binary mask.
+            from .prism_bound import FrozenBaselinePreparation
+            if not isinstance(_frozen_preparation, FrozenBaselinePreparation):
+                raise ValueError("Unsupported frozen PRISM preparation")
+            fov, fov_prepared_rgb = _frozen_preparation.materialize(image, original_rgb_pil)
+            fov_status = _frozen_preparation.status
+            fov_reason = _frozen_preparation.reason
+        elif request.modality == "UWF":
             try:
                 from dr_support.imaging.uwf_white_rim_fov import (
                     FovStatus,
@@ -373,7 +382,8 @@ class PRISM:
         crop = self.engine.preprocess_image(crop_input)
         crop_height, crop_width = crop.shape[:2]
         predictions = {}
-        thresholds = json.loads(os.environ.get("PRISM_THRESHOLDS", "{}"))
+        thresholds = (dict(_frozen_preparation.thresholds) if _frozen_preparation is not None
+                      else json.loads(os.environ.get("PRISM_THRESHOLDS", "{}")))
         if set(thresholds) - set(LABELS) or any(not 0 <= float(value) <= 1 for value in thresholds.values()):
             raise ValueError("Invalid source-label thresholds")
         for label, models in self.models.items():
@@ -447,7 +457,7 @@ class PRISM:
                     ))
 
         raw_boundary_classes: list[str | None] = []
-        if fov is not None and fov_status == "READY":
+        if fov is not None and fov_status == "READY" and lesions:
             from dr_support.imaging.uwf_white_rim_fov import classify_prism_box
             for lesion in lesions:
                 try:

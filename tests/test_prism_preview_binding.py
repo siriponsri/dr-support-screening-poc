@@ -52,16 +52,22 @@ class FakeProvider:
                                "checkpoint_sha256": {"fake.pt": "b" * 64}}}
 
     def prepare_prism_preview_candidate(self, wire):
+        if wire.modality == "CFP":
+            return {"status": "NOT_APPLICABLE", "reason_code": None, "mask_png": None, "mask_version": None}
         candidate = Image.new("L", wire.size, 255)
         for y in range(wire.size[1]):
             for x in range(self.strip):
                 candidate.putpixel((x, y), 0)
         return {"status": "READY", "reason_code": None, "mask_png": png(candidate), "mask_version": MASK_VERSION}
 
-    def infer_bound_prism(self, request, wire, *, mask_png, binding, plan_sha256):
+    def get_prism_preview_candidate(self, wire):
+        return self.prepare_prism_preview_candidate(wire)
+
+    def infer_bound_prism(self, request, wire, *, mask_png, binding, plan_sha256, before_forward):
         assert sha(wire.data) == binding["wire_sha256"]
         assert sha(mask_png) == binding["mask_png_sha256"]
         assert sha(canonical(binding)) == plan_sha256
+        before_forward()
         self.calls += 1  # Fake call only: no model, socket or external adapter.
         if self.fail:
             raise RuntimeError("synthetic failure")
@@ -91,6 +97,7 @@ def rig(tmp_path, monkeypatch):
     image = BridgeImage("fixture", source_path.read_bytes(), "SYNTHETIC", "fixture", modality="UWF",
                         media_type="image/png", source_origin="SYNTHETIC")
     store, provider = MemoryStore(), FakeProvider()
+    store.case.update(source_sha256=image.sha256, image_sha256=image.sha256)
     mapping = SimpleNamespace(model_dump=lambda **kwargs: {"kind": "IDENTITY", "scale_x": 1, "scale_y": 1})
     derivative = SimpleNamespace(coordinate_mapping=mapping, audit_record=lambda: {
         "source_sha256": image.sha256, "analysis_sha256": image.sha256,
@@ -121,7 +128,7 @@ def rig(tmp_path, monkeypatch):
                                  route=lambda descriptor, modality: SimpleNamespace(capability_id="fixture"),
                                  map_result=lambda result, mapping: result, inference_lock=RLock())
     clock = [0.0]
-    service = PrismPreviewService(runtime.snapshot, runtime.execute, clock=lambda: clock[0])
+    service = PrismPreviewService(runtime.snapshot, runtime.execute, clock=lambda: clock[0], refresh=runtime.refresh)
     install_prism_preview_routes(app, service)
     return SimpleNamespace(app=app, client=TestClient(app), service=service, runtime=runtime,
                            store=store, provider=provider, image=image, derivative=derivative,
@@ -303,7 +310,7 @@ def test_actual_saver_records_late_result_in_original_workspace_without_overwrit
     cached = rig.service.plans[plan["plan_id"]]
     returned = rig.provider.infer_bound_prism(InferenceRequest(image_id="fixture", modality="UWF", model_id=MODEL_ID),
                                             rig.image, mask_png=cached.snapshot.mask, binding=cached.binding,
-                                            plan_sha256=plan["plan_sha256"])
+                                            plan_sha256=plan["plan_sha256"], before_forward=lambda: None)
     result = LesionResult.model_validate(returned["result"])
     rig.store.case.update(revision=1, reviewed_grade=3, human_annotations=["new-human-edit"])
     fresh_store = MemoryStore()
@@ -378,6 +385,10 @@ def test_concurrent_clinician_edit_is_not_blocked_or_overwritten_by_fake_forward
     rig.runtime.save_result = _actual_save_result(rig)
     original = rig.provider.infer_bound_prism
     def with_human_edit(*args, **kwargs):
+        # The model forward has crossed its last source/context check; a human
+        # may still edit while it runs. The late result must remain stale.
+        kwargs["before_forward"]()
+        kwargs["before_forward"] = lambda: None
         def edit():
             with rig.store.lock:
                 rig.store.case.update(revision=1, reviewed_grade=3, human_annotations=["new-clinician-shape"])
@@ -473,11 +484,13 @@ def test_source_integrity_is_rechecked_at_each_boundary_without_mutating_review(
         assert rig.store.case[key] == before[key]
 
 
-def test_legacy_case_without_hash_caches_uses_matching_admission_identity(rig):
+def test_legacy_case_without_recorded_caches_remains_unsupported_without_mutation(rig):
     rig.store.case.pop("source_sha256", None)
     rig.store.case.pop("image_sha256", None)
-    plan = prepare(rig)
-    assert plan["source_sha256"] == rig.image.sha256
+    before = deepcopy(rig.store.case)
+    response = rig.client.post("/v1/cases/fixture/prism-input-preview", json={"revision": 0})
+    assert response.status_code == 503
+    assert rig.store.case == before
     assert rig.provider.calls == 0
 
 

@@ -34,7 +34,10 @@ class ReviewPrismPreview:
         self.inference_lock = inference_lock
         self.scopes = WeakKeyDictionary()
 
-    def snapshot(self, image_id):
+    def refresh(self, frozen):
+        return self.snapshot(frozen.image_id, refresh_only=True)
+
+    def snapshot(self, image_id, *, refresh_only=False):
         if os.environ.get("WORKERS", "1") != "1":
             raise HTTPException(503, "Preview binding requires the qualified single-worker review runtime.")
         state = self.app.state
@@ -65,10 +68,25 @@ class ReviewPrismPreview:
                     raise HTTPException(409, "Recorded source identities disagree.")
             if case.get("admission") and case["admission"] != admission:
                 raise HTTPException(409, "Admission projections disagree; reload the case.")
+            # Both are recorded server projections, never replacements derived
+            # from the currently loaded bytes. Legacy gaps remain unsupported.
+            case_hash = case.get("source_sha256") or case.get("image_sha256")
+            image_recorded = case.get("image_sha256") or metadata.get("source_sha256")
+            if not case_hash or not image_recorded:
+                raise HTTPException(503, "Recorded source attestation is unavailable; no model work is permitted.")
+            known_integrity = [admission.get("integrity_status"), (admission.get("integrity") or {}).get("status"),
+                               metadata.get("integrity_status")]
+            if not any(value in {"OK", "DUPLICATE_CONTENT"} for value in known_integrity):
+                raise HTTPException(503, "Recorded integrity attestation is unavailable.")
+            recorded = dict(case_source_sha256=case_hash, admission_source_sha256=admission["source_sha256"],
+                            image_recorded_sha256=image_recorded, integrity_status="OK",
+                            source_origin=admission["source_origin"], case_revision=case["revision"],
+                            admission_sha256=sha(canonical(admission)))
             provider = state.providers.get(MODEL_ID)
             if (getattr(provider, "prism_preview_protocol", None) != PROTOCOL
                     or not callable(getattr(provider, "prism_preview_identity", None))
                     or not callable(getattr(provider, "prepare_prism_preview_candidate", None))
+                    or not callable(getattr(provider, "get_prism_preview_candidate", None))
                     or not callable(getattr(provider, "infer_bound_prism", None))):
                 raise HTTPException(503, "PRISM provider cannot enforce a frozen preview receipt.")
             identity = deepcopy(provider.prism_preview_identity())
@@ -83,8 +101,12 @@ class ReviewPrismPreview:
             audit = derivative.audit_record()
             if audit["source_sha256"] != image.sha256 or audit["analysis_sha256"] != wire.sha256:
                 raise HTTPException(409, "Prepared wire lineage is inconsistent.")
-            candidate = (provider.prepare_prism_preview_candidate(wire) if modality == "UWF" else
-                         {"status": "NOT_APPLICABLE", "reason_code": None, "mask_png": None, "mask_version": None})
+            # Preparation freezes CFP too; refresh can only read cached bytes.
+            candidate_method = provider.get_prism_preview_candidate if refresh_only else provider.prepare_prism_preview_candidate
+            try:
+                candidate = candidate_method(wire)
+            except ValueError:
+                raise HTTPException(409, "Frozen candidate is unavailable; prepare a new preview.") from None
             width, height = image.size
             input_width, input_height = wire.size
             transform = dict(version=str(audit["transform_version"]), transform_id=audit["transform_id"],
@@ -99,6 +121,7 @@ class ReviewPrismPreview:
                 wire=bytes(wire.data), wire_media_type=wire.media_type, modality=modality,
                 model_version=identity["model_version"], model_pins=identity["model_pins"], transform=transform,
                 preparation_context=preparation_context(case), admission=admission,
+                recorded_source_identity=recorded,
                 external_fov_status=candidate["status"], external_fov_reason_code=candidate.get("reason_code"),
                 mask=bytes(candidate["mask_png"]) if candidate.get("mask_png") is not None else None,
                 mask_version=candidate.get("mask_version"),
@@ -114,7 +137,7 @@ class ReviewPrismPreview:
         with runtime.store.lock:
             if self.app.state.store is not runtime.store:
                 raise HTTPException(409, "Workspace changed; prepare a new preview.")
-            fresh = self.snapshot(snapshot.image_id)
+            fresh = self.refresh(snapshot)
             identity, _ = PrismPreviewService._freeze(fresh)
             frozen = {key: value for key, value in binding.items() if key not in {"plan_id", "generation", "expires_at"}}
             if (identity != frozen or fresh.runtime.provider is not runtime.provider
@@ -125,9 +148,32 @@ class ReviewPrismPreview:
             request = InferenceRequest(image_id=snapshot.image_id, modality=snapshot.modality, model_id=MODEL_ID)
         # The explicit protocol must consume this wire/mask/binding as frozen,
         # atomically validate pins before forward, and return its wire receipt.
+        def before_forward():
+            # Called after any provider load, immediately before native ROI.
+            # Never reacquire provider locks or recompute the mask here.
+            with runtime.store.lock:
+                state = self.app.state
+                current_image = state.images.get(snapshot.image_id)
+                current_case = runtime.store.get(snapshot.image_id)
+                current_admission = state.admissions.get(snapshot.image_id) or {}
+                if (state.store is not runtime.store or state.providers.get(MODEL_ID) is not runtime.provider
+                        or not still_valid() or current_image is None
+                        or current_image.sha256 != binding["source_sha256"]
+                        or current_case.get("revision") != snapshot.revision
+                        or (current_case.get("source_sha256") or current_case.get("image_sha256"))
+                            != binding["recorded_source_identity"]["case_source_sha256"]
+                        or (current_case.get("image_sha256")
+                            or (current_admission.get("source_metadata") or {}).get("source_sha256"))
+                            != binding["recorded_source_identity"]["image_recorded_sha256"]
+                        or sha(canonical(current_admission)) != binding["admission_sha256"]
+                        or source_identity_reason(current_case, current_image, current_admission)
+                        or any(value is not None and value != binding["source_sha256"] for value in
+                               (current_case.get("image_sha256"), current_case.get("source_sha256")))
+                        or preparation_context(current_case) != snapshot.preparation_context):
+                    raise HTTPException(409, "Source/context changed before model forward.")
         returned = runtime.provider.infer_bound_prism(
             request, runtime.wire, mask_png=snapshot.mask,
-            binding=deepcopy(binding), plan_sha256=plan_hash,
+            binding=deepcopy(binding), plan_sha256=plan_hash, before_forward=before_forward,
         )
         if returned.get("preview_receipt") != {"plan_sha256": plan_hash, "wire_sha256": sha(snapshot.wire),
                                                "mask_sha256": binding["mask_sha256"],

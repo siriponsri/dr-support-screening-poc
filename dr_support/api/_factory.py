@@ -882,7 +882,8 @@ def create_app(
         eligible=is_inference_eligible, route=preview_route,
         map_result=map_lesion_result_to_review, inference_lock=inference_lock,
     )
-    app.state.prism_preview = PrismPreviewService(preview_runtime.snapshot, preview_runtime.execute)
+    app.state.prism_preview = PrismPreviewService(preview_runtime.snapshot, preview_runtime.execute,
+                                                refresh=preview_runtime.refresh)
     install_prism_preview_routes(app, app.state.prism_preview)
 
     @app.post('/v1/infer/global', response_model=GlobalResult)
