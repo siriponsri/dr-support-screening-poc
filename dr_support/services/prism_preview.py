@@ -204,7 +204,7 @@ class PrismPreviewService:
         if snapshot.modality == "CFP" and status != "NOT_APPLICABLE":
             raise HTTPException(409, "CFP cannot inherit a UWF FOV plan.")
         identity = dict(scope=snapshot.scope, image_id=snapshot.image_id, case_revision=snapshot.revision,
-                        source_sha256=sha(snapshot.source), source_rgb_sha256=rgb_hash(source),
+                        source_sha256=sha(snapshot.source), source_rgb_sha256=rgb_hash(wire),
                         wire_sha256=sha(snapshot.wire), wire_byte_count=len(snapshot.wire),
                         wire_media_type=snapshot.wire_media_type,
                         wire_dimensions={"width": wire.width, "height": wire.height},

@@ -14,7 +14,7 @@ import pytest
 from dr_support.images import BridgeImage
 from dr_support.services.prism_preview import (
     MASK_VERSION, MODEL_ID, PROTOCOL, PreviewSubmitRequest, PrismPreviewService,
-    canonical, install_prism_preview_routes, png, sha,
+    canonical, install_prism_preview_routes, png, rgb, rgb_hash, sha,
 )
 from dr_support.services.prism_preview_runtime import ReviewPrismPreview
 
@@ -397,6 +397,16 @@ def test_submission_cannot_smuggle_clinical_confirmation_or_boolean_revision(rig
     assert submit(rig, plan, body).status_code == 422
     assert submit(rig, plan, {**payload(plan), "revision": False}).status_code == 422
     assert rig.provider.calls == 0 and rig.store.case["reviewed_grade"] == 2
+
+
+def test_fov_source_rgb_hash_is_provider_wire_space_after_pixel_conversion(rig):
+    snapshot = rig.runtime.snapshot("fixture")
+    converted = png(Image.new("RGB", rig.image.size, (10, 30, 50)))
+    identity, _ = PrismPreviewService._freeze(replace(snapshot, wire=converted))
+    assert identity["source_sha256"] == rig.image.sha256
+    assert identity["wire_sha256"] == sha(converted)
+    assert identity["source_rgb_sha256"] == rgb_hash(rgb(converted))
+    assert identity["source_rgb_sha256"] != rgb_hash(rgb(rig.image.data))
 
 
 def test_main_factory_wires_binding_and_blocks_legacy_prism_without_executing_factory():
