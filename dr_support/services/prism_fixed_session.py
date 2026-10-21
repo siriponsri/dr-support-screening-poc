@@ -1,6 +1,7 @@
 """App-owned SYNTHETIC fixed QA session; injected MockTransport only, no runtime registration."""
 from contextvars import ContextVar
 from copy import deepcopy
+from pathlib import Path
 import os
 import re
 from threading import RLock
@@ -72,24 +73,34 @@ class FixedQASession(SyntheticFenceAuthority):
     across ASGI/thread boundaries. Private injected backing references/external
     writers are outside session ownership; detected drift fails closed.
     """
-    def __init__(self, directory, *, store, images, admissions, provider, authenticated_status_reader):
+    def __init__(self, directory, *, store, images, admissions, provider, authenticated_status_reader, demo_authorization=None):
+        from .case16_qualification import checked_authorization, QualificationMemoryStore
+        authorization = checked_authorization(demo_authorization)
+        origin = "SYNTHETIC" if authorization is None else authorization.origin
+        if authorization is not None:
+            if type(store) is not QualificationMemoryStore or set(images) != {authorization.image_id}:
+                raise TransportError("CASE16_COPIED_MEMORY_STORE_ONLY")
+            authorization.input(images[authorization.image_id], store.get(authorization.image_id), admissions.get(authorization.image_id, {}))
+            if store._evidence != Path(directory).parent / "testdata":
+                raise TransportError("CASE16_ISOLATED_EVIDENCE_PATH_REQUIRED")
+        self.demo_plan_count = self.demo_execution_count = 0
         if any(os.environ.get(name, '1') != '1' for name in ('WORKERS', 'WEB_CONCURRENCY')):
             raise TransportError('FIXED_QA_SINGLE_WORKER_REQUIRED', 503)
         if not isinstance(provider, FixedSessionRemoteProvider):
             raise TransportError('MOCK_ONLY_FIXED_QA_PROVIDER_REQUIRED', 503)
         if not images or set(images) != set(admissions) or len(images) > 16:
             raise TransportError('BOUNDED_SELECTED_RECORDS_REQUIRED')
-        if any(not isinstance(image, BridgeImage) or image.source_origin != 'SYNTHETIC'
-               or image.source_type != 'SYNTHETIC' or image.modality != 'UWF' for image in images.values()):
+        if any(not isinstance(image, BridgeImage) or image.source_origin != origin
+               or image.source_type != origin or image.modality != 'UWF' for image in images.values()):
             raise TransportError('FIXED_QA_SYNTHETIC_ONLY')
         for key, image in images.items():
             case, admission = store.get(key), admissions[key]
-            if (admission.get('source_origin') != 'SYNTHETIC' or admission.get('retinal_modality') != 'UWF'
+            if (admission.get('source_origin') != origin or admission.get('retinal_modality') != 'UWF'
                     or source_identity_reason(case, image, admission)
                     or any(value is not None and value != image.sha256 for value in
                            (case.get('image_sha256'), case.get('source_sha256')))):
                 raise TransportError('FIXED_QA_RECORDED_SOURCE_INVALID')
-        super().__init__(directory, authenticated_status_reader=authenticated_status_reader)
+        super().__init__(directory, authenticated_status_reader=authenticated_status_reader, demo_authorization=authorization)
         self.raw_store = store
         self.store = FixedStore(store, self)
         self.images, self.admissions = dict(images), deepcopy(admissions)
@@ -144,11 +155,21 @@ class FixedQASession(SyntheticFenceAuthority):
             if (snapshot.runtime.store is not self.store or snapshot.runtime.provider is not self.provider
                     or sha(canonical(binding)) != plan_hash):
                 raise TransportError('FIXED_QA_PLAN_HANDLE_MISMATCH')
+            if self.demo_authorization is not None:
+                self.demo_authorization.binding(binding)
+                if self.demo_plan_count >= 2:
+                    raise TransportError("CASE16_TWO_FRESH_PLANS_MAXIMUM")
+                self.demo_plan_count += 1
             self.register_plan(binding)
 
     def acquire(self, binding, challenge, before_forward):
         with self.session_lock:
             self.validate()
+            if self.demo_authorization is not None:
+                self.demo_authorization.binding(binding)
+                if self.demo_execution_count >= 2:
+                    raise TransportError("CASE16_TWO_EXECUTIONS_MAXIMUM")
+                self.demo_execution_count += 1
             def revalidate():
                 before_forward()
                 self.validate()
@@ -159,8 +180,14 @@ class FixedQASession(SyntheticFenceAuthority):
             self.validate(case_state=False)
             changed = any(self.store.get(key) != value for key, value in self.expected_cases.items())
             permit = _RESULT_WRITE.set(self)
-            try: result = save()
-            finally: _RESULT_WRITE.reset(permit)
+            try:
+                result = save()
+            except BaseException:
+                if self.demo_authorization is not None:
+                    self.poisoned = True
+                raise
+            finally:
+                _RESULT_WRITE.reset(permit)
             for key in self.images:
                 self.expected_cases[key] = self.store.get(key)
                 self.cached_cases[key].update(deepcopy(self.expected_cases[key]))
@@ -199,8 +226,8 @@ class FixedQASession(SyntheticFenceAuthority):
                     return JSONResponse([session.provider.prism_preview_identity()['descriptor']])
                 if path in {'/v1/workspaces', '/v1/workspaces/active'}:
                     return JSONResponse({'workspace': None, 'workspaces': [], 'active_workspace': None,
-                                         'database': {'status': 'QA_INJECTED'}, 'warnings': ['Fixed synthetic QA session']})
-                if path == '/health': return JSONResponse({'status': 'FIXED_SYNTHETIC_QA_OFFLINE_ONLY'})
+                                         'database': {'status': 'QA_INJECTED'}, 'warnings': ['Fixed synthetic QA session' if session.demo_authorization is None else 'Authorized demo qualification; recorded origin preserved; not clinical validation']})
+                if path == '/health': return JSONResponse({'status': 'FIXED_SYNTHETIC_QA_OFFLINE_ONLY' if session.demo_authorization is None else 'AUTHORIZED_DEMO_QUALIFICATION_ONLY'})
                 match = re.fullmatch(r'/v1/images/([A-Za-z0-9_-]+)(?:/display)?', path)
                 if match and match[1] in session.images:
                     image = session.images[match[1]]

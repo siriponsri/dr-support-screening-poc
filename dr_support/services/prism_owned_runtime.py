@@ -41,7 +41,10 @@ class LoadedPrismExecutor:
     """Use the pinned da164ac adapter API; no custom inference/cropping loop."""
     entry_fence_port = True
 
-    def __init__(self, provider, *, expected_pins, clock=time.monotonic, load_guard=torch_load_forward_guard):
+    def __init__(self, provider, *, expected_pins, clock=time.monotonic, load_guard=torch_load_forward_guard, demo_authorization=None):
+        from .case16_qualification import checked_authorization
+        self.demo_authorization = checked_authorization(demo_authorization)
+        self.demo_prepares = self.demo_executions = 0
         required = ('_runtime_identity', 'load', 'prepare_prism_preview_candidate', 'infer_remote_fenced_prism')
         if not all(callable(getattr(provider, name, None)) for name in required):
             raise TransportError('PINNED_BOUND_PROVIDER_PORT_REQUIRED', 503)
@@ -89,26 +92,45 @@ class LoadedPrismExecutor:
             raise TransportError('OWNED_MODEL_NOT_LOADED_WITH_PINS', 503)
         return deepcopy(self.pins)
 
-    @staticmethod
-    def _wire(data, image_id='prepared_wire'):
+    def _wire(self, data, image_id='prepared_wire'):
         if not isinstance(data, bytes):
             raise TransportError('IMMUTABLE_WIRE_REQUIRED')
         # Use the ticket's encoding, never re-encode/resize or reopen a source path.
         media = 'image/png' if data.startswith(b'\x89PNG\r\n\x1a\n') else 'image/jpeg'
-        return BridgeImage(image_id, data, 'SYNTHETIC', 'fixed-qa-wire', modality='UWF',
-                           media_type=media, source_origin='SYNTHETIC')
+        origin = "SYNTHETIC"
+        if self.demo_authorization is not None:
+            self.demo_authorization.wire(data)
+            origin = self.demo_authorization.origin
+        return BridgeImage(image_id, data, origin, "fixed-qa-wire", modality="UWF",
+                           media_type=media, source_origin=origin)
 
     def prepare(self, wire, modality):
         self.loaded_identity()
         if modality != 'UWF':
             raise TransportError('FIXED_QA_UWF_ONLY')
+        if self.demo_authorization is not None:
+            with self.lock:
+                if self.demo_prepares >= 2:
+                    raise TransportError("CASE16_TWO_PREPARATIONS_MAXIMUM")
+                self.demo_prepares += 1
         candidate = self.provider.prepare_prism_preview_candidate(self._wire(wire))
+        if self.demo_authorization is not None:
+            self.demo_authorization.candidate(candidate)
         self.loaded_identity()
         return candidate
 
     def execute(self, wire, mask, binding, plan_hash, *, before_forward, on_roi_entry):
         self.loaded_identity()
-        if (binding['admission']['source_origin'] != 'SYNTHETIC' or binding['modality'] != 'UWF'
+        origin = "SYNTHETIC" if self.demo_authorization is None else self.demo_authorization.origin
+        if self.demo_authorization is not None:
+            self.demo_authorization.binding(binding)
+            if mask is not None:
+                raise TransportError("CASE16_NO_APPLIED_MASK")
+            with self.lock:
+                if self.demo_executions >= 2:
+                    raise TransportError("CASE16_TWO_EXECUTIONS_MAXIMUM")
+                self.demo_executions += 1
+        if (binding['admission']['source_origin'] != origin or binding['modality'] != 'UWF'
                 or sha(wire) != binding['wire_sha256'] or sha(canonical(binding)) != plan_hash):
             raise TransportError('OWNED_FROZEN_BINDING_CHANGED')
         image = self._wire(wire, binding['image_id'])
@@ -136,9 +158,13 @@ def child_application(executor, *, token, issue_id, epoch, clock=time.monotonic,
     """
     if not 0 < load_seconds <= 120:
         raise ValueError('BOUNDED_CHILD_STARTUP_REQUIRED')
+    authorization = getattr(executor, "demo_authorization", None)
+    from .case16_qualification import checked_authorization
+    checked_authorization(authorization)
+    origins = frozenset({"SYNTHETIC" if authorization is None else authorization.origin})
     principal = Principal('fixed-qa-backend', frozenset({'review-client', 'prepare-source', 'forward-authority'}))
     host = BoundTransportHost(executor, authenticate=lambda headers: principal, issue_id=issue_id,
-                              epoch=epoch, clock=clock, job_seconds=30)
+                              epoch=epoch, clock=clock, job_seconds=30, allowed_origins=origins)
     started = ready = closed = False
     async def app(scope, receive, send):
         nonlocal started, ready, closed

@@ -27,7 +27,11 @@ class SyntheticFenceAuthority:
     recover() uses the injected authenticated status reader for the OLD job; a
     new host epoch or missing old job cannot clear quarantine. No TTL exists.
     """
-    def __init__(self, directory, *, authenticated_status_reader):
+    def __init__(self, directory, *, authenticated_status_reader, demo_authorization=None):
+        from .case16_qualification import checked_authorization
+        self.demo_authorization = checked_authorization(demo_authorization)
+        if self.demo_authorization is not None and Path(directory).exists():
+            raise TransportError("FRESH_CASE16_JOURNAL_REQUIRED")
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
         self.lock = RLock()
@@ -99,8 +103,7 @@ class SyntheticFenceAuthority:
         if self.closed or self.poisoned or self._body["state"] != "OPEN":
             raise TransportError("MUTATION_FENCED_OR_QUARANTINED")
 
-    @staticmethod
-    def _context(binding):
+    def _context(self, binding):
         context = {key: deepcopy(binding[key]) for key in FIELDS}
         recorded = context["recorded_source_identity"]
         require_sha256(context["source_sha256"])
@@ -109,8 +112,11 @@ class SyntheticFenceAuthority:
             require_sha256(recorded[key])
             if recorded[key] != context["source_sha256"]:
                 raise TransportError("RECORDED_SOURCE_CONFLICT")
-        if (context["admission"]["source_origin"] != "SYNTHETIC"
-                or recorded["source_origin"] != "SYNTHETIC" or recorded["integrity_status"] != "OK"
+        if self.demo_authorization is not None:
+            self.demo_authorization.context(context)
+        expected_origin = "SYNTHETIC" if self.demo_authorization is None else self.demo_authorization.origin
+        if (context["admission"]["source_origin"] != expected_origin
+                or recorded["source_origin"] != expected_origin or recorded["integrity_status"] != "OK"
                 or recorded["case_revision"] != context["case_revision"]
                 or recorded["admission_sha256"] != context["admission_sha256"]):
             raise TransportError("SYNTHETIC_RECORDED_AUTHORITY_REQUIRED")
@@ -120,6 +126,9 @@ class SyntheticFenceAuthority:
         with self.lock:
             self._open()
             context = self._context(binding)
+            if self.demo_authorization is not None:
+                self.demo_authorization.wire(original_bytes)
+                self.demo_authorization.wire(wire_bytes)
             if (not isinstance(original_bytes, bytes) or not isinstance(wire_bytes, bytes)
                     or not 0 < len(original_bytes) <= 20_000_000 or not 0 < len(wire_bytes) <= 20_000_000
                     or sha(original_bytes) != context["source_sha256"] or sha(wire_bytes) != binding["wire_sha256"]):
@@ -132,7 +141,8 @@ class SyntheticFenceAuthority:
     def authorize_prepare(self, wire):
         with self.lock:
             self._open()
-            if (self._snapshot is None or wire.source_type != "SYNTHETIC" or wire.data != self._wire
+            origin = "SYNTHETIC" if self.demo_authorization is None else self.demo_authorization.origin
+            if (self._snapshot is None or wire.source_type != origin or wire.source_origin != origin or wire.data != self._wire
                     or wire.image_id != self._snapshot["image_id"]):
                 raise TransportError("SYNTHETIC_SNAPSHOT_NOT_AUTHORIZED")
 
