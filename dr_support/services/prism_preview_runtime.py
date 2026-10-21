@@ -11,6 +11,7 @@ from ..contracts import InferenceRequest, LesionResult, PrismProcessingEvidence
 from .prism_preview import (
     MODEL_ID, PROTOCOL, PreviewSnapshot, PrismPreviewService, canonical, preparation_context, sha,
 )
+from .source_identity import source_identity_reason
 
 
 @dataclass(frozen=True)
@@ -49,9 +50,19 @@ class ReviewPrismPreview:
             modality = admission.get("retinal_modality")
             if modality not in {"CFP", "UWF"}:
                 raise HTTPException(409, "Confirmed image type is required.")
-            for recorded in (case.get("source_sha256"), admission.get("source_sha256")):
-                if recorded and recorded != image.sha256:
-                    raise HTTPException(409, "Source identity changed.")
+            # Hashing a known-invalid admission into a receipt cannot make it
+            # eligible. Manual quality acceptance never clears source changes.
+            if source_identity_reason(case, image, admission):
+                raise HTTPException(409, "Source identity or integrity is unresolved; review the source record.")
+            metadata = admission.get("source_metadata") or {}
+            if (not isinstance(metadata, dict)
+                    or metadata.get("integrity_status") not in {None, "OK", "DUPLICATE_CONTENT"}):
+                raise HTTPException(409, "Source metadata integrity is unresolved.")
+            # The compatibility helper checks the preferred recorded hash;
+            # reject conflicts in either explicitly present cache as well.
+            for recorded in (case.get("image_sha256"), case.get("source_sha256"), metadata.get("source_sha256")):
+                if recorded is not None and recorded != image.sha256:
+                    raise HTTPException(409, "Recorded source identities disagree.")
             if case.get("admission") and case["admission"] != admission:
                 raise HTTPException(409, "Admission projections disagree; reload the case.")
             provider = state.providers.get(MODEL_ID)

@@ -100,7 +100,8 @@ def rig(tmp_path, monkeypatch):
     app = FastAPI()
     app.state.store = store
     app.state.images = {"fixture": image, "other": image}
-    app.state.admissions = {key: {"source_origin": "SYNTHETIC", "retinal_modality": "UWF",
+    app.state.admissions = {key: {"source_origin": "SYNTHETIC", "source_sha256": image.sha256,
+                                  "integrity_status": "OK", "retinal_modality": "UWF",
                                   "modality_admission": "FUNDUS_ACCEPTED", "quality_state": "GRADABLE"}
                             for key in app.state.images}
     app.state.providers = {MODEL_ID: provider}
@@ -407,6 +408,88 @@ def test_fov_source_rgb_hash_is_provider_wire_space_after_pixel_conversion(rig):
     assert identity["wire_sha256"] == sha(converted)
     assert identity["source_rgb_sha256"] == rgb_hash(rgb(converted))
     assert identity["source_rgb_sha256"] != rgb_hash(rgb(rig.image.data))
+
+
+@pytest.mark.parametrize("defect", ["case_image_hash", "recorded_integrity_failure"])
+def test_independent_recorded_source_failure_blocks_preview_and_forward(rig, defect):
+    if defect == "case_image_hash":
+        rig.store.case["image_sha256"] = "f" * 64
+    else:
+        rig.app.state.admissions["fixture"]["source_sha256"] = rig.image.sha256
+        rig.app.state.admissions["fixture"]["integrity_status"] = "SOURCE_CHANGED"
+    before = deepcopy(rig.store.case)
+    response = rig.client.post("/v1/cases/fixture/prism-input-preview", json={"revision": 0})
+    if response.status_code == 200:
+        forwarded = submit(rig, response.json())
+        observed = (response.status_code, forwarded.status_code, rig.provider.calls)
+    else:
+        observed = (response.status_code, None, rig.provider.calls)
+    assert response.status_code == 409 and rig.provider.calls == 0, observed
+    assert rig.store.case == before
+
+
+@pytest.mark.parametrize("stage", ["prepare", "submit", "after_provider_wait"])
+@pytest.mark.parametrize("defect", ["image_hash", "source_hash", "conflicting_caches", "flat_integrity", "nested_integrity", "changed_sources", "metadata_integrity", "metadata_hash", "missing_admission_hash"])
+def test_source_integrity_is_rechecked_at_each_boundary_without_mutating_review(rig, stage, defect):
+    def corrupt():
+        admission = rig.app.state.admissions["fixture"]
+        if defect == "image_hash":
+            rig.store.case["image_sha256"] = "f" * 64
+        elif defect == "source_hash":
+            rig.store.case["source_sha256"] = "f" * 64
+        elif defect == "conflicting_caches":
+            rig.store.case.update(image_sha256=rig.image.sha256, source_sha256="f" * 64)
+        elif defect == "flat_integrity":
+            admission.update(integrity_status="SOURCE_CHANGED", admission_method="MANUAL", reviewed_by="Synthetic clinician")
+        elif defect == "nested_integrity":
+            admission["integrity"] = {"status": "SOURCE_CHANGED"}
+        elif defect == "changed_sources":
+            admission["integrity"] = {"status": "OK", "changed_sources": [{"previous_source_sha256": "f" * 64}]}
+        elif defect == "metadata_integrity":
+            admission["source_metadata"] = {"source_sha256": rig.image.sha256, "integrity_status": "SOURCE_CHANGED"}
+        elif defect == "metadata_hash":
+            admission["source_metadata"] = {"source_sha256": "f" * 64, "integrity_status": "OK"}
+        else:
+            admission.pop("source_sha256")
+    before = deepcopy(rig.store.case)
+    if stage == "prepare":
+        corrupt()
+        response = rig.client.post("/v1/cases/fixture/prism-input-preview", json={"revision": 0})
+    else:
+        plan = prepare(rig)
+        if stage == "submit":
+            corrupt()
+        else:
+            class ChangedWhileWaiting:
+                def __enter__(self):
+                    corrupt()
+                def __exit__(self, *args):
+                    return False
+            rig.runtime.inference_lock = ChangedWhileWaiting()
+        response = submit(rig, plan)
+    assert response.status_code == 409 and rig.provider.calls == 0 and not rig.saved
+    # Only the injected source-record defect may differ, never clinical labels.
+    for key in ("reviewed_grade", "grade_status", "human_annotations", "clinician_review", "inference_history", "revision"):
+        assert rig.store.case[key] == before[key]
+
+
+def test_legacy_case_without_hash_caches_uses_matching_admission_identity(rig):
+    rig.store.case.pop("source_sha256", None)
+    rig.store.case.pop("image_sha256", None)
+    plan = prepare(rig)
+    assert plan["source_sha256"] == rig.image.sha256
+    assert rig.provider.calls == 0
+
+
+def test_matching_manually_reviewed_duplicate_source_remains_eligible(rig):
+    rig.store.case.update(image_sha256=rig.image.sha256, source_sha256=rig.image.sha256)
+    rig.app.state.admissions["fixture"].update(
+        integrity_status="DUPLICATE_CONTENT", admission_method="MANUAL",
+        integrity={"status": "DUPLICATE_CONTENT", "duplicate_content": True, "changed_sources": []},
+        source_metadata={"source_sha256": rig.image.sha256, "integrity_status": "DUPLICATE_CONTENT"},
+    )
+    plan = prepare(rig)
+    assert submit(rig, plan).status_code == 200 and rig.provider.calls == 1
 
 
 def test_main_factory_wires_binding_and_blocks_legacy_prism_without_executing_factory():
