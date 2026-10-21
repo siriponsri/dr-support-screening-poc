@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { WorkspaceManager } from '@/components/workspace/WorkspaceManager';
 import { ModelConnectionSettings } from '@/components/settings/ModelConnectionSettings';
 import { ReviewerPreference } from '@/components/settings/ReviewerPreference';
+import { LocalTimingDiagnostics } from '@/components/settings/LocalTimingDiagnostics';
 
 export function SettingsPage() {
   const { pathname } = useLocation();
@@ -21,6 +22,7 @@ export function SettingsPage() {
         subtitle="Manage the local workspace used by this review station"
       />
       <WorkspaceManager />
+      <Box mt={5}><LocalTimingDiagnostics /></Box>
       <Box mt={5}>
         <ReviewerPreference />
       </Box>

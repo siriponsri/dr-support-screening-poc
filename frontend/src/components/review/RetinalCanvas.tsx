@@ -3,6 +3,7 @@ import { Box, Button, HStack, IconButton, Image, Modal, ModalBody, ModalCloseBut
 import type { CaseRecord, HumanAnnotation, Lesion, LesionLabel } from '@/lib/api';
 import { Maximize2, Target, ZoomIn, ZoomOut } from '@/lib/icons';
 import { displayedLesions, type DisplayedLesion } from './lesionPresentation';
+import { localTiming } from '@/lib/localTiming';
 
 export const LESION_COLORS: Record<LesionLabel, string> = {
   MICROANEURYSM: '#06B6D4',
@@ -787,7 +788,8 @@ export function RetinalCanvas({
           userSelect="none"
           pointerEvents="none"
           draggable={false}
-          onError={() => setImageLoadError(true)}
+          onLoad={() => localTiming.event('image_ready', item.image_id)}
+          onError={() => { localTiming.event('image_error', item.image_id); setImageLoadError(true); }}
         />
         {maskOverlayUrl && (
           <Image

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, AlertIcon, Box, Button, Checkbox, Code, HStack, Image, SimpleGrid, Stack, Text } from '@chakra-ui/react';
 import { apiJson, type CaseRecord, type ModelDescriptor } from '@/lib/api';
 import { loadPreviewAsset, previewContextKey, validatePrismPreview, type PrismInputPreview as PreviewPlan } from '@/lib/prismInputPreview';
+import { localTiming, type TimingSpan } from '@/lib/localTiming';
 
 interface Props { item: CaseRecord; model: ModelDescriptor; onInferenceComplete?: () => void | Promise<void> }
 interface Assets { key: string; original: string; input: string; overlay: string | null }
@@ -22,6 +23,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
   const [acceptedKey, setAcceptedKey] = useState<string | null>(null);
   const [submittedKey, setSubmittedKey] = useState<string | null>(null);
   const action = useRef<{ controller: AbortController; context: string } | null>(null);
+  const assetTiming = useRef<{ key: string; span: TimingSpan; loaded: Set<string> } | null>(null);
   const value = prepared?.context === context ? prepared.value : item.prism_input_preview;
   const key = context + JSON.stringify(value);
   let plan: PreviewPlan | undefined;
@@ -60,6 +62,8 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
     const controller = new AbortController();
     const urls: string[] = [];
     let active = true;
+    const timing = localTiming.start('preview_assets', item.image_id);
+    assetTiming.current = { key, span: timing, loaded: new Set() };
     const verifiedPlan = plan;
     const load = async (asset: Parameters<typeof loadPreviewAsset>[0], width: number, height: number) => {
       const url = await loadPreviewAsset(asset, width, height, controller.signal);
@@ -76,6 +80,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
     ]).then(([original, input, mask]) => {
       if (active) setAssets({ key, original: original!, input: input!, overlay: mask });
     }).catch((err: unknown) => {
+      timing.end(controller.signal.aborted ? 'ABORTED' : 'FAILED');
       if (active) {
         controller.abort();
         urls.forEach((url) => URL.revokeObjectURL(url));
@@ -91,6 +96,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
     };
     checkExpiry();
     return () => {
+      timing.end('ABORTED');
       active = false;
       controller.abort();
       clearTimeout(expires);
@@ -101,7 +107,13 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
   }, [key, open, unavailable]);
 
   const shown = open && !unavailable && assets?.key === key && error?.key !== key ? assets : null;
-  const failImage = () => { setAssets(null); setError({ key, message: 'Preview image could not be decoded. Reload the case.' }); };
+  const failImage = () => { assetTiming.current?.span.end('FAILED'); setAssets(null); setError({ key, message: 'Preview image could not be decoded. Reload the case.' }); };
+  const imageReady = (kind: string) => {
+    const current = assetTiming.current;
+    if (!current || current.key !== key || current.loaded.size === 2) return;
+    current.loaded.add(kind);
+    if (current.loaded.size === 2) { current.span.end('COMPLETED'); localTiming.event('preview_ready', item.image_id); }
+  };
   const submit = async () => {
     if (action.current || !shown || !plan || acceptedKey !== key || submittedKey === key || plan.submission_binding_enforced !== true) return;
     // Revalidate expiry/context at the actual click, before the server's atomic check.
@@ -120,7 +132,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
         body: JSON.stringify({ revision: item.revision, source_sha256: verified.source_sha256,
           wire_sha256: verified.wire_sha256, plan_sha256: verified.plan_sha256,
           mask_sha256: verified.mask.sha256, transform_sha256: verified.transform.sha256, model_version: verified.model_version }),
-      });
+      }, { model_id: model.model_id, model_version: verified.model_version });
       if (action.current === current && !current.controller.signal.aborted) await onInferenceComplete?.();
     } catch (err) {
       if (action.current === current && !current.controller.signal.aborted) setActionError({ context, message: err instanceof Error ? err.message : 'Submission failed; do not retry this receipt.' });
@@ -165,7 +177,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
                 <Text fontSize="sm" fontWeight="semibold" mb={2}>{kind === 'original' ? 'Original' : 'Planned API submission'}</Text>
                 <Box overflow="auto" maxH="420px" tabIndex={0} aria-label={`${kind} preview scroll area`} bg="gray.900">
                   <Box position="relative" width={`${zoom}%`}>
-                    <Image src={shown[kind]} alt={kind === 'original' ? 'Verified original preview' : 'Verified planned input preview'} width="100%" maxW="none" onError={failImage} />
+                    <Image src={shown[kind]} alt={kind === 'original' ? 'Verified original preview' : 'Verified planned input preview'} width="100%" maxW="none" onLoad={() => imageReady(kind)} onError={failImage} />
                     {kind === 'original' && overlay && shown.overlay && <Image src={shown.overlay} alt="Processing overlay in original-image coordinates" position="absolute" inset={0} width="100%" height="100%" opacity={opacity / 100} pointerEvents="none" onError={failImage} />}
                   </Box>
                 </Box>

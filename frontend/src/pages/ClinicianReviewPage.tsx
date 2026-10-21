@@ -1,5 +1,6 @@
 import { usePageNavigationGuard } from '@/components/shell/NavigationGuard';
 import { useActiveCaseSession } from '@/hooks/useActiveCaseSession';
+import { localTiming } from '@/lib/localTiming';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -93,6 +94,8 @@ function ClinicianReviewPageSession() {
       const loaded = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
       if (!isActive() || !requestIsCurrent()) return;
       setItem(loaded);
+      localTiming.modality(imageId, loaded.modality);
+      localTiming.event('case_ready', imageId);
       setReviewer(loaded.clinician_review?.reviewer ?? getDefaultReviewer());
       setUseAsDefault(Boolean(getDefaultReviewer()));
       setRemark(loaded.clinician_review?.remark ?? '');
@@ -197,6 +200,7 @@ function ClinicianReviewPageSession() {
       if (!isActive()) return;
       setDefaultReviewer(useAsDefault ? reviewer : '');
       setItem(saved);
+      if (saved.grade_status === 'CONFIRMED') localTiming.event('confirmed_save', saved.image_id);
       setEditingConfirmed(false);
       toast({
         id: 'dr-grade-confirmed',
@@ -296,13 +300,13 @@ function ClinicianReviewPageSession() {
                     <FormLabel htmlFor="clinician-review-grade" mb={0}>Final DR grade</FormLabel>
                     <GradeGuide />
                   </HStack>
-                  <Select id="clinician-review-grade" isDisabled={saving} value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Choose a DR grade">
+                  <Select id="clinician-review-grade" isDisabled={saving} value={grade} onChange={(event) => { localTiming.event('review_edit', item.image_id); setGrade(event.target.value); }} placeholder="Choose a DR grade">
                     {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{value} - {drGradeLabel(value)}</option>)}
                   </Select>
                 </FormControl>
                 <FormControl>
                   <FormLabel htmlFor="clinician-review-remark">Remark (optional)</FormLabel>
-                  <Textarea id="clinician-review-remark" isDisabled={saving} value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Add a review remark" rows={4} />
+                  <Textarea id="clinician-review-remark" isDisabled={saving} value={remark} onChange={(event) => { localTiming.event('review_edit', item.image_id); setRemark(event.target.value); }} placeholder="Add a review remark" rows={4} />
                 </FormControl>
                 {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
                 <Button variant="solid" onClick={() => void saveGrade()} isLoading={saving} isDisabled={grade === ''}>

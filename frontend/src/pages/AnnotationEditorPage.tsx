@@ -1,5 +1,6 @@
 import { usePageNavigationGuard } from '@/components/shell/NavigationGuard';
 import { useActiveCaseSession } from '@/hooks/useActiveCaseSession';
+import { localTiming } from '@/lib/localTiming';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -507,6 +508,8 @@ function AnnotationEditorPageSession() {
       const loaded = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
       if (!isActive() || !requestIsCurrent()) return;
       setItem(loaded);
+      localTiming.modality(imageId, loaded.modality);
+      localTiming.event('case_ready', imageId);
       setDraft(loaded.human_annotations ?? []);
       setHistory([]);
       setDraftStatus('saved');
@@ -537,6 +540,7 @@ function AnnotationEditorPageSession() {
 
   const commit = (next: HumanAnnotation[], nextSelection: string | null = null) => {
     if (readOnly || actionBusyRef.current) return;
+    if (item) localTiming.event('review_edit', item.image_id);
     setHistory((previous) => [...previous, draftRef.current]);
     draftRef.current = next;
     setDraft(next);
@@ -1129,6 +1133,7 @@ function AnnotationEditorPageSession() {
       });
       if (!isActive()) return false;
       setItem(confirmed);
+      if (annotationsConfirmed(confirmed)) localTiming.event('annotation_confirmed_save', confirmed.image_id);
       setSaved(true);
       setDraftStatus('saved');
       return true;
@@ -1285,6 +1290,7 @@ function AnnotationEditorPageSession() {
       if (!isActive()) return;
       setItem(confirmed);
       setSaved(true);
+      if (annotationsConfirmed(confirmed)) localTiming.event('annotation_confirmed_save', confirmed.image_id);
       setDraftStatus('saved');
       completenessWrittenForFinishRef.current = false;
       clearRoiSelection();

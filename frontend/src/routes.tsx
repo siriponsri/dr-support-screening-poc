@@ -11,6 +11,7 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { NavigationGuardProvider } from '@/components/shell/NavigationGuard';
 import { WorkspaceProvider } from '@/components/shell/workspace';
+import { LocalTimingObserver } from '@/components/shell/LocalTimingObserver';
 
 interface AppRoutesProps {
   /** Test-only viewport override — see AppShell. */
@@ -35,6 +36,7 @@ interface AppRoutesProps {
 export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
   return (
     <NavigationGuardProvider><WorkspaceProvider>
+      <LocalTimingObserver />
       <Routes>
         <Route element={<AppShell forceTier={forceTier} />}>
           <Route index element={<Navigate to="/worklist" replace />} />

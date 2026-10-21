@@ -1,3 +1,5 @@
+import { requestTiming, type TimingModel } from './localTiming';
+
 export interface GlobalResult {
   schema_version?: string;
   model_id: string;
@@ -919,7 +921,9 @@ export const modelConnectionApi = {
   save: (request: ModelConnectionInput) => apiJson<ModelConnectionResponse>('/v1/model-connection', jsonRequest({ method: 'PUT', body: JSON.stringify(request) })),
 };
 
-export async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+export async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit, parameters?: TimingModel): Promise<T> {
+  const timing = requestTiming(input, init?.method, parameters);
+  try {
   const response = await fetch(input, init);
   const body = await response.json().catch(() => null) as { detail?: unknown } | null;
   if (!response.ok) {
@@ -928,7 +932,12 @@ export async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): 
   if (body == null) {
     throw new Error('The server returned an invalid response. Reload and try again.');
   }
+  timing.end('COMPLETED', response.headers?.get?.('Server-Timing'));
   return body as T;
+  } catch (error) {
+    timing.end(init?.signal?.aborted || (typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError') ? 'ABORTED' : 'FAILED');
+    throw error;
+  }
 }
 
 export function normalizeApiDetail(detail: unknown): string {

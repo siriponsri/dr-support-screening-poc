@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Alert, AlertIcon, Button, HStack, Stack, Text } from '@chakra-ui/react';
 import { Section } from '@/components/common/Section';
 import { datasetApi, type DatasetSnapshotPreview } from '@/lib/api';
+import { localTiming, type Outcome } from '@/lib/localTiming';
 
 interface Props { workspaceId: string | null; exportAllowed: boolean; refreshToken?: string }
 const GROUPS = ['Grade0', 'Grade1', 'Grade2', 'Grade3', 'Grade4', 'UNREVIEWED', 'UNGRADABLE', 'UNDETERMINED'];
@@ -33,17 +34,22 @@ export function GradingFolderSnapshot({ workspaceId, exportAllowed, refreshToken
     setBusy(true);
     setMessage(null);
     const current = () => action.current === controller && active.current === context && !controller.signal.aborted;
+    const timing = localTiming.folder(create ? 'folder_snapshot' : 'folder_preview');
+    const cancelled = () => timing.end('ABORTED');
+    controller.signal.addEventListener('abort', cancelled, { once: true });
+    let outcome: Outcome = 'FAILED';
     try {
       if (create && shown && folders?.plan_sha256) {
         const result = await datasetApi.snapshot({ include_grade_folders: true, expected_workspace_id: workspaceId!,
           expected_source_state_digest: shown.source_state_digest.digest, expected_grading_plan_sha256: folders.plan_sha256 }, controller.signal);
-        if (!current()) return;
+        if (!current()) { outcome = 'STALE'; return; }
         if (result.workspace_id !== workspaceId || !result.manifest.grading_folders) throw new Error('Unverified snapshot response');
+        outcome = 'COMPLETED';
         setPreview(null);
         setMessage({ context, error: false, text: `Grading-folder snapshot created: ${result.snapshot_id}. ${folders.file_count} original files copied into ${result.directory_name}/grading_folders. Earlier snapshots and originals remain unchanged.` });
       } else {
         const result = await datasetApi.snapshotPreview(true, controller.signal);
-        if (!current()) return;
+        if (!current()) { outcome = 'STALE'; return; }
         if (result.workspace_id !== workspaceId) throw new Error('Workspace changed');
         if (result.grading_folders?.schema_version !== 'grading-folders.v1') {
           setPreview(null);
@@ -51,6 +57,7 @@ export function GradingFolderSnapshot({ workspaceId, exportAllowed, refreshToken
           return;
         }
         setPreview({ context, data: result });
+        outcome = 'COMPLETED';
       }
     } catch {
       if (current()) {
@@ -60,6 +67,8 @@ export function GradingFolderSnapshot({ workspaceId, exportAllowed, refreshToken
           : 'The grading-folder preview is unavailable. Refresh the Workspace and check source authorization.' });
       }
     } finally {
+      controller.signal.removeEventListener('abort', cancelled);
+      timing.end(outcome);
       if (action.current === controller) { action.current = null; setBusy(false); }
     }
   };

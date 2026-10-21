@@ -1,4 +1,5 @@
 import { useActiveCaseSession } from '@/hooks/useActiveCaseSession';
+import { localTiming } from '@/lib/localTiming';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -394,6 +395,8 @@ function ReviewPageSession() {
       const nextCase = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
       if (!isActive() || !requestIsCurrent()) return null;
       setItem(nextCase);
+      localTiming.event('case_ready', imageId);
+      localTiming.modality(imageId, nextCase.modality);
       return nextCase;
     } catch (err) {
       if (isActive() && requestIsCurrent()) setError(errorText(err));
@@ -411,6 +414,10 @@ function ReviewPageSession() {
       setModelError(errorText(err));
     }
   }, []);
+
+  useEffect(() => {
+    if (item?.global || item?.lesion) localTiming.event('result_render_commit', item.image_id);
+  }, [item?.global, item?.lesion, item?.image_id]);
 
   useEffect(() => {
     let current = true;
@@ -449,7 +456,7 @@ function ReviewPageSession() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: globalModel.model_id }),
-        });
+        }, { model_id: globalModel.model_id, model_version: globalModel.model_version ?? globalModel.revision });
       }
       if (!isActive()) return;
       if (lesionModel && !requiresPrismPreview(lesionModel)) {
@@ -458,7 +465,7 @@ function ReviewPageSession() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: lesionModel.model_id }),
-        });
+        }, { model_id: lesionModel.model_id, model_version: lesionModel.model_version ?? lesionModel.revision });
       }
       if (!isActive()) return;
       setProgress('Reloading returned case results...');
