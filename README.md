@@ -88,6 +88,8 @@ Verify a `PASS` status, `assets_verified: true`, and a `/v1/models` capability a
 
 ## 6. Run checks before sharing changes
 
+Review application packaging, offline hygiene checks and deployment prerequisites are in [Repository and build hygiene](docs/operations/REPO_HYGIENE.md). Model API deployment ownership remains separate.
+
 After the developer checkout setup above, run the following from the repository root in PowerShell:
 
 ```powershell
