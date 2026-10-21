@@ -51,6 +51,14 @@ class Observation:
     project_bytes: int
 
 
+@dataclass(frozen=True)
+class TerminalObservation:
+    """Owned kernel liveness during stop; deliberately contains no resource claim."""
+    identity: ChildIdentity
+    alive: bool
+    observed_at: float
+
+
 class OwnedChild(Protocol):
     """Trusted spawn-only adapter; implementations require separate host tests.
 
@@ -111,6 +119,7 @@ class WorkerSupervisor:
         self._lock = RLock()
         self._last_now = None
         self.state, self.reason = "UNVERIFIED", None
+        self.stop_reason = self.observation_failure = None
         self.jobs_started = 0
         self._seen: set[str] = set()
         self._job = None
@@ -143,16 +152,41 @@ class WorkerSupervisor:
         self._last_now = value
         return value
 
+    def _retain_adapter_failure(self):
+        # Allowlisted scalar detail only, never raw text/paths/payloads.
+        detail = getattr(self._child, "observation_failure", None)
+        if isinstance(detail, dict):
+            stage, kind, code = detail.get("stage"), detail.get("exception_class"), detail.get("errno")
+            self.observation_failure = {
+                "stage": stage if type(stage) is str and stage in {
+                    "PIDFD_POLL", "PROC_IDENTITY", "RESOURCE_SAMPLE", "RESOURCE_RECHECK", "REAP", "STDERR_DRAIN"
+                } else "UNKNOWN",
+                "exception_class": kind if type(kind) is str and kind in {
+                    "PermissionError", "ProcessLookupError", "FileNotFoundError", "OSError", "RuntimeError",
+                    "IndexError", "ValueError", "StopIteration"
+                } else "OTHER",
+                "errno": code if type(code) is int and 0 <= code <= 4095 else None,
+            }
+
     def _observe(self):
+        terminal_port = getattr(self._child, "observe_terminal", None)
+        stopping = self.state in {"DRAINING", "FORCE_PENDING"} and callable(terminal_port)
         try:
-            observation = self._child.observe()
+            observation = terminal_port() if stopping else self._child.observe()
         except Exception:
+            self._retain_adapter_failure()
             self._fault("CHILD_OBSERVATION_UNAVAILABLE")
-        if not isinstance(observation, Observation):
+        if not isinstance(observation, TerminalObservation if stopping else Observation):
             self._fault("CHILD_OBSERVATION_INVALID")
+        if type(observation.alive) is not bool:
+            self._fault("CHILD_LIVENESS_INVALID")
         if observation.identity != self._identity:
             self._fault("CHILD_IDENTITY_CHANGED_NO_SIGNAL")
-        return observation, self._now()
+        now = self._now()
+        if stopping and (type(observation.observed_at) not in (int, float) or not math.isfinite(observation.observed_at)
+                         or not 0 <= now - observation.observed_at <= self.policy.monitor_seconds):
+            self._fault("TELEMETRY_STALE_OR_INVALID")
+        return observation, now
 
     def _signal(self, *, force: bool):
         try:
@@ -160,10 +194,12 @@ class WorkerSupervisor:
             # implement this as unchecked os.kill(observation.identity.pid).
             self._child.signal_verified(self._identity, force=force)
         except Exception:
+            self._retain_adapter_failure()
             self._fault("VERIFIED_SIGNAL_REFUSED_OR_FAILED")
 
     def _drain(self, reason: str, now: float):
         self.state, self.reason = "DRAINING", reason
+        self.stop_reason = self.stop_reason or reason
         self._drain_deadline = now + self.policy.drain_seconds
         self._force_at = self._drain_deadline - min(self.policy.monitor_seconds, self.policy.drain_seconds / 2)
         self._signal(force=False)

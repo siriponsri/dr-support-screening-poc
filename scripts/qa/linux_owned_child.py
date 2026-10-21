@@ -12,7 +12,7 @@ import sys
 import time
 from threading import Thread
 
-from scripts.qa.worker_supervisor import ChildIdentity, Observation
+from scripts.qa.worker_supervisor import ChildIdentity, Observation, TerminalObservation
 
 
 # The new child cannot exec until its parent has pinned a pidfd. EOF/timeout
@@ -135,32 +135,82 @@ class LinuxOwnedChild:
             if not released and pinned is not None:
                 os.close(pinned)
 
+    def _observation_error(self, stage, error):
+        kind = type(error).__name__
+        self.observation_failure = {
+            "stage": stage,
+            "exception_class": kind if kind in {"PermissionError", "ProcessLookupError", "FileNotFoundError", "OSError",
+                                               "RuntimeError", "IndexError", "ValueError", "StopIteration"} else "OTHER",
+            "errno": error.errno if isinstance(error, OSError) and type(error.errno) is int and 0 <= error.errno <= 4095 else None,
+        }
+
+    def _pidfd_terminal(self):
+        try:
+            if self._closed:
+                raise RuntimeError("OWNED_HANDLE_CLOSED")
+            events = self._poll.poll(0)
+            if not events:
+                return False
+            # Linux poll ABI values also let Windows unit tests inject fake
+            # events without enabling the Linux-only spawn implementation.
+            invalid = getattr(select, "POLLNVAL", 0x020) | getattr(select, "POLLERR", 0x008)
+            readable = getattr(select, "POLLIN", 0x001)
+            # Invalid/foreign descriptors and errors are never terminal proof.
+            if any(fd != self._pidfd or mask & invalid or not mask & readable
+                   for fd, mask in events):
+                raise RuntimeError("OWNED_PIDFD_EVENT_INVALID")
+            return True
+        except Exception as error:
+            self._observation_error("PIDFD_POLL", error)
+            raise
+
     def inspect(self):
         if self._closed:
             raise RuntimeError("OWNED_HANDLE_CLOSED")
-        exited = bool(self._poll.poll(0))
+        exited = self._pidfd_terminal()
         if not exited:
             try:
                 parent, birth = proc_identity(self.identity.pid)
-            except (OSError, RuntimeError):
+            except PermissionError as error:
+                self._observation_error("PROC_IDENTITY", error)
+                raise  # A denied observation is not a route to terminal proof.
+            except (OSError, RuntimeError, IndexError, ValueError) as error:
+                self._observation_error("PROC_IDENTITY", error)
                 # The OWNED kernel handle can become terminal after the poll
                 # and before /proc is read. Never interpret a missing /proc
                 # entry as proof of exit without this pinned-handle recheck.
-                if self._poll.poll(0):
+                # An exit-racing /proc read can also be empty/partial: its
+                # parser failure needs the SAME kernel-terminal proof. If the
+                # pidfd is not terminal, preserve the original inspection error.
+                if self._pidfd_terminal():
                     return False
                 raise
             if (parent, birth) != (self.identity.parent_pid, self.identity.birth_marker):
-                if self._poll.poll(0):
+                if self._pidfd_terminal():
                     return False
-                raise RuntimeError("OWNED_CHILD_IDENTITY_CHANGED")
+                error = RuntimeError("OWNED_CHILD_IDENTITY_CHANGED")
+                self._observation_error("PROC_IDENTITY", error)
+                raise error
         return not exited
+
+    def observe_terminal(self):
+        """Nonblocking pinned-handle wait; caller retains the existing drain deadline.
+
+        No /proc/resource inference, no signal/reap, no healthy/zero resource
+        values for a live child. Nonterminal means keep waiting, never STOPPED.
+        """
+        return TerminalObservation(self.identity, not self._pidfd_terminal(), time.monotonic())
 
     def observe(self):
         alive = self.inspect()
         if alive:
             try:
                 values = self._resources(self.identity.pid)
-            except Exception:
+            except PermissionError as error:
+                self._observation_error("RESOURCE_SAMPLE", error)
+                raise
+            except Exception as error:
+                self._observation_error("RESOURCE_SAMPLE", error)
                 if self.inspect():
                     raise
                 alive = False
@@ -185,10 +235,18 @@ class LinuxOwnedChild:
     def close_confirmed(self):
         if self.inspect():
             raise RuntimeError("LIVE_CHILD_HANDLE_PRESERVED")
-        self._process.wait(timeout=1)
-        self._stderr_thread.join(timeout=1)
-        if self._stderr_thread.is_alive():
-            raise RuntimeError("STDERR_DRAIN_UNCONFIRMED")
+        try:
+            self._process.wait(timeout=1)
+        except Exception as error:
+            self._observation_error("REAP", error)
+            raise
+        try:
+            self._stderr_thread.join(timeout=1)
+            if self._stderr_thread.is_alive():
+                raise RuntimeError("STDERR_DRAIN_UNCONFIRMED")
+        except Exception as error:
+            self._observation_error("STDERR_DRAIN", error)
+            raise
         os.close(self._pidfd)
         self._closed = True
 
