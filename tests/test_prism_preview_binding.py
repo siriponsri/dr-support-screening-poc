@@ -511,6 +511,7 @@ def test_main_factory_wires_binding_and_blocks_legacy_prism_without_executing_fa
     tree = ast.parse(source)
     infer = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "infer")
     assert isinstance(infer.body[0], ast.If)
-    assert "prism-dr-5fold" in ast.unparse(infer.body[0]) and "409" in ast.unparse(infer.body[0])
+    early_guards = [ast.unparse(node) for node in infer.body[:2] if isinstance(node, ast.If)]
+    assert any("prism-dr-5fold" in guard and "409" in guard for guard in early_guards)
     assert "install_prism_preview_routes(app, app.state.prism_preview)" in source
     assert "store = target_store if target_store is not None else app.state.store" in source

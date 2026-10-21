@@ -4,6 +4,7 @@ Routes the clinician UI, cases, review state, CVAT integration, and the
 inference dispatcher, which routes to local providers or the remote proxy.
 """
 import os
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
@@ -148,17 +149,28 @@ def create_app(
     *,
     case_store_mode: str | None = None,
     workspace_id: str | None = None,
+    qa_fixed_session=None,
 ):
     app = FastAPI(title='Retinal Review Workbench', version='0.7.0')
     root = Path(__file__).resolve().parents[2]
 
-    resolved_case_store_mode = _resolve_case_store_mode(case_store_mode, state_path)
-    selected_store, selected_workspace_id, _postgres_settings, postgres_database = _build_case_store(
-        resolved_case_store_mode, state_path, workspace_id
-    )
+    if qa_fixed_session is not None:
+        from ..services.prism_fixed_session import FixedQASession
+        if not isinstance(qa_fixed_session, FixedQASession):
+            raise ValueError('Explicit fixed QA session injection required')
+        resolved_case_store_mode, selected_store = 'qa_injected', qa_fixed_session.store
+        selected_workspace_id, postgres_database = 'fixed-qa-session', None
+    else:
+        resolved_case_store_mode = _resolve_case_store_mode(case_store_mode, state_path)
+        selected_store, selected_workspace_id, _postgres_settings, postgres_database = _build_case_store(
+            resolved_case_store_mode, state_path, workspace_id
+        )
+    app.state.qa_fixed_session = qa_fixed_session
 
     demo_folder = (os.environ.get('DR_DEMO_FOLDER') or '').strip()
-    if demo_folder and include_demo_fixtures:
+    if qa_fixed_session is not None:
+        app.state.images = dict(qa_fixed_session.images)
+    elif demo_folder and include_demo_fixtures:
         app.state.images = admitted_demo_images(demo_folder)
     elif include_demo_fixtures:
         fixture = synthetic_image()
@@ -167,14 +179,16 @@ def create_app(
             app.state.images.update(admitted_samples(root))
     else:
         app.state.images = {}
-    app.state.admissions = {
+    app.state.admissions = deepcopy(qa_fixed_session.admissions) if qa_fixed_session is not None else {
         image_id: legacy_admission(image) for image_id, image in app.state.images.items()
     }
     app.state.workspace_image_ids = set()
     app.state.workspace_admission_ids = set()
     app.state.resolver = ResolverService()
     app.state.derivatives = DerivativeService()
-    if selected_store is None:
+    if qa_fixed_session is not None:
+        workspace_manager = WorkspaceManager.for_fixed_qa_store(root, selected_store)
+    elif selected_store is None:
         workspace_manager = WorkspaceManager(root, state_path=state_path)
     else:
         workspace_manager = WorkspaceManager(
@@ -328,6 +342,8 @@ def create_app(
         app.state.admission_warnings = list(scan.warnings) + missing_warnings
 
     def scan_active_workspace():
+        if qa_fixed_session is not None:
+            raise HTTPException(423, 'Fixed QA session excludes scans')
         # The unified private lane has two explicit server-side roots. It does
         # not use the workspace folder or filename heuristics to assign a
         # modality, and it deliberately shares one case store/workspace.
@@ -364,7 +380,7 @@ def create_app(
 
     app.state.scan_active_workspace = scan_active_workspace
     app.state.admission_warnings = []
-    if workspace_manager.active_workspace is not None or hospital_roots_configured() or authorized_hospital_roots():
+    if qa_fixed_session is None and (workspace_manager.active_workspace is not None or hospital_roots_configured() or authorized_hospital_roots()):
         scan_active_workspace()
     inference_lock = RLock()
 
@@ -376,7 +392,12 @@ def create_app(
         return await call_next(request)
 
     runtime = (os.environ.get('MODEL_RUNTIME') or 'local').strip().lower()
-    if runtime == 'remote':
+    if qa_fixed_session is not None:
+        app.state.remote_runtime = False
+        app.state.model_connection = None
+        app.state.model_connection_probe = None
+        app.state.providers = {'prism-dr-5fold': qa_fixed_session.provider}
+    elif runtime == 'remote':
         app.state.remote_runtime = True
         configured_url = (os.environ.get('REMOTE_MODEL_URL') or '').strip().rstrip('/')
         configured_token = os.environ.get('REMOTE_MODEL_TOKEN') or None
@@ -453,6 +474,8 @@ def create_app(
         return providers
 
     def refresh_remote_state():
+        if qa_fixed_session is not None:
+            return None
         if not app.state.remote_runtime:
             return None
         connection = getattr(app.state, 'model_connection', None)
@@ -591,6 +614,8 @@ def create_app(
         ])
 
     def infer(request, task, *, invocation_id=None, request_case_revision=None):
+        if qa_fixed_session is not None:
+            raise HTTPException(423, 'Fixed QA session requires the bound preview path')
         if task == 'lesion-roi' and request.model_id == 'prism-dr-5fold':
             raise HTTPException(409, 'PRISM requires a verified, one-use input preview receipt.')
         image = app.state.images.get(request.image_id)
@@ -870,6 +895,8 @@ def create_app(
                 store.put(case)
 
     def preview_route(descriptor, modality):
+        if qa_fixed_session is not None:
+            return qa_fixed_session.preview_capability(descriptor, modality)
         selected = next((item for item in capability_descriptors([descriptor], include_registry=True)
                          if item.get('model_id') == 'prism-dr-5fold'), descriptor)
         try:
@@ -883,7 +910,8 @@ def create_app(
         map_result=map_lesion_result_to_review, inference_lock=inference_lock,
     )
     app.state.prism_preview = PrismPreviewService(preview_runtime.snapshot, preview_runtime.execute,
-                                                refresh=preview_runtime.refresh)
+                                                refresh=preview_runtime.refresh,
+                                                register_plan=qa_fixed_session.register_preview_plan if qa_fixed_session else None)
     install_prism_preview_routes(app, app.state.prism_preview)
 
     @app.post('/v1/infer/global', response_model=GlobalResult)
@@ -1001,4 +1029,7 @@ def create_app(
                 status_code=503,
             )
     app.state.infer = infer
+    if qa_fixed_session is not None:
+        qa_fixed_session.bind(app)
+        qa_fixed_session.seal()
     return app

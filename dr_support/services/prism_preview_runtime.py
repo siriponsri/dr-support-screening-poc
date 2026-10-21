@@ -101,6 +101,15 @@ class ReviewPrismPreview:
             audit = derivative.audit_record()
             if audit["source_sha256"] != image.sha256 or audit["analysis_sha256"] != wire.sha256:
                 raise HTTPException(409, "Prepared wire lineage is inconsistent.")
+            self.scopes.setdefault(store, secrets.token_hex(16))
+            session = getattr(state, 'qa_fixed_session', None)
+            if session is not None and not refresh_only:
+                context = dict(scope=self.scopes[store], image_id=image_id, case_revision=case['revision'],
+                    source_sha256=image.sha256, wire_sha256=wire.sha256,
+                    admission_sha256=sha(canonical(admission)), recorded_source_identity=recorded,
+                    admission={key: admission.get(key) for key in ('source_origin', 'retinal_modality', 'modality_admission', 'quality_state')},
+                    preparation_context=preparation_context(case), model_pins=identity['model_pins'])
+                session.authorize_prepare(wire, context, original_bytes=bytes(image.data))
             # Preparation freezes CFP too; refresh can only read cached bytes.
             candidate_method = provider.get_prism_preview_candidate if refresh_only else provider.prepare_prism_preview_candidate
             try:
@@ -211,11 +220,14 @@ class ReviewPrismPreview:
                         or (field.get("image_width"), field.get("image_height")) != runtime.wire.size):
                     raise HTTPException(502, "Applied FOV does not match the reviewed conditional mask.")
         result = self.map_result(result, runtime.derivative.coordinate_mapping)
-        applied = self.save_result(request, "lesion-roi", result, runtime.derivative,
+        def save():
+            return self.save_result(request, "lesion-roi", result, runtime.derivative,
                          capability_id=runtime.capability_id, invocation_id="preview-" + binding["plan_id"],
                          request_case_revision=snapshot.revision, processing_evidence=processing,
                          target_store=runtime.store, target_provider=runtime.provider,
                          preview_binding={"plan_sha256": plan_hash, **binding})
+        session = getattr(self.app.state, 'qa_fixed_session', None)
+        applied = session.commit_result(save) if session is not None else save()
         return {"status": "STALE_RESULT" if applied is False else "APPLIED",
                 "result": result.model_dump(mode="json"),
                 "preview_receipt": {"plan_id": binding["plan_id"], "plan_sha256": plan_hash,

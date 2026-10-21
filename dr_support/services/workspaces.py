@@ -207,6 +207,20 @@ class WorkspaceCatalog:
 class WorkspaceManager:
     """Resolve startup state and safely switch the process-local review store."""
 
+    @classmethod
+    def for_fixed_qa_store(cls, root, store):
+        """Internal persistence-free assembly; never selected by environment/HTTP."""
+        manager = cls.__new__(cls)
+        manager.root, manager.store, manager.lock = Path(root), store, RLock()
+        manager.picker = manager.catalog = manager.postgres_catalog = manager.postgres_database = None
+        manager.catalog_path = manager.fallback_path = None
+        manager.postgres_mode = False
+        manager._external_store = True
+        manager.app = manager.active_workspace = None
+        manager.database_status, manager.database_path = 'QA_INJECTED', 'Injected fixed QA storage'
+        manager.warnings = ['Fixed synthetic QA session; mutations disabled']
+        return manager
+
     def __init__(
         self,
         root: str | Path,
@@ -369,6 +383,8 @@ class WorkspaceManager:
         return self.catalog
 
     def _swap_store(self, store: Store, profile: WorkspaceProfile) -> None:
+        if self.app is not None and getattr(self.app.state, 'qa_fixed_session', None) is not None:
+            raise WorkspaceDatabaseError('Fixed QA session excludes Workspace/store replacement')
         if self._external_store:
             raise WorkspaceDatabaseError(
                 "Workspace switching is not available for the selected external case store"

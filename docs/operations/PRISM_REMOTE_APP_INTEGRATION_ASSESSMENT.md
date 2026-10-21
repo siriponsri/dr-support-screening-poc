@@ -1,5 +1,11 @@
 # Remote candidate: bounded app integration assessment
 
+Historical f371809 assessment below. The subsequent offline implementation in
+PRISM_FIXED_QA_SESSION.md closes the fixed-session app authority/lifecycle gaps
+using injected storage and MockTransport. A broader production writer/RBAC design
+is not a prerequisite for that bounded engineering path. Runtime registration,
+live transport and worker/model qualification remain disabled/unqualified.
+
 Disposition: **source-entry hook integrated; actual remote app execution BLOCKED**.
 The named qa-prism-bound-remote-v2-disabled profile is declared and rejected by
 the real app profile resolver before factories/DB/provider construction. Registration

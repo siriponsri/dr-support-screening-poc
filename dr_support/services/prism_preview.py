@@ -130,10 +130,11 @@ class PrismPreviewService:
     """
     def __init__(self, snapshot: Callable[[str], PreviewSnapshot], execute: Callable,
                  *, lock=None, clock=time.monotonic, ttl=300, max_plans=16,
-                 max_cache_bytes=128 * 1024 * 1024, refresh: Callable | None = None):
+                 max_cache_bytes=128 * 1024 * 1024, refresh: Callable | None = None, register_plan: Callable | None = None):
         self.snapshot = snapshot
         self.execute = execute
         self.refresh = refresh
+        self.register_plan = register_plan
         self.lock = lock or RLock()
         self.clock = clock
         self.ttl = ttl
@@ -291,6 +292,10 @@ class PrismPreviewService:
                     asset["rgb_sha256"] = identity["wire_rgb_sha256"]
                 display[{"original": "original_preview", "input": "input_preview", "overlay": "overlay"}[name]] = asset
             display.setdefault("overlay", None)
+            if self.register_plan is not None:
+                try: self.register_plan(snapshot, deepcopy(binding), binding_hash)
+                except (ValueError, RuntimeError):
+                    raise HTTPException(409, "Fixed QA plan registration failed; no usable receipt was created.") from None
             self.plans[token] = _Plan(snapshot, sha(canonical(identity)), binding, display, assets,
                                       self.clock() + self.ttl, generation)
             return deepcopy(display)
