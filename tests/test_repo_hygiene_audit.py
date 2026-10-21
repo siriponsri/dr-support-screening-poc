@@ -124,3 +124,8 @@ def test_real_git_ignore_rules_keep_public_source_and_exclude_private_artifacts(
     result = subprocess.run(['git', '-c', f'core.excludesFile={empty}', '-C', str(tmp_path), 'check-ignore', '--no-index', '-z', '--stdin'], input=('\0'.join(ignored+public)+'\0').encode(), capture_output=True, check=False)
     assert result.returncode == 0
     assert set(result.stdout.decode().rstrip('\0').split('\0')) == set(ignored)
+
+
+def test_dedicated_context_excludes_backup_and_bytecode_variants():
+    lines = set((ROOT/'deployment/dual-mode/Dockerfile.review.dockerignore').read_text().splitlines())
+    assert {'**/*.backup', '**/*.bak', '**/*.pyc', '**/*.pyo'} <= lines

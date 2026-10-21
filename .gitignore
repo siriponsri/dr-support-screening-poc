@@ -71,6 +71,7 @@ credentials
 .pgpass
 .pg_service.conf
 *.log
+*.pyo
 /backups/
 /exports/
 /logs/

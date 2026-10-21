@@ -50,6 +50,10 @@
 **/*.db
 **/*.db-*
 **/*.dump
+**/*.backup
+**/*.bak
+**/*.pyc
+**/*.pyo
 **/*.pem
 **/*.key
 **/*.pfx

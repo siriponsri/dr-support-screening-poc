@@ -10,7 +10,7 @@ import re
 import tomllib
 from pathlib import Path, PurePosixPath
 
-BINARY_SUFFIXES = {'.pt', '.pth', '.ckpt', '.onnx', '.safetensors', '.h5', '.hdf5', '.pkl', '.joblib', '.bin', '.sqlite', '.sqlite3', '.db', '.dump', '.backup', '.bak', '.pem', '.key', '.pfx', '.p12', '.dcm', '.dicom', '.tif', '.tiff'}
+BINARY_SUFFIXES = {'.pt', '.pth', '.ckpt', '.onnx', '.safetensors', '.h5', '.hdf5', '.pkl', '.joblib', '.bin', '.sqlite', '.sqlite3', '.db', '.dump', '.backup', '.bak', '.pem', '.key', '.pfx', '.p12', '.dcm', '.dicom', '.tif', '.tiff', '.pyc', '.pyo'}
 IMAGE_SUFFIXES = {'.png', '.jpg', '.jpeg', '.bmp', '.webp', '.gif', '.heic'}
 PRIVATE_PARTS = {'.git', '.venv', 'node_modules', 'local-state', '.aws', '.ssh', '.codex', '.agents', '__pycache__', '.pytest_cache', '.ruff_cache', '.cache', 'dist'}
 PRIVATE_NAMES = {'.netrc', '.npmrc', 'id_rsa', 'id_ed25519', 'credentials', '.pgpass', '.pg_service.conf'}

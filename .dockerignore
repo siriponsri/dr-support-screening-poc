@@ -67,3 +67,5 @@ htmlcov
 /backups
 /exports
 /logs
+**/*.pyc
+**/*.pyo
