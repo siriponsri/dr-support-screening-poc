@@ -26,6 +26,7 @@ import os
 from typing import Any
 
 from fastapi import FastAPI
+from .services.prism_remote_profile import reject_disabled_profile
 
 from .api._factory import create_app as create_review_app
 from .services.model_api import create_app as create_model_api_app
@@ -36,6 +37,7 @@ VALID_PROFILES = ('review', 'model_api', 'full')
 
 def _resolve_profile(profile: str | None) -> str:
     value = (profile or os.environ.get('APP_PROFILE') or 'review').strip().lower()
+    reject_disabled_profile(value)
     if value not in VALID_PROFILES:
         raise ValueError(
             f"Unknown APP_PROFILE={value!r}; expected one of {', '.join(VALID_PROFILES)}"

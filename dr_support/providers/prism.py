@@ -284,7 +284,7 @@ class PRISM:
         finally:
             self._release_cuda_memory(self.device)
 
-    def _infer_loaded(self, request, image, *, _frozen_preparation=None):
+    def _infer_loaded(self, request, image, *, _frozen_preparation=None, _fatal_roi_entry=None):
         import numpy as np
         from PIL import Image
 
@@ -293,6 +293,10 @@ class PRISM:
             raise ValueError("PRISM source origin is blocked")
         if request.modality not in {"CFP", "UWF"}:
             return self.result(request, image, [], "UNSUPPORTED")
+        if _fatal_roi_entry is not None and (not self.loaded or self.device is None):
+            # Remote entry must not perform this method's legacy lazy load or
+            # device resolution after the caller's source fence check.
+            raise RuntimeError("REMOTE_PRELOADED_RUNTIME_REQUIRED")
         if not self.loaded:
             try:
                 self.load()
@@ -355,6 +359,10 @@ class PRISM:
         roi_input_bgr = np.ascontiguousarray(np.asarray(roi_input_rgb, dtype=np.uint8)[:, :, ::-1])
         native_roi = None
         roi_error = None
+        # Fatal remote permission boundary: outside recoverable ROI fallback.
+        # No model load/queue/warmup is allowed beyond this point.
+        if _fatal_roi_entry is not None:
+            _fatal_roi_entry()
         try:
             roi_results = self.roi(roi_input_bgr, verbose=False)
             native_roi = self._native_roi_box(roi_results, width, height)

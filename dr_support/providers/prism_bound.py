@@ -307,7 +307,16 @@ class BoundLocalPRISM(PRISM):
     def infer(self, request, image):
         raise BoundPlanError("BOUND_PLAN_REQUIRED_NO_LEGACY_FALLBACK")
 
-    def infer_bound_prism(self, request, wire, *, mask_png, binding, plan_sha256, before_forward=None):
+    def infer_remote_fenced_prism(self, request, wire, *, mask_png, binding, plan_sha256,
+                                  before_forward, on_native_roi_entry):
+        # Review-only port; no factory/profile is registered by this patch.
+        if not callable(before_forward) or not callable(on_native_roi_entry):
+            raise BoundPlanError("FATAL_REMOTE_ENTRY_PORT_REQUIRED")
+        return self.infer_bound_prism(request, wire, mask_png=mask_png, binding=binding,
+            plan_sha256=plan_sha256, before_forward=before_forward, _remote_roi_entry=on_native_roi_entry)
+
+    def infer_bound_prism(self, request, wire, *, mask_png, binding, plan_sha256, before_forward=None,
+                          _remote_roi_entry=None):
         if not self._bound_lock.acquire(blocking=False):
             raise BoundPlanError("SERIAL_EXECUTION_ONLY")
         model_work_started = False
@@ -331,7 +340,7 @@ class BoundLocalPRISM(PRISM):
             self._validate(request, wire, mask_png, binding, plan_sha256)
             before_forward()
             self._active_preparation = frozen
-            result = self._infer_loaded(request, wire, _frozen_preparation=frozen)
+            result = self._infer_loaded(request, wire, _frozen_preparation=frozen, _fatal_roi_entry=_remote_roi_entry)
             result = LesionResult.model_validate(result)
             processing = deepcopy(self.last_processing_evidence)
             if request.modality == "UWF":
