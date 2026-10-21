@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from contextlib import contextmanager
 from threading import RLock
 from typing import Any
@@ -91,6 +92,37 @@ class PostgresCaseStore:
                 self._observed_revision[case_id] = stored_revision
                 cases.append(case)
             return cases
+
+    def read_original_case(self, image_id: str) -> dict[str, Any]:
+        """Read one original JSONB document, without defaults or cache writes.
+
+        Explicit read-only transaction; never synthesizes a missing case or
+        repairs inconsistent row/document identity. Caller coordinates the app's
+        registered image/admission projections under the runtime/store locks.
+        """
+        with self.lock:
+            with self.database.session(autocommit=False) as connection:
+                with connection.transaction():
+                    connection.execute(
+                        "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"
+                    )
+                    row = connection.execute(
+                        sql.SQL(
+                            "SELECT revision, payload FROM {}.review_cases "
+                            "WHERE workspace_id = %s AND case_id = %s"
+                        ).format(self._schema),
+                        (self.workspace_id, image_id),
+                    ).fetchone()
+                    if row is None:
+                        raise CaseConflictError("Original case is unavailable")
+                    revision, payload = row
+                    if (type(revision) is not int or revision < 0
+                            or not isinstance(payload, dict)
+                            or payload.get("image_id") != image_id
+                            or type(payload.get("revision")) is not int
+                            or payload["revision"] != revision):
+                        raise CaseConflictError("Original case identity is inconsistent")
+                    return deepcopy(payload)
 
     @contextmanager
     def repeatable_read_cases(self):
