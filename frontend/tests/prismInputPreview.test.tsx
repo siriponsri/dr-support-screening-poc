@@ -2,6 +2,7 @@ import { webcrypto } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ChakraProvider } from '@chakra-ui/react';
+import userEvent from '@testing-library/user-event';
 import { PrismInputPreview } from '@/components/review/PrismInputPreview';
 import { loadPreviewAsset, preparationContext, requiresPrismPreview, validatePrismPreview } from '@/lib/prismInputPreview';
 import { makePlan, model, pngBytes, pngSha, previewCase } from './fixtures/prismPreview';
@@ -78,7 +79,7 @@ describe('single Review UI preparation panel', () => {
     render(<ChakraProvider>{node()}</ChakraProvider>);
     fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
     expect(screen.getByText('PRISM input preview unavailable')).toBeInTheDocument();
-    expect(screen.getByText(/No PRISM request is sent/)).toBeInTheDocument();
+    expect(screen.getByText(/PRISM cannot be submitted without a verified receipt/)).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
   });
   it('shows Original versus wire input, full-original fallback caveat and separate provenance', async () => {
@@ -86,10 +87,85 @@ describe('single Review UI preparation panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
     expect(await screen.findByAltText('Verified planned input preview')).toBeInTheDocument();
     expect(screen.getByText('Planned API submission')).toBeInTheDocument();
-    expect(screen.getByText(/internal model crop not yet previewed/)).toBeInTheDocument();
+    expect(screen.getByText('Planned API input — internal model crop not previewed')).toBeInTheDocument();
     expect(screen.getByText(/Native ROI may still crop internally/)).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Show conditional FOV overlay' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'Show conditional FOV overlay' })).not.toBeChecked();
     expect(vi.mocked(fetch).mock.calls.every(([, options]) => options?.method === 'GET')).toBe(true);
+  });
+  it('does not offer submission for a display-only fixture even when all PNG bytes verify', async () => {
+    render(<ChakraProvider>{node({ ...previewCase, prism_input_preview: makePlan() })}</ChakraProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
+    await screen.findByAltText('Verified planned input preview');
+    expect(screen.queryByRole('button', { name: 'Submit prepared input to PRISM' })).not.toBeInTheDocument();
+    expect(screen.getByText(/does not attest backend execution binding/)).toBeInTheDocument();
+  });
+  it('submits only verified plan fields once, using keyboard acknowledgement, and records no clinical decision', async () => {
+    const complete = vi.fn();
+    const plan = { ...makePlan(), submission_binding_enforced: true };
+    vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST'
+      ? ({ ok: true, json: async () => ({ state: 'AI_SUGGESTION' }) } as Response)
+      : ({ ok: true, arrayBuffer: async () => pngBytes.buffer.slice(0) } as Response));
+    render(<ChakraProvider><PrismInputPreview item={{ ...previewCase, prism_input_preview: plan }} model={model} onInferenceComplete={complete} /></ChakraProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
+    await screen.findByAltText('Verified planned input preview');
+    const button = screen.getByRole('button', { name: 'Submit prepared input to PRISM' });
+    expect(button).toBeDisabled();
+    const acknowledgement = screen.getByRole('checkbox', { name: /I inspected the planned API input/ });
+    act(() => acknowledgement.focus());
+    await userEvent.setup().keyboard(' ');
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await waitFor(() => expect(complete).toHaveBeenCalledOnce());
+    const posts = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0][0]).toBe('/v1/cases/synthetic-preview/prism-input-preview/synthetic-plan/infer');
+    expect(JSON.parse(String(posts[0][1]?.body))).toEqual({ revision: 7, source_sha256: plan.source_sha256,
+      wire_sha256: plan.wire_sha256, plan_sha256: plan.plan_sha256, mask_sha256: null,
+      transform_sha256: plan.transform.sha256, model_version: plan.model_version });
+    expect(button).toBeDisabled();
+  });
+  it('does not replay a failed invocation and requires a new preparation', async () => {
+    const plan = { ...makePlan(), submission_binding_enforced: true };
+    vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST'
+      ? ({ ok: false, json: async () => ({ detail: 'Synthetic timeout' }) } as Response)
+      : ({ ok: true, arrayBuffer: async () => pngBytes.buffer.slice(0) } as Response));
+    render(<ChakraProvider>{node({ ...previewCase, prism_input_preview: plan })}</ChakraProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
+    await screen.findByAltText('Verified planned input preview');
+    fireEvent.click(screen.getByRole('checkbox', { name: /I inspected/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit prepared input to PRISM' }));
+    expect(await screen.findByText(/Synthetic timeout/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit prepared input to PRISM' })).toBeDisabled();
+    expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+  });
+  it('prepares through the CPU route and verifies returned assets before enabling acknowledgement', async () => {
+    const plan = { ...makePlan(), submission_binding_enforced: true };
+    vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST'
+      ? ({ ok: true, json: async () => plan } as Response)
+      : ({ ok: true, arrayBuffer: async () => pngBytes.buffer.slice(0) } as Response));
+    render(<ChakraProvider>{node()}</ChakraProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare / refresh API input' }));
+    await screen.findByAltText('Verified planned input preview');
+    const posts = vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST');
+    expect(posts).toHaveLength(1);
+    expect(posts[0][0]).toBe('/v1/cases/synthetic-preview/prism-input-preview');
+    expect(JSON.parse(String(posts[0][1]?.body))).toEqual({ revision: 7, model_id: model.model_id });
+    expect(screen.getByRole('button', { name: 'Submit prepared input to PRISM' })).toBeDisabled();
+  });
+  it('ignores a deferred preparation response after a case switch and clears loading ownership', async () => {
+    let resolve!: (value: unknown) => void;
+    vi.mocked(fetch).mockImplementation(() => new Promise((done) => { resolve = done; }) as Promise<Response>);
+    const view = render(<ChakraProvider>{node()}</ChakraProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare / refresh API input' }));
+    view.rerender(<ChakraProvider>{node({ ...previewCase, image_id: 'next-case' })}</ChakraProvider>);
+    await act(async () => { resolve({ ok: true, json: async () => ({ ...makePlan(), submission_binding_enforced: true }) }); });
+    expect(screen.queryByAltText('Verified planned input preview')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Submit prepared input to PRISM' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prepare / refresh API input' })).toBeEnabled();
   });
   it('keeps conditional FOV candidate separate from actual wire pixels and supports opacity/toggle', async () => {
     const plan = { ...makePlan(), input_kind: 'UNMASKED_WIRE' as const, mask_application: 'CONDITIONAL_ON_NATIVE_ROI_SUCCESS' as const, external_fov_status: 'READY' as const,

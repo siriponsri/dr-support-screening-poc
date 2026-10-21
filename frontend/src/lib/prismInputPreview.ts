@@ -19,6 +19,7 @@ export interface PrismInputPreview {
   expires_at: string;
   baseline_preserved: true;
   candidate_applied: false;
+  submission_binding_enforced?: boolean;
   preview_scope: 'API_SUBMISSION';
   internal_roi: 'NOT_PREVIEWED';
   native_roi_status: 'NOT_RUN';

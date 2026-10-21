@@ -70,6 +70,8 @@ from ..services.source_policy import (
     source_allowed_for_model,
 )
 from ..services.capability_routing import CapabilityRoutingError, route_capability
+from ..services.prism_preview import PrismPreviewService, install_prism_preview_routes
+from ..services.prism_preview_runtime import ReviewPrismPreview
 from ..services.workspaces import WorkspaceManager
 from ..services.resolver import ResolverService
 from ..services.model_gateway import (
@@ -589,6 +591,8 @@ def create_app(
         ])
 
     def infer(request, task, *, invocation_id=None, request_case_revision=None):
+        if task == 'lesion-roi' and request.model_id == 'prism-dr-5fold':
+            raise HTTPException(409, 'PRISM requires a verified, one-use input preview receipt.')
         image = app.state.images.get(request.image_id)
         if image is None:
             raise HTTPException(404, 'Image not admitted to public/synthetic registry')
@@ -768,9 +772,12 @@ def create_app(
         invocation_id=None,
         request_case_revision=None,
         processing_evidence=None,
+        target_store=None,
+        target_provider=None,
+        preview_binding=None,
     ):
         key = 'global' if task == 'global' else 'lesion'
-        store = app.state.store
+        store = target_store if target_store is not None else app.state.store
         with store.lock:
             case = store.get(request.image_id)
             invocation_id = invocation_id or f'legacy-{uuid4().hex}'
@@ -782,13 +789,14 @@ def create_app(
             derivative_record = analysis_derivative.audit_record() if analysis_derivative else None
             derivative_changed = derivative_record is not None and case.get('analysis_derivative') != derivative_record
             processing_changed = (
-                processing_evidence is not None
+                (processing_evidence is not None or preview_binding is not None)
                 and case.get('prism_processing') != processing_evidence
             )
             request_case_revision = case['revision'] if request_case_revision is None else request_case_revision
             stale = case['revision'] != request_case_revision
-            provider = app.state.providers.get(request.model_id)
-            source_origin = ((case.get('admission') or {}).get('source_origin')
+            provider = target_provider if target_provider is not None else app.state.providers.get(request.model_id)
+            source_origin = (((preview_binding or {}).get('admission') or {}).get('source_origin')
+                             or (case.get('admission') or {}).get('source_origin')
                              or getattr(app.state.images.get(request.image_id), 'source_origin', 'UNKNOWN'))
             input_context = {
                 'source_sha256': derivative_record['source_sha256'] if derivative_record else getattr(app.state.images.get(request.image_id), 'sha256', None),
@@ -814,6 +822,8 @@ def create_app(
                 'timestamp': datetime.now(timezone.utc).isoformat(),
             }
             history.append(entry)
+            if preview_binding is not None:
+                entry['preview_binding'] = preview_binding
             if stale:
                 case['revision'] += 1
                 case.setdefault('events', []).append({
@@ -831,7 +841,7 @@ def create_app(
                 case[key] = value
                 if derivative_record is not None:
                     case['analysis_derivative'] = derivative_record
-                if processing_evidence is not None:
+                if processing_evidence is not None or preview_binding is not None:
                     case['prism_processing'] = processing_evidence
                 case['revision'] += 1
                 event = {
@@ -858,6 +868,22 @@ def create_app(
                 # Preserve an idempotent run even when the latest projection
                 # already matches; the history entry is the authoritative run.
                 store.put(case)
+
+    def preview_route(descriptor, modality):
+        selected = next((item for item in capability_descriptors([descriptor], include_registry=True)
+                         if item.get('model_id') == 'prism-dr-5fold'), descriptor)
+        try:
+            return route_capability(selected, model_id='prism-dr-5fold', task='lesion-roi', modality=modality)
+        except CapabilityRoutingError:
+            raise HTTPException(409, 'PRISM capability is not ready for this image type.') from None
+
+    preview_runtime = ReviewPrismPreview(
+        app, save_result=save_result, source_allowed=source_allowed_for_model,
+        eligible=is_inference_eligible, route=preview_route,
+        map_result=map_lesion_result_to_review, inference_lock=inference_lock,
+    )
+    app.state.prism_preview = PrismPreviewService(preview_runtime.snapshot, preview_runtime.execute)
+    install_prism_preview_routes(app, app.state.prism_preview)
 
     @app.post('/v1/infer/global', response_model=GlobalResult)
     def global_inference(request: InferenceRequest):

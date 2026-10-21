@@ -6,6 +6,14 @@
 
 `POST /v1/infer/global` and `POST /v1/infer/lesion-roi` both call `infer()` in `dr_support/api/_factory.py`:
 
+PRISM is now an explicit exception: legacy v1/v2 PRISM review requests return409
+and require a one-use prepared API-input receipt. The new preparation/binding
+routes, provider protocol and qualification limits are documented in
+[PRISM input preview](../../operations/PRISM_INPUT_PREVIEW.md). Existing actual
+local/remote providers lack that frozen-plan protocol and remain unavailable for
+protected submission. Native ROI and final lesion crops are not computed by
+preparation. Global grading retains the path below.
+
 1. The image must be admitted and `is_inference_eligible`. Otherwise the API returns `409 Image needs review before analysis`.
 2. `mock-*` model IDs are allowed only on `SYNTHETIC` images.
 3. `DerivativeService.analysis_image(source)` prepares a deterministic **analysis representation**:

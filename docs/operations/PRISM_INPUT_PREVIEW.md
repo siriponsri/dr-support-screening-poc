@@ -1,17 +1,19 @@
 # PRISM input preview qualification boundary
 
-Status: frontend preparation view and synthetic regressions only. No CPU preview
-endpoint, immutable server cache or preview-bound inference route is implemented
-by this change. PRISM submission from Review is paused. Global grading remains
-an explicit separate action; historical PRISM evidence remains inspectable.
-No model inference, database operation or clinical confirmation is performed by
-opening the preview.
+Status: CPU preview/receipt routes and a one-use binding service are implemented
+and tested with in-memory stores and fake providers. Existing production local/
+remote PRISM adapters do not implement the frozen-plan protocol and therefore
+return503 rather than enable submission. No real provider qualification is
+claimed. Global grading remains separate; historical evidence stays inspectable.
+Opening the panel makes no model request. Explicit preparation performs CPU work
+only; submission through a qualified adapter would execute model work and needs
+its own authorized workload budget.
 
 ## What the clinician sees
 
-**Preview PRISM input** stays in the single Review page. With the current API it
-reports unavailable; an inspection-only case mask is never substituted for a
-missing authoritative preparation response. A future compatible response can
+**Preview PRISM input** stays in the single Review page. **Prepare / refresh API
+input** obtains a server receipt or an explicit unavailable error. An inspection-
+only case mask is never substituted for missing preparation. A compatible response can
 show Original and the planned API submission side by side, with a conditional
 FOV overlay, opacity, zoom, textual coverage legend and provenance disclosure.
 The original image and original coordinates are preserved.
@@ -39,17 +41,64 @@ The main-lane proposal `prism-pre-submission-preview.proposed.v1` established:
   Artifact exclusion and lesion boxes are separate concepts. Retained pixels do
   not imply a normal clinical result. Uncertain pixels are not silently excluded.
 
-The provisional frontend DTO `prism-input-preview.v1` is an **adapter proposal**,
-not a claim that the main API already emits it. It is an optional
-`CaseRecord.prism_input_preview` read-only field. It accepts only API-submission
+The additive DTO `prism-input-preview.v1` is returned by the preparation route.
+The optional `CaseRecord.prism_input_preview` field remains a display-fixture/
+compatibility input; case GET does not create receipts or run preparation.
+The DTO accepts only API-submission
 scope, `native_roi_status=NOT_RUN` and `internal_roi=NOT_PREVIEWED`. Claims that a
 mask is already applied or that final model input is known are rejected. Its
-`READY` means display metadata is complete, never permission to execute inference.
+`READY` means display metadata is complete. Submission additionally requires
+`submission_binding_enforced=true`, verified displayed assets, explicit input
+acknowledgement and an unconsumed matching server receipt. A checkbox alone grants
+no authority and never confirms a grade or lesion annotation.
+
+## Implemented endpoints and provider boundary
+
+- POST `/v1/cases/{image_id}/prism-input-preview`: revision/model request;
+  CPU-only frozen source/wire, candidate mask, transform and model/config pins.
+- GET `/v1/cases/{image_id}/prism-input-preview/{token}/assets/{name}`: private
+  opaque same-origin original/input/overlay PNGs, `Cache-Control: no-store`.
+- POST `/v1/cases/{image_id}/prism-input-preview/{token}/infer`: receipt fields
+  must match exactly. Returns verified result, APPLIED/STALE_RESULT and invocation
+  receipt. Failure consumes the token too; no implicit retry.
+- Legacy v1/v2 review PRISM inference is rejected409. Global grading and synthetic
+  mock-lesion routes are unchanged. No gateway/model-API route is changed here.
+
+The process-local cache holds at most16 plans/128MiB encoded inputs and assets,
+with300second monotonic expiry. Restart/eviction requires a new preview. The
+qualified review configuration is one worker; `WORKERS` other than1 fails closed.
+Do not override deployment worker arguments to claim distributed locking.
+Submission checks expiry again after waiting for the provider lock. Source,
+wire, mask, model pins, configuration, transform, admission, revision and workspace
+are rechecked immediately before provider execution. Sibling tokens are invalidated
+when one is consumed, so concurrent calls cannot replay the same preparation.
+
+A trusted provider must implement `prism_preview_protocol=prism-wire-binding.v1`,
+`prism_preview_identity()` (no network/model work),
+`prepare_prism_preview_candidate(wire)` (CPU only, locked baseline FOV), and
+`infer_bound_prism(request, wire, mask_png, binding, plan_sha256)`. The last method
+must atomically verify full pins and consume the exact frozen wire/mask before
+any forward; it must return an exact accepted-input receipt and typed result.
+No current adapter has these methods. Adding an attribute or echoing a hash is
+not runtime qualification: that adapter must be reviewed/tested at its actual
+transport and preprocessing boundary before clinical-facing availability.
+
+The service never imports OpenCV, Torch or model runtimes. The existing FOV
+algorithm is not reimplemented or replaced. Synthetic adapters supply binary
+masks for tests; v4/other mask versions, empty/nonbinary/wrong-size masks and
+UNCERTAIN masks represented as READY are rejected. Successful post-run native ROI
+must report the same applied mask identity; failed native ROI must discard the
+candidate and report FALLBACK. Mismatched result or processing provenance is not
+saved. Inference history stores the accepted binding separately from human labels.
+Result saving pins the original store/provider and retains optimistic stale-result
+handling; clinician edits can continue while the provider runs. Full admission
+metadata stays server-side; only its hash and minimal policy fields enter the
+provider receipt, avoiding unnecessary filenames/private paths.
 
 ## Required main-lane fields and gates
 
-Adopt one reviewed schema before enabling the path. Map the main proposal to the
-UI adapter explicitly, including:
+The route implements the following mapping from the main proposal. The real
+provider adapter must still implement and qualify the execution side:
 
 1. Immutable source file SHA256; dimension-bound decoded source RGB SHA256.
 2. Actual frozen encoded wire SHA256, byte count, media type and dimensions.
@@ -71,13 +120,11 @@ UI adapter explicitly, including:
    preparation identity. The adapter's model-version check does not replace
    backend verification of the full pin set.
 
-The current UI intentionally sends **zero** PRISM POST requests, even when the
-provisional fixture plan is valid. Never fall back to the legacy lesion route.
-Before restoring execution, implement and qualify atomic server binding across
-all the above fields, source admission, authorized origin and unchanged baseline.
-Reject changed/expired plans with conflict; do not silently regenerate different
-pixels after acknowledgement. Persist accepted plan identity in run provenance.
-Preview acknowledgement must never create a clinician grade or annotation review.
+Display-only fixture plans cannot enable submission. A compatible backend receipt
+can enable the protected route after verified assets and acknowledgement; the
+server rechecks all identity fields regardless of client UI state. Current actual
+providers remain unavailable, and there is no legacy-route fallback. Changed/
+expired plans conflict; no silent regeneration is used after acknowledgement.
 
 For an exact final-input preview, a later two-stage design must explicitly budget
 native ROI inference: prepare/freeze wire and ROI/crop/tiles, return hashes and
@@ -90,11 +137,12 @@ no hidden ROI forward, warmup or automatic retry is permitted in this task.
 Synthetic tests cover missing/QC-only plans, Original fallback wording, conditional
 FOV, distinct wire/preview hashes, malformed transforms, expiry, changed source/
 mask/model, deferred cross-case responses, byte mismatch and decode failure.
-They also assert that grading-only analysis never calls the PRISM route. Offline
-browser captures intercept every request and reject mutations. These checks are
+They also assert that grading-only analysis never calls the legacy PRISM route.
+In-memory HTTP tests exercise one-use submission with fake providers only. Offline
+browser captures intercept every request and never click model submission. These checks are
 engineering evidence, not clinician UAT or real model qualification.
 
-Rollback is a review-branch revert of this bounded UI commit. Do not revert the
+Rollback requires reviewing this binding delta with the prior UI commit. Do not revert the
 previous workflow/provenance or hygiene commits, alter server thresholds, or
 silently restore unbound PRISM submission as a workaround. No DB migration or
 data cleanup is associated with this change.

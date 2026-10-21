@@ -11,7 +11,7 @@
 1. Review opens after **Confirm Image**. You can also open it with **Review** in a confirmed Worklist row.
 2. Use the viewer controls to zoom, fit, pan, inspect coordinates, or open the full-screen view.
 3. Check the **Patient/Eye** line above the image.
-4. Choose **Analyze grading only** when offered for global grading. PRISM submission is paused until the server can bind a reviewed input preview. **Preview PRISM input** distinguishes the planned API submission from a conditional FOV candidate; native ROI is **NOT_RUN**, so the final internal crop is not previewed. If a bound preview is unavailable, continue with manual review. Other qualified non-PRISM assistance retains **Analyze**.
+4. Choose **Analyze grading only** when offered for global grading. **Preview PRISM input** → **Prepare / refresh API input** distinguishes planned API submission from a conditional FOV candidate; native ROI is **NOT_RUN**, so the final internal crop is not previewed. Only a server-verified receipt from a compatible provider can offer **Submit prepared input to PRISM**, after input acknowledgement. Current production adapters are not qualified for this path; if preparation is unavailable, continue with manual review. Input acknowledgement does not confirm a medical finding. Other qualified non-PRISM assistance retains **Analyze**.
 
 The workstation routes model assistance from the clinician-confirmed image type
 and the live capability metadata. A ready global capability must advertise

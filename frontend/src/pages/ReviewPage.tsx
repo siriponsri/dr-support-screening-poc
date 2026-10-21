@@ -747,7 +747,7 @@ function ReviewPageSession() {
             {imageView === 'mask-overlay' && <MaskLegend />}
             <LesionLegend />
           </Stack>
-          {prismNeedsPreview && lesionModel && <PrismInputPreview key={item.image_id} item={item} model={lesionModel} />}
+          {prismNeedsPreview && lesionModel && <PrismInputPreview key={item.image_id} item={item} model={lesionModel} onInferenceComplete={async () => { if (isActive()) await loadCase(); }} />}
         </Section>
         <Stack spacing={5} minW={0}>
           {manualOnly ? (
@@ -769,7 +769,7 @@ function ReviewPageSession() {
                 action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{prismNeedsPreview ? 'Analyze grading only' : item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
               >
                 <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiStatus}</StatusBadge></HStack>
-                {prismNeedsPreview && <Text fontSize="sm" mb={3}>Grading runs separately. PRISM submission is paused pending the preview-bound API; inspect “Preview PRISM input” beside the image. Existing results remain previous-run evidence.</Text>}
+                {prismNeedsPreview && <Text fontSize="sm" mb={3}>Grading runs separately. PRISM requires a verified one-use receipt in “Preview PRISM input” beside the image. Unsupported providers remain unavailable. Existing results remain previous-run evidence.</Text>}
                 {prismUwfResult && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">Experimental PRISM UWF lesion assistance; not validated for UWF. Human review remains authoritative.</Text></Alert>}
                 {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
                 {modelUnavailable && hasRecordedEvidence && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">New analysis is unavailable. Recorded model evidence remains visible with its provenance and warnings.</Text></Alert>}
