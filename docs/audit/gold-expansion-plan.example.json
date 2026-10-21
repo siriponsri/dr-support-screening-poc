@@ -1,0 +1,73 @@
+{
+  "schema_version": "gold-expansion-review-plan.v0-proposal",
+  "execution": "NOT_RUN",
+  "synthetic_example": true,
+  "gold_seed": {
+    "provenance_class": "PHYSICIAN_CONFIRMED_GOLD",
+    "snapshot_id": "20261021T000000Z-00000000",
+    "snapshot_schema": "s4.dataset-snapshot.v4",
+    "source_state_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "patient_group_keys": [
+      "patient:SYNTHETIC-SEED"
+    ],
+    "clinical_acceptance": "PENDING_OWNER",
+    "source_sha256_inventory": [
+      "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    ]
+  },
+  "independent_evaluation": {
+    "snapshot_id": "20261021T000000Z-11111111",
+    "patient_group_keys": [
+      "patient:SYNTHETIC-EVAL"
+    ],
+    "excluded_from_selection": true,
+    "source_sha256_inventory": [
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    ]
+  },
+  "candidate_queue": [
+    {
+      "provenance_class": "RETRIEVED_CANDIDATE",
+      "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source_origin": "SYNTHETIC",
+      "modality": "UWF",
+      "patient_group_key": "patient:SYNTHETIC-CANDIDATE",
+      "queue_group_key": "patient:SYNTHETIC-CANDIDATE",
+      "seed_snapshot_id": "20261021T000000Z-00000000",
+      "selection": {
+        "run_id": "synthetic-selection-not-run",
+        "model_id": "proposal-only",
+        "model_version": "fixture-v0",
+        "checkpoint_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "score": 0.5,
+        "score_kind": "cosine_similarity",
+        "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "review": {
+        "status": "PENDING",
+        "canonical_case_id": null,
+        "confirmed_revision": null
+      },
+      "include_in_gold": false,
+      "lesion_geometry_transfer": "PROHIBITED"
+    }
+  ],
+  "review_queue_policy": {
+    "group_by": "confirmed_patient_group",
+    "deduplicate_by": "source_sha256",
+    "diversity_axes": [
+      "modality",
+      "camera_when_available",
+      "image_quality",
+      "score_band",
+      "patient_group"
+    ],
+    "similarity_promotes_to_gold": false,
+    "reuse_existing_worklist_and_snapshot": true
+  },
+  "limitations": [
+    "Proposal-only metadata checks; no API/schema migration or selection engine is installed.",
+    "Synthetic IDs and score are examples, not real selection output.",
+    "Clinical seed qualification and hospital export authorization remain pending."
+  ]
+}

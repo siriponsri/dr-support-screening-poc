@@ -15,6 +15,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .admission import legacy_admission
+from .source_identity import source_identity_reason
 from ..presentation import annotation_set_hash, lesion_detection_id, review_evidence_view
 from ..imaging import DerivativeError
 from .resolver import normalize_patient_key
@@ -401,20 +402,38 @@ class DatasetManifestService:
     @staticmethod
     def _final_grade(case: dict) -> tuple[object, object, dict]:
         review = case.get("clinician_review") or {}
-        if case.get("grade_status") in {"NEEDS_SECOND_REVIEW", "UNGRADABLE"}:
+        status = case.get("grade_status")
+        if status is not None and status != "CONFIRMED":
             return None, case.get("grade_review_source"), review
         grade = case.get("reviewed_grade")
         if grade is None:
             grade = review.get("final_grade")
+        # Export boundaries must not trust numeric caches from malformed or
+        # historical records more than the explicit physician decision.
+        if type(grade) is not int or grade not in range(5):
+            return None, case.get("grade_review_source"), review
+        final_grade = review.get("final_grade")
+        # A cache is never a substitute for an explicit physician decision,
+        # including historical records whose status/action fields are absent.
+        if type(final_grade) is not int or final_grade not in range(5) or final_grade != grade:
+            return None, case.get("grade_review_source"), review
+        action = review.get("review_action")
+        if action is not None and action not in {"ACCEPT", "CORRECT_GRADE", "ADJUDICATE_GRADE"}:
+            return None, case.get("grade_review_source"), review
+        revision = review.get("revision")
+        case_revision = case.get("revision")
+        if revision is not None and (
+            type(revision) is not int or revision < 1
+            or (type(case_revision) is int and revision > case_revision)
+        ):
+            return None, case.get("grade_review_source"), review
         return grade, case.get("grade_review_source"), review
 
     @staticmethod
     def _case_eligibility(case: dict, image, admission: dict | None) -> tuple[bool, str]:
-        image_sha256 = image.sha256 if image is not None else (
-            admission.get("source_sha256") if admission else None
-        )
-        if not _is_sha256(image_sha256):
-            return False, "MISSING_PROVENANCE"
+        source_failure = source_identity_reason(case, image, admission)
+        if source_failure:
+            return False, source_failure
         if case.get("queue_state", "INCLUDED") == "EXCLUDED":
             return False, "QUEUE_EXCLUDED"
         if admission is None:
@@ -444,6 +463,8 @@ class DatasetManifestService:
             return False, "MISSING_PROVENANCE"
         if not review.get("reviewer") or not review.get("timestamp"):
             return False, "MISSING_PROVENANCE"
+        if review.get("source_sha256") not in {None, image.sha256}:
+            return False, "SOURCE_HASH_MISMATCH"
         return True, "ELIGIBLE"
 
     @staticmethod
@@ -490,7 +511,7 @@ class DatasetManifestService:
     @staticmethod
     def _annotation_confirmation(case: dict) -> tuple[bool, dict]:
         confirmation = case.get("annotation_confirmation") or {}
-        current_hash = case.get("annotation_hash") or annotation_set_hash(case)
+        current_hash = annotation_set_hash(case)
         confirmed = bool(
             case.get("lesion_review_state") == "REVIEWED"
             and case.get("confirmed_annotation_hash") == current_hash
@@ -512,9 +533,9 @@ class DatasetManifestService:
 
     @staticmethod
     def _task_reason(case: dict, admission: dict | None, image, image_confirmed: bool, *, task: str) -> str:
-        image_sha256 = image.sha256 if image is not None else ((admission or {}).get("source_sha256"))
-        if not _is_sha256(image_sha256):
-            return "MISSING_PROVENANCE"
+        source_failure = source_identity_reason(case, image, admission)
+        if source_failure:
+            return source_failure
         if case.get("queue_state", "INCLUDED") == "EXCLUDED":
             return "QUEUE_EXCLUDED"
         if admission is None or admission.get("modality_admission") != "FUNDUS_ACCEPTED":
@@ -537,12 +558,16 @@ class DatasetManifestService:
                 return "MISSING_PROVENANCE"
             if not review.get("reviewer") or not review.get("timestamp"):
                 return "MISSING_PROVENANCE"
+            if review.get("source_sha256") not in {None, image.sha256}:
+                return "SOURCE_HASH_MISMATCH"
         else:
             confirmed, confirmation = DatasetManifestService._annotation_confirmation(case)
             if not confirmed:
                 return "NO_ANNOTATION_CONFIRMATION"
             if not confirmation.get("reviewer") or not confirmation.get("timestamp"):
                 return "MISSING_PROVENANCE"
+            if confirmation.get("source_sha256") not in {None, image.sha256}:
+                return "SOURCE_HASH_MISMATCH"
         return "ELIGIBLE"
 
     def _rows(self, cases: list[dict] | None = None) -> tuple[list[dict], list[dict]]:
@@ -561,7 +586,7 @@ class DatasetManifestService:
             image_confirmation_status, image_confirmed_by, image_confirmed_at = self._image_confirmation(case, admission)
             grade_reason = self._task_reason(case, admission, image, image_confirmation_status == "CONFIRMED", task="grade")
             annotation_confirmed, annotation_confirmation = self._annotation_confirmation(case)
-            current_annotation_hash = case.get("annotation_hash") or annotation_set_hash(case)
+            current_annotation_hash = annotation_set_hash(case)
             lesion_reason = self._task_reason(case, admission, image, image_confirmation_status == "CONFIRMED", task="lesion")
             grade_ready = grade_reason == "ELIGIBLE" and include
             lesion_ready = lesion_reason == "ELIGIBLE"
@@ -685,6 +710,11 @@ class DatasetManifestService:
         image_id = image_row["image_id"]
         rows: list[dict] = []
         decisions = {}
+        linked_counts = {}
+        for annotation in human_annotations:
+            detection_id = annotation.get("source_detection_id")
+            if detection_id:
+                linked_counts[detection_id] = linked_counts.get(detection_id, 0) + 1
         for decision in case.get("ai_annotation_reviews") or []:
             if decision.get("detection_id"):
                 decisions[decision["detection_id"]] = decision
@@ -715,9 +745,11 @@ class DatasetManifestService:
                 "verification_status": "CLINICIAN_CONFIRMED" if annotation_confirmed and active else ("REMOVED" if removed else "AI_ONLY"),
                 # Case-level annotation confirmation does not confirm an untouched
                 # AI proposal. Only the explicit correction path can become gold.
-                "include_in_training": bool(correction and lesion_ready and active),
-                "eligibility_reason": "ELIGIBLE" if correction and lesion_ready and active else (
-                    "REMOVED_FROM_ACTIVE_SET" if removed else "AI_ONLY_UNVERIFIED"
+                "include_in_training": bool(correction and lesion_ready and active and detection_id not in linked_counts),
+                "eligibility_reason": "SUPERSEDED_BY_HUMAN_ANNOTATION" if detection_id in linked_counts else (
+                    "ELIGIBLE" if correction and lesion_ready and active else (
+                        "REMOVED_FROM_ACTIVE_SET" if removed else "AI_ONLY_UNVERIFIED"
+                    )
                 ),
                 "source_detection_id": detection_id if correction else None,
                 "original_label": lesion["canonical_label"],
@@ -728,7 +760,8 @@ class DatasetManifestService:
             label = annotation.get("label")
             if label not in CANONICAL_LABELS:
                 raise DatasetManifestError("Human annotation uses a non-canonical lesion label")
-            human_ready = bool(lesion_ready)
+            duplicate_link = linked_counts.get(annotation.get("source_detection_id"), 0) > 1
+            human_ready = bool(lesion_ready and not duplicate_link)
             rows.append({
                 "annotation_id": annotation.get("shape_id") or f"human-{image_id}-{index}",
                 "image_id": image_id,
@@ -743,8 +776,8 @@ class DatasetManifestService:
                 "score": None,
                 "verification_status": "CLINICIAN_CONFIRMED" if annotation_confirmed else "HUMAN_DRAFT",
                 "include_in_training": human_ready,
-                "eligibility_reason": "ELIGIBLE" if human_ready else (
-                    lesion_reason
+                "eligibility_reason": "DUPLICATE_SOURCE_DETECTION_LINK" if duplicate_link else (
+                    "ELIGIBLE" if human_ready else lesion_reason
                 ),
                 "source_detection_id": annotation.get("source_detection_id"),
                 "original_label": None,

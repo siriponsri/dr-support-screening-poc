@@ -1,3 +1,4 @@
+import { useNavigationGuard } from './NavigationGuard';
 import {
   createContext,
   useCallback,
@@ -57,6 +58,7 @@ function mergeWorkspace(workspaces: WorkspaceProfile[], next: WorkspaceProfile) 
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const navigationGuard = useNavigationGuard();
   const [workspaces, setWorkspaces] = useState<WorkspaceProfile[]>([]);
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceProfile | null>(null);
   const [activeDatabase, setActiveDatabase] = useState<WorkspaceState['activeDatabase']>(null);
@@ -134,6 +136,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const runMutation = useCallback(async (
     request: () => Promise<WorkspaceMutationResponse>,
   ) => {
+    if (!(await navigationGuard.request('workspace'))) throw new Error('Workspace change cancelled. Continue reviewing this image.');
+    requestVersion.current += 1;
     setIsMutating(true);
     try {
       const response = await request();
@@ -145,7 +149,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsMutating(false);
     }
-  }, [applyMutation]);
+  }, [applyMutation, navigationGuard]);
 
   const createWorkspace = useCallback(
     (draft: WorkspaceDraft) => runMutation(() => workspaceApi.create(draft)),
@@ -160,6 +164,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [runMutation],
   );
   const deleteWorkspace = useCallback(async (id: string) => {
+    if (!(await navigationGuard.request('workspace'))) throw new Error('Workspace change cancelled. Continue reviewing this image.');
     setIsMutating(true);
     try {
       const response = await workspaceApi.remove(id);
@@ -174,7 +179,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsMutating(false);
     }
-  }, []);
+  }, [navigationGuard]);
   const pickFolder = useCallback(
     (purpose: FolderPickerPurpose, initialPath: string) => workspaceApi.pickFolder(purpose, initialPath),
     [],

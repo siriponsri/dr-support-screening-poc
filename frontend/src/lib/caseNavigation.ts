@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CaseRecord } from './api';
+import { apiJson, type CaseRecord } from './api';
 import { caseComplete, imageContextConfirmed } from './caseProgress';
 
 export interface CaseNeighbors {
@@ -12,6 +12,8 @@ export interface CaseNeighbors {
   position: number | null;
   total: number;
   loading: boolean;
+  error: string | null;
+  retry: () => void;
 }
 
 export function orderedCases(cases: CaseRecord[], currentId: string): CaseRecord[] {
@@ -35,17 +37,14 @@ export function nextIncompleteCaseId(cases: CaseRecord[], currentId: string): st
 }
 
 export async function loadCaseList(): Promise<CaseRecord[]> {
-  try {
-    const response = await fetch('/v1/cases');
-    if (!response.ok) return [];
-    const loaded = await response.json() as CaseRecord[];
-    return Array.isArray(loaded) ? loaded : [];
-  } catch {
-    return [];
-  }
+  const loaded = await apiJson<CaseRecord[]>('/v1/cases');
+  if (!Array.isArray(loaded)) throw new Error('The Worklist could not be loaded. Try again.');
+  return loaded;
 }
 
 export function useCaseNeighbors(currentId: string | undefined): CaseNeighbors {
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [loading, setLoading] = useState(Boolean(currentId));
 
@@ -53,11 +52,13 @@ export function useCaseNeighbors(currentId: string | undefined): CaseNeighbors {
     if (!currentId) return;
     let active = true;
     setLoading(true);
+    setError(null);
     loadCaseList()
       .then((loaded) => { if (active) setCases(loaded); })
+      .catch(() => { if (active) { setCases([]); setError('Worklist unavailable'); } })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [currentId]);
+  }, [currentId, attempt]);
 
   const ordered = currentId ? orderedCases(cases, currentId) : [];
   const index = ordered.findIndex((item) => item.image_id === currentId);
@@ -70,5 +71,7 @@ export function useCaseNeighbors(currentId: string | undefined): CaseNeighbors {
     position: index >= 0 ? index + 1 : null,
     total: ordered.length,
     loading,
+    error,
+    retry: () => setAttempt((value) => value + 1),
   };
 }

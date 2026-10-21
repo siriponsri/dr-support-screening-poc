@@ -1,5 +1,5 @@
 import { ChakraProvider } from '@chakra-ui/react';
-import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AnnotationEditorPage } from '@/pages/AnnotationEditorPage';
@@ -667,5 +667,53 @@ describe('AnnotationEditorPage human movement', () => {
     expect(screen.getByRole('button', { name: 'Enable coordinate inspector' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Select' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Box' })).not.toBeDisabled();
+  });
+});
+
+
+describe('Annotation autosave concurrency', () => {
+  it('preserves edits made while a prior draft save is in flight', async () => {
+    window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'Fixture');
+    let release!: (value: CaseRecord) => void;
+    const pending = new Promise<CaseRecord>((resolve) => { release = resolve; });
+    const writes: Array<{ revision: number; annotations: CaseRecord['human_annotations'] }> = [];
+    renderEditor(item, (_input, init) => {
+      if (init?.method !== 'PUT') return item;
+      const body = JSON.parse(String(init.body));
+      writes.push(body);
+      if (writes.length > 1 && body.revision !== 1) throw new Error('Synthetic stale revision rejected');
+      return writes.length === 1 ? pending : { ...item, revision: 2, human_annotations: body.annotations };
+    });
+    const { svg } = await setupStage();
+    fireEvent.click(svg.querySelector('[data-human-shape-id="human-1"] rect')!);
+    fireEvent.change(screen.getByLabelText('Selected annotation class'), { target: { value: 'HEMORRHAGE' } });
+    await waitFor(() => expect(writes).toHaveLength(1), { timeout: 4000 });
+    fireEvent.change(screen.getByLabelText('Selected annotation class'), { target: { value: 'SOFT_EXUDATE' } });
+    release({ ...item, revision: 1, human_annotations: writes[0].annotations });
+    await waitFor(() => expect(screen.getByLabelText('Selected annotation class')).toHaveValue('SOFT_EXUDATE'));
+    await waitFor(() => expect(writes).toHaveLength(2), { timeout: 4000 });
+    expect(writes[0].revision).toBe(0);
+    expect(writes[1].revision).toBe(1);
+    expect(writes[1].annotations[0].label).toBe('SOFT_EXUDATE');
+  });
+});
+
+
+describe('Finish concurrency and reload boundary', () => {
+  it('serializes duplicate Finish actions and warns on reload while completeness is pending', async () => {
+    window.localStorage.setItem('dr-support-screening.default-reviewer.v1', 'Fixture');
+    let release!: (value: CaseRecord) => void;
+    const pending = new Promise<CaseRecord>((resolve) => { release = resolve; });
+    let completenessWrites = 0;
+    renderEditor({ ...item, human_annotations: [] }, (input, init) => {
+      if (String(input).endsWith('/annotation-completeness') && init?.method === 'PUT') { completenessWrites += 1; return pending; }
+      return String(input) === '/v1/cases' ? [] : { ...item, human_annotations: [] };
+    });
+    const button = await screen.findByRole('button', { name: 'Finish - reviewed none found' });
+    act(() => { fireEvent.click(button); fireEvent.click(button); });
+    await waitFor(() => expect(completenessWrites).toBe(1));
+    const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(release).toBeDefined();
   });
 });

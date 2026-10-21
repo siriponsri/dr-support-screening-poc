@@ -12,11 +12,12 @@
  * affordance in the header and the Sidebar itself.
  */
 import { Box, Grid, GridItem, useBreakpointValue } from '@chakra-ui/react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { SidebarStateProvider, useSidebarState, type ViewportTier } from './SidebarStateProvider';
 import { Sidebar } from './Sidebar';
 import { SidebarDrawer } from './SidebarDrawer';
 import { AppHeader } from './AppHeader';
+import { useWorkspace } from './workspace';
 
 const SHELL_MIN_H = '100vh';
 
@@ -40,6 +41,10 @@ export function AppShell({ forceTier }: AppShellProps = {}) {
 
 function ShellLayout() {
   const { showPermanent, collapsed } = useSidebarState();
+  const { activeWorkspace } = useWorkspace();
+  const { pathname } = useLocation();
+  const caseWorkspaceKey = /^\/(review|edit|clinician-review)(\/|$)/.test(pathname)
+    ? activeWorkspace?.id ?? 'no-workspace' : 'workspace-independent';
 
   // Sidebar widths by tier — keep these narrow enough to leave room for
   // clinical tables on the main viewport.
@@ -92,7 +97,7 @@ function ShellLayout() {
           <AppHeader />
         </GridItem>
         <GridItem area="main" minW={0}>
-          <Outlet />
+          <Outlet key={caseWorkspaceKey} />
         </GridItem>
         <GridItem
           area="footer"

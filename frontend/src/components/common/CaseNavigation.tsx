@@ -1,3 +1,4 @@
+import { useNavigationGuard } from '@/components/shell/NavigationGuard';
 import { Button, HStack, Text } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
 import { useCaseNeighbors } from '@/lib/caseNavigation';
@@ -23,17 +24,21 @@ interface CaseNavigationProps {
  */
 export function CaseNavigation({ imageId, guarded = false, confirm, onBeforeSwitch }: CaseNavigationProps) {
   const navigate = useNavigate();
-  const { previousId, nextId, previousImageConfirmed, nextImageConfirmed, position, total, loading } = useCaseNeighbors(imageId);
+  const navigationGuard = useNavigationGuard();
+  const { previousId, nextId, previousImageConfirmed, nextImageConfirmed, position, total, loading, error, retry } = useCaseNeighbors(imageId);
 
   const move = async (target: string | null, imageConfirmed: boolean) => {
     if (!target) return;
-    if (guarded && confirm) {
-      const accepted = await confirm(SWITCH_IMAGE_DIALOG);
-      if (!accepted) return;
+    if (navigationGuard.hasGuard()) {
+      if (!(await navigationGuard.request('case'))) return;
+    } else {
+      if (guarded && confirm && !(await confirm(SWITCH_IMAGE_DIALOG))) return;
+      if (onBeforeSwitch && !(await onBeforeSwitch())) return;
     }
-    if (onBeforeSwitch && !(await onBeforeSwitch())) return;
-    if (imageConfirmed) navigate(`/review/${encodeURIComponent(target)}`);
-    else navigate('/worklist', { state: { openConfirmImage: target } });
+    navigationGuard.approved(() => {
+      if (imageConfirmed) navigate(`/review/${encodeURIComponent(target)}`);
+      else navigate('/worklist', { state: { openConfirmImage: target } });
+    });
   };
 
   return (
@@ -49,8 +54,9 @@ export function CaseNavigation({ imageId, guarded = false, confirm, onBeforeSwit
         Previous
       </Button>
       <Text fontSize="sm" color="text.secondary" aria-live="polite">
-        {loading ? 'Loading cases…' : position && total ? `Image ${position} of ${total}` : 'Case'}
+        {error ? 'Worklist unavailable' : loading ? 'Loading cases…' : position && total ? `Image ${position} of ${total}` : 'Case'}
       </Text>
+      {error && <Button size="sm" variant="outline" onClick={retry}>Retry Worklist</Button>}
       <Button
         size="sm"
         variant="ghost"

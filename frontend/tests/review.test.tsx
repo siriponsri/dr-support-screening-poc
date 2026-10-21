@@ -180,6 +180,21 @@ function mockReviewApi(onReview?: (request: Record<string, unknown>) => void, cu
 }
 
 describe('Review responsibility boundary', () => {
+  it('shows unsupported assistance separately from an empty successful lesion result', async () => {
+    mockReviewApi(undefined, { ...readyCase, global: { ...readyCase.global!, grade: null, confidence: null, state: 'UNSUPPORTED' }, lesion: { ...readyCase.lesion!, state: 'UNSUPPORTED', lesions: [] } });
+    renderAppAt('/review/ready');
+    expect((await screen.findAllByText('Unsupported input')).length).toBeGreaterThan(0);
+    expect(screen.getByText('Lesion assistance is unavailable for this image. Continue with manual review.')).toBeInTheDocument();
+    expect(screen.queryByText('UNSUPPORTED')).not.toBeInTheDocument();
+    expect(screen.queryByText('No lesion suggestions')).not.toBeInTheDocument();
+  });
+
+  it('does not describe empty AI regions as a negative finding', async () => {
+    mockReviewApi(undefined, { ...readyCase, lesion: { ...readyCase.lesion!, lesions: [] } });
+    renderAppAt('/review/ready');
+    expect(await screen.findByText('No AI regions returned. This does not establish absence of lesions.')).toBeInTheDocument();
+  });
+
   it('keeps eligible analysis available while showing compact read-only context and downstream actions', async () => {
     const user = userEvent.setup();
     let reviewRequest: Record<string, unknown> | undefined;

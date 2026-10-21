@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * Runtime health is reserved for backend-derived state. The hook never
@@ -30,10 +30,10 @@ const POLL_INTERVAL_MS = 30_000;
 
 export function useRuntimeHealth(enabled = true): RuntimeHealth {
   const [state, setState] = useState<RuntimeHealth>(enabled ? checking : idle);
-  const mounted = useRef(true);
 
   useEffect(() => {
-    mounted.current = true;
+    let active = true;
+    const controllers = new Set<AbortController>();
     if (!enabled) {
       setState(idle);
       return;
@@ -42,13 +42,13 @@ export function useRuntimeHealth(enabled = true): RuntimeHealth {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const probe = async () => {
+      const ctrl = new AbortController();
+      controllers.add(ctrl);
+      const timeoutId = setTimeout(() => ctrl.abort(), 6_000);
       try {
-        const ctrl = new AbortController();
-        const timeoutId = setTimeout(() => ctrl.abort(), 6_000);
         const res = await fetch('/health', { signal: ctrl.signal });
-        clearTimeout(timeoutId);
         if (!res.ok) {
-          if (mounted.current) {
+          if (active) {
             setState({
               tone: 'offline',
               label: 'Disconnected',
@@ -62,8 +62,11 @@ export function useRuntimeHealth(enabled = true): RuntimeHealth {
           lane?: string;
           warnings?: string[];
         };
-        const hasWarnings = Array.isArray(body.warnings) && body.warnings.length > 0;
-        if (mounted.current) {
+        if (!body || !['PASS', 'PASS_WITH_WARNINGS'].includes(body.status ?? '')) {
+          throw new Error('Review service readiness could not be verified.');
+        }
+        const hasWarnings = body.status === 'PASS_WITH_WARNINGS' || Array.isArray(body.warnings) && body.warnings.length > 0;
+        if (active) {
           setState({
             tone: hasWarnings ? 'warnings' : 'online',
             label: hasWarnings ? 'Warnings' : 'Ready',
@@ -72,28 +75,32 @@ export function useRuntimeHealth(enabled = true): RuntimeHealth {
           });
         }
       } catch (err) {
-        if (mounted.current) {
+        if (active) {
           setState({
             tone: 'offline',
             label: 'Offline',
             detail: err instanceof Error ? err.message : 'Health probe failed',
           });
         }
+      } finally {
+        clearTimeout(timeoutId);
+        controllers.delete(ctrl);
       }
     };
 
     // First call after a short grace period so the initial paint is calm.
     timer = setTimeout(() => {
-      if (!mounted.current) return;
+      if (!active) return;
       void probe();
     }, 250);
 
     const interval = setInterval(() => {
-      if (mounted.current) void probe();
+      if (active) void probe();
     }, POLL_INTERVAL_MS);
 
     return () => {
-      mounted.current = false;
+      active = false;
+      controllers.forEach((controller) => controller.abort());
       if (timer) clearTimeout(timer);
       clearInterval(interval);
     };

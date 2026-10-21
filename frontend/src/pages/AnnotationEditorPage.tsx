@@ -1,3 +1,5 @@
+import { usePageNavigationGuard } from '@/components/shell/NavigationGuard';
+import { useActiveCaseSession } from '@/hooks/useActiveCaseSession';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -27,7 +29,7 @@ import { GuideHint } from '@/components/common/GuideHint';
 import { AiRoiPopover } from '@/components/review/AiRoiPopover';
 import { displayedLesions } from '@/components/review/lesionPresentation';
 import { RetinalCanvas, LESION_COLORS, LESION_SHORT_LABELS, type RectangleResizeHandle } from '@/components/review/RetinalCanvas';
-import { EDIT_CONFIRMED_ANNOTATIONS_DIALOG, LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
+import { EDIT_CONFIRMED_ANNOTATIONS_DIALOG, SWITCH_IMAGE_DIALOG, LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
 import { annotationsConfirmed, caseComplete, formatTimestamp, gradeConfirmed, imageContextConfirmed } from '@/lib/caseProgress';
 import { loadCaseList, nextIncompleteCaseId } from '@/lib/caseNavigation';
 import {
@@ -435,6 +437,12 @@ function MoreToolsPopover({
 }
 
 export function AnnotationEditorPage() {
+  const { imageId } = useParams<{ imageId: string }>();
+  return <AnnotationEditorPageSession key={imageId ?? ''} />;
+}
+
+function AnnotationEditorPageSession() {
+  const isActive = useActiveCaseSession();
   const location = useLocation();
   const { pathname } = location;
   const navigate = useNavigate();
@@ -472,6 +480,8 @@ export function AnnotationEditorPage() {
   const toast = useToast();
   const roiDragRef = useRef<{ handle: RectangleResizeHandle | null; start: Point; base: RoiRectangle; moved: boolean } | null>(null);
   const interactionRef = useRef(false);
+  const actionBusyRef = useRef(false);
+  const savingRef = useRef(false);
   const skipAutosaveRef = useRef(true);
   const completenessWrittenForFinishRef = useRef(false);
   const draftRef = useRef<HumanAnnotation[]>(draft);
@@ -489,12 +499,13 @@ export function AnnotationEditorPage() {
   } | null>(null);
   draftRef.current = draft;
 
-  const loadCase = useCallback(async () => {
+  const loadCase = useCallback(async (requestIsCurrent: () => boolean = isActive) => {
     if (!imageId) return;
     setLoading(true);
     setError(null);
     try {
       const loaded = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
+      if (!isActive() || !requestIsCurrent()) return;
       setItem(loaded);
       setDraft(loaded.human_annotations ?? []);
       setHistory([]);
@@ -505,13 +516,17 @@ export function AnnotationEditorPage() {
       setRoiError(null);
       skipAutosaveRef.current = true;
     } catch (err) {
-      setError(errorText(err));
+      if (isActive() && requestIsCurrent()) setError(errorText(err));
     } finally {
-      setLoading(false);
+      if (isActive() && requestIsCurrent()) setLoading(false);
     }
   }, [imageId]);
 
-  useEffect(() => { void loadCase(); }, [loadCase]);
+  useEffect(() => {
+    let current = true;
+    void loadCase(() => current);
+    return () => { current = false; };
+  }, [loadCase]);
 
   const annotationConfirmed = annotationsConfirmed(item);
   const hasConfirmedGrade = gradeConfirmed(item);
@@ -521,7 +536,7 @@ export function AnnotationEditorPage() {
   const hasRecordedFindings = recordedFindingCount > 0;
 
   const commit = (next: HumanAnnotation[], nextSelection: string | null = null) => {
-    if (readOnly) return;
+    if (readOnly || actionBusyRef.current) return;
     setHistory((previous) => [...previous, draftRef.current]);
     draftRef.current = next;
     setDraft(next);
@@ -532,7 +547,7 @@ export function AnnotationEditorPage() {
   };
 
   const activateTool = (nextTool: Tool) => {
-    if (readOnly) return;
+    if (readOnly || actionBusyRef.current) return;
     if (tool === 'polygon' && polygonPoints.length >= 3 && label) {
       commit([...draft, annotation('polygon', label, { points: polygonPoints })]);
       setPolygonPoints([]);
@@ -556,7 +571,7 @@ export function AnnotationEditorPage() {
       event.currentTarget.setPointerCapture?.(event.pointerId);
       return;
     }
-    if (readOnly || !item || tool === 'select') return;
+    if (readOnly || actionBusyRef.current || !item || tool === 'select') return;
     if (!label) {
       setSaveError('Choose a finding class before drawing.');
       return;
@@ -577,7 +592,7 @@ export function AnnotationEditorPage() {
   };
 
   const onHumanPointerDown = (shapeId: string, event: ReactPointerEvent<SVGSVGElement>) => {
-    if (readOnly || !item) return;
+    if (readOnly || actionBusyRef.current || !item) return;
     const selected = draftRef.current.find((entry) => entry.shape_id === shapeId);
     event.preventDefault();
     if (!selected || annotationLocked(selected)) return;
@@ -592,7 +607,7 @@ export function AnnotationEditorPage() {
 
   const onHumanResizeStart = (shapeId: string, handle: RectangleResizeHandle, event: ReactPointerEvent<SVGSVGElement>) => {
     event.preventDefault();
-    if (readOnly || !item) return;
+    if (readOnly || actionBusyRef.current || !item) return;
     const selected = draftRef.current.find((entry) => entry.shape_id === shapeId);
     if (!selected || selected.type !== 'rectangle' || annotationLocked(selected)) return;
     resizeRef.current = {
@@ -605,7 +620,7 @@ export function AnnotationEditorPage() {
   };
 
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (readOnly || !item) return;
+    if (readOnly || actionBusyRef.current || !item) return;
     const roiDrag = roiDragRef.current;
     if (roiDrag) {
       const next = editRoiRectangle(roiDrag.base, roiDrag.handle, roiDrag.start, pointFromEvent(event, item), item);
@@ -657,7 +672,7 @@ export function AnnotationEditorPage() {
   };
 
   const onPointerUp = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (readOnly) return;
+    if (readOnly || actionBusyRef.current) return;
     if (roiDragRef.current) {
       roiDragRef.current = null;
       interactionRef.current = false;
@@ -737,7 +752,7 @@ export function AnnotationEditorPage() {
   };
 
   const onDoubleClick = (event: ReactMouseEvent<SVGSVGElement>) => {
-    if (readOnly || tool !== 'polygon' || !label) return;
+    if (readOnly || actionBusyRef.current || tool !== 'polygon' || !label) return;
     event.preventDefault();
     if (polygonPoints.length < 3) return;
     commit([...draft, annotation('polygon', label, { points: polygonPoints })]);
@@ -745,7 +760,7 @@ export function AnnotationEditorPage() {
   };
 
   const undo = () => {
-    if (readOnly) return;
+    if (readOnly || actionBusyRef.current) return;
     const previous = history.at(-1);
     if (!previous) return;
     draftRef.current = previous;
@@ -757,13 +772,13 @@ export function AnnotationEditorPage() {
   };
 
   const deleteSelected = () => {
-    if (readOnly) return;
+    if (readOnly || actionBusyRef.current) return;
     if (!selectedShapeId) return;
     commit(draftRef.current.filter((entry) => entry.shape_id !== selectedShapeId));
   };
 
   const toggleSelectedLock = () => {
-    if (readOnly) return;
+    if (readOnly || actionBusyRef.current) return;
     if (!selectedShapeId) return;
     const selected = draftRef.current.find((entry) => entry.shape_id === selectedShapeId);
     if (!selected) return;
@@ -773,7 +788,7 @@ export function AnnotationEditorPage() {
   };
 
   const moveSelectedByKeyboard = (shortcut: string) => {
-    if (readOnly || !item || !selectedShapeId) return;
+    if (readOnly || actionBusyRef.current || !item || !selectedShapeId) return;
     const selected = draftRef.current.find((entry) => entry.shape_id === selectedShapeId);
     if (!selected || annotationLocked(selected)) return;
     const step = 1;
@@ -815,7 +830,7 @@ export function AnnotationEditorPage() {
   const [completenessSaving, setCompletenessSaving] = useState<string | null>(null);
 
   const changeSelectedLabel = (nextLabel: LesionLabel) => {
-    if (readOnly || !selectedAnnotation || annotationLocked(selectedAnnotation) || selectedAnnotation.label === nextLabel) return;
+    if (readOnly || actionBusyRef.current || !selectedAnnotation || annotationLocked(selectedAnnotation) || selectedAnnotation.label === nextLabel) return;
     commit(draftRef.current.map((entry) => entry.shape_id === selectedShapeId
       ? { ...entry, label: nextLabel }
       : entry), selectedShapeId);
@@ -852,7 +867,7 @@ export function AnnotationEditorPage() {
   };
 
   const selectLesion = async (detectionId: string) => {
-    if (!item || !hasConfirmedGrade) return;
+    if (!item || !hasConfirmedGrade || actionBusyRef.current) return;
     if (readOnly && !(await beginAnnotationEdit())) return;
     const lesion = displayedLesions(item).find((entry) => entry.detection_id === detectionId);
     if (!lesion) return;
@@ -876,19 +891,21 @@ export function AnnotationEditorPage() {
   const flushedCase = async (): Promise<CaseRecord | null> => {
     if (!item) return null;
     if (draftStatus === 'saved') return item;
-    return persistDraft();
+    return persistDraft(true);
   };
 
   const confirmRoi = async () => {
-    if (!item || readOnly || !roiEdit || !rawSelectedLesion || roiSaving) return;
+    if (!item || readOnly || !roiEdit || !rawSelectedLesion || roiSaving || actionBusyRef.current || interactionRef.current) return;
     const reviewerName = roiReviewer();
     if (!reviewerName) { setRoiError('Enter a reviewer name before confirming.'); return; }
     const [x1, y1, x2, y2] = roiEdit.rect;
     if (x1 < 0 || y1 < 0 || x2 <= x1 || y2 <= y1) { setRoiError('ROI geometry must have positive width and height.'); return; }
+    actionBusyRef.current = true;
     setRoiSaving(true);
     setRoiError(null);
     try {
       const base = await flushedCase();
+      if (!isActive()) return;
       if (!base) throw new Error('The annotation draft could not be saved. Try again.');
       const corrected = roiEdit.label !== rawSelectedLesion.canonical_label || roiGeometryChanged;
       const reviewed = await lesionReviewApi.review(base.image_id, {
@@ -899,6 +916,7 @@ export function AnnotationEditorPage() {
         label: corrected ? roiEdit.label : undefined,
         rectangle: corrected ? roiEdit.rect : undefined,
       });
+      if (!isActive()) return;
       const linked = (reviewed.human_annotations ?? []).find((entry) => entry.source_detection_id === roiEdit.detectionId);
       if (linked) {
         // A human annotation already derives from this ROI: update it in place
@@ -920,6 +938,7 @@ export function AnnotationEditorPage() {
           detection_id: roiEdit.detectionId,
           intent: corrected ? 'CORRECT_AS_HUMAN' : 'USE_AS_HUMAN',
         });
+        if (!isActive()) return;
         onHumanAnnotationDerived(derived);
       }
       clearRoiSelection();
@@ -927,18 +946,21 @@ export function AnnotationEditorPage() {
     } catch (err) {
       setRoiError(errorText(err));
     } finally {
+      actionBusyRef.current = false;
       setRoiSaving(false);
     }
   };
 
   const removeRoi = async () => {
-    if (!item || readOnly || !roiEdit || roiSaving) return;
+    if (!item || readOnly || !roiEdit || roiSaving || actionBusyRef.current || interactionRef.current) return;
     const reviewerName = roiReviewer();
     if (!reviewerName) { setRoiError('Enter a reviewer name before removing.'); return; }
+    actionBusyRef.current = true;
     setRoiSaving(true);
     setRoiError(null);
     try {
       const base = await flushedCase();
+      if (!isActive()) return;
       if (!base) throw new Error('The annotation draft could not be saved. Try again.');
       const saved = await lesionReviewApi.review(base.image_id, {
         revision: base.revision,
@@ -946,6 +968,7 @@ export function AnnotationEditorPage() {
         detection_id: roiEdit.detectionId,
         action: 'REJECT',
       });
+      if (!isActive()) return;
       setItem(saved);
       const nextDraft = (saved.human_annotations ?? []).filter((entry) => entry.source_detection_id !== roiEdit.detectionId);
       draftRef.current = nextDraft;
@@ -957,6 +980,7 @@ export function AnnotationEditorPage() {
     } catch (err) {
       setRoiError(errorText(err));
     } finally {
+      actionBusyRef.current = false;
       setRoiSaving(false);
     }
   };
@@ -964,23 +988,23 @@ export function AnnotationEditorPage() {
   const annotationControls = (
     <Stack spacing={2}>
       <HStack spacing={2} flexWrap="wrap" align="end">
-        <ToolButton active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector || readOnly}><MousePointer2 size={14} /> Select</ToolButton>
-        <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector || readOnly}><Square size={14} /> Box</ToolButton>
-        <MoreToolsPopover open={moreToolsOpen} onOpenChange={setMoreToolsOpen} tool={tool} onToolChange={setTool} onActivate={activateTool} disabled={readOnly} inspectorActive={isCoordinateInspector} />
-        <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={isCoordinateInspector || readOnly || history.length === 0}>Undo</Button>
-        <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={isCoordinateInspector || readOnly || !selectedShapeId}>Delete selected</Button>
+        <ToolButton active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector || roiSaving || readOnly}><MousePointer2 size={14} /> Select</ToolButton>
+        <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector || roiSaving || readOnly}><Square size={14} /> Box</ToolButton>
+        <MoreToolsPopover open={moreToolsOpen} onOpenChange={setMoreToolsOpen} tool={tool} onToolChange={setTool} onActivate={activateTool} disabled={readOnly || roiSaving} inspectorActive={isCoordinateInspector} />
+        <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={isCoordinateInspector || roiSaving || readOnly || history.length === 0}>Undo</Button>
+        <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedShapeId}>Delete selected</Button>
         <Button
           size="sm"
           leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />}
           onClick={toggleSelectedLock}
-          isDisabled={isCoordinateInspector || readOnly || !selectedAnnotation}
+          isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedAnnotation}
           aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}
         >
           {selectedIsLocked ? 'Unlock selected' : 'Lock selected'}
         </Button>
         <FormControl width={{ base: '100%', tablet: '180px' }} flexShrink={0}>
           <FormLabel htmlFor="new-annotation-class" fontSize="xs" mb={1}>Finding class</FormLabel>
-          <Select id="new-annotation-class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel | '')} isDisabled={readOnly}>
+          <Select id="new-annotation-class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel | '')} isDisabled={readOnly || roiSaving}>
             <option value="">Choose finding...</option>
             {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </Select>
@@ -988,7 +1012,7 @@ export function AnnotationEditorPage() {
         {selectedAnnotation && (
           <FormControl width={{ base: '100%', tablet: '180px' }} flexShrink={0}>
             <FormLabel htmlFor="selected-annotation-class" fontSize="xs" mb={1}>Selected annotation class</FormLabel>
-            <Select id="selected-annotation-class" size="sm" value={selectedAnnotation.label} onChange={(event) => changeSelectedLabel(event.target.value as LesionLabel)} isDisabled={selectedIsLocked || readOnly}>
+            <Select id="selected-annotation-class" size="sm" value={selectedAnnotation.label} onChange={(event) => changeSelectedLabel(event.target.value as LesionLabel)} isDisabled={selectedIsLocked || readOnly || roiSaving}>
               {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </Select>
           </FormControl>
@@ -1006,19 +1030,19 @@ export function AnnotationEditorPage() {
   const fullScreenAnnotationControls = (
     <Stack spacing={1}>
       <HStack spacing={1} flexWrap="wrap" align="center">
-        <ToolButton ariaLabel="Select tool" active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector || readOnly}>
+        <ToolButton ariaLabel="Select tool" active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector || roiSaving || readOnly}>
           <MousePointer2 size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Select</Box>
         </ToolButton>
-        <ToolButton ariaLabel="Box tool" active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector || readOnly}>
+        <ToolButton ariaLabel="Box tool" active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector || roiSaving || readOnly}>
           <Square size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Box</Box>
         </ToolButton>
-        <MoreToolsPopover open={fullScreenMoreToolsOpen} onOpenChange={setFullScreenMoreToolsOpen} tool={tool} onToolChange={setTool} onActivate={activateTool} disabled={readOnly} inspectorActive={isCoordinateInspector} fullscreen />
-        <Button size="sm" leftIcon={<Undo2 size={14} />} aria-label="Undo annotation change" onClick={undo} isDisabled={isCoordinateInspector || readOnly || history.length === 0}>Undo</Button>
-        <Button size="sm" leftIcon={<Trash2 size={14} />} aria-label="Delete selected annotation" onClick={deleteSelected} isDisabled={isCoordinateInspector || readOnly || !selectedShapeId}>Delete</Button>
-        <Button size="sm" leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />} onClick={toggleSelectedLock} isDisabled={isCoordinateInspector || readOnly || !selectedAnnotation} aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}>
+        <MoreToolsPopover open={fullScreenMoreToolsOpen} onOpenChange={setFullScreenMoreToolsOpen} tool={tool} onToolChange={setTool} onActivate={activateTool} disabled={readOnly || roiSaving} inspectorActive={isCoordinateInspector} fullscreen />
+        <Button size="sm" leftIcon={<Undo2 size={14} />} aria-label="Undo annotation change" onClick={undo} isDisabled={isCoordinateInspector || roiSaving || readOnly || history.length === 0}>Undo</Button>
+        <Button size="sm" leftIcon={<Trash2 size={14} />} aria-label="Delete selected annotation" onClick={deleteSelected} isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedShapeId}>Delete</Button>
+        <Button size="sm" leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />} onClick={toggleSelectedLock} isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedAnnotation} aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}>
           {selectedIsLocked ? 'Unlock' : 'Lock'}
         </Button>
-        <Select aria-label="Finding class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel | '')} maxW={{ base: '150px', tablet: '190px' }} isDisabled={readOnly}>
+        <Select aria-label="Finding class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel | '')} maxW={{ base: '150px', tablet: '190px' }} isDisabled={readOnly || roiSaving}>
           <option value="">Choose finding...</option>
           {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </Select>
@@ -1032,14 +1056,16 @@ export function AnnotationEditorPage() {
     </Stack>
   );
 
-  const persistDraft = async (): Promise<CaseRecord | null> => {
-    if (!item || saving) return null;
+  const persistDraft = async (withinAction = false): Promise<CaseRecord | null> => {
+    if (!item || savingRef.current || (actionBusyRef.current && !withinAction) || !isActive()) return null;
     if (draftStatus === 'saved') return item;
     if (!hasConfirmedGrade) return null;
     if (!reviewer.trim()) {
       setSaveError('Reviewer name is required to save annotation changes.');
       return null;
     }
+    const submittedDraft = draftRef.current;
+    savingRef.current = true;
     setSaving(true);
     setDraftStatus('saving');
     setSaveError(null);
@@ -1050,7 +1076,7 @@ export function AnnotationEditorPage() {
         body: JSON.stringify({
           revision: item.revision,
           reviewer: reviewer.trim(),
-          annotations: draftRef.current.map(({ shape_id, type, label: entryLabel, geometry, locked, source_detection_id }) => ({
+          annotations: submittedDraft.map(({ shape_id, type, label: entryLabel, geometry, locked, source_detection_id }) => ({
             shape_id,
             type,
             label: entryLabel,
@@ -1060,7 +1086,14 @@ export function AnnotationEditorPage() {
           })),
         }),
       });
+      if (!isActive()) return null;
       setItem(savedCase);
+      // Edits made during the request belong to the next revision. Keep them
+      // visible and unsaved; never confirm a snapshot that omits those edits.
+      if (draftRef.current !== submittedDraft) {
+        setDraftStatus('unsaved');
+        return null;
+      }
       draftRef.current = savedCase.human_annotations ?? [];
       setDraft(draftRef.current);
       setHistory([]);
@@ -1073,6 +1106,7 @@ export function AnnotationEditorPage() {
       setDraftStatus('failed');
       return null;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -1085,7 +1119,7 @@ export function AnnotationEditorPage() {
     }
     const imageId = item.image_id;
     const persisted = await persistDraft();
-    if (!persisted) return false;
+    if (!persisted || !isActive()) return false;
     setSaving(true);
     try {
       const confirmed = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}/review`, {
@@ -1093,6 +1127,7 @@ export function AnnotationEditorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ revision: persisted.revision, action: 'CONFIRM_ANNOTATIONS', reviewer: reviewer.trim(), grade: null, comment: '' }),
       });
+      if (!isActive()) return false;
       setItem(confirmed);
       setSaved(true);
       setDraftStatus('saved');
@@ -1115,27 +1150,54 @@ export function AnnotationEditorPage() {
   const completedReview = Boolean(annotationConfirmed && hasConfirmedGrade && !editingConfirmed && !completing);
 
   const saveBeforeLeaving = async (): Promise<boolean> => {
+    if (actionBusyRef.current || savingRef.current) return false;
     if (draftStatus === 'saved') return true;
     return Boolean(await persistDraft());
   };
 
+  const authorizeLeave = async (reason: 'route' | 'case' | 'workspace' = 'route') => {
+    if (actionBusyRef.current || savingRef.current) {
+      setSaveError('Wait for the current annotation save or review action before leaving.');
+      return false;
+    }
+    const dirty = draftStatus !== 'saved';
+    const options = reason === 'case' ? SWITCH_IMAGE_DIALOG : dirty ? {
+      title: 'Save draft before leaving?',
+      body: ['Your annotation edits are not saved yet.', 'Save the draft before leaving. This does not confirm findings.'],
+      cancelLabel: 'Stay on this image', confirmLabel: 'Save draft and leave',
+    } : LEAVE_CASE_DIALOG;
+    if (guarded && !(await confirm(options))) return false;
+    return await saveBeforeLeaving() && isActive();
+  };
+  const navigationGuard = usePageNavigationGuard(authorizeLeave);
+
   const leaveTo = async (destination: string) => {
-    if (completing) return;
-    if (guarded && !(await confirm(LEAVE_CASE_DIALOG))) return;
-    if (!(await saveBeforeLeaving())) return;
-    navigate(destination);
+    if (!(await authorizeLeave())) return;
+    navigationGuard.approved(() => navigate(destination));
+  };
+
+  const completionCaseList = async (): Promise<CaseRecord[] | null> => {
+    try {
+      const cases = await loadCaseList();
+      return isActive() ? cases : null;
+    } catch {
+      if (isActive()) setSaveError('Image saved. The Worklist could not be loaded. Return to Worklist and retry.');
+      return null;
+    }
   };
 
   const openNextImage = async (completedId: string) => {
-    const cases = await loadCaseList();
+    const cases = await completionCaseList();
+    if (!cases) return;
     const nextId = nextIncompleteCaseId(cases, completedId);
     const next = cases.find((entry) => entry.image_id === nextId);
-    if (next && imageContextConfirmed(next)) navigate(`/review/${encodeURIComponent(next.image_id)}`);
-    else navigate('/worklist', { state: { caseComplete: completedId, openConfirmImage: nextId } });
+    if (next && imageContextConfirmed(next)) navigationGuard.approved(() => navigate(`/review/${encodeURIComponent(next.image_id)}`));
+    else navigationGuard.approved(() => navigate('/worklist', { state: { caseComplete: completedId, openConfirmImage: nextId } }));
   };
 
   const advanceAfterCompletion = async (completedId: string) => {
-    const cases = await loadCaseList();
+    const cases = await completionCaseList();
+    if (!cases) return;
     const nextId = nextIncompleteCaseId(cases, completedId);
     const next = cases.find((entry) => entry.image_id === nextId);
     toast({
@@ -1146,8 +1208,8 @@ export function AnnotationEditorPage() {
       position: 'top',
       isClosable: true,
     });
-    if (next && imageContextConfirmed(next)) navigate(`/review/${encodeURIComponent(next.image_id)}`);
-    else navigate('/worklist', { state: { caseComplete: completedId, openConfirmImage: nextId } });
+    if (next && imageContextConfirmed(next)) navigationGuard.approved(() => navigate(`/review/${encodeURIComponent(next.image_id)}`));
+    else navigationGuard.approved(() => navigate('/worklist', { state: { caseComplete: completedId, openConfirmImage: nextId } }));
   };
 
   const refreshAfterFinishFailure = async (completenessRequestLost: boolean): Promise<CaseRecord | null> => {
@@ -1156,6 +1218,7 @@ export function AnnotationEditorPage() {
       // Re-read after a failed mutation so a committed request with a lost
       // response can be retried from the current revision.
       const refreshed = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(item.image_id)}`);
+      if (!isActive()) return null;
       setItem(refreshed);
       draftRef.current = refreshed.human_annotations ?? [];
       setDraft(draftRef.current);
@@ -1174,17 +1237,18 @@ export function AnnotationEditorPage() {
 
   /** Finish records Core completeness, confirms the current set, then advances. */
   const completeCase = async () => {
-    if (!item || completing || completenessSaving) return;
+    if (!item || completing || completenessSaving || actionBusyRef.current || savingRef.current || interactionRef.current || !isActive()) return;
     if (!reviewer.trim()) {
       setSaveError('Reviewer name is required to finish this image.');
       return;
     }
+    actionBusyRef.current = true;
     setCompleting(true);
     let completenessRequestLost = false;
     let targetState: Exclude<AnnotationCompletenessState, 'NOT_REVIEWED'> | null = null;
     try {
-      let persisted = await persistDraft();
-      if (!persisted) return;
+      let persisted = await persistDraft(true);
+      if (!persisted || !isActive()) return;
       targetState = coreFinishState(persisted);
       const completenessAlreadyWritten = completenessWrittenForFinishRef.current
         && persisted.annotation_completeness?.CORE?.state === targetState;
@@ -1202,6 +1266,7 @@ export function AnnotationEditorPage() {
             state: targetState,
             taxonomy_version: 'core-lesions-v1',
           });
+          if (!isActive()) return;
           setItem(persisted);
           completenessWrittenForFinishRef.current = true;
         } catch (err) {
@@ -1217,6 +1282,7 @@ export function AnnotationEditorPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ revision: persisted.revision, action: 'CONFIRM_ANNOTATIONS', reviewer: reviewer.trim(), grade: null, comment: '' }),
       });
+      if (!isActive()) return;
       setItem(confirmed);
       setSaved(true);
       setDraftStatus('saved');
@@ -1225,6 +1291,7 @@ export function AnnotationEditorPage() {
       markGuideFirstFlowCompleted();
       await advanceAfterCompletion(item.image_id);
     } catch (err) {
+      if (!isActive()) return;
       const refreshed = await refreshAfterFinishFailure(completenessRequestLost);
       const refreshedTargetState = refreshed ? coreFinishState(refreshed) : null;
       if (refreshed
@@ -1240,6 +1307,7 @@ export function AnnotationEditorPage() {
       setDraftStatus('failed');
     } finally {
       setSaving(false);
+      actionBusyRef.current = false;
       setCompleting(false);
     }
   };
@@ -1249,14 +1317,14 @@ export function AnnotationEditorPage() {
       skipAutosaveRef.current = false;
       return;
     }
-    if (completing || draftStatus !== 'unsaved' || interactionRef.current || !reviewer.trim()) return;
+    if (completing || saving || roiSaving || actionBusyRef.current || draftStatus !== 'unsaved' || interactionRef.current || !reviewer.trim()) return;
     const timer = window.setTimeout(() => { void persistDraft(); }, 900);
     return () => window.clearTimeout(timer);
-  }, [completing, draft, draftStatus, reviewer]);
+  }, [completing, saving, roiSaving, draft, draftStatus, reviewer]);
 
   useEffect(() => {
     const guard = (event: BeforeUnloadEvent) => {
-      if (draftStatus === 'unsaved' || draftStatus === 'saving' || draftStatus === 'failed') {
+      if (actionBusyRef.current || savingRef.current || draftStatus === 'unsaved' || draftStatus === 'saving' || draftStatus === 'failed') {
         event.preventDefault();
         event.returnValue = '';
       }

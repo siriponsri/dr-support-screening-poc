@@ -7,11 +7,12 @@ from uuid import uuid4
 from fastapi import HTTPException
 from fastapi.responses import Response
 from pydantic import Field
-from .contracts import AdmissionMetadata, AdmissionReview, Contract, ResolverReview
+from .contracts import AdmissionMetadata, AdmissionReview, Contract, GlobalResult, ResolverReview
 from .sync import Sync, digest
 from .cvat import CVATOnline, OnlineError
 from .presentation import annotation_set_hash, lesion_review_view, review_evidence_view
 from .services.admission import clinician_view, legacy_admission
+from .services.source_identity import source_identity_reason
 from .services.resolver import (
     apply_automatic_resolution,
     automatic_resolution_needs_refresh,
@@ -99,6 +100,63 @@ def _lesion_result_matches_modality(result, modality, source_origin):
         and modality in {'CFP', 'UWF'}
         and source_allowed_for_model(source_origin)
     )
+
+
+def _current_global_result(case, image, admission):
+    """Project only source-bound, non-superseded grading evidence; never infer."""
+    result = case.get('global')
+    origin = _source_origin(admission, image)
+    if source_identity_reason(case, image, admission) or not _global_result_matches_modality(
+        result, (admission or {}).get('retinal_modality', 'UNKNOWN'), origin,
+    ):
+        return None
+    try:
+        GlobalResult.model_validate(result)
+    except ValueError:
+        return None
+    provenance = result.get('provenance') or {}
+    if (provenance.get('source_type') != origin
+            or not result.get('model_version', '').strip()
+            or not provenance.get('source_revision', '').strip()):
+        return None
+    derivative = case.get('analysis_derivative') or {}
+    source_sha = image.sha256
+    analysis_sha = source_sha
+    transform = 'IDENTITY'
+    representation = 'ORIGINAL'
+    if derivative:
+        analysis_sha = derivative.get('analysis_sha256')
+        transform = derivative.get('transform_id')
+        representation = derivative.get('representation_version')
+        lineage = derivative.get('lineage') or {}
+        if (derivative.get('source_sha256') != source_sha
+                or derivative.get('source_origin') != origin
+                or derivative.get('derivative_sha256') != analysis_sha
+                or transform not in KNOWN_ANALYSIS_TRANSFORMS
+                or representation not in {ANALYSIS_REPRESENTATION_VERSION, ANALYSIS_UWF_SOURCE_REPRESENTATION_VERSION}
+                or lineage.get('purpose') != 'ANALYSIS'
+                or lineage.get('source_sha256') != source_sha
+                or lineage.get('derivative_sha256') != analysis_sha
+                or lineage.get('transform_id') != transform):
+            return None
+    if provenance.get('image_sha256') != analysis_sha:
+        return None
+    # Legacy results lack run history: require explicit source/analysis binding.
+    # Once global history exists, only its latest APPLIED result is authoritative.
+    history = [entry for entry in case.get('inference_history', []) if entry.get('task') == 'global']
+    if history:
+        latest = next((entry for entry in reversed(history) if entry.get('status') == 'APPLIED'), None)
+        if (latest is None or latest.get('result') != result
+                or latest.get('model_id') != result.get('model_id')
+                or latest.get('model_version') != result.get('model_version')
+                or latest.get('source_sha256') != source_sha
+                or latest.get('analysis_sha256') != analysis_sha
+                or latest.get('transform_id') != transform
+                or latest.get('representation_version') != representation
+                or type(latest.get('case_revision')) is not int
+                or not 0 <= latest['case_revision'] <= case['revision']):
+            return None
+    return result
 
 
 def _spatial_ai_display(case, image, *, source_origin='UNKNOWN'):
@@ -216,6 +274,15 @@ def _spatial_ai_display(case, image, *, source_origin='UNKNOWN'):
         'reason': reason,
         'note': 'AI overlay is hidden because its source or transform no longer matches the Original image. Review manually.',
     }
+
+
+def _require_current_spatial_ai(case, image, admission):
+    reason = source_identity_reason(case, image, admission)
+    if reason:
+        raise HTTPException(409, 'Source identity changed or is unavailable; reload before reviewing AI evidence')
+    projection = _spatial_ai_display(case, image, source_origin=_source_origin(admission, image))
+    if projection.get('status') != 'AVAILABLE':
+        raise HTTPException(409, 'AI evidence no longer matches the source or transform; review the Original image manually')
 
 
 def _legacy_grade_reviews(case):
@@ -429,11 +496,7 @@ def install_workflow(app, store):
         case, patient_display_label = hospital_patient_label(
             current_store(), case, source_origin=source_origin,
         )
-        visible_global = (
-            case.get('global')
-            if _global_result_matches_modality(case.get('global'), source_modality, source_origin)
-            else None
-        )
+        visible_global = _current_global_result(case, image, record)
         modality_matched_lesion = (
             case.get('lesion')
             if _lesion_result_matches_modality(case.get('lesion'), source_modality, source_origin)
@@ -729,15 +792,10 @@ def install_workflow(app, store):
             # Historical CFP evidence cannot authorize AI provenance on a
             # source whose image type is now UWF or still unknown.
             current_admission = admission_record(image_id) or {}
-            current_source_origin = _source_origin(current_admission, app.state.images.get(image_id))
-            current_modality = current_admission.get('retinal_modality', 'UNKNOWN')
-            current_ai = (
-                case.get('global')
-                if _global_result_matches_modality(
-                    case.get('global'), current_modality, current_source_origin,
-                )
-                else None
-            )
+            if request.action in {'ACCEPT', 'CORRECT_GRADE', 'ADJUDICATE_GRADE', 'CONFIRM_ANNOTATIONS'}:
+                if source_identity_reason(case, app.state.images.get(image_id), current_admission):
+                    raise HTTPException(409, 'Source identity changed; reload before confirming this image')
+            current_ai = _current_global_result(case, app.state.images.get(image_id), current_admission)
             if request.revision != case['revision']:
                 already_confirmed = (
                     request.action == 'CONFIRM_ANNOTATIONS'
@@ -873,6 +931,7 @@ def install_workflow(app, store):
                 'remark': request.comment,
                 'timestamp': timestamp,
                 'revision': case['revision'],
+                'source_sha256': app.state.images[image_id].sha256,
             }
             # Annotation finality is a separate milestone. Keep the recorded
             # DR-grade reviewer/decision intact when an annotation reviewer
@@ -897,6 +956,7 @@ def install_workflow(app, store):
                 case['annotation_confirmation'] = {
                     'reviewer': request.reviewer.strip(),
                     'timestamp': timestamp,
+                    'source_sha256': app.state.images[image_id].sha256,
                     'annotation_set_hash': case['confirmed_annotation_hash'],
                 }
             if grade_action or request.action in {'MARK_INCORRECT', 'ESCALATE'}:
@@ -951,6 +1011,7 @@ def install_workflow(app, store):
             case = store.get(image_id)
             if request.revision != case['revision']:
                 raise HTTPException(409, 'Case changed; reload before reviewing lesion evidence')
+            _require_current_spatial_ai(case, image, admission_record(image_id))
             raw_result = case.get('lesion')
             view = lesion_review_view(raw_result) if raw_result else None
             target = next((item for item in (view or {}).get('lesions', [])
@@ -1432,6 +1493,7 @@ def install_workflow(app, store):
         store = current_store()
         with store.lock:
             case = store.get(image_id)
+            _require_current_spatial_ai(case, image, admission_record(image_id))
             existing = next(
                 (entry for entry in case.get('human_annotations', [])
                  if entry.get('source_detection_id') == request.detection_id),

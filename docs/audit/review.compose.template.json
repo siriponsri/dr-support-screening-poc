@@ -1,0 +1,80 @@
+{
+  "name": "dr-review-operator-template",
+  "x-audit-status": "TEMPLATE_ONLY_NOT_RUN",
+  "services": {
+    "review": {
+      "image": "${DR_REVIEW_IMAGE:?Set approved image at immutable sha256 digest}",
+      "profiles": [
+        "qa-cloud",
+        "hospital-local"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "dr_support.run"
+      ],
+      "environment": {
+        "APP_PROFILE": "review",
+        "MODEL_RUNTIME": "remote",
+        "DR_SUPPORT_CASE_STORE": "postgres",
+        "HOST": "0.0.0.0",
+        "PORT": "8000",
+        "WORKERS": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "DR_SUPPORT_DATABASE_URL": "${DR_SUPPORT_DATABASE_URL:?Supply via approved operator secrets mechanism}",
+        "REMOTE_MODEL_URL": "${REMOTE_MODEL_URL:-}",
+        "REMOTE_MODEL_TOKEN": "${REMOTE_MODEL_TOKEN:-}"
+      },
+      "ports": [
+        "127.0.0.1:${DR_REVIEW_BIND_PORT:?Operator-approved free port}:8000"
+      ],
+      "read_only": true,
+      "tmpfs": [
+        "/tmp"
+      ],
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${DR_SOURCE_ROOT:?Approved immutable input root}",
+          "target": "/data/source",
+          "read_only": true
+        },
+        {
+          "type": "volume",
+          "source": "review-state",
+          "target": "/app/local-state",
+          "read_only": false
+        },
+        {
+          "type": "volume",
+          "source": "review-output",
+          "target": "/data/output",
+          "read_only": false
+        }
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "python",
+          "-c",
+          "import json,urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3); b=json.load(r); assert b.get('status') in ('PASS','PASS_WITH_WARNINGS')"
+        ],
+        "interval": "30s",
+        "timeout": "5s",
+        "retries": 3,
+        "start_period": "30s"
+      },
+      "restart": "no"
+    }
+  },
+  "volumes": {
+    "review-state": {
+      "external": true,
+      "name": "${DR_REVIEW_STATE_VOLUME:?Operator-provisioned state volume}"
+    },
+    "review-output": {
+      "external": true,
+      "name": "${DR_REVIEW_OUTPUT_VOLUME:?Operator-provisioned output volume}"
+    }
+  }
+}

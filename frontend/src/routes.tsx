@@ -9,6 +9,7 @@ import { ClinicianReviewPage } from '@/pages/ClinicianReviewPage';
 import { ModelsPage } from '@/pages/ModelsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { NavigationGuardProvider } from '@/components/shell/NavigationGuard';
 import { WorkspaceProvider } from '@/components/shell/workspace';
 
 interface AppRoutesProps {
@@ -33,7 +34,7 @@ interface AppRoutesProps {
  */
 export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
   return (
-    <WorkspaceProvider>
+    <NavigationGuardProvider><WorkspaceProvider>
       <Routes>
         <Route element={<AppShell forceTier={forceTier} />}>
           <Route index element={<Navigate to="/worklist" replace />} />
@@ -48,6 +49,6 @@ export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
-    </WorkspaceProvider>
+    </WorkspaceProvider></NavigationGuardProvider>
   );
 }

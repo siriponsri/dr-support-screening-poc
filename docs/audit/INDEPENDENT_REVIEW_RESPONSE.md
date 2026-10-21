@@ -1,0 +1,38 @@
+# Bounded response to independent engineering review
+
+Current follow-up: [Comparison ordering and global-grade provenance](FINAL_COMPARISON_PROVENANCE_RESPONSE.md). The original four P1 mechanisms were independently re-reviewed at de5cfd3; the subsequent two fixes require their own integration review.
+
+2026-10-21. Responds to task-5 `INDEPENDENT_REVIEW.md`, which reviewed candidate `4e93fa8`. All work remains in the isolated source-copy branch. Task-5 subsequently re-reviewed de5cfd3: four P1 mechanisms addressed in source and 84 Python checks independently passed; independent frontend execution remained blocked. Final follow-up fixes need their own integration review. No clinical UAT or integration approval is implied.
+
+| Finding | Status and concrete change | Synthetic regression evidence |
+|---|---|---|
+| P1 #1: cached grade accepted without physician final grade | FIXED. `dataset.py` requires an explicit integer final grade 0–4 matching the cache. Missing legacy status/action remains compatible only when the actual final decision exists. | Missing and null final-grade cases excluded from readiness and snapshot labels; existing valid grades and legacy tests retained. |
+| P1 #2: source eligibility and raw AI geometry reuse | FIXED within metadata boundary. Shared `source_identity.py` requires an available image, matching valid current/admission hashes and no recorded integrity failure. Export eligibility checks it; review confirmations record source SHA. ROI correction/derivation reuses the existing spatial provenance projection guard before any write, including idempotent derivation lookup. | Current/admission mismatch, both integrity representations, missing source, explicit confirmation-source mismatch, and stale ROI review/derive reject. Valid direct and prepared-image transforms remain accepted. Direct synthetic route functions reject HTTP409 before store writes. |
+| P1 #3: correction and linked human annotation both gold | FIXED. Current human representation supersedes its correction for gold eligibility; original correction/score stays audit evidence. Ambiguous duplicate human links are held out instead of choosing one. | Correction → derived human → later human edit → confirmed snapshot yields one current human label; duplicate human links excluded. |
+| P1 #4: shell/workspace navigation loses drafts | FIXED. Shared route/workspace gate holds the clinical page while the leave decision resolves. Dirty grades require explicit discard; annotation drafts must save successfully before leaving. Native Back cancellation restores history without unmounting the draft; pending clinical writes block leaving. | Seven router-level tests: grade/remark cancellation, shell flush success/failure, native Back cancel and flush success/failure, workspace cancel before mutation. Existing case-switch/failure coverage retained. No navigation confirms a medical decision. |
+| P2 #5: same-case comparison request ordering | FIXED in the bounded final follow-up. One generation spans effect/manual/automatic comparison requests; selection invalidates prior work, candidate-list loading is separate, and eligible pair identity is verified. See final follow-up response and five deferred-response regressions. |
+| P2 #6: revision guarantee absent from autosave test | FIXED. Recorder asserts first revision 0, then returned revision 1; mock rejects an obsolete second revision while checking the newer edit remains present. | Strengthened existing delayed-save regression passes with preserved annotation content. |
+
+## Before and after
+
+- The first nine new Python regressions against `4e93fa8` produced **9 failed / 35 passed** (`review-fixes-python-before.log`); after the fixes and additional valid-path/adversarial checks, the full focused set is **84 passed**: 49 exporter/source/route-boundary, 17 deployment-template, 18 gold-expansion-proposal checks (`independent-fixes-python-final.log`). No app factory, DB, model call, original image or credential read is involved.
+- Three initial shell-navigation regressions all failed before the shared gate (`review-fixes-navigation-before.log`). A separate native-Back regression exposed the remaining POP-unmount gap before location holding (`review-fixes-native-back-before.log`). All seven final navigation tests pass, alongside the complete **197 tests / 28 files** frontend suite (`independent-fixes-frontend-full.log`). These are jsdom fixture tests, not physician or native-browser clinical acceptance.
+- TypeScript and Ruff pass. Production build identity and exact candidate SHA are recorded in the external evidence receipt. Documentation QA still reports exactly the same **seven inherited archive findings**: six near-copy pairs and one historic PDF placement. No checker weakening, archive deletion or binary relocation was used.
+
+## Boundaries requiring integration and clinical review
+
+The source helper compares recorded metadata; it does not rehash original files or establish storage immutability. Existing legacy confirmations without a per-review source field may remain eligible only when current/admission identity matches; new confirmations add that field. A self-declared reviewer remains self-declared: no physician privilege or gold-seed acceptance is inferred. Missing source records remain visible as metadata but cannot emit gold labels.
+
+The navigation adapter uses the pinned React Router v6 navigation/location contexts, including its `UNSAFE_*` interfaces. No dependency changed. Recheck it before a router upgrade and perform workstation/browser UAT for Back/Forward, repeated navigation, pending/failing writes and hard refresh. A browser's native hard-refresh warning still allows an explicit discard. No persistent recovery store or multi-tab conflict resolver was added.
+
+Hospital export remains disabled, reviewed-empty training authorization remains false, and clinical thresholds are unchanged. No training, similarity selection, hospital data acquisition, deployment, DB migration or team service activity occurred. Gold seed/candidate/pseudo-label architecture and the outstanding authenticated roles, mask editor, selection engine, diversity/near-duplicate sampling, patient-grouped evaluation acceptance and full backup/restore qualification remain as documented in the traceability/design files.
+
+## Exact reviewer test blocker
+
+Task-5's frontend launch targeted its own `vitest.review.config.mjs` with this candidate as root. esbuild denied parent-directory reads and could not resolve that config; it failed before collection. That target was not retried or bypassed. The distinct, previously permitted task-3 workflow used this candidate's original `frontend/vite.config.ts` and existing dependencies. No global/per-command Git trust, ACL or security changes were made. Independent Python/docs evidence from task-5 remains separate from author frontend evidence.
+
+## Thai workflow recommendations
+
+ให้ใช้หน้า Review สำหรับคัดกรองเร็ว และเปิด Annotation Editor เมื่อต้องตรวจตำแหน่งรอยโรคอย่างละเอียด การออกจากหน้าที่แก้ไขอยู่ต้องเลือกให้ชัดเจน: เกรดที่ยังไม่ยืนยันให้คงไว้หรือทิ้งโดยเจตนา ส่วน annotation ต้องบันทึก draft สำเร็จก่อนเปลี่ยนหน้า หากบันทึกไม่สำเร็จให้คงภาพและสิ่งที่แก้ไว้เพื่อแก้ปัญหาต่อได้ การบันทึก draft ไม่เท่ากับการยืนยันผลทางคลินิก
+
+ก่อนใช้ข้อมูลโรงพยาบาลเป็น gold seed ต้องให้แพทย์และผู้ดูแลข้อมูลรับรอง label พร้อมบทบาทผู้ตรวจและสิทธิ์ใช้งาน ภาพที่ระบบค้นว่าใกล้เคียงเป็นเพียง candidate ต้องผ่านการตรวจภาพนั้นเอง ห้ามคัดลอก lesion จากภาพคล้ายกัน และต้องกันข้อมูลประเมินผลตามกลุ่มผู้ป่วยไว้ตั้งแต่ต้น ส่วน deployment ต้องทดสอบ restore ที่รวมไฟล์ต้นฉบับนอก DB และตรวจ readiness ของระบบจริงก่อนอนุมัติใช้งาน

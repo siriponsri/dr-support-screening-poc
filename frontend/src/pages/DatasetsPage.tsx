@@ -218,7 +218,7 @@ export function DatasetsPage() {
   };
 
   const createSnapshot = async () => {
-    if (snapshotting) return;
+    if (!manifest?.can_export || snapshotting) return;
     setSnapshotting(true); setError(null); setNotice(null);
     try { const result = await datasetApi.snapshot(); setNotice(`Canonical snapshot created: ${result.snapshot_id}.`); } catch { setError('The canonical snapshot is blocked or could not be created. Review source authorization and Workspace state.'); } finally { setSnapshotting(false); }
   };
@@ -233,7 +233,7 @@ export function DatasetsPage() {
   const pageActions = (
     <>
       <Button leftIcon={<RefreshCw size={15} />} onClick={() => void load()} isLoading={loading}>Refresh</Button>
-      <Button leftIcon={<Download size={15} />} onClick={() => void createSnapshot()} isLoading={snapshotting}>Create canonical snapshot</Button>
+      <Button leftIcon={<Download size={15} />} onClick={() => void createSnapshot()} isLoading={snapshotting} isDisabled={loading || !manifest?.can_export}>Create canonical snapshot</Button>
     </>
   );
 
@@ -264,7 +264,7 @@ export function DatasetsPage() {
         </Section> : null}
         <Section title="Export tools" description="Canonical snapshots contain metadata, physician-confirmed labels, completeness, and separate non-gold AI evidence. Source images are not copied.">
           <Stack spacing={3} align="flex-start">
-            {!manifest?.can_export && <Text fontSize="sm" color="status.warning">Open an active Workspace to export a dataset manifest.</Text>}
+            {!manifest?.can_export && <Text fontSize="sm" color="status.warning">{manifest?.workspace_id ? 'Export is restricted for this Workspace. Review source authorization; hospital export remains disabled.' : 'Open an active Workspace to export a dataset manifest.'}</Text>}
             <HStack flexWrap="wrap"><Button leftIcon={<Download size={15} />} onClick={() => void createExport()} isLoading={exporting} isDisabled={!manifest?.can_export}>Export manifest</Button><Button variant="outline" onClick={() => void createGroupedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export}>Export grouped images</Button></HStack>
             <HStack role="group" aria-label="Grouped export image format" spacing={1}>{(['PNG', 'JPEG'] as const).map((format) => <Button key={format} size="sm" variant={groupedFormat === format ? 'solid' : 'outline'} aria-pressed={groupedFormat === format} onClick={() => setGroupedFormat(format)}>{format}</Button>)}</HStack>
             {groupedFormat === 'JPEG' && <FormControl maxW="180px"><FormLabel htmlFor="grouped-jpeg-quality" fontSize="sm">JPEG quality</FormLabel><Input id="grouped-jpeg-quality" type="number" min={1} max={100} step={1} value={jpegQuality} onChange={(event) => setJpegQuality(event.target.value)} /></FormControl>}

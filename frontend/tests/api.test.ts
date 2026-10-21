@@ -14,6 +14,12 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('API error and mutation contracts', () => {
+  it('rejects missing evidence in a successful response', async () => {
+    for (const payload of ['', '<html>proxy</html>', 'null']) {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(payload, { status: 200 }));
+      await expect(apiJson('/v1/cases/fixture')).rejects.toThrow('The server returned an invalid response. Reload and try again.');
+    }
+  });
   it('normalizes structured FastAPI validation details', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({
       detail: [

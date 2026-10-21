@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { usePageNavigationGuard } from '@/components/shell/NavigationGuard';
+import { useActiveCaseSession } from '@/hooks/useActiveCaseSession';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -59,6 +61,12 @@ function referralLabel(status?: string | null) {
 }
 
 export function ClinicianReviewPage() {
+  const { imageId } = useParams<{ imageId: string }>();
+  return <ClinicianReviewPageSession key={imageId ?? ''} />;
+}
+
+function ClinicianReviewPageSession() {
+  const isActive = useActiveCaseSession();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
@@ -73,15 +81,17 @@ export function ClinicianReviewPage() {
   const [referralDetailsOpen, setReferralDetailsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDialog, confirm] = useConfirmDialog();
 
-  const loadCase = useCallback(async () => {
+  const loadCase = useCallback(async (requestIsCurrent: () => boolean = isActive) => {
     if (!imageId) return;
     setLoading(true);
     setError(null);
     try {
       const loaded = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
+      if (!isActive() || !requestIsCurrent()) return;
       setItem(loaded);
       setReviewer(loaded.clinician_review?.reviewer ?? getDefaultReviewer());
       setUseAsDefault(Boolean(getDefaultReviewer()));
@@ -89,13 +99,17 @@ export function ClinicianReviewPage() {
       setGrade(loaded.clinician_review?.final_grade == null ? '' : String(loaded.clinician_review.final_grade));
       setEditingConfirmed(false);
     } catch (err) {
-      setError(errorText(err));
+      if (isActive() && requestIsCurrent()) setError(errorText(err));
     } finally {
-      setLoading(false);
+      if (isActive() && requestIsCurrent()) setLoading(false);
     }
   }, [imageId]);
 
-  useEffect(() => { void loadCase(); }, [loadCase]);
+  useEffect(() => {
+    let current = true;
+    void loadCase(() => current);
+    return () => { current = false; };
+  }, [loadCase]);
 
   const confirmed = gradeConfirmed(item);
   const readOnly = Boolean(confirmed && !editingConfirmed);
@@ -103,14 +117,44 @@ export function ClinicianReviewPage() {
   // Leaving is guarded while this image is incomplete or a reopened grade is unsaved.
   const guarded = Boolean(item && (!caseComplete(item) || editingConfirmed));
 
+  const formChanged = Boolean(item && !readOnly && (
+    grade !== (item.clinician_review?.final_grade == null ? '' : String(item.clinician_review.final_grade))
+    || remark !== (item.clinician_review?.remark ?? '')
+    || reviewer !== (item.clinician_review?.reviewer ?? getDefaultReviewer())
+  ));
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (formChanged || savingRef.current) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [formChanged]);
+
+  const authorizeLeave = async () => {
+    if (savingRef.current) {
+      setError('Wait for the current grade save before leaving this image.');
+      return false;
+    }
+    if (formChanged) return confirm({
+      title: 'Leave this image?',
+      body: ['Your unconfirmed grade or remark has not been saved.', 'Discard these local edits and leave? No clinical confirmation will be recorded.'],
+      cancelLabel: 'Stay on this image', confirmLabel: 'Discard draft and leave',
+    });
+    return !guarded || await confirm(LEAVE_CASE_DIALOG);
+  };
+  const navigationGuard = usePageNavigationGuard(authorizeLeave);
+
   const leaveToWorklist = async () => {
-    if (guarded && !(await confirm(LEAVE_CASE_DIALOG))) return;
-    navigate('/worklist');
+    if (!(await authorizeLeave())) return;
+    navigationGuard.approved(() => navigate('/worklist'));
   };
 
   const leaveToReview = async () => {
-    if (guarded && !(await confirm(LEAVE_CASE_DIALOG))) return;
-    navigate(`/review/${encodeURIComponent(item!.image_id)}`);
+    if (!(await authorizeLeave())) return;
+    navigationGuard.approved(() => navigate(`/review/${encodeURIComponent(item!.image_id)}`));
   };
 
   // One warning per case/edit session: accepting keeps the grade form open
@@ -121,7 +165,7 @@ export function ClinicianReviewPage() {
   };
 
   const saveGrade = async (requestedAction?: ReviewAction) => {
-    if (!item || saving) return;
+    if (!item || savingRef.current || !isActive()) return;
     if (!reviewer.trim()) {
       setError('Reviewer name is required.');
       return;
@@ -130,6 +174,7 @@ export function ClinicianReviewPage() {
       setError('Choose a final DR grade before confirming.');
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -149,6 +194,7 @@ export function ClinicianReviewPage() {
           comment: remark,
         }),
       });
+      if (!isActive()) return;
       setDefaultReviewer(useAsDefault ? reviewer : '');
       setItem(saved);
       setEditingConfirmed(false);
@@ -162,11 +208,12 @@ export function ClinicianReviewPage() {
         isClosable: true,
       });
       if (action !== 'MARK_UNGRADABLE' && action !== 'REQUEST_SECOND_REVIEW') {
-        navigate(`/edit/${encodeURIComponent(saved.image_id)}`, { state: { gradingComplete: true } });
+        navigationGuard.approved(() => navigate(`/edit/${encodeURIComponent(saved.image_id)}`, { state: { gradingComplete: true } }));
       }
     } catch (err) {
       setError(errorText(err));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -241,7 +288,7 @@ export function ClinicianReviewPage() {
                 {item.grade_status === 'UNGRADABLE' && (
                   <Alert status="warning" variant="subtle"><AlertIcon /><Text fontSize="sm"><strong>Ungradable.</strong> This is a separate image-review state, not a DR severity.</Text></Alert>
                 )}
-                <ReviewerField compact id="clinician-reviewer-name" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
+                <ReviewerField compact id="clinician-reviewer-name" isDisabled={saving} value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
                 <Text fontSize="sm" color="text.secondary">AI suggestion: {item.global?.grade == null ? 'Not available' : (drGradeLabel(item.global.grade) ?? 'Not available')} <Text as="span" color="text.muted">(optional evidence, not pre-selected)</Text></Text>
                 <Text fontSize="sm" color="text.secondary">Referral: <Text as="span" fontWeight="semibold" color="text.primary">{referralLabel(item.referral?.status)}</Text> <Text as="span" color="text.muted">(derived only from the confirmed physician grade)</Text></Text>
                 <FormControl>
@@ -249,13 +296,13 @@ export function ClinicianReviewPage() {
                     <FormLabel htmlFor="clinician-review-grade" mb={0}>Final DR grade</FormLabel>
                     <GradeGuide />
                   </HStack>
-                  <Select id="clinician-review-grade" value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Choose a DR grade">
+                  <Select id="clinician-review-grade" isDisabled={saving} value={grade} onChange={(event) => setGrade(event.target.value)} placeholder="Choose a DR grade">
                     {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{value} - {drGradeLabel(value)}</option>)}
                   </Select>
                 </FormControl>
                 <FormControl>
                   <FormLabel htmlFor="clinician-review-remark">Remark (optional)</FormLabel>
-                  <Textarea id="clinician-review-remark" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Add a review remark" rows={4} />
+                  <Textarea id="clinician-review-remark" isDisabled={saving} value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Add a review remark" rows={4} />
                 </FormControl>
                 {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
                 <Button variant="solid" onClick={() => void saveGrade()} isLoading={saving} isDisabled={grade === ''}>

@@ -1,0 +1,67 @@
+{
+  "schema_version": "web-deployment-review-plan.v1",
+  "execution": "NOT_RUN",
+  "profiles": [
+    {
+      "name": "qa-cloud-review",
+      "app_profile": "review",
+      "model_runtime": "remote",
+      "case_store": "postgres",
+      "workers": 1,
+      "bind": "127.0.0.1",
+      "port": 8000,
+      "local_weights": false,
+      "source_mount_read_only": true,
+      "secrets": "operator-managed",
+      "ingress": "existing-approved-reverse-proxy"
+    },
+    {
+      "name": "hospital-local-review",
+      "app_profile": "review",
+      "model_runtime": "remote",
+      "case_store": "postgres",
+      "workers": 1,
+      "bind": "127.0.0.1",
+      "port": 8000,
+      "local_weights": false,
+      "source_mount_read_only": true,
+      "secrets": "operator-managed",
+      "ingress": "loopback-only"
+    }
+  ],
+  "required_release_evidence": [
+    "exact-source-commit",
+    "frontend-source-digest",
+    "frontend-output-set-sha256",
+    "locked-dependency-receipt",
+    "backup-restore-rehearsal",
+    "operator-approval",
+    "synthetic-manual-review-smoke"
+  ],
+  "separate_model_service": {
+    "managed_by": "model-api-owner",
+    "weights_mount": "read-only",
+    "inference_in_this_audit": "PROHIBITED"
+  },
+  "notes": [
+    "This is a review plan, not an executable Compose file.",
+    "Supply private settings through the approved operator mechanism. Never embed credentials here.",
+    "Existing deployment/docker-compose.local-postgres.yml is the local database template; do not provision from an audit checkout."
+  ],
+  "image_reference_policy": "sha256-digest-required",
+  "backup_scope": [
+    "postgres-consistent-dump",
+    "workspace-catalog-and-config",
+    "immutable-original-images-with-sha256-inventory",
+    "approved-output-snapshots",
+    "application-build-identity",
+    "external-model-asset-hash-inventory"
+  ],
+  "readiness": {
+    "app_liveness": "recognized-health-status",
+    "database": "credential-safe-SELECT-1-NOT-RUN",
+    "frontend": "verified-source-and-output-digests",
+    "model": "capability-ready-or-explicit-manual-mode",
+    "restore": "isolated-restore-and-source-hash-reconciliation-NOT-RUN"
+  }
+}

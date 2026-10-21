@@ -10,6 +10,7 @@ interface ReviewerFieldProps {
   required?: boolean;
   helpText?: string;
   compact?: boolean;
+  isDisabled?: boolean;
 }
 
 export function ReviewerField({
@@ -21,6 +22,7 @@ export function ReviewerField({
   required = true,
   helpText,
   compact = false,
+  isDisabled = false,
 }: ReviewerFieldProps) {
   const [editing, setEditing] = useState(false);
   if (compact && value.trim() && useAsDefault && !editing) {
@@ -28,7 +30,7 @@ export function ReviewerField({
       <Stack spacing={1}>
         <HStack spacing={3} align="center">
           <Text fontSize="sm"><Text as="span" color="text.secondary">Reviewer:</Text> {value.trim()}</Text>
-          <Button type="button" size="xs" variant="ghost" onClick={() => setEditing(true)}>Change</Button>
+          <Button type="button" isDisabled={isDisabled} size="xs" variant="ghost" onClick={() => setEditing(true)}>Change</Button>
         </HStack>
         {helpText && <Text fontSize="xs" color="text.secondary">{helpText}</Text>}
       </Stack>
@@ -40,19 +42,21 @@ export function ReviewerField({
       <Stack spacing={2}>
         <Input
           id={id}
+          isDisabled={isDisabled}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder="Reviewer name"
           autoComplete="name"
         />
         <Checkbox
+          isDisabled={isDisabled}
           isChecked={useAsDefault}
           onChange={(event) => onUseAsDefaultChange(event.target.checked)}
         >
           Use as default reviewer on this workstation
         </Checkbox>
         {helpText && <Text fontSize="xs" color="text.secondary">{helpText}</Text>}
-        {compact && value.trim() && <Button type="button" size="xs" variant="ghost" alignSelf="flex-start" onClick={() => setEditing(false)}>Use this reviewer</Button>}
+        {compact && value.trim() && <Button type="button" isDisabled={isDisabled} size="xs" variant="ghost" alignSelf="flex-start" onClick={() => setEditing(false)}>Use this reviewer</Button>}
       </Stack>
     </FormControl>
   );

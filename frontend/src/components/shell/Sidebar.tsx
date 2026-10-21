@@ -20,6 +20,7 @@ import {
   type BoxProps,
 } from '@chakra-ui/react';
 import { ShieldCheck } from '@/lib/icons';
+import { useRuntimeHealth } from '@/hooks/useRuntimeHealth';
 import logoUrl from '@/assets/dr-support-logo.svg';
 import { BrandMark } from '@/components/common/BrandMark';
 import { SidebarNavList } from './SidebarNavList';
@@ -51,6 +52,11 @@ export function Sidebar({
 }: SidebarProps) {
   const { collapsed: collapsedState } = useSidebarState();
   const collapsed = collapsedProp ?? collapsedState;
+  const runtime = useRuntimeHealth();
+  const lane = (runtime.raw as { lane?: string } | undefined)?.lane;
+  const dataScope = lane === 'PRIVATE_AUTHORIZED_RESEARCH_BRIDGE'
+    ? 'Authorized private evaluation'
+    : lane === 'PUBLIC_SYNTHETIC_BRIDGE' ? 'Public & synthetic only' : 'Data scope unavailable';
 
   return (
     <Flex
@@ -122,9 +128,9 @@ export function Sidebar({
             />
             <VStack align="flex-start" spacing={0} lineHeight="1.5">
               <Text fontWeight="bold" color="text.primary">
-                Public &amp; synthetic only
+                {dataScope}
               </Text>
-                <Text>Research use · v0.7.0</Text>
+                <Text>Use only approved research data</Text>
             </VStack>
           </HStack>
         </>
@@ -133,7 +139,7 @@ export function Sidebar({
         <>
           <Divider borderColor="border.subtle" />
           <Box py={3} display="flex" justifyContent="center">
-            <EnvironmentGlyph />
+            <EnvironmentGlyph label={dataScope} />
           </Box>
         </>
       )}
@@ -149,7 +155,7 @@ function CollapsedBrandMark() {
   );
 }
 
-function EnvironmentGlyph() {
+function EnvironmentGlyph({ label }: { label: string }) {
   return (
     <Box
       as="span"
@@ -159,8 +165,9 @@ function EnvironmentGlyph() {
       h="28px"
       borderRadius="md"
       bg="surface.subtle"
-      color="status.success"
-      title="Public & synthetic only"
+      color="text.secondary"
+      title={label}
+      aria-label={label}
     >
       <ShieldCheck size={14} strokeWidth={2.25} aria-hidden="true" />
     </Box>

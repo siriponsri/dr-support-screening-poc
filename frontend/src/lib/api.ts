@@ -908,6 +908,9 @@ export async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit): 
   if (!response.ok) {
     throw new Error(normalizeApiDetail(body?.detail) || `Request failed with HTTP ${response.status}`);
   }
+  if (body == null) {
+    throw new Error('The server returned an invalid response. Reload and try again.');
+  }
   return body as T;
 }
 

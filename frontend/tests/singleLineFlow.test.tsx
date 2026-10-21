@@ -52,7 +52,7 @@ function json(body: unknown, status = 200) {
 
 interface FakeLog { method: string; path: string; body?: Record<string, unknown> }
 
-function fakeBackend(initial: CaseRecord[], options: { failAnnotationSave?: boolean } = {}) {
+function fakeBackend(initial: CaseRecord[], options: { failAnnotationSave?: boolean; failCaseList?: boolean } = {}) {
   const cases = new Map(initial.map((entry) => [entry.image_id, structuredClone(entry)]));
   const log: FakeLog[] = [];
   const hash = (entry: CaseRecord) => JSON.stringify([entry.human_annotations, entry.review_evidence?.items.map((i) => [i.status, i.corrected_label, i.corrected_rectangle])]);
@@ -67,7 +67,7 @@ function fakeBackend(initial: CaseRecord[], options: { failAnnotationSave?: bool
     const method = init?.method ?? 'GET';
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined;
     log.push({ method, path, body });
-    if (path === '/v1/cases') return json([...cases.values()].map(refresh));
+    if (path === '/v1/cases') return options.failCaseList ? json({ detail: 'Fixture queue failure' }, 503) : json([...cases.values()].map(refresh));
     if (path === '/v1/models') return json([]);
     const match = path.match(/^\/v1\/cases\/([^/]+)(?:\/(.*))?$/);
     if (!match) return json({ detail: 'not found' }, 404);
@@ -366,7 +366,7 @@ describe('Annotation Editor single-line completion', () => {
     pointer(svg, 'pointerUp', 140, 140);
     expect(screen.getByText('1 human annotation')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Back to Review' }));
-    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave image' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Save draft and leave' }));
     expect(await screen.findByText('Save failed')).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { name: 'Annotation Editor' }).length).toBeGreaterThan(0);
     expect(screen.getByText('1 human annotation')).toBeInTheDocument();
@@ -464,5 +464,20 @@ describe('Worklist admission gate', () => {
     await user.click(screen.getByRole('button', { name: /More actions for/ }));
     expect(screen.queryByText('Open Review without confirming')).not.toBeInTheDocument();
     expect(document.querySelector('a[href="/review/case-1"]')).not.toBeInTheDocument();
+  });
+});
+
+
+describe('Completion navigation recovery', () => {
+  it('keeps the saved image and never claims the queue is complete when queue loading fails', async () => {
+    const options = { failCaseList: false };
+    fakeBackend([baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade })], options);
+    renderAppAt('/edit/case-1');
+    const finish = await screen.findByRole('button', { name: 'Finish - reviewed none found' });
+    options.failCaseList = true;
+    await userEvent.setup().click(finish);
+    expect(await screen.findByText('Image saved. The Worklist could not be loaded. Return to Worklist and retry.')).toBeInTheDocument();
+    expect(screen.queryByText('Case complete · Every Worklist image is complete')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: 'Annotation Editor' }).length).toBeGreaterThan(0);
   });
 });

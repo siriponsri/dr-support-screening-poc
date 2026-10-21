@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useActiveCaseSession } from '@/hooks/useActiveCaseSession';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -136,7 +137,7 @@ function Assessment({ item }: { item: CaseRecord }) {
       <HStack justify="space-between" align="flex-start">
         <Stack spacing={1}>
           <Text fontSize="sm" color="text.secondary">System-predicted DR grade</Text>
-          <Heading size="lg">{item.global.grade === null ? item.global.state : (drGradeLabel(item.global.grade) ?? 'Grade available')}</Heading>
+          <Heading size="lg">{item.global.grade === null ? clinicianResultState(item.global.state) : (drGradeLabel(item.global.grade) ?? 'Grade available')}</Heading>
         </Stack>
       <StatusBadge tone={item.global.state === 'AI_SUGGESTION' ? 'info' : 'warning'}>{clinicianResultState(item.global.state)}</StatusBadge>
       </HStack>
@@ -153,6 +154,7 @@ function Assessment({ item }: { item: CaseRecord }) {
 
 function LesionSuggestions({ item }: { item: CaseRecord }) {
   if (!item.lesion) return <Text color="text.secondary">Not analyzed</Text>;
+  if (item.lesion.state === 'UNSUPPORTED') return <Text color="status.warning">Lesion assistance is unavailable for this image. Continue with manual review.</Text>;
   const lesions = item.lesion.lesions;
   const counts = lesions.reduce<Record<string, number>>((result, lesion) => {
     result[lesion.canonical_label] = (result[lesion.canonical_label] ?? 0) + 1;
@@ -168,7 +170,7 @@ function LesionSuggestions({ item }: { item: CaseRecord }) {
         <Text fontSize="sm" color="text.secondary">Suggested classes</Text>
         {Object.keys(counts).length ? Object.entries(counts).map(([label, count]) => (
           <HStack key={label} justify="space-between"><Text>{LESION_DISPLAY_LABELS[label] ?? label.replace(/_/g, ' ')}</Text><Badge variant="info">{count}</Badge></HStack>
-        )) : <Text color="text.secondary">No lesion suggestions</Text>}
+        )) : <Text color="text.secondary">No AI regions returned. This does not establish absence of lesions.</Text>}
       </Stack>
       <Text fontSize="xs" color="text.muted">Raw AI suggestions by class. Optional visual assistance; no per-detection action is required.</Text>
       <Text fontSize="xs" color="text.muted">Model: {item.lesion.model_id} - {item.lesion.model_version}</Text>
@@ -348,6 +350,12 @@ function modelDomainWarningLabel(item: CaseRecord): string {
 }
 
 export function ReviewPage() {
+  const { imageId } = useParams<{ imageId: string }>();
+  return <ReviewPageSession key={imageId ?? ''} />;
+}
+
+function ReviewPageSession() {
+  const isActive = useActiveCaseSession();
   const location = useLocation();
   const { pathname } = location;
   const navigate = useNavigate();
@@ -370,21 +378,26 @@ export function ReviewPage() {
   const [comparison, setComparison] = useState<ComparisonResponse | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
+  const [comparisonCasesLoading, setComparisonCasesLoading] = useState(false);
+  const [comparisonCasesError, setComparisonCasesError] = useState<string | null>(null);
+  const comparisonGeneration = useRef(0);
+  const candidateGeneration = useRef(0);
   const [confirmDialog, confirm] = useConfirmDialog();
 
-  const loadCase = useCallback(async (): Promise<CaseRecord | null> => {
+  const loadCase = useCallback(async (requestIsCurrent: () => boolean = isActive): Promise<CaseRecord | null> => {
     if (!imageId) return null;
     setLoading(true);
     setError(null);
     try {
       const nextCase = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
+      if (!isActive() || !requestIsCurrent()) return null;
       setItem(nextCase);
       return nextCase;
     } catch (err) {
-      setError(errorText(err));
+      if (isActive() && requestIsCurrent()) setError(errorText(err));
       return null;
     } finally {
-      setLoading(false);
+      if (isActive() && requestIsCurrent()) setLoading(false);
     }
   }, [imageId]);
 
@@ -398,10 +411,12 @@ export function ReviewPage() {
   }, []);
 
   useEffect(() => {
-    void loadCase();
+    let current = true;
+    void loadCase(() => current);
     void loadModels();
     setImageView('original');
     setMaskOverlayLoadError(false);
+    return () => { current = false; };
   }, [loadCase, loadModels]);
 
   const handleMaskOverlayError = useCallback(() => {
@@ -434,6 +449,7 @@ export function ReviewPage() {
           body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: globalModel.model_id }),
         });
       }
+      if (!isActive()) return;
       if (lesionModel) {
         setProgress(`Running ${lesionModel.model_id} lesion localization...`);
         await apiJson<unknown>('/v1/infer/lesion-roi', {
@@ -442,11 +458,14 @@ export function ReviewPage() {
           body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: lesionModel.model_id }),
         });
       }
+      if (!isActive()) return;
       setProgress('Reloading returned case results...');
       const refreshed = await loadCase();
+      if (!isActive()) return;
       setImageView(refreshed?.prism_processing?.processing_mode === 'PREPARED' ? 'prism-field' : 'original');
       await loadModels();
     } catch (err) {
+      if (!isActive()) return;
       setAnalysisError(errorText(err));
       setImageView('original');
       await loadCase();
@@ -513,10 +532,12 @@ export function ReviewPage() {
 
   const loadComparisonCases = async () => {
     if (!item || !comparisonIdentityResolved) return;
-    setComparisonLoading(true);
-    setComparisonError(null);
+    const generation = ++candidateGeneration.current;
+    setComparisonCasesLoading(true);
+    setComparisonCasesError(null);
     try {
       const cases = await apiJson<CaseRecord[]>('/v1/cases');
+      if (!isActive() || generation !== candidateGeneration.current) return;
       setComparisonCases(cases.filter((candidate) => (
         candidate.image_id !== item.image_id
         && candidate.patient_resolution_state === 'RESOLVED'
@@ -524,71 +545,68 @@ export function ReviewPage() {
         && candidate.laterality_resolution_state === 'RESOLVED'
         && candidate.laterality === item.laterality
         && candidate.modality === item.modality
-        && candidate.visit_context?.capture_sequence !== null
+        && candidate.visit_context?.capture_sequence != null
       )));
     } catch (err) {
-      setComparisonError(errorText(err));
+      if (isActive() && generation === candidateGeneration.current) setComparisonCasesError(errorText(err));
     } finally {
-      setComparisonLoading(false);
+      if (isActive() && generation === candidateGeneration.current) setComparisonCasesLoading(false);
     }
   };
 
-  const runComparison = async () => {
-    if (!item || !comparisonCaseId) return;
+  const requestComparison = useCallback(async (otherId?: string, openWhenEligible = false) => {
+    if (!item || !comparisonIdentityResolved) return;
+    const generation = ++comparisonGeneration.current;
+    const current = () => isActive() && generation === comparisonGeneration.current;
     setComparisonLoading(true);
     setComparisonError(null);
+    setComparison(null);
+    if (!otherId) setComparisonCaseId('');
     try {
-      setComparison(await apiJson<ComparisonResponse>(`/v1/cases/${encodeURIComponent(item.image_id)}/comparison?other_image_id=${encodeURIComponent(comparisonCaseId)}`));
+      const query = otherId ? `?other_image_id=${encodeURIComponent(otherId)}` : '';
+      const result = await apiJson<ComparisonResponse>(`/v1/cases/${encodeURIComponent(item.image_id)}/comparison${query}`);
+      if (!current()) return;
+      if (result.eligible) {
+        const visits = result.visits ?? [];
+        const ids = visits.map((visit) => visit.image_id);
+        if (visits.length !== 2 || new Set(ids).size !== 2 || !ids.includes(item.image_id)
+          || (otherId && !ids.includes(otherId))
+          || visits.some((visit) => visit.laterality !== item.laterality || visit.modality !== item.modality)) {
+          throw new Error('Comparison response does not match the requested image pair. Reload and try again.');
+        }
+      }
+      setComparison(result);
+      if (openWhenEligible && result.eligible) setComparisonOpen(true);
     } catch (err) {
+      if (!current()) return;
       setComparisonError(errorText(err));
       setComparison(null);
     } finally {
-      setComparisonLoading(false);
+      if (current()) setComparisonLoading(false);
     }
-  };
+  }, [item?.image_id, item?.revision, item?.laterality, item?.modality, comparisonIdentityResolved, isActive]);
 
-  const runAutomaticComparison = async () => {
-    if (!item) return;
-    setComparisonLoading(true);
+  const selectComparison = (otherId: string) => {
+    // Changing selection invalidates the old pair before a new request begins.
+    comparisonGeneration.current += 1;
+    setComparisonCaseId(otherId);
+    setComparison(null);
     setComparisonError(null);
-    try {
-      setComparison(await apiJson<ComparisonResponse>(`/v1/cases/${encodeURIComponent(item.image_id)}/comparison`));
-    } catch (err) {
-      setComparisonError(errorText(err));
-      setComparison(null);
-    } finally {
-      setComparisonLoading(false);
-    }
+    setComparisonLoading(false);
   };
 
-  // Pairing is automatic for a verified longitudinal case. The clinician can
-  // still open the panel and choose an explicit alternate pair when needed;
-  // this request only locates the safe immediate-prior exam and never infers
-  // progression or pixel correspondence.
+  // One generation spans effect/manual/automatic requests; only the latest
+  // requested pair may settle result, error or loading. No progression inferred.
   useEffect(() => {
-    if (!item || !comparisonIdentityResolved) {
+    if (!comparisonIdentityResolved) {
+      comparisonGeneration.current += 1;
       setComparison(null);
+      setComparisonLoading(false);
       return undefined;
     }
-    let cancelled = false;
-    setComparisonLoading(true);
-    setComparisonError(null);
-    void apiJson<ComparisonResponse>(`/v1/cases/${encodeURIComponent(item.image_id)}/comparison`)
-      .then((result) => {
-        if (cancelled) return;
-        setComparison(result);
-        if (result.eligible) setComparisonOpen(true);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setComparisonError(errorText(err));
-        setComparison(null);
-      })
-      .finally(() => {
-        if (!cancelled) setComparisonLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [comparisonIdentityResolved, item?.image_id, item?.revision]);
+    void requestComparison(undefined, true);
+    return () => { comparisonGeneration.current += 1; candidateGeneration.current += 1; };
+  }, [comparisonIdentityResolved, requestComparison]);
 
   const manualOnly = !hasRecordedEvidence && (
     origin === 'WORKSPACE'
@@ -795,16 +813,18 @@ export function ReviewPage() {
               ) : (
                 <>
                   <HStack flexWrap="wrap" spacing={3}>
-                    <Button size="sm" variant="solid" onClick={() => void runAutomaticComparison()} isLoading={comparisonLoading}>Find previous exam</Button>
+                    <Button aria-label="Find previous exam" size="sm" variant="solid" onClick={() => void requestComparison()} isLoading={comparisonLoading}>Find previous exam</Button>
                     <Text fontSize="xs" color="text.secondary">Current: {item.laterality} · {item.modality} · exam {item.visit_context?.capture_sequence ?? 'unverified'}</Text>
                   </HStack>
                   <HStack align="end" flexWrap="wrap" spacing={3}>
-                    <Select aria-label="Comparison visit" maxW="360px" value={comparisonCaseId} onChange={(event) => setComparisonCaseId(event.target.value)}>
+                    <Select aria-label="Comparison visit" maxW="360px" value={comparisonCaseId} onChange={(event) => selectComparison(event.target.value)}>
                       <option value="">Choose another resolved visit</option>
                       {comparisonCases.map((candidate) => <option key={candidate.image_id} value={candidate.image_id}>{candidate.display_name}</option>)}
                     </Select>
-                    <Button size="sm" variant="outline" onClick={() => void runComparison()} isLoading={comparisonLoading} isDisabled={!comparisonCaseId}>Compare</Button>
+                    <Button aria-label="Compare" size="sm" variant="outline" onClick={() => void requestComparison(comparisonCaseId)} isLoading={comparisonLoading} isDisabled={!comparisonCaseId}>Compare</Button>
                   </HStack>
+                  {comparisonCasesLoading && <Text fontSize="sm" role="status">Loading comparison visits…</Text>}
+                  {comparisonCasesError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{comparisonCasesError}</Text></Alert>}
                   {comparisonError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{comparisonError}</Text></Alert>}
                   {comparison && !comparison.eligible && <Alert status="warning"><AlertIcon /><Text fontSize="sm">This pair is not eligible for side-by-side review.</Text></Alert>}
                   {comparison?.eligible && comparison.visits && (
