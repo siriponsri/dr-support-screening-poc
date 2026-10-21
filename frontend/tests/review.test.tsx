@@ -156,6 +156,7 @@ function mockReviewApi(onReview?: (request: Record<string, unknown>) => void, cu
     const path = requestPath(input);
     if (path === '/v1/cases/ready') return jsonResponse(currentCase);
     if (path === '/v1/cases') return jsonResponse([currentCase]);
+    if (path === '/v1/infer/global') return jsonResponse({ state: 'AI_SUGGESTION' });
     if (path === '/v1/cases/ready/review') {
       expect(init?.method).toBe('POST');
       const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -180,6 +181,22 @@ function mockReviewApi(onReview?: (request: Record<string, unknown>) => void, cu
 }
 
 describe('Review responsibility boundary', () => {
+  it('runs global grading separately and never silently submits PRISM without a bound preview', async () => {
+    const requests = mockReviewApi(undefined, readyCase, [
+      { model_id: 'retfound-aptos5', task: 'global', modalities: ['CFP'], status: 'LOADED' },
+      { model_id: 'prism-dr-5fold', task: 'lesion-roi', modalities: ['CFP'], status: 'LOADED', release_status: 'RESEARCH_ONLY' },
+    ]);
+    renderAppAt('/review/ready');
+    const grading = await screen.findByRole('button', { name: 'Analyze grading only' });
+    await userEvent.setup().click(grading);
+    await waitFor(() => expect(grading).not.toBeDisabled());
+    const mutations = requests.mock.calls.filter(([, options]) => options?.method === 'POST').map(([input]) => requestPath(input));
+    expect(mutations).toEqual(['/v1/infer/global']);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Preview PRISM input' }));
+    expect(screen.getByText('PRISM input preview unavailable')).toBeInTheDocument();
+    expect(requests.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1);
+  });
+
   it('shows unsupported assistance separately from an empty successful lesion result', async () => {
     mockReviewApi(undefined, { ...readyCase, global: { ...readyCase.global!, grade: null, confidence: null, state: 'UNSUPPORTED' }, lesion: { ...readyCase.lesion!, state: 'UNSUPPORTED', lesions: [] } });
     renderAppAt('/review/ready');
@@ -231,7 +248,7 @@ describe('Review responsibility boundary', () => {
     mockReviewApi(undefined, processingCase);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByText('Retinal-field mask recorded; no fallback used')).toBeInTheDocument();
+    expect(await screen.findByText('Retinal-field mask recorded; applied status is not established')).toBeInTheDocument();
     expect(screen.getByText('Deterministic bounded retinal-field mask')).toBeInTheDocument();
     expect(screen.getByText('RGB model transform fixture')).toBeInTheDocument();
     expect(screen.getByText('Separate records; linkage not verified')).toBeInTheDocument();
@@ -251,11 +268,11 @@ describe('Review responsibility boundary', () => {
     mockReviewApi(undefined, unavailableCase);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByText('Mask preparation failed; Original remains available; PRISM may use fallback processing')).toBeInTheDocument();
+    expect(await screen.findByText('Mask preparation failed; Original remains available; PRISM input is not established')).toBeInTheDocument();
     expect(screen.getByLabelText('Mask status')).toHaveTextContent('Unavailable');
     expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Mask preview' }));
-    expect(screen.getByText(/A mask preview is unavailable.*PRISM may still attempt inference/i)).toBeInTheDocument();
+    expect(screen.getByText(/A mask preview is unavailable.*PRISM submission requires/i)).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Continue with original' }));
     expect(screen.getByRole('button', { name: 'Original' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('Unavailable - no transform recorded')).toBeInTheDocument();
@@ -329,7 +346,7 @@ describe('Review responsibility boundary', () => {
     renderAppAt('/review/ready');
 
     expect(await screen.findByRole('heading', { name: 'Analysis' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Analyze' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Analyze/ })).toBeDisabled();
     expect(screen.getByText('Not recorded')).toBeInTheDocument();
   });
 
@@ -466,12 +483,12 @@ describe('Review responsibility boundary', () => {
     };
   }
 
-  it('shows the exact source-bound prepared PRISM field while keeping AI READY primary', async () => {
+  it('shows previous source-bound PRISM field while requiring a new bound input preview', async () => {
     const preparedCase = prismUwfCase('PREPARED');
     mockReviewApi(undefined, preparedCase, [prismUwfDescriptor]);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('AI READY');
+    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('PRISM PREVIEW REQUIRED');
     expect(screen.queryByText('AI UNAVAILABLE')).not.toBeInTheDocument();
     const fieldButton = screen.getByRole('button', { name: 'PRISM analysis field' });
     expect(fieldButton).toBeEnabled();
@@ -490,12 +507,12 @@ describe('Review responsibility boundary', () => {
     expect(screen.getByText('PREPARED')).toBeInTheDocument();
   });
 
-  it('keeps FALLBACK image unbounded, AI READY, and the mode in Processing details only', async () => {
+  it('keeps previous FALLBACK image unbounded and requires a new bound input preview', async () => {
     const fallbackCase = prismUwfCase('FALLBACK');
     mockReviewApi(undefined, fallbackCase, [prismUwfDescriptor]);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('AI READY');
+    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('PRISM PREVIEW REQUIRED');
     expect(screen.queryByRole('button', { name: 'PRISM analysis field' })).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /PRISM analysis boundary/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Original' })).toHaveAttribute('aria-pressed', 'true');

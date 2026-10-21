@@ -286,6 +286,8 @@ export interface CaseRecord {
   image_url: string | null;
   source_image_url?: string | null;
   source_sha256?: string | null;
+  /** Proposed read-only preview DTO; absent on the current server. Never authorizes inference. */
+  prism_input_preview?: unknown;
   analysis_derivative?: AnalysisDerivativeAudit | null;
   prism_processing?: PrismProcessingEvidence | null;
   analysis_preparation?: {

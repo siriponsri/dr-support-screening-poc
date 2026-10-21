@@ -24,6 +24,7 @@ import { Section } from '@/components/common/Section';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { RetinalCanvas, LESION_COLORS } from '@/components/review/RetinalCanvas';
 import { PrismAnalysisFieldOverlay } from '@/components/review/PrismAnalysisFieldOverlay';
+import { PrismInputPreview } from '@/components/review/PrismInputPreview';
 import { displayedLesions } from '@/components/review/lesionPresentation';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
 import { GuideHint } from '@/components/common/GuideHint';
@@ -35,6 +36,7 @@ import {
   type ModelDescriptor,
 } from '@/lib/api';
 import { isModelUsable } from '@/lib/modelCapabilities';
+import { requiresPrismPreview } from '@/lib/prismInputPreview';
 import { ArrowLeft, ChevronDown, ChevronUp, Play, UserRound } from '@/lib/icons';
 import { LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
 import { caseComplete } from '@/lib/caseProgress';
@@ -287,10 +289,10 @@ function selectedMaskLabel(item: CaseRecord): string {
       : 'Unavailable - mask needs review; Original/manual review only';
   }
   if (preparation?.status === 'FAILED') {
-    return 'Mask preparation failed; Original remains available; PRISM may use fallback processing';
+    return 'Mask preparation failed; Original remains available; PRISM input is not established';
   }
   if (audit?.retinal_field_status === 'READY' && audit.valid_retina_mask_sha256) {
-    return 'Retinal-field mask recorded; no fallback used';
+    return 'Retinal-field mask recorded; applied status is not established';
   }
   if (audit?.retinal_field_status === 'NOT_APPLICABLE') {
     return 'No mask recorded; source representation used';
@@ -313,7 +315,7 @@ function analysisPreparationNote(item: CaseRecord): string {
         ? 'A candidate mask is available in Mask preview for inspection only; it is not approved model input.'
         : 'No candidate mask is available; Original and manual review remain available.';
     case 'FAILED':
-      return 'Mask preparation failed; Original remains available. PRISM may still attempt inference using its fallback path.';
+      return 'Mask preparation failed; Original remains available. A bound preview is required before PRISM submission.';
     default:
       return 'No recorded analysis-area or mask representation is available; Original remains the review source.';
   }
@@ -434,8 +436,8 @@ function ReviewPageSession() {
     const origin = caseOrigin(item);
     const globalModel = selectedModel(models, 'global', item.modality, origin);
     const lesionModel = selectedModel(models, 'lesion-roi', item.modality, origin);
-    if (!globalModel && !lesionModel) {
-      if (!globalModel && !lesionModel) setAnalysisError('AI assistance is unavailable; manual review remains available.');
+    if (!globalModel && (!lesionModel || requiresPrismPreview(lesionModel))) {
+      setAnalysisError('AI assistance is unavailable without a bound PRISM preview; manual review remains available.');
       return;
     }
     setAnalyzing(true);
@@ -450,7 +452,7 @@ function ReviewPageSession() {
         });
       }
       if (!isActive()) return;
-      if (lesionModel) {
+      if (lesionModel && !requiresPrismPreview(lesionModel)) {
         setProgress(`Running ${lesionModel.model_id} lesion localization...`);
         await apiJson<unknown>('/v1/infer/lesion-roi', {
           method: 'POST',
@@ -480,11 +482,12 @@ function ReviewPageSession() {
   const origin = caseOrigin(item);
   const globalModel = selectedModel(models, 'global', item?.modality, origin);
   const lesionModel = selectedModel(models, 'lesion-roi', item?.modality, origin);
+  const prismNeedsPreview = requiresPrismPreview(lesionModel);
   const modelUnavailable = Boolean(models.length > 0 && !globalModel && !lesionModel);
   const analysisAllowed = admissionReady
     && item?.modality !== 'UNKNOWN'
     && ['PUBLIC', 'SYNTHETIC', 'HOSPITAL_AUTHORIZED'].includes(origin)
-    && Boolean(globalModel || lesionModel)
+    && Boolean(globalModel || (lesionModel && !prismNeedsPreview))
     && !modelError;
   const analysisPreparationStatus = item?.analysis_preparation?.status;
   const analysisCandidateAvailable = Boolean(analysisPreparationStatus === 'READY' && item?.analysis_preparation?.derivative);
@@ -522,6 +525,7 @@ function ReviewPageSession() {
     : undefined;
   const hasRecordedEvidence = Boolean(item?.global || item?.lesion);
   const aiReady = analysisAllowed && !analysisError;
+  const aiStatus = prismNeedsPreview && !globalModel ? 'PRISM PREVIEW REQUIRED' : aiReady ? 'AI READY' : 'AI UNAVAILABLE';
   const prismUwfResult = item?.modality === 'UWF' && item.lesion?.model_id === 'prism-dr-5fold';
   const comparisonIdentityResolved = Boolean(
     item?.patient_resolution_state === 'RESOLVED'
@@ -723,7 +727,7 @@ function ReviewPageSession() {
                 <AlertIcon />
                 <Stack spacing={1}>
                   <Text fontWeight="semibold">Mask preview unavailable</Text>
-                  <Text fontSize="sm">A mask preview is unavailable. The original image remains available; PRISM may still attempt inference using its fallback path.</Text>
+                  <Text fontSize="sm">A mask preview is unavailable. The original image remains available for review. PRISM submission requires a separately bound input preview.</Text>
                   <Button alignSelf="flex-start" size="sm" variant="outline" onClick={() => setImageView('original')}>Continue with original</Button>
                 </Stack>
               </Alert>
@@ -743,6 +747,7 @@ function ReviewPageSession() {
             {imageView === 'mask-overlay' && <MaskLegend />}
             <LesionLegend />
           </Stack>
+          {prismNeedsPreview && lesionModel && <PrismInputPreview key={item.image_id} item={item} model={lesionModel} />}
         </Section>
         <Stack spacing={5} minW={0}>
           {manualOnly ? (
@@ -761,9 +766,10 @@ function ReviewPageSession() {
               <Section
                 title="Analysis"
                 description="Optional model evidence; manual review remains available."
-                action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
+                action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{prismNeedsPreview ? 'Analyze grading only' : item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
               >
-                <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiReady ? 'AI READY' : 'AI UNAVAILABLE'}</StatusBadge></HStack>
+                <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiStatus}</StatusBadge></HStack>
+                {prismNeedsPreview && <Text fontSize="sm" mb={3}>Grading runs separately. PRISM submission is paused pending the preview-bound API; inspect “Preview PRISM input” beside the image. Existing results remain previous-run evidence.</Text>}
                 {prismUwfResult && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">Experimental PRISM UWF lesion assistance; not validated for UWF. Human review remains authoritative.</Text></Alert>}
                 {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
                 {modelUnavailable && hasRecordedEvidence && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">New analysis is unavailable. Recorded model evidence remains visible with its provenance and warnings.</Text></Alert>}
@@ -784,7 +790,7 @@ function ReviewPageSession() {
                 {!analysisError && !analyzing && item.modality === 'CFP' && admissionReady && (
                   item.global || item.lesion ? <Text fontSize="sm" color="text.secondary">Actual returned results are shown below.</Text> : (
                     <HStack spacing={2}>
-                      <StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiReady ? 'AI READY' : 'AI UNAVAILABLE'}</StatusBadge>
+                      <StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiStatus}</StatusBadge>
                       <Text fontSize="sm" color="text.secondary">Not analyzed</Text>
                     </HStack>
                   )
