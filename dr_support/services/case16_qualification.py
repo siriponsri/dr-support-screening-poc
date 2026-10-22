@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from threading import RLock
 
@@ -17,7 +18,8 @@ from .prism_remote_transport import TransportError, canonical, require_sha256
 SOURCE_SHA256 = "07bc59b885de06bdd0260c771aabde195c26125e824269a691eb566a61a5cd19"
 OWNER_REFERENCE = "Sentinel_d7d1e493dbd88191a76fad54af3abf37"
 EXPECTED_SIZE = (1920, 835)
-PROFILE = "AUTHORIZED_DEMO_CASE16_Q01"
+PROFILE = "AUTHORIZED_DEMO_CASE16_Q05_FINAL_REQUEST"
+RUN_REQUESTS = 1
 BASELINE_REASON = "NO_CENTER_ENCLOSING_WHITE_RIM"
 # Preserve the existing demo admission's origin. Authorization is NOT an origin.
 RECORDED_ORIGIN = "PUBLIC"
@@ -36,16 +38,25 @@ CLINICAL_FIELDS = (
     "lesion_review_state",
     "annotation_completeness",
     "annotations",
+    "admission",
+    "admission_history",
 )
 
 
 @dataclass(frozen=True)
 class Case16Authorization:
     owner_reference: str
+    technical_only: bool = False
 
     def __post_init__(self):
+        if type(self.technical_only) is not bool:
+            raise TransportError("TYPED_CASE16_TECHNICAL_MODE_REQUIRED")
         if self.owner_reference != OWNER_REFERENCE:
             raise TransportError("EXACT_CASE16_OWNER_REFERENCE_REQUIRED")
+
+    @property
+    def max_requests(self):
+        return RUN_REQUESTS
 
     @property
     def image_id(self):
@@ -57,14 +68,14 @@ class Case16Authorization:
 
     @property
     def attestation(self):
-        return {
+        value = {
             "profile": PROFILE,
             "owner_reference": OWNER_REFERENCE,
             "case_alias": "case16",
             "source_sha256": SOURCE_SHA256,
             "recorded_origin_preserved": RECORDED_ORIGIN,
-            "max_fresh_plans": 2,
-            "max_executions": 2,
+            "max_fresh_plans": self.max_requests,
+            "max_executions": self.max_requests,
             "applied_mask_allowed": False,
             "worker_seconds_including_cleanup_max": 600,
             "whole_session_seconds_max": 1800,
@@ -72,13 +83,24 @@ class Case16Authorization:
             "vram_mib_max": 10240,
             "rss_bytes_max": 24 * 1024**3,
         }
+        if self.technical_only:
+            value.update(
+                technical_only=True,
+                admission_state_preserved=True,
+                clinical_use=False,
+                new_quality_confirmation=False,
+                new_clinical_confirmation=False,
+            )
+        return value
 
     def eligible(self, admission):
+        qualities = {"GRADABLE", "NOT_EVALUATED", "NEEDS_REVIEW"} if self.technical_only else {"GRADABLE"}
+        modalities = {"FUNDUS_ACCEPTED", "NEEDS_REVIEW"} if self.technical_only else {"FUNDUS_ACCEPTED"}
         if (
             admission.get("source_origin") != self.origin
             or admission.get("retinal_modality") != "UWF"
-            or admission.get("modality_admission") != "FUNDUS_ACCEPTED"
-            or admission.get("quality_state") != "GRADABLE"
+            or admission.get("modality_admission") not in modalities
+            or admission.get("quality_state") not in qualities
         ):
             raise TransportError(
                 "CASE16_EXISTING_ELIGIBILITY_REQUIRED_NO_REVIEW_BYPASS"
@@ -169,7 +191,7 @@ class Case16Authorization:
             type(whole_session_seconds) not in (int, float)
             or not 0 < whole_session_seconds <= 1800
             or policy.model_id != "prism-dr-5fold"
-            or policy.max_jobs > 2
+            or policy.max_jobs > self.max_requests
             or policy.max_seconds + policy.drain_seconds > 600
             or policy.max_vram_mib > 10240
             or policy.max_rss_bytes > 24 * 1024**3
@@ -179,17 +201,25 @@ class Case16Authorization:
 
 def checked_authorization(value):
     if value is not None and type(value) is not Case16Authorization:
-        raise TransportError("TYPED_EXACT_CASE16_ATTESTATION_REQUIRED")
+        # Explicit offline batch opt-in only; no environment/HTTP mode flag and
+        # no duck typing. Absent batch package retains ordinary case16 policy.
+        try:
+            from prism_batch_scope import is_batch_authorization
+        except ImportError:
+            raise TransportError("TYPED_EXACT_CASE16_ATTESTATION_REQUIRED") from None
+        if not is_batch_authorization(value):
+            raise TransportError("TYPED_EXACT_CASE16_ATTESTATION_REQUIRED")
     return value
 
 
 class QualificationMemoryStore:
     """Only a copied case, no injectable production store/DB or human writer."""
 
-    def __init__(self, case, *, evidence):
+    def __init__(self, case, *, evidence, authorization=None):
         self.lock = RLock()
         self._case, self._original = deepcopy(case), deepcopy(case)
         self._evidence, self._writes = Path(evidence), 0
+        self._authorization = checked_authorization(authorization) or Case16Authorization(OWNER_REFERENCE)
 
     def get(self, key):
         if key != SOURCE_SHA256:
@@ -213,7 +243,7 @@ class QualificationMemoryStore:
                 )  # Existing initial hydration, no new AI evidence.
                 return
             if (
-                self._writes >= 2
+                self._writes >= self._authorization.max_requests
                 or len(current) != len(previous) + 1
                 or current[:-1] != previous
             ):
@@ -221,7 +251,7 @@ class QualificationMemoryStore:
             self._writes += 1
             # Only model evidence is persisted. No patient/context/review copy.
             payload = {
-                "attestation": Case16Authorization(OWNER_REFERENCE).attestation,
+                "attestation": self._authorization.attestation,
                 "output_number": self._writes,
                 "new_inference_evidence": current[-1],
             }
@@ -252,7 +282,7 @@ def authorized_case16_session(
     authorization.input(image, case, admission)
     root = Path(directory)
     if (
-        root.name != "case16-owned-qualification-q01"
+        re.fullmatch(r"case16-owned-qualification-q[0-9]{2}", root.name) is None
         or root.exists()
         or root.is_symlink()
     ):
@@ -260,7 +290,7 @@ def authorized_case16_session(
     root.mkdir(mode=0o700)  # Never adopt/overwrite a previous run.
     from .prism_fixed_session import FixedQASession
 
-    storage = QualificationMemoryStore(case, evidence=root / "testdata")
+    storage = QualificationMemoryStore(case, evidence=root / "testdata", authorization=authorization)
     session = FixedQASession(
         root / "journal",
         store=storage,
@@ -270,6 +300,21 @@ def authorized_case16_session(
         authenticated_status_reader=authenticated_status_reader,
         demo_authorization=authorization,
     )
-    with (root / "AUTHORIZATION.json").open("x", encoding="utf-8") as output:
-        json.dump(authorization.attestation, output, sort_keys=True)
+    try:
+        with (root / "AUTHORIZATION.json").open("x", encoding="utf-8") as output:
+            json.dump(authorization.attestation, output, sort_keys=True)
+    except BaseException as error:
+        close_failed_session(session, error)
+        raise
     return session
+
+
+def close_failed_session(session, error):
+    """Preserve construction failure and explicit cleanup proof independently."""
+    try:
+        session.close()
+    except BaseException:
+        blocked = TransportError('LOCAL_SESSION_CLEANUP_UNCONFIRMED', 503)
+        blocked.cleanup_unconfirmed = True
+        raise blocked from None
+    error.local_session_cleanup_confirmed = True

@@ -7,10 +7,12 @@ import json
 
 from .source_identity import source_identity_reason
 
-POLICY = "grading-folders.v1"
+SCHEMA = "grading-folders.v1"
+POLICY = "grading-folders.v2-authorized-local-physician-organization"
 GROUPS = ("Grade0", "Grade1", "Grade2", "Grade3", "Grade4", "UNREVIEWED", "UNGRADABLE", "UNDETERMINED")
 FORMATS = {"image/png": ".png", "image/jpeg": ".jpg", "image/tiff": ".tif", "application/dicom": ".dcm"}
-AUTHORIZATIONS = {"PUBLIC": "ALLOWED_ENGINEERING_PUBLIC", "SYNTHETIC": "ALLOWED_ENGINEERING_SYNTHETIC"}
+AUTHORIZATIONS = {"PUBLIC": "ALLOWED_ENGINEERING_PUBLIC", "SYNTHETIC": "ALLOWED_ENGINEERING_SYNTHETIC",
+                  "HOSPITAL_AUTHORIZED": "ALLOWED_LOCAL_AUTHORIZED_HOSPITAL"}
 
 
 class GradingFolderError(ValueError):
@@ -38,12 +40,16 @@ def _copy_path(group, full_hash, extension, data, files):
 
 
 def _group(case, row, image, admission):
-    if (case.get("grade_status") == "UNGRADABLE" or admission.get("quality_state") == "UNGRADABLE"):
+    if case.get("grade_status") == "UNGRADABLE":
         return "UNGRADABLE", None, "UNGRADABLE"
-    if (case.get("grade_status") == "NEEDS_SECOND_REVIEW" or admission.get("quality_state") == "NEEDS_REVIEW"):
+    if case.get("grade_status") == "NEEDS_SECOND_REVIEW":
         return "UNDETERMINED", None, "REVIEW_REQUIRED"
     review = case.get("clinician_review") or {}
     if case.get("grade_status") != "CONFIRMED":
+        if admission.get("quality_state") == "UNGRADABLE":
+            return "UNGRADABLE", None, "UNGRADABLE"
+        if admission.get("quality_state") == "NEEDS_REVIEW":
+            return "UNDETERMINED", None, "REVIEW_REQUIRED"
         return "UNREVIEWED", None, "NO_CURRENT_CONFIRMED_GRADE"
     grade = review.get("final_grade")
     try:
@@ -51,7 +57,9 @@ def _group(case, row, image, admission):
         timestamp_valid = stamp.utcoffset() is not None
     except ValueError:
         timestamp_valid = False
-    if (row.get("dr_grade_training_ready") is not True or type(grade) is not int or grade not in range(5)
+    # Organizing a recorded physician grade is independent of training/gold
+    # eligibility. The dataset exporter must retain the latter's actual value.
+    if (type(grade) is not int or grade not in range(5)
             or grade != row.get("clinician_grade") or grade != case.get("reviewed_grade")
             or review.get("review_action") not in {"ACCEPT", "CORRECT_GRADE", "ADJUDICATE_GRADE"}
             or not review.get("reviewer") or not timestamp_valid
@@ -93,7 +101,7 @@ def plan_grading_folders(cases, rows, sources, admissions) -> GradingFolderPlan:
                 or admission.get("source_origin") != origin
                 or (live_admission is not None and live_admission.get("source_origin") != origin)
                 or (image is not None and image.source_origin not in {origin, "UNKNOWN"})):
-            raise GradingFolderError("Grading-folder export requires existing public/synthetic engineering authorization; hospital export remains disabled.")
+            raise GradingFolderError("Grading-folder export requires matching admitted source authorization for local copies.")
         review = case.get("clinician_review") or {}
         item = dict(record_key=_opaque(image_id), source_sha256=row.get("source_sha256"),
                     case_revision=case.get("revision"), group="UNDETERMINED", confirmed_grade=None,
@@ -159,8 +167,9 @@ def plan_grading_folders(cases, rows, sources, admissions) -> GradingFolderPlan:
         item.update(output_path=relative, output_sha256=digest(data))
     counts = Counter(item["group"] for item in items if item["output_path"])
     skipped = Counter(item["reason"] for item in items if not item["output_path"])
-    manifest = dict(schema_version=POLICY, policy_version=POLICY,
+    manifest = dict(schema_version=SCHEMA, policy_version=POLICY,
                     status="READY" if files else "NO_COPYABLE_SOURCES", source_immutability="COPY_ONLY_ORIGINAL_BYTES",
+                    export_scope="LOCAL_OWNER_AUTHORIZED_SOURCES_ONLY; NO_NETWORK_TRANSFER",
                     record_count=len(items), file_count=len(files), copy_bytes=sum(map(len, files.values())),
                     group_counts={group: counts[group] for group in GROUPS}, skipped_count=sum(skipped.values()),
                     skipped_reasons=dict(sorted(skipped.items())),

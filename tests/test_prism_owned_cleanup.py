@@ -87,37 +87,51 @@ def test_real_watchdog_object_thread_start_failure_still_confirms_owned_cleanup(
     assert confirmed == [True] and not child.alive and session.watchdog.done.is_set()
 
 
-def test_sampler_commands_share_half_second_budget(tmp_path, monkeypatch):
+def test_cached_monitor_reads_share_half_second_resource_budget(tmp_path, monkeypatch):
     now = [10.0]
-    timeouts = []
-    def run(argv, **kwargs):
-        timeouts.append(kwargs['timeout'])
+    calls = []
+    def gpu_sample():
+        calls.append('gpu')
+        measured = now[0]
         now[0] += .18
-        return SimpleNamespace(stdout='GPU-fixture-00000000, 123' if argv[0] == 'nvidia-smi' else '456 project')
-    monkeypatch.setattr(linux.subprocess, 'run', run)
+        return dict(gpu_uuid='GPU-fixture-00000000', vram_mib=123, gpu_observed_at=measured)
+    def disk_sample():
+        calls.append('disk'); now[0] += .18
+        return 456
+    monkeypatch.setattr(linux.subprocess, 'run', lambda *a, **k:pytest.fail('No per-tick subprocess scan'))
     monkeypatch.setattr(linux.Path, 'read_text', lambda self:'VmRSS: 8 kB\n')
-    sample = linux.LinuxResources(tmp_path, clock=lambda:now[0])(77)
+    sample = linux.LinuxResources(tmp_path, clock=lambda:now[0],
+        gpu_monitor=SimpleNamespace(sample=gpu_sample, failure_detail=None),
+        disk_monitor=SimpleNamespace(sample=disk_sample, failure_detail=None))(77)
     assert sample['rss_bytes'] == 8192 and sample['vram_mib'] == 123
-    assert timeouts == [.2, .2] and now[0] < 10.5
+    assert sample['gpu_observed_at'] == 10.0
+    assert calls == ['gpu', 'disk'] and now[0] < 10.5
 
 
-def test_sampler_late_first_command_cannot_start_second(tmp_path, monkeypatch):
+def test_late_gpu_monitor_read_cannot_start_disk_read(tmp_path, monkeypatch):
     now, calls = [10.0], []
-    def slow(argv, **kwargs):
-        calls.append(argv[0]); now[0] += .51
-        return SimpleNamespace(stdout='GPU-fixture-00000000, 123')
-    monkeypatch.setattr(linux.subprocess, 'run', slow)
+    def slow():
+        calls.append('gpu'); now[0] += .51
+        return dict(gpu_uuid='GPU-fixture-00000000', vram_mib=123, gpu_observed_at=10.0)
+    def disk():
+        pytest.fail('Expired sample cannot continue to disk read')
     with pytest.raises(RuntimeError, match='RESOURCE_SAMPLE_DEADLINE'):
-        linux.LinuxResources(tmp_path, clock=lambda:now[0])(77)
-    assert calls == ['nvidia-smi']
+        linux.LinuxResources(tmp_path, clock=lambda:now[0],
+            gpu_monitor=SimpleNamespace(sample=slow, failure_detail=None),
+            disk_monitor=SimpleNamespace(sample=disk, failure_detail=None))(77)
+    assert calls == ['gpu']
 
 
-def test_sampler_shrinks_second_timeout_and_rejects_late_result(tmp_path, monkeypatch):
-    now, timeouts = [10.0], []
-    def late(argv, **kwargs):
-        timeouts.append(kwargs['timeout']); now[0] += .4 if len(timeouts) == 1 else .11
-        return SimpleNamespace(stdout='GPU-fixture-00000000, 123' if len(timeouts) == 1 else '456 project')
-    monkeypatch.setattr(linux.subprocess, 'run', late)
+def test_late_disk_monitor_result_is_rejected_before_rss_read(tmp_path, monkeypatch):
+    now = [10.0]
+    def gpu():
+        now[0] += .4
+        return dict(gpu_uuid='GPU-fixture-00000000', vram_mib=123, gpu_observed_at=10.0)
+    def disk():
+        now[0] += .11
+        return 456
+    monkeypatch.setattr(linux.Path, 'read_text', lambda self:pytest.fail('Late sample cannot read RSS'))
     with pytest.raises(RuntimeError, match='RESOURCE_SAMPLE_DEADLINE'):
-        linux.LinuxResources(tmp_path, clock=lambda:now[0])(77)
-    assert timeouts[0] == .2 and 0 < timeouts[1] < .101
+        linux.LinuxResources(tmp_path, clock=lambda:now[0],
+            gpu_monitor=SimpleNamespace(sample=gpu, failure_detail=None),
+            disk_monitor=SimpleNamespace(sample=disk, failure_detail=None))(77)

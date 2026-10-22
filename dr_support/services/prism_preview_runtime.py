@@ -230,5 +230,6 @@ class ReviewPrismPreview:
         applied = session.commit_result(save) if session is not None else save()
         return {"status": "STALE_RESULT" if applied is False else "APPLIED",
                 "result": result.model_dump(mode="json"),
+                "processing_evidence": processing,
                 "preview_receipt": {"plan_id": binding["plan_id"], "plan_sha256": plan_hash,
                                     "wire_sha256": binding["wire_sha256"]}}

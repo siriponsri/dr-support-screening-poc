@@ -293,11 +293,15 @@ def _actual_save_result(rig):
     import ast
     from datetime import datetime, timezone
     from uuid import uuid4
+    from dr_support.contracts import PrismProcessingEvidence
     source = (Path(__file__).parents[1] / "dr_support/api/_factory.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
     function = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "save_result")
     module = ast.Module(body=[function], type_ignores=[])
     globals_ = {"app": rig.app, "datetime": datetime, "timezone": timezone, "uuid4": uuid4,
+                "qa_batch_profile": None,
+                "PrismProcessingEvidence": PrismProcessingEvidence,
+                "deepcopy": deepcopy,
                 "descriptor_for": lambda model: {"capability_id": "fixture"},
                 "RemoteModelProvider": type("UnusedRemote", (), {})}
     exec(compile(ast.fix_missing_locations(module), "reviewed_save_result_memory_fixture", "exec"), globals_)

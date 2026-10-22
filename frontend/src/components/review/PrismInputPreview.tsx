@@ -3,12 +3,13 @@ import { Alert, AlertIcon, Box, Button, Checkbox, Code, HStack, Image, SimpleGri
 import { apiJson, type CaseRecord, type ModelDescriptor } from '@/lib/api';
 import { loadPreviewAsset, previewContextKey, validatePrismPreview, type PrismInputPreview as PreviewPlan } from '@/lib/prismInputPreview';
 import { localTiming, type TimingSpan } from '@/lib/localTiming';
+import { ArtifactFieldPreview } from './ArtifactFieldPreview';
 
-interface Props { item: CaseRecord; model: ModelDescriptor; onInferenceComplete?: () => void | Promise<void> }
+interface Props { item: CaseRecord; model: ModelDescriptor; onInferenceComplete?: () => void | Promise<void>; technicalBatch?: boolean; showArtifactField?: boolean }
 interface Assets { key: string; original: string; input: string; overlay: string | null }
 
-/** Read-only preparation view. It never calls an inference or clinical-action API. */
-export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
+/** Bound preparation view; inference requires a separate explicit one-use click. */
+export function PrismInputPreview({ item, model, onInferenceComplete, technicalBatch = false, showArtifactField = true }: Props) {
   const [open, setOpen] = useState(false);
   const [assets, setAssets] = useState<Assets | null>(null);
   const [error, setError] = useState<{ key: string; message: string } | null>(null);
@@ -23,6 +24,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
   const [acceptedKey, setAcceptedKey] = useState<string | null>(null);
   const [submittedKey, setSubmittedKey] = useState<string | null>(null);
   const action = useRef<{ controller: AbortController; context: string } | null>(null);
+  const technicalPrepared = useRef(false);
   const assetTiming = useRef<{ key: string; span: TimingSpan; loaded: Set<string> } | null>(null);
   const value = prepared?.context === context ? prepared.value : item.prism_input_preview;
   const key = context + JSON.stringify(value);
@@ -37,7 +39,8 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
   }, [context]);
 
   const prepare = async () => {
-    if (action.current) return;
+    if (action.current || (technicalBatch && technicalPrepared.current)) return;
+    if (technicalBatch) technicalPrepared.current = true;
     const current = { controller: new AbortController(), context };
     action.current = current;
     setBusy(true);
@@ -142,13 +145,15 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
   };
   return (
     <Stack spacing={3} borderTopWidth="1px" borderColor="border.subtle" pt={4} mt={4} aria-label="Pre-submission PRISM preview">
-      <Button alignSelf="flex-start" size="sm" variant="outline" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      {showArtifactField && <ArtifactFieldPreview item={item} />}
+      <Button data-testid="prism-preview-toggle" alignSelf="flex-start" size="sm" variant="outline" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         {open ? 'Hide PRISM input preview' : 'Preview PRISM input'}
       </Button>
       <Text fontSize="xs" color="text.secondary">PRISM requires a server-verified, one-use input receipt. Providers without frozen-plan support remain unavailable. Global grading and manual review remain separate.</Text>
       {open && <>
-        <Button alignSelf="flex-start" size="sm" variant="outline" isLoading={busy} onClick={() => void prepare()}>Prepare / refresh API input</Button>
-        {actionError?.context === context && <Alert status="error"><AlertIcon /><Text>{actionError.message} Prepare a new receipt before another attempt.</Text></Alert>}
+        <Button data-testid="prism-preview-prepare" alignSelf="flex-start" size="sm" variant="outline" isLoading={busy} isDisabled={technicalBatch && technicalPrepared.current} onClick={() => void prepare()}>Prepare / refresh API input</Button>
+        {technicalBatch && busy && <Text data-testid="qa-batch-busy">Technical PRISM operation in progress</Text>}
+        {actionError?.context === context && <Alert status="error"><AlertIcon /><Text>{actionError.message} {technicalBatch ? 'This technical attempt failed or is uncertain; no retry is permitted.' : 'Prepare a new receipt before another attempt.'}</Text></Alert>}
         <Text fontSize="sm">Optical FOV is the camera field; an artifact mask excludes selected pixels; native ROI is PRISM’s internal crop. None is a lesion box or a clinical grade.</Text>
         {(unavailable || error?.key === key) ? <Alert status="warning"><AlertIcon /><Stack spacing={1}>
           <Text fontWeight="semibold">PRISM input preview unavailable</Text>
@@ -177,7 +182,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
                 <Text fontSize="sm" fontWeight="semibold" mb={2}>{kind === 'original' ? 'Original' : 'Planned API submission'}</Text>
                 <Box overflow="auto" maxH="420px" tabIndex={0} aria-label={`${kind} preview scroll area`} bg="gray.900">
                   <Box position="relative" width={`${zoom}%`}>
-                    <Image src={shown[kind]} alt={kind === 'original' ? 'Verified original preview' : 'Verified planned input preview'} width="100%" maxW="none" onLoad={() => imageReady(kind)} onError={failImage} />
+                    <Image data-testid={`prism-preview-${kind}`} src={shown[kind]} alt={kind === 'original' ? 'Verified original preview' : 'Verified planned input preview'} width="100%" maxW="none" onLoad={() => imageReady(kind)} onError={failImage} />
                     {kind === 'original' && overlay && shown.overlay && <Image src={shown.overlay} alt="Processing overlay in original-image coordinates" position="absolute" inset={0} width="100%" height="100%" opacity={opacity / 100} pointerEvents="none" onError={failImage} />}
                   </Box>
                 </Box>
@@ -199,9 +204,9 @@ export function PrismInputPreview({ item, model, onInferenceComplete }: Props) {
               <Text>Model {plan.model_id} / {plan.model_version}; expires {plan.expires_at}</Text>
             </Box>
             {plan.submission_binding_enforced === true ? <>
-              <Checkbox isChecked={acceptedKey === key} isDisabled={busy || submittedKey === key} onChange={(event) => setAcceptedKey(event.target.checked ? key : null)}>I inspected the planned API input; the internal model crop is not previewed.</Checkbox>
-              <Button alignSelf="flex-start" isLoading={busy} isDisabled={acceptedKey !== key || submittedKey === key} onClick={() => void submit()}>Submit prepared input to PRISM</Button>
-              {submittedKey === key && <Text fontSize="xs">This receipt has been submitted. Prepare a new preview for another attempt.</Text>}
+              <Checkbox data-testid={technicalBatch ? 'qa-batch-prism-ack' : undefined} isChecked={acceptedKey === key} isDisabled={busy || submittedKey === key} onChange={(event) => setAcceptedKey(event.target.checked ? key : null)}>{technicalBatch ? 'Automated technical check acknowledges the displayed API input; no human inspection is recorded. The internal model crop is not previewed.' : 'I inspected the planned API input; the internal model crop is not previewed.'}</Checkbox>
+              <Button data-testid="prism-preview-submit" alignSelf="flex-start" isLoading={busy} isDisabled={acceptedKey !== key || submittedKey === key} onClick={() => void submit()}>Submit prepared input to PRISM</Button>
+              {submittedKey === key && <Text fontSize="xs">{technicalBatch ? 'This one-use technical receipt has been consumed. No retry is permitted.' : 'This receipt has been submitted. Prepare a new preview for another attempt.'}</Text>}
             </> : <Text fontSize="sm">Submission unavailable: this display plan does not attest backend execution binding.</Text>}
           </>}
         </>}

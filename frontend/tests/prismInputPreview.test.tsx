@@ -75,12 +75,18 @@ describe('immutable preview bytes', () => {
 
 describe('single Review UI preparation panel', () => {
   const node = (item = previewCase) => <PrismInputPreview item={item} model={model} />;
-  it('shows unavailable honestly and never fetches or submits when no contract exists', () => {
+  it('keeps PRISM unavailable while the independent CPU field makes no model calls', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response);
     render(<ChakraProvider>{node()}</ChakraProvider>);
     fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
     expect(screen.getByText('PRISM input preview unavailable')).toBeInTheDocument();
     expect(screen.getByText(/PRISM cannot be submitted without a verified receipt/)).toBeInTheDocument();
-    expect(fetch).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByTestId('artifact-field-preview')).not.toBeInTheDocument());
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledWith('/v1/cases/synthetic-preview/artifact-roi/field',
+      expect.objectContaining({ cache: 'no-store', credentials: 'same-origin' }));
+    expect(vi.mocked(fetch).mock.calls.every(([, options]) => (options?.method ?? 'GET') === 'GET')).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Submit prepared input to PRISM' })).not.toBeInTheDocument();
   });
   it('shows Original versus wire input, full-original fallback caveat and separate provenance', async () => {
     render(<ChakraProvider>{node({ ...previewCase, prism_input_preview: makePlan() })}</ChakraProvider>);
@@ -91,7 +97,7 @@ describe('single Review UI preparation panel', () => {
     expect(screen.getByText(/Native ROI may still crop internally/)).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Show conditional FOV overlay' })).toBeDisabled();
     expect(screen.getByRole('checkbox', { name: 'Show conditional FOV overlay' })).not.toBeChecked();
-    expect(vi.mocked(fetch).mock.calls.every(([, options]) => options?.method === 'GET')).toBe(true);
+    expect(vi.mocked(fetch).mock.calls.every(([, options]) => (options?.method ?? 'GET') === 'GET')).toBe(true);
   });
   it('does not offer submission for a display-only fixture even when all PNG bytes verify', async () => {
     render(<ChakraProvider>{node({ ...previewCase, prism_input_preview: makePlan() })}</ChakraProvider>);

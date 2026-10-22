@@ -1,5 +1,6 @@
 """Durable review API with optimistic concurrency and explicit human actions."""
 import math
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
@@ -13,6 +14,7 @@ from .cvat import CVATOnline, OnlineError
 from .presentation import annotation_set_hash, lesion_review_view, review_evidence_view
 from .services.admission import clinician_view, legacy_admission
 from .services.source_identity import source_identity_reason
+from .services import artifact_roi_assist
 from .services.resolver import (
     apply_automatic_resolution,
     automatic_resolution_needs_refresh,
@@ -388,8 +390,15 @@ class LesionReviewAction(Contract):
     note: str = Field(default='', max_length=1000)
 
 
-def install_workflow(app, store):
+def install_workflow(app, store, *, persist_automatic_updates=True):
     app.state.store = store
+    if artifact_roi_assist.enabled() and not getattr(app.state, 'qa_fixed_session', None):
+        # Image-only CPU annotation assist; model wire remains Original.
+        from .services.artifact_roi_generic_adapter import GenericUwfArtifactProvider
+        from .services.artifact_roi_replay import CONFIG, CachedArtifactReplayProvider
+        replay_path = os.environ.get(CONFIG)
+        app.state.artifact_roi_provider = (CachedArtifactReplayProvider.from_path(replay_path)
+                                           if replay_path else GenericUwfArtifactProvider())
     app.state.remote = CVATOnline()
     app.state.admissions = getattr(app.state, 'admissions', {})
 
@@ -410,7 +419,7 @@ def install_workflow(app, store):
     def case_with_admission(image_id):
         case = current_store().get(image_id)
         record = admission_record(image_id)
-        if record is not None and case.get('admission') is None:
+        if persist_automatic_updates and record is not None and case.get('admission') is None:
             case['admission'] = record
             case.setdefault('admission_history', []).append({
                 'action': 'AUTOMATIC_ADMISSION',
@@ -428,6 +437,8 @@ def install_workflow(app, store):
 
     def ensure_resolution(image_id, case, record):
         """Resolve local evidence, refreshing only unresolved automatic state."""
+        if not persist_automatic_updates:
+            return case
         authorized = resolve_authorized_hospital_record(record)
         if authorized is not None and (
             case.get('patient_resolution_method') == 'MANUAL'
@@ -495,6 +506,7 @@ def install_workflow(app, store):
         source_origin = _source_origin(record, image)
         case, patient_display_label = hospital_patient_label(
             current_store(), case, source_origin=source_origin,
+            allocate=persist_automatic_updates,
         )
         visible_global = _current_global_result(case, image, record)
         modality_matched_lesion = (
@@ -549,6 +561,9 @@ def install_workflow(app, store):
                 'resolver_ui': resolver_clinician_view(case),
                 'resolution_history': case.get('resolution_history', []),
                 'lesion_review': lesion_review_view(evidence_case.get('lesion')),
+                'artifact_roi_assist': artifact_roi_assist.project(
+                    evidence_case, image, getattr(app.state, 'artifact_roi_provider', None),
+                    scope=artifact_roi_assist.scope_for_app(app, current_store()), admission=record),
                 'human_annotations': case.get('human_annotations', []),
                 'clinician_review': case.get('clinician_review'),
                 'review_history': case.get('review_history', []),
@@ -566,6 +581,8 @@ def install_workflow(app, store):
                 'ai_annotation_reviews': evidence_case.get('ai_annotation_reviews', []),
                 'queue_state': case.get('queue_state', 'INCLUDED'),
                 'queue_history': case.get('queue_history', [])}
+
+    artifact_roi_assist.install(app, detail, current_store, get_image, _require_current_spatial_ai)
 
     def finite_number(value, name):
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):

@@ -45,6 +45,7 @@ def test_production_pin_and_owner_are_exact():
     assert profile.OWNER_REFERENCE == "Sentinel_d7d1e493dbd88191a76fad54af3abf37"
     assert profile.RECORDED_ORIGIN == "PUBLIC"
     assert profile.EXPECTED_SIZE == (1920, 835)
+    assert profile.RUN_REQUESTS == 1
 
 
 @pytest.fixture
@@ -118,6 +119,10 @@ def app(metadata, tmp_path, monkeypatch):
             return value
 
         def infer_remote_fenced_prism(self, request, image, **kwargs):
+            authorization = kwargs.pop("demo_authorization")
+            assert authorization is metadata.authorization
+            authorization.wire(image.data)
+            authorization.binding(kwargs["binding"])
             value = super().infer_remote_fenced_prism(request, image, **kwargs)
             # A fake result must report its input's simulated recorded origin.
             value["result"]["provenance"]["source_type"] = image.source_origin
@@ -224,10 +229,10 @@ def submit(app, plan):
     )
 
 
-def test_two_fresh_actual_app_plans_preserve_origin_and_copied_human_state(app):
+def test_one_authorized_app_plan_preserves_origin_and_copied_human_state(app):
     original_case, original_admission = deepcopy(app.case), deepcopy(app.admission)
     plans = []
-    for _ in range(2):
+    for _ in range(profile.RUN_REQUESTS):
         response = prepare(app)
         assert response.status_code == 200, response.text
         plan = response.json()
@@ -244,10 +249,8 @@ def test_two_fresh_actual_app_plans_preserve_origin_and_copied_human_state(app):
             after_save.get(key) == original_case.get(key)
             for key in profile.CLINICAL_FIELDS
         )
-    assert plans[0]["plan_id"] != plans[1]["plan_id"]
-    assert plans[0]["plan_sha256"] != plans[1]["plan_sha256"]
     assert app.raw.loads == app.executor.load_attempts == 1
-    assert app.fake.roi == len(app.raw.calls) == 2
+    assert app.fake.roi == len(app.raw.calls) == 1
     assert (
         app.image.source_origin
         == app.image.source_type
@@ -267,10 +270,10 @@ def test_two_fresh_actual_app_plans_preserve_origin_and_copied_human_state(app):
     assert all(
         copied.get(key) == original_case.get(key) for key in profile.CLINICAL_FIELDS
     )
-    assert len(list((app.directory / "testdata").glob("output-*.json"))) == 2
-    assert submit(app, plans[0]).status_code == submit(app, plans[1]).status_code == 409
+    assert len(list((app.directory / "testdata").glob("output-*.json"))) == 1
+    assert submit(app, plans[0]).status_code == 409
     assert prepare(app).status_code != 200
-    assert app.fake.roi == 2
+    assert app.fake.roi == 1
 
 
 @pytest.mark.parametrize(

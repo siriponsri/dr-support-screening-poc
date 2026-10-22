@@ -160,11 +160,11 @@ def test_corrected_ai_preserves_original_score_only_as_audit_evidence(tmp_path):
     assert json.loads(annotation["geometry_json"]) == {"x": 11, "y": 21, "width": 30, "height": 40}
 
 
-def test_hospital_export_guard_writes_nothing_even_with_complete_synthetic_labels(tmp_path):
+def test_mismatched_hospital_origin_writes_nothing_even_with_complete_synthetic_labels(tmp_path):
     case = fixture_case()
-    case["admission"]["source_origin"] = "HOSPITAL_AUTHORIZED"
     service = service_for(case, tmp_path)
-    assert rows(service, case)[0][0]["export_authorization"] == "BLOCKED_HOSPITAL_EXPORT_NOT_AUTHORIZED"
+    case["admission"]["source_origin"] = "HOSPITAL_AUTHORIZED"
+    assert rows(service, case)[0][0]["export_authorization"] == "BLOCKED_SOURCE_IDENTITY_OR_AUTHORIZATION_MISMATCH"
     with pytest.raises(DatasetManifestError, match="lack approved engineering export authorization"):
         service.export_snapshot()
     assert list(tmp_path.iterdir()) == []

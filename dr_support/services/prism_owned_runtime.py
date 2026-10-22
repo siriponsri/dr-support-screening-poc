@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import deepcopy
 from threading import Event, Lock, RLock, Thread
 import time
@@ -55,8 +56,11 @@ class LoadedPrismExecutor:
         self.lock, self.load_attempts, self.loaded, self.poisoned = Lock(), 0, False, False
 
     def identity(self):
+        from .identity_budget import check_identity_budget
+        check_identity_budget()
         if self.poisoned or self.provider._runtime_identity() != self.pins:
             raise TransportError('OWNED_PROVIDER_IDENTITY_CHANGED', 503)
+        check_identity_budget()
         return deepcopy(self.pins)
 
     def load_until(self, deadline, cancelled):
@@ -110,7 +114,7 @@ class LoadedPrismExecutor:
             raise TransportError('FIXED_QA_UWF_ONLY')
         if self.demo_authorization is not None:
             with self.lock:
-                if self.demo_prepares >= 2:
+                if self.demo_prepares >= self.demo_authorization.max_requests:
                     raise TransportError("CASE16_TWO_PREPARATIONS_MAXIMUM")
                 self.demo_prepares += 1
         candidate = self.provider.prepare_prism_preview_candidate(self._wire(wire))
@@ -127,7 +131,7 @@ class LoadedPrismExecutor:
             if mask is not None:
                 raise TransportError("CASE16_NO_APPLIED_MASK")
             with self.lock:
-                if self.demo_executions >= 2:
+                if self.demo_executions >= self.demo_authorization.max_requests:
                     raise TransportError("CASE16_TWO_EXECUTIONS_MAXIMUM")
                 self.demo_executions += 1
         if (binding['admission']['source_origin'] != origin or binding['modality'] != 'UWF'
@@ -142,8 +146,11 @@ class LoadedPrismExecutor:
             self.loaded_identity()
             on_roi_entry()  # Pinned provider calls this OUTSIDE the ROI fallback try.
         try:
+            authorization_args = ({'demo_authorization': self.demo_authorization}
+                                  if self.demo_authorization is not None else {})
             return self.provider.infer_remote_fenced_prism(request, image, mask_png=mask, binding=deepcopy(binding),
-                plan_sha256=plan_hash, before_forward=gate, on_native_roi_entry=entry)
+                plan_sha256=plan_hash, before_forward=gate, on_native_roi_entry=entry,
+                **authorization_args)
         except BaseException:
             self.poisoned = True  # Failed model work is never retried in this worker.
             raise
@@ -159,9 +166,12 @@ def child_application(executor, *, token, issue_id, epoch, clock=time.monotonic,
     if not 0 < load_seconds <= 120:
         raise ValueError('BOUNDED_CHILD_STARTUP_REQUIRED')
     authorization = getattr(executor, "demo_authorization", None)
-    from .case16_qualification import checked_authorization
+    from .case16_qualification import Case16Authorization, checked_authorization
     checked_authorization(authorization)
-    origins = frozenset({"SYNTHETIC" if authorization is None else authorization.origin})
+    if authorization is not None:
+        origins = frozenset({authorization.origin}) if type(authorization) is Case16Authorization else authorization.origins
+    else:
+        origins = frozenset({"SYNTHETIC"})
     principal = Principal('fixed-qa-backend', frozenset({'review-client', 'prepare-source', 'forward-authority'}))
     host = BoundTransportHost(executor, authenticate=lambda headers: principal, issue_id=issue_id,
                               epoch=epoch, clock=clock, job_seconds=30, allowed_origins=origins)
@@ -193,6 +203,7 @@ def child_application(executor, *, token, issue_id, epoch, clock=time.monotonic,
                     return
         else:
             deadline = clock()+5
+            identity_cancelled = Event()
             try:
                 if not ready or closed:
                     raise TransportError('CHILD_NOT_STARTED', 503)
@@ -212,13 +223,25 @@ def child_application(executor, *, token, issue_id, epoch, clock=time.monotonic,
                         raise TransportError('BODY_LIMIT', 413)
                     if not message.get('more_body', False):
                         break
-                if scope['method'] == 'GET' and scope['path'] == BASE+'/readiness':
-                    status, value = 200, {'state': 'LOADED', 'pins': executor.loaded_identity(), 'epoch': epoch}
-                else:
-                    status, value = await asyncio.wait_for(asyncio.to_thread(host.handle, scope['method'],
-                        scope['path'], headers, bytes(body)), max(.001, deadline-clock()))
+                from .identity_budget import identity_budget
+                with identity_budget(deadline, cancelled=identity_cancelled.is_set, clock=clock):
+                    if scope['method'] == 'GET' and scope['path'] == BASE+'/readiness':
+                        pins = await asyncio.wait_for(asyncio.to_thread(executor.loaded_identity), max(.001, deadline-clock()))
+                        status, value = 200, {'state': 'LOADED', 'pins': pins, 'epoch': epoch}
+                    else:
+                        status, value = await asyncio.wait_for(asyncio.to_thread(host.handle, scope['method'],
+                            scope['path'], headers, bytes(body)), max(.001, deadline-clock()))
             except (asyncio.TimeoutError, TransportError) as error:
                 status, value = (error.status, {'error': error.code}) if isinstance(error, TransportError) else (408, {'error': 'ABSOLUTE_CONTROL_DEADLINE_NO_RETRY'})
+            except Exception as error:
+                # No exception text/path/checkpoint details leave this boundary.
+                kind = type(error).__name__
+                safe = kind if kind in {'RuntimeError','ValueError','TypeError','KeyError','OSError','PermissionError','FileNotFoundError','JSONDecodeError','TimeoutExpired'} else 'OTHER'
+                status, value = 503, {'error': 'CONTROL_IDENTITY_OR_HANDLER_FAILED', 'error_class': safe}
+            finally:
+                identity_cancelled.set()
+            if clock() >= deadline and status < 400:
+                status, value = 408, {'error': 'ABSOLUTE_CONTROL_DEADLINE_NO_RETRY'}
             data = canonical(value)
             if len(data) > MAX_BODY:
                 status, data = 502, b'{"error":"RESPONSE_LIMIT"}'
@@ -471,6 +494,23 @@ class IndependentWatchdog:
                 raise TransportError('CONTROL_STOP_UNCONFIRMED', 503)
 
 
+# One fixed-session factory call runs in its parent's context. Publish ownership
+# before starting either monitor so a failed assignment cannot lose resources.
+_PARTIAL_MONITORS = ContextVar('owned_prism_partial_monitors', default=None)
+
+
+def pending_monitor_cleanup():
+    return _PARTIAL_MONITORS.get()
+
+
+def acknowledge_monitor_transfer(controller):
+    owner = _PARTIAL_MONITORS.get()
+    if (owner is None or getattr(controller, 'gpu_monitor', None) is not owner.gpu_monitor
+            or getattr(controller, 'project_disk_monitor', None) is not owner.project_disk_monitor):
+        raise TransportError('OWNED_MONITOR_TRANSFER_MISMATCH', 503)
+    _PARTIAL_MONITORS.set(None)
+
+
 def linux_owned_controller(argv, *, owner_scope, env, max_jobs=2):
     """Concrete existing pidfd adapter binding; NEVER invoked by offline tests.
 
@@ -479,18 +519,52 @@ def linux_owned_controller(argv, *, owner_scope, env, max_jobs=2):
     """
     import os
     from pathlib import Path
+    from types import SimpleNamespace
+    if _PARTIAL_MONITORS.get() is not None:
+        raise TransportError('PARTIAL_MONITOR_CLEANUP_UNCONFIRMED', 503)
     from scripts.qa.linux_owned_child import LinuxOwnedChild, LinuxResources, command_digest
     from scripts.qa.worker_supervisor import Policy
     gpu = 'GPU-044a8b11-4729-458b-a07b-297e45439419'
     if env.get('CUDA_VISIBLE_DEVICES') != gpu:
         raise TransportError('GPU0_EXPLICIT_UUID_REQUIRED')
-    resources = LinuxResources(Path('/home/siripon/projects/dr-model-api-qa'))
+    from scripts.qa.disk_monitor import ProjectDiskMonitor
+    disk = ProjectDiskMonitor(Path('/home/siripon/projects/dr-model-api-qa'))
+    from scripts.qa.gpu_monitor import GPU0Monitor
+    gpu_monitor = GPU0Monitor(gpu)
+    resources = LinuxResources(Path('/home/siripon/projects/dr-model-api-qa'), disk_monitor=disk, gpu_monitor=gpu_monitor)
     policy = Policy('prism-dr-5fold', os.getpid(), owner_scope, command_digest(argv), gpu,
                     max_jobs=max_jobs, max_seconds=270, request_seconds=30, drain_seconds=25, monitor_seconds=1)
     def spawn(*, hard_seconds):
         return LinuxOwnedChild.spawn(argv, model_id=policy.model_id, owner_scope=owner_scope,
             resource_provider=resources, hard_seconds=hard_seconds, env=env)
-    return OwnedWorkerController(spawn=spawn, policy=policy)
+    ownership = SimpleNamespace(project_disk_monitor=disk, gpu_monitor=gpu_monitor)
+    _PARTIAL_MONITORS.set(ownership)
+    try:
+        disk.start()
+        gpu_monitor.start()
+        controller = OwnedWorkerController(spawn=spawn, policy=policy)
+        controller.project_disk_monitor = disk
+        controller.gpu_monitor = gpu_monitor
+        # Caller acknowledges only AFTER assignment; an interruption between
+        # return and assignment must still leave parent-visible ownership.
+        return controller
+    except BaseException:
+        cleanup_error = None
+        try:
+            gpu_monitor.close()
+        except BaseException as error:
+            cleanup_error = error
+        try:
+            disk.close()
+        except BaseException as error:
+            if cleanup_error is None:
+                cleanup_error = error
+        if cleanup_error is not None:
+            # Retain exact partial resources for parent finally. No restart or
+            # closed-port-only cleanup proof can discard this owned handle.
+            raise cleanup_error
+        _PARTIAL_MONITORS.set(None)
+        raise
 
 
 class OwnedRuntimeSession:

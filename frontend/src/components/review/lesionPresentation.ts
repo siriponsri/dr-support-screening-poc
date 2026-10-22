@@ -1,6 +1,7 @@
 import type { CaseRecord, Lesion, LesionLabel, ReviewEvidenceItem } from '@/lib/api';
 
 export interface DisplayedLesion extends Lesion {
+  artifactFiltered?: boolean;
   displayScore: number | null;
   reviewState: 'AI_SUGGESTION' | 'CLINICIAN_CORRECTED';
   originalLabel?: LesionLabel;

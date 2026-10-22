@@ -262,11 +262,19 @@ class LinuxOwnedChild:
 
 class LinuxResources:
     """Bounded read-only GPU0/RSS/project sampling; no CUDA/model imports."""
-    def __init__(self, project: Path, *, clock=time.monotonic, sample_seconds=.5):
+    def __init__(self, project: Path, *, clock=time.monotonic, sample_seconds=.5, disk_monitor=None, gpu_monitor=None):
         if type(sample_seconds) not in (int, float) or not 0 < sample_seconds <= .5:
             raise ValueError('RESOURCE_SAMPLE_BUDGET_REQUIRED')
         self.project = project.resolve(strict=True)
         self.clock, self.sample_seconds = clock, sample_seconds
+        if disk_monitor is None:
+            raise ValueError("EXPLICIT_PROJECT_MONITOR_REQUIRED")
+        self.disk_monitor = disk_monitor
+        if gpu_monitor is None:
+            raise ValueError("EXPLICIT_GPU_MONITOR_REQUIRED")
+        self.gpu_monitor = gpu_monitor
+        self.sample_count = 0
+        self.peaks = {'rss_bytes': None, 'vram_mib': None, 'project_bytes': None}
 
     def __call__(self, pid):
         deadline = self.clock() + self.sample_seconds
@@ -275,14 +283,43 @@ class LinuxResources:
             if value <= 0:
                 raise RuntimeError('RESOURCE_SAMPLE_DEADLINE')
             return value
-        measured = subprocess.run(["nvidia-smi", "-i", "0", "--query-gpu=uuid,memory.used", "--format=csv,noheader,nounits"],
-                                  capture_output=True, text=True, timeout=min(.2, remaining()), check=True)
-        remaining()
-        uuid, memory = measured.stdout.strip().split(",")
-        size = subprocess.run(["du", "-sb", "--", str(self.project)], capture_output=True, text=True, timeout=min(.2, remaining()), check=True)
-        remaining()
-        status = Path(f"/proc/{pid}/status").read_text()
-        remaining()
-        rss = next(int(row.split()[1]) * 1024 for row in status.splitlines() if row.startswith("VmRSS:"))
-        return dict(gpu_index=0, gpu_uuid=uuid.strip(), vram_mib=int(memory.strip()), rss_bytes=rss,
-                    project_bytes=int(size.stdout.split()[0]))
+        self.last_failure = None
+        stage = "GPU_QUERY"
+        try:
+            stage = "GPU_QUERY"
+            stage = "GPU_SAMPLE"
+            gpu_values = self.gpu_monitor.sample()
+            # Carry the exact value's original timestamp through RSS and the
+            # post-resource identity check; the supervisor validates final age.
+            measured_at = gpu_values.get('gpu_observed_at')
+            import math
+            if type(measured_at) not in (int, float) or not math.isfinite(measured_at):
+                raise ValueError('GPU_ACQUISITION_TIMESTAMP_REQUIRED')
+            remaining()
+            stage = "PROJECT_DU"
+            project_bytes = self.disk_monitor.sample()
+            remaining()
+            stage = "PROC_RSS_READ"
+            status = Path(f"/proc/{pid}/status").read_text()
+            remaining()
+            stage = "PROC_RSS_PARSE"
+            rss = next(int(row.split()[1]) * 1024 for row in status.splitlines() if row.startswith("VmRSS:"))
+            stage = "PROJECT_PARSE"
+            if type(project_bytes) is not int or project_bytes < 0:
+                raise ValueError("PROJECT_SAMPLE_INVALID")
+            values = dict(**gpu_values, rss_bytes=rss,
+                          project_bytes=project_bytes)
+            self.sample_count += 1
+            for key in self.peaks:
+                prior = self.peaks[key]
+                self.peaks[key] = values[key] if prior is None else max(prior, values[key])
+            return values
+        except Exception as error:
+            kind = type(error).__name__
+            self.last_failure = {"stage": stage, "exception_class": kind if kind in {"PermissionError", "FileNotFoundError", "ProcessLookupError", "OSError", "RuntimeError", "ValueError", "IndexError", "StopIteration", "TimeoutExpired", "CalledProcessError"} else "OTHER"}
+            if stage == "GPU_SAMPLE" and self.gpu_monitor.failure_detail is not None:
+                self.last_failure = dict(self.gpu_monitor.failure_detail)
+            if stage == "PROJECT_DU" and self.disk_monitor.failure_detail is not None:
+                self.last_failure = dict(self.disk_monitor.failure_detail)
+            raise
+

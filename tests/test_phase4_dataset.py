@@ -329,16 +329,20 @@ def test_reviewed_none_is_completeness_only_and_receipt_hashes_files(tmp_path):
 
 
 def test_snapshot_removes_partial_output_on_final_hash_mismatch(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+
     _app, client, output = _workspace_client(tmp_path)
+    original_open = Path.open
     original_write_bytes = Path.write_bytes
 
-    def tamper_records(path, data):
-        written = original_write_bytes(path, data)
-        if path.name == "records.csv":
+    @contextmanager
+    def tamper_records(path, mode="r", *args, **kwargs):
+        with original_open(path, mode, *args, **kwargs) as stream:
+            yield stream
+        if mode == "xb" and path.name == "records.csv":
             original_write_bytes(path, b"tampered")
-        return written
 
-    monkeypatch.setattr(Path, "write_bytes", tamper_records)
+    monkeypatch.setattr(Path, "open", tamper_records)
 
     response = client.post("/v2/dataset/snapshot")
 

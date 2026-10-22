@@ -37,7 +37,8 @@ ENGINEERING_EXPORT_AUTHORIZATION = {
     "PUBLIC": "ALLOWED_ENGINEERING_PUBLIC",
     "SYNTHETIC": "ALLOWED_ENGINEERING_SYNTHETIC",
     "WORKSPACE": "BLOCKED_WORKSPACE_NOT_AUTHORIZED",
-    "HOSPITAL_AUTHORIZED": "BLOCKED_HOSPITAL_EXPORT_NOT_AUTHORIZED",
+    # Owner-authorized local copies/labels. This is not a network export grant.
+    "HOSPITAL_AUTHORIZED": "ALLOWED_LOCAL_AUTHORIZED_HOSPITAL",
     "UNKNOWN": "BLOCKED_UNKNOWN_ORIGIN",
 }
 CANONICAL_LABELS = {
@@ -599,6 +600,15 @@ class DatasetManifestService:
             human_annotations = case.get("human_annotations") or []
             imported_annotations = case.get("annotations") or []
             source_origin = _source_origin(case, image, admission)
+            export_authorization = _export_authorization(source_origin)
+            if source_origin == "HOSPITAL_AUTHORIZED" and (
+                image is None or getattr(image, "source_origin", None) != source_origin
+                or (admission or {}).get("source_origin") != source_origin
+                or source_identity_reason(case, image, admission) is not None
+                or any(case.get(key) not in {None, image.sha256}
+                       for key in ("image_sha256", "source_sha256"))
+            ):
+                export_authorization = "BLOCKED_SOURCE_IDENTITY_OR_AUTHORIZATION_MISMATCH"
             image_sha256 = image.sha256 if image is not None else (admission or {}).get("source_sha256")
             filename = (admission or {}).get("filename") or (image.filename if image is not None else image_id)
             core_completeness = _completeness_record(case, "CORE")
@@ -616,7 +626,7 @@ class DatasetManifestService:
                 "source_origin": source_origin,
                 "source_available": image is not None,
                 "source_integrity_status": (admission or {}).get("integrity_status", "UNKNOWN"),
-                "export_authorization": _export_authorization(source_origin),
+                "export_authorization": export_authorization,
                 "patient_key": _pseudonymous_patient_key(case.get("patient_key")),
                 "laterality": case.get("laterality", "UNKNOWN"),
                 "patient_resolution_method": case.get("patient_resolution_method", "NONE"),
@@ -1107,11 +1117,13 @@ class DatasetManifestService:
                 plan = plan_grading_folders(cases, images, dict(self.app.state.images), deepcopy(self.app.state.admissions))
                 result["grading_folders"] = plan.summary()
                 copied = {item["record_key"] for item in plan.manifest["items"] if item["output_path"]}
-                result["row_counts"]["dr_labels.csv"] = sum(item["confirmed_grade"] is not None for item in plan.manifest["items"])
+                confirmed = {item["record_key"] for item in plan.manifest["items"] if item["confirmed_grade"] is not None}
+                result["row_counts"]["dr_labels.csv"] = sum(bool(row.get("dr_grade_training_ready"))
+                    and _sha256(str(row["image_id"]).encode()) in confirmed for row in images)
                 result["row_counts"]["lesion_labels.csv"] = sum(bool(item.get("include_in_training"))
                     and _sha256(str(item["image_id"]).encode()) in copied for item in annotations)
             except GradingFolderError:
-                result["grading_folders"] = {"status": "BLOCKED_AUTHORIZATION", "reason": "Source authorization is required; hospital export remains disabled."}
+                result["grading_folders"] = {"status": "BLOCKED_AUTHORIZATION", "reason": "Matching source identity and existing source authorization are required for local copies."}
                 result["can_export"] = False
         return result
 
@@ -1222,7 +1234,7 @@ class DatasetManifestService:
                 folder_items = {item["record_key"]: item for item in folder_plan.manifest["items"]}
                 for row in images:
                     item = folder_items[_sha256(str(row["image_id"]).encode())]
-                    row["dr_grade_training_ready"] = item["confirmed_grade"] is not None
+                    row["dr_grade_training_ready"] = bool(row.get("dr_grade_training_ready")) and item["confirmed_grade"] is not None
                     if item["confirmed_grade"] is None:
                         row["grade_eligibility_reason"] = item["reason"]
                     if item["output_path"] is None:
@@ -1283,6 +1295,20 @@ class DatasetManifestService:
             "review_completeness.csv": _csv_bytes(completeness, COMPLETENESS_FIELDS),
             "ai_evidence.csv": _csv_bytes(ai_evidence, AI_EVIDENCE_FIELDS),
         }
+        from .artifact_roi_assist import export_rows, scope_for_app
+        artifact_rows = export_rows(
+            cases, images=dict(self.app.state.images), admissions=deepcopy(self.app.state.admissions),
+            provider=getattr(self.app.state, "artifact_roi_provider", None),
+            scope=scope_for_app(self.app, self.app.state.store),
+        )
+        if artifact_rows:
+            # Optional separate AI-visibility provenance, never lesion_labels or
+            # confirmed-negative evidence. Authorized local export is separate
+            # from clinical label eligibility and never grants network upload.
+            files["artifact_roi_assist.json"] = _canonical_json_bytes({
+                "schema": "annotation-artifact-visibility-export.v1",
+                "provenance_class": "NON_GOLD_AI_VISIBILITY_ONLY", "cases": artifact_rows,
+            })
         if folder_plan is not None:
             files.update(folder_plan.files)
             files["grading_folders/manifest.json"] = _canonical_json_bytes({
@@ -1333,7 +1359,7 @@ class DatasetManifestService:
             details = {**folder_plan.summary(), "manifest": "grading_folders/manifest.json"}
             manifest["grading_folders"] = details
             receipt["grading_folders"] = details
-            manifest["grade_label_selection_policy"] = "grading-folders.v1: current explicit source-bound confirmations only"
+            manifest["grade_label_selection_policy"] = "grading-folders.v2: current source-bound physician folder organization; training eligibility remains independent"
             manifest["limitations"][0] = "Optional grading_folders copies original bytes; folder membership is not clinical UAT or lesion-training readiness."
             if os.name == "nt" and any(len(str((export_dir / name).absolute())) >= 260 for name in files):
                 raise DatasetManifestError("Workspace output path is too long; choose a shorter output directory.")

@@ -8,7 +8,7 @@ import re
 DISPLAY_INDICES = "_patient_display_indices"
 
 
-def hospital_patient_label(store, case: dict, *, source_origin: str) -> tuple[dict, str | None]:
+def hospital_patient_label(store, case: dict, *, source_origin: str, allocate: bool = True) -> tuple[dict, str | None]:
     """Allocate a unique stable label using additive private case JSON only.
 
     Historical assignments remain in their case documents to prevent reuse after
@@ -35,6 +35,9 @@ def hospital_patient_label(store, case: dict, *, source_origin: str) -> tuple[di
                     raise ValueError("Duplicate patient display allocation")
                 assignments[patient_key] = index
                 used.add(index)
+        if not allocate:
+            index = assignments.get(key)
+            return case, f"Patient {index}" if index is not None else None
         index = assignments.get(key, max(used, default=0) + 1)
         if case.get(DISPLAY_INDICES, {}).get(key) != index:
             case = {**case, DISPLAY_INDICES: {**case.get(DISPLAY_INDICES, {}), key: index}}

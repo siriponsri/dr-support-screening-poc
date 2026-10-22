@@ -168,11 +168,11 @@ describe('Datasets page', () => {
 });
 
 
-it('keeps hospital snapshot export disabled and explains the source restriction', async () => {
-  const blocked = { ...manifest, can_export: false, images: manifest.images.map((row) => ({ ...row, source_origin: 'HOSPITAL_AUTHORIZED', export_authorization: 'BLOCKED_HOSPITAL_EXPORT_NOT_AUTHORIZED' })) };
+it('keeps mismatched source snapshot export disabled and explains the restriction', async () => {
+  const blocked = { ...manifest, can_export: false, images: manifest.images.map((row) => ({ ...row, source_origin: 'HOSPITAL_AUTHORIZED', export_authorization: 'BLOCKED_SOURCE_IDENTITY_OR_AUTHORIZATION_MISMATCH' })) };
   const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => String(input).startsWith('/v1/dataset/manifest') ? response(blocked) : response({ detail: 'fixture unavailable' }, 404));
   withProviders(<DatasetsPage />, '/datasets');
-  expect(await screen.findByText('Export is restricted for this Workspace. Review source authorization; hospital export remains disabled.')).toBeInTheDocument();
+  expect(await screen.findByText('Export is restricted for this Workspace. Review source identity and authorization.')).toBeInTheDocument();
   const buttons = screen.getAllByRole('button', { name: 'Create canonical snapshot' });
   expect(buttons.every((button) => button.hasAttribute('disabled'))).toBe(true);
   await userEvent.setup().click(buttons[0]);

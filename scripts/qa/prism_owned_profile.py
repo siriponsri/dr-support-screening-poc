@@ -24,10 +24,13 @@ def injected_server_gateway(controller, *, token, exchange, listener_owned):
     return session, channel, app
 
 
-def injected_windows_provider(exchange, *, expected_pins, expected_epoch, **provider_options):
+def injected_windows_provider(exchange, *, expected_pins, expected_epoch, on_phase=None, **provider_options):
+    observe = on_phase if callable(on_phase) else lambda phase: None
     channel = PrivateGatewayChannel(exchange, expected_pins=expected_pins, expected_epoch=expected_epoch)
+    observe("GATEWAY_LOADED_ASSERTION")
     channel.establish()  # Authenticated load/pin proof BEFORE any synthetic input.
     provider = OwnedFixedSessionRemoteProvider(channel, **provider_options)
+    observe("CAPABILITIES_NEGOTIATION")
     provider.negotiate()
     if provider.capabilities['epoch'] != expected_epoch or provider.capabilities['pins'] != expected_pins:
         channel.quarantined = True

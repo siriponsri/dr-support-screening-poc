@@ -1,7 +1,7 @@
 """Generated fixture/copy-only store; no real image or provider calls."""
 from copy import deepcopy
 import pytest
-from test_case16_authorization import metadata
+from test_case16_authorization import metadata as metadata
 from dr_support.services import case16_qualification as profile
 from dr_support.services.prism_remote_transport import TransportError
 
@@ -10,7 +10,7 @@ from dr_support.services.prism_remote_transport import TransportError
     ('annotation_completeness',{'MA':True,'HE':True,'EX':True,'SE':True}),
     ('annotations',{'human_confirmed':True,'lesions':[]}),
 ])
-def test_copied_store_rejects_all_existing_clinical_review_fields(metadata,tmp_path,field,value):
+def test_copied_store_rejects_all_existing_clinical_review_fields(metadata,tmp_path,field,value):  # noqa: F811
     original=deepcopy(metadata.case)
     store=profile.QualificationMemoryStore(original,evidence=tmp_path/'testdata')
     changed=store.get(metadata.image.image_id)

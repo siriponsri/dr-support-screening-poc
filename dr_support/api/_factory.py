@@ -150,7 +150,12 @@ def create_app(
     case_store_mode: str | None = None,
     workspace_id: str | None = None,
     qa_fixed_session=None,
+    qa_batch_profile=None,
 ):
+    if qa_batch_profile is not None:
+        from batch_profile import TechnicalBatchProfile
+        if type(qa_batch_profile) is not TechnicalBatchProfile or qa_fixed_session is not None:
+            raise ValueError('Explicit isolated batch profile required')
     app = FastAPI(title='Retinal Review Workbench', version='0.7.0')
     root = Path(__file__).resolve().parents[2]
 
@@ -198,7 +203,9 @@ def create_app(
             database_path="Managed PostgreSQL storage",
             postgres_database=postgres_database,
         )
-    install_workflow(app, workspace_manager.store)
+    install_workflow(app, workspace_manager.store, persist_automatic_updates=not (
+        qa_batch_profile is not None and qa_batch_profile.saved_results_only
+    ))
     workspace_manager.attach(app)
     app.state.case_store_mode = resolved_case_store_mode
     app.state.workspace_id = selected_workspace_id
@@ -380,7 +387,7 @@ def create_app(
 
     app.state.scan_active_workspace = scan_active_workspace
     app.state.admission_warnings = []
-    if qa_fixed_session is None and (workspace_manager.active_workspace is not None or hospital_roots_configured() or authorized_hospital_roots()):
+    if qa_fixed_session is None and qa_batch_profile is None and (workspace_manager.active_workspace is not None or hospital_roots_configured() or authorized_hospital_roots()):
         scan_active_workspace()
     inference_lock = RLock()
 
@@ -632,7 +639,7 @@ def create_app(
                 409,
                 'This source is available for manual review only; model analysis is not approved for its origin.',
             )
-        if not is_inference_eligible(admission):
+        if not is_inference_eligible(admission) and not (qa_batch_profile is not None and qa_batch_profile.eligible(request, image, admission)):
             raise HTTPException(409, 'Image needs review or its image type is not supported for AI analysis.')
         if request.modality != admission['retinal_modality']:
             raise HTTPException(422, 'Modality does not match admitted image')
@@ -645,6 +652,8 @@ def create_app(
             None,
         )
         if prior_run and isinstance(prior_run.get('result'), dict):
+            if qa_batch_profile is not None:
+                raise HTTPException(409, 'Batch invocation was already consumed; no new request is permitted.')
             return (GlobalResult if task == 'global' else LesionResult).model_validate(prior_run['result'])
         if request.model_id == 'mock-' + ('global' if task == 'global' else 'lesion'):
             if image.source_type != 'SYNTHETIC':
@@ -702,7 +711,7 @@ def create_app(
             descriptor,
         )
         try:
-            route = route_capability(
+            route = qa_batch_profile.capability(request, descriptor) if qa_batch_profile is not None else route_capability(
                 descriptor,
                 model_id=request.model_id,
                 task=task,
@@ -726,6 +735,8 @@ def create_app(
                 source_modality=source_modality,
                 apply_uwf_mask=not provider_owned_uwf_preprocessing,
             )
+            if qa_batch_profile is not None:
+                qa_batch_profile.claim(request, image, admission)
             with inference_lock:
                 if (
                     isinstance(provider, RemoteModelProvider)
@@ -751,11 +762,9 @@ def create_app(
                     result,
                     analysis_derivative.coordinate_mapping,
                 )
-            save_result(
-                request,
-                task,
-                result,
-                analysis_derivative,
+            def commit_batch_result():
+                return save_result(
+                    request, task, result, analysis_derivative,
                 capability_id=route.capability_id,
                 invocation_id=invocation_id,
                 processing_evidence=(
@@ -766,7 +775,11 @@ def create_app(
                     else None
                 ),
                 request_case_revision=request_case_revision,
-            )
+                )
+            if qa_batch_profile is not None:
+                qa_batch_profile.commit_result(commit_batch_result)
+            else:
+                commit_batch_result()
             return result
         except DerivativePayloadTooLargeError:
             raise HTTPException(
@@ -801,6 +814,10 @@ def create_app(
         target_provider=None,
         preview_binding=None,
     ):
+        if qa_batch_profile is not None:
+            qa_batch_profile.verify_result(result)
+        if processing_evidence is not None:
+            processing_evidence = PrismProcessingEvidence.model_validate(processing_evidence).model_dump(mode='json')
         key = 'global' if task == 'global' else 'lesion'
         store = target_store if target_store is not None else app.state.store
         with store.lock:
@@ -846,6 +863,8 @@ def create_app(
                 'result': value,
                 'timestamp': datetime.now(timezone.utc).isoformat(),
             }
+            if processing_evidence is not None:
+                entry['prism_processing'] = deepcopy(processing_evidence)
             history.append(entry)
             if preview_binding is not None:
                 entry['preview_binding'] = preview_binding
@@ -895,6 +914,8 @@ def create_app(
                 store.put(case)
 
     def preview_route(descriptor, modality):
+        if qa_batch_profile is not None:
+            return qa_batch_profile.preview_capability(descriptor, modality)
         if qa_fixed_session is not None:
             return qa_fixed_session.preview_capability(descriptor, modality)
         selected = next((item for item in capability_descriptors([descriptor], include_registry=True)
@@ -906,16 +927,21 @@ def create_app(
 
     preview_runtime = ReviewPrismPreview(
         app, save_result=save_result, source_allowed=source_allowed_for_model,
-        eligible=is_inference_eligible, route=preview_route,
+        eligible=qa_batch_profile.preview_eligible if qa_batch_profile is not None else qa_fixed_session.preview_eligible if qa_fixed_session else is_inference_eligible,
+        route=preview_route,
         map_result=map_lesion_result_to_review, inference_lock=inference_lock,
     )
     app.state.prism_preview = PrismPreviewService(preview_runtime.snapshot, preview_runtime.execute,
                                                 refresh=preview_runtime.refresh,
-                                                register_plan=qa_fixed_session.register_preview_plan if qa_fixed_session else None)
+                                                register_plan=qa_batch_profile.register_preview_plan if qa_batch_profile is not None else qa_fixed_session.register_preview_plan if qa_fixed_session else None)
     install_prism_preview_routes(app, app.state.prism_preview)
 
     @app.post('/v1/infer/global', response_model=GlobalResult)
     def global_inference(request: InferenceRequest):
+        if qa_batch_profile is not None:
+            # The real Review UI keeps its existing request schema. Its exact
+            # manifest job supplies the durable invocation identity server-side.
+            return infer(request, 'global', invocation_id=qa_batch_profile.invocation_id())
         return infer(request, 'global')
 
     @app.post('/v1/infer/lesion-roi', response_model=LesionResult)
@@ -1029,6 +1055,8 @@ def create_app(
                 status_code=503,
             )
     app.state.infer = infer
+    if qa_batch_profile is not None:
+        qa_batch_profile.bind(app)
     if qa_fixed_session is not None:
         qa_fixed_session.bind(app)
         qa_fixed_session.seal()

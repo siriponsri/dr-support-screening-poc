@@ -26,6 +26,8 @@ import { StatusBadge } from '@/components/common/StatusBadge';
 import { RetinalCanvas, LESION_COLORS } from '@/components/review/RetinalCanvas';
 import { PrismAnalysisFieldOverlay } from '@/components/review/PrismAnalysisFieldOverlay';
 import { PrismInputPreview } from '@/components/review/PrismInputPreview';
+import { ArtifactFieldPreview } from '@/components/review/ArtifactFieldPreview';
+import { validatedQaBatchContext, type QaBatchContext } from '@/lib/qaBatchReview';
 import { displayedLesions } from '@/components/review/lesionPresentation';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
 import { GuideHint } from '@/components/common/GuideHint';
@@ -365,6 +367,18 @@ function ReviewPageSession() {
   const { imageId } = useParams<{ imageId: string }>();
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
+  const [qaContext, setQaContext] = useState<unknown>(null);
+  const [qaBusy, setQaBusy] = useState(false);
+  const [qaError, setQaError] = useState<string | null>(null);
+  const qaAttempt = useRef(false);
+  const qaBatch: QaBatchContext | null = item ? validatedQaBatchContext(qaContext, item) : null;
+  const qaModel = qaBatch ? models.find((entry) => entry.model_id === qaBatch.model_id && entry.task === qaBatch.task) : undefined;
+  const qaResultReady = Boolean(qaBatch && (qaBatch.task === 'global' ? item?.global?.model_id === qaBatch.model_id : item?.lesion?.model_id === qaBatch.model_id));
+  useEffect(() => {
+    let current = true;
+    void apiJson<unknown>('/v1/qa-batch/context').then((value) => { if (current) setQaContext(value); }).catch(() => { if (current) setQaContext(null); });
+    return () => { current = false; };
+  }, [imageId]);
   const [imageView, setImageView] = useState<'original' | 'analysis-area' | 'mask-overlay' | 'ai-evidence' | 'explainability' | 'prism-field'>('original');
   const [lesionFilter, setLesionFilter] = useState<LesionLabel | 'ALL'>('ALL');
   const [loading, setLoading] = useState(true);
@@ -436,6 +450,20 @@ function ReviewPageSession() {
   const leaveToWorklist = async () => {
     if (item && !caseComplete(item) && !(await confirm(LEAVE_CASE_DIALOG))) return;
     navigate('/worklist');
+  };
+
+  const runQaGlobalOnce = async () => {
+    if (!item || !qaBatch || qaBatch.permitted_action !== 'GLOBAL_ONCE' || !qaModel || qaAttempt.current) return;
+    qaAttempt.current = true; // consumed before HTTP; no automatic or UI retry
+    setQaBusy(true); setQaError(null);
+    try {
+      await apiJson('/v1/infer/global', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_id: item.image_id, modality: item.modality, model_id: qaBatch.model_id }) },
+        { model_id: qaBatch.model_id, model_version: qaModel.model_version });
+      if (isActive()) await loadCase();
+    } catch {
+      if (isActive()) setQaError('Technical request failed or is uncertain. This action cannot be retried.');
+    } finally { if (isActive()) setQaBusy(false); }
   };
 
   const analyze = async () => {
@@ -650,21 +678,31 @@ function ReviewPageSession() {
 
   return (
     <Box as="main" maxW="1440px" minW={0} overflowX="hidden" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
-      <PageHeader
+      <Box data-qa-identifying><PageHeader
         pathname={pathname}
         title="Review"
         subtitle={`${item.display_name} - optional model evidence for clinician inspection`}
         actions={<Button onClick={() => void leaveToWorklist()} leftIcon={<ArrowLeft size={15} />}>Back to Worklist</Button>}
-      />
+      /></Box>
       <HStack mb={5} spacing={2} aria-label="Patient and eye context">
         <Text fontSize="xs" color="text.secondary" textTransform="uppercase" letterSpacing="0.04em">Patient/Eye</Text>
         <Text fontSize="sm" fontWeight="semibold">{patientEyeContext(item)}</Text>
       </HStack>
       <Stack spacing={3} mb={5}>
-        <CaseNavigation imageId={item.image_id} guarded={!caseComplete(item)} confirm={confirm} />
+        <Box data-qa-identifying><CaseNavigation imageId={item.image_id} guarded={!caseComplete(item)} confirm={confirm} /></Box>
         <ReviewContextStatus item={item} />
         <GuideHint step="review" />
       </Stack>
+      {qaBatch && <Alert status="warning" mb={4} data-testid="qa-batch-context" data-context={JSON.stringify(qaBatch)}>
+        <AlertIcon /><Stack spacing={2}>
+          <Text fontWeight="semibold">Automated technical batch test — no clinical use</Text>
+          <Text fontSize="sm">This single manifest-bound job preserves quality state {qaBatch.quality_state ?? 'not recorded'}. Automation does not confirm image quality, patient context, grade, lesions or training gold. Original input; no external mask is applied. Native PRISM ROI remains internal and is not previewed.</Text>
+          {qaBatch.permitted_action === 'GLOBAL_ONCE' && <Button data-testid="qa-batch-global-once" alignSelf="flex-start" onClick={() => void runQaGlobalOnce()} isDisabled={!qaModel || qaAttempt.current} isLoading={qaBusy}>Run this technical grading request once</Button>}
+          {qaBusy && <Text data-testid="qa-batch-busy">Technical request in progress</Text>}
+          {qaError && <Text role="alert">{qaError}</Text>}
+          {qaResultReady && <Text data-testid="qa-batch-result-ready">Returned model evidence loaded from workspace; clinical state remains unchanged.</Text>}
+        </Stack>
+      </Alert>}
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start" minW={0}>
         <Section title="Retinal preview" description={item.modality === 'UWF' ? 'Ultra-widefield image' : item.modality === 'CFP' ? 'Conventional fundus photograph' : 'Image type needs confirmation'}>
           {item.modality === 'UWF' && (
@@ -690,14 +728,14 @@ function ReviewPageSession() {
               excludedFraction={prismField!.excluded_fraction}
               boundary={prismField!.boundary}
             />
-          ) : item.image_url ? <RetinalCanvas
+          ) : item.image_url ? <Box data-testid="qa-batch-source-image"><RetinalCanvas
             item={imageView === 'analysis-area' && analysisCandidateAvailable ? { ...item, image_url: analysisAreaUrl } : item}
             maskOverlayUrl={imageView === 'mask-overlay' && maskOverlayAvailable ? maskOverlayUrl : null}
             onMaskOverlayError={handleMaskOverlayError}
             showAi={imageView === 'ai-evidence'}
             visibleLesionLabels={lesionFilter === 'ALL' ? undefined : [lesionFilter]}
             showHuman={false}
-          /> : (
+          /></Box> : (
             <Alert status="error"><AlertIcon /><Text>{item.admission_ui?.note ?? 'This file has no readable image preview.'}</Text></Alert>
           )}
           {imageView === 'explainability' && <Alert status={item.explainability?.status === 'AVAILABLE' ? 'info' : 'warning'} mt={3}>
@@ -754,7 +792,10 @@ function ReviewPageSession() {
             {imageView === 'mask-overlay' && <MaskLegend />}
             <LesionLegend />
           </Stack>
-          {prismNeedsPreview && lesionModel && <PrismInputPreview key={item.image_id} item={item} model={lesionModel} onInferenceComplete={async () => { if (isActive()) await loadCase(); }} />}
+          <ArtifactFieldPreview item={item} />
+          {qaBatch?.permitted_action === 'PRISM_PREVIEW_ONCE' && qaModel
+            ? <PrismInputPreview key={qaBatch.job_id} item={item} model={qaModel} showArtifactField={false} technicalBatch onInferenceComplete={async () => { if (isActive()) await loadCase(); }} />
+            : prismNeedsPreview && lesionModel && <PrismInputPreview key={item.image_id} item={item} model={lesionModel} showArtifactField={false} onInferenceComplete={async () => { if (isActive()) await loadCase(); }} />}
         </Section>
         <Stack spacing={5} minW={0}>
           {manualOnly ? (
@@ -903,7 +944,7 @@ function ReviewPageSession() {
               <SimpleGrid columns={{ base: 1, tablet: 2, laptop: 4 }} spacing={3} mb={4} fontSize="sm">
                 <Stack spacing={1}><Text color="text.secondary">Image ID</Text><Code fontSize="xs" whiteSpace="normal">{item.image_id}</Code></Stack>
                 <Stack spacing={1}><Text color="text.secondary">Dimensions</Text><Text>{item.width} x {item.height}px</Text></Stack>
-                <Stack spacing={1}><Text color="text.secondary">Source</Text><Text>{item.source}</Text></Stack>
+                <Stack spacing={1} data-qa-identifying><Text color="text.secondary">Source</Text><Text>{item.source}</Text></Stack>
               </SimpleGrid>
               <Stack spacing={2} mb={4}>
                 <Text fontSize="sm" color="text.secondary">

@@ -49,6 +49,7 @@ class Observation:
     vram_mib: int
     rss_bytes: int
     project_bytes: int
+    gpu_observed_at: float | None = None
 
 
 @dataclass(frozen=True)
@@ -168,9 +169,9 @@ class WorkerSupervisor:
                 "errno": code if type(code) is int and 0 <= code <= 4095 else None,
             }
 
-    def _observe(self):
+    def _observe(self, *, terminal=False):
         terminal_port = getattr(self._child, "observe_terminal", None)
-        stopping = self.state in {"DRAINING", "FORCE_PENDING"} and callable(terminal_port)
+        stopping = (terminal or self.state in {"DRAINING", "FORCE_PENDING"}) and callable(terminal_port)
         try:
             observation = terminal_port() if stopping else self._child.observe()
         except Exception:
@@ -208,6 +209,10 @@ class WorkerSupervisor:
         if (type(observation.observed_at) not in (int, float) or not math.isfinite(observation.observed_at)
                 or not 0 <= now - observation.observed_at <= self.policy.monitor_seconds):
             return "TELEMETRY_STALE_OR_INVALID"
+        gpu_time = getattr(observation, 'gpu_observed_at', None)
+        if gpu_time is not None and (type(gpu_time) not in (int, float) or not math.isfinite(gpu_time)
+                                     or not 0 <= now - gpu_time <= 2.5):
+            return "GPU_TELEMETRY_STALE_OR_INVALID"
         if type(observation.gpu_index) is not int or observation.gpu_index != 0 or observation.gpu_uuid != self.policy.gpu_uuid:
             return "GPU0_BINDING_MISMATCH"
         if (type(observation.vram_mib) is not int or observation.vram_mib < 0
@@ -226,12 +231,24 @@ class WorkerSupervisor:
         with self._lock:
             if self.state in {"STOPPED", "UNVERIFIED", "UNCONFIRMED_STOP"}:
                 return self.state
-            observation, now = self._observe()
+            now = self._now()
+            due = None
+            if self.state not in {"DRAINING", "FORCE_PENDING"}:
+                due = ("WORKLOAD_DEADLINE" if now >= self._deadline else
+                       "REQUEST_TIMEOUT" if self._job is not None and now >= self._job_deadline else
+                       "MONITORING_GAP" if now - self._last_poll > self.policy.monitor_seconds else None)
+            # Expired walls need only pinned-child liveness/identity. Never put
+            # a telemetry query/cache failure in front of an already due stop.
+            observation, now = self._observe(terminal=due is not None)
             if type(observation.alive) is not bool:
                 self._fault("CHILD_LIVENESS_INVALID")
             if not observation.alive:
                 self.state = "STOPPED"
                 self.reason = self.reason or "WORKER_EXITED"
+                return self.state
+            if due is not None:
+                self._last_poll = now
+                self._drain(due, now)
                 return self.state
             if self.state in {"DRAINING", "FORCE_PENDING"}:
                 if self.state == "DRAINING" and now >= self._force_at:

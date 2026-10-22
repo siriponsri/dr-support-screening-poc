@@ -13,7 +13,7 @@ from dr_support.providers.prism_remote_bound import FixedSessionRemoteProvider, 
 class DeadlineHttpExchange:
     """One attempt, fixed private loopback, bounded bytes, absolute checks.
 
-    A blocking read is additionally limited to min(remaining,200ms); scheduler/OS
+    A blocking read shares the remaining absolute RPC budget; scheduler/OS
     behavior still needs host qualification. No credential discovery or logging.
     The separate parent watchdog bounds worker load/forward even if RPC stalls.
     """
@@ -35,6 +35,36 @@ class DeadlineHttpExchange:
         self.clock = clock
 
     def __call__(self, method, path, value=None, *, epoch=None, authority=False, deadline):
+        operation = ('READINESS' if path == BASE+'/readiness' else
+                     'CAPABILITIES' if path == BASE+'/capabilities' else
+                     'PREPARE' if path == BASE+'/prepare' else
+                     'EXECUTE' if path == BASE+'/execute' else
+                     'GRANT' if path.endswith('/grant') else
+                     'CANCEL' if path.endswith('/cancel') else 'STATUS')
+        try:
+            return self._typed_request(method, path, value, epoch=epoch, authority=authority, deadline=deadline)
+        except TransportError as error:
+            error.control_operation = operation
+            raise
+
+    def _typed_request(self, method, path, value=None, *, epoch=None, authority=False, deadline):
+        try:
+            return self._request_once(method, path, value, epoch=epoch,
+                                      authority=authority, deadline=deadline)
+        except httpx.ReadTimeout:
+            raise TransportError('CONTROL_RPC_READ_TIMEOUT', 504) from None
+        except httpx.ConnectTimeout:
+            raise TransportError('CONTROL_RPC_CONNECT_TIMEOUT', 504) from None
+        except httpx.TimeoutException:
+            raise TransportError('CONTROL_RPC_OTHER_TIMEOUT', 504) from None
+        except httpx.ProtocolError:
+            raise TransportError('CONTROL_RPC_PROTOCOL_ERROR', 502) from None
+        except httpx.NetworkError:
+            raise TransportError('CONTROL_RPC_NETWORK_ERROR', 502) from None
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raise TransportError('CONTROL_RPC_INVALID_JSON', 502) from None
+
+    def _request_once(self, method, path, value=None, *, epoch=None, authority=False, deadline):
         if method not in {'GET', 'POST'} or not re.fullmatch(re.escape(BASE)+
             r'/(capabilities|readiness|prepare|execute|jobs/[A-Za-z0-9_-]{8,80}(/(grant|cancel))?)', path):
             raise TransportError('FIXED_PRIVATE_ROUTE_REQUIRED', 422)
@@ -43,7 +73,7 @@ class DeadlineHttpExchange:
             raise TransportError('ABSOLUTE_RPC_DEADLINE', 408)
         headers = {'X-Prism-Epoch': epoch} if epoch else {}
         with self.client.stream(method, path, json=value, headers=headers,
-            timeout=httpx.Timeout(min(remaining, 1), read=min(remaining, .2))) as response:
+            timeout=httpx.Timeout(min(remaining, 1), read=remaining)) as response:
             data = bytearray()
             for chunk in response.iter_bytes():
                 if self.clock() >= deadline:
@@ -54,8 +84,14 @@ class DeadlineHttpExchange:
             if self.clock() >= deadline:
                 raise TransportError('ABSOLUTE_RPC_DEADLINE', 408)
             result = json.loads(data)
+            if not isinstance(result, dict):
+                raise TransportError('CONTROL_RPC_BODY_TYPE', 502)
             if response.status_code not in {200, 202}:
-                raise TransportError(result.get('error', 'OWNED_RPC_REJECTED'), response.status_code)
+                error = TransportError(result.get('error', 'OWNED_RPC_REJECTED'), response.status_code)
+                kind = result.get('error_class')
+                error.remote_error_class = kind if type(kind) is str and kind in {'RuntimeError','ValueError','TypeError','KeyError','OSError','PermissionError','FileNotFoundError','JSONDecodeError','TimeoutExpired','OTHER'} else None
+                error.http_status = response.status_code
+                raise error
             return result
 
     def close(self):
@@ -91,8 +127,8 @@ class PrivateGatewayChannel:
             raise TransportError('GATEWAY_ESTABLISH_ONCE_NO_RETRY')
         try:
             status = self.exchange('GET', BASE+'/readiness', deadline=self.exchange.clock()+5)
-            if status != {'state': 'LOADED', 'pins': self.pins, 'epoch': self.epoch}:
-                raise TransportError('PRIVATE_LOADED_IDENTITY_MISMATCH')
+            from dr_support.services.loaded_attestation import require_loaded_identity
+            require_loaded_identity(status, expected_pins=self.pins, expected_epoch=self.epoch)
             self.ready = True
         except BaseException:
             self.quarantined = True

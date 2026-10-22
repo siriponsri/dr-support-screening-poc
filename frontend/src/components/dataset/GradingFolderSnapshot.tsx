@@ -53,7 +53,7 @@ export function GradingFolderSnapshot({ workspaceId, exportAllowed, refreshToken
         if (result.workspace_id !== workspaceId) throw new Error('Workspace changed');
         if (result.grading_folders?.schema_version !== 'grading-folders.v1') {
           setPreview(null);
-          setMessage({ context, error: true, text: result.can_export ? 'Grading-folder snapshots are unavailable on this backend. No images were exported.' : 'Source export is restricted. Hospital export remains disabled.' });
+          setMessage({ context, error: true, text: result.can_export ? 'Grading-folder snapshots are unavailable on this backend. No images were exported.' : 'Source export is restricted. Check source identity and authorization.' });
           return;
         }
         setPreview({ context, data: result });
@@ -76,7 +76,7 @@ export function GradingFolderSnapshot({ workspaceId, exportAllowed, refreshToken
   return <Section title="Grading-folder snapshot" description="Copy original image bytes into a new canonical snapshot. Originals and earlier snapshots are never moved or updated.">
     <Stack spacing={3}>
       <Text fontSize="sm">Grade0–4 use current recorded clinician confirmations with matching source provenance. Unreviewed, ungradable and undetermined images stay separate. AI suggestions do not assign folders. Folder membership does not certify clinical roles or lesion-training readiness.</Text>
-      {!available && <Text fontSize="sm" color="status.warning">{workspaceId ? 'Image export is restricted for this Workspace; hospital export remains disabled.' : 'Open an authorized Workspace to preview grading folders.'}</Text>}
+      {!available && <Text fontSize="sm" color="status.warning">{workspaceId ? 'Image export is restricted for this Workspace; check source identity and authorization.' : 'Open an authorized Workspace to preview grading folders.'}</Text>}
       <HStack flexWrap="wrap"><Button variant="outline" onClick={() => void run(false)} isDisabled={!available || busy}>Preview grading folders</Button>
         <Button onClick={() => void run(true)} isDisabled={!canCreate || busy}>Create grading-folder snapshot</Button></HStack>
       {busy && <Text role="status" fontSize="sm">Preparing snapshot…</Text>}

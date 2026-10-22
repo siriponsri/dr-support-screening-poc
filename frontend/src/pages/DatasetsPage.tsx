@@ -73,7 +73,8 @@ function sourceOriginLabel(sourceOrigin: DatasetImageRow['source_origin']): stri
 }
 
 function exportAuthorizationLabel(authorization?: string): string {
-  if (authorization === 'BLOCKED_HOSPITAL_EXPORT_NOT_AUTHORIZED') return 'Hospital export restricted';
+  if (authorization === 'ALLOWED_LOCAL_AUTHORIZED_HOSPITAL') return 'Approved hospital · local export allowed';
+  if (authorization === 'BLOCKED_SOURCE_IDENTITY_OR_AUTHORIZATION_MISMATCH') return 'Source identity or authorization mismatch';
   if (authorization === 'BLOCKED_WORKSPACE_NOT_AUTHORIZED') return 'Workspace export restricted';
   if (authorization?.startsWith('BLOCKED_')) return 'Export restricted';
   return authorization?.startsWith('ALLOWED_') ? 'Engineering export allowed' : 'Export status unavailable';
@@ -266,7 +267,7 @@ export function DatasetsPage() {
         <GradingFolderSnapshot workspaceId={manifest?.workspace_id ?? null} exportAllowed={manifest?.can_export === true} refreshToken={manifest?.created_at} />
         <Section title="Legacy export tools" description="Metadata-only canonical snapshots do not copy images. The older grouped-image export updates a shared folder; use Grading-folder snapshot for a new immutable copy.">
           <Stack spacing={3} align="flex-start">
-            {!manifest?.can_export && <Text fontSize="sm" color="status.warning">{manifest?.workspace_id ? 'Export is restricted for this Workspace. Review source authorization; hospital export remains disabled.' : 'Open an active Workspace to export a dataset manifest.'}</Text>}
+            {!manifest?.can_export && <Text fontSize="sm" color="status.warning">{manifest?.workspace_id ? 'Export is restricted for this Workspace. Review source identity and authorization.' : 'Open an active Workspace to export a dataset manifest.'}</Text>}
             <HStack flexWrap="wrap"><Button leftIcon={<Download size={15} />} onClick={() => void createExport()} isLoading={exporting} isDisabled={!manifest?.can_export}>Export manifest</Button><Button variant="outline" onClick={() => void createGroupedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export}>Export grouped images</Button></HStack>
             <HStack role="group" aria-label="Grouped export image format" spacing={1}>{(['PNG', 'JPEG'] as const).map((format) => <Button key={format} size="sm" variant={groupedFormat === format ? 'solid' : 'outline'} aria-pressed={groupedFormat === format} onClick={() => setGroupedFormat(format)}>{format}</Button>)}</HStack>
             {groupedFormat === 'JPEG' && <FormControl maxW="180px"><FormLabel htmlFor="grouped-jpeg-quality" fontSize="sm">JPEG quality</FormLabel><Input id="grouped-jpeg-quality" type="number" min={1} max={100} step={1} value={jpegQuality} onChange={(event) => setJpegQuality(event.target.value)} /></FormControl>}

@@ -34,8 +34,11 @@ interface RetinalCanvasProps {
   item: CaseRecord;
   /** Inspection-only candidate mask rendered over the immutable display image. */
   maskOverlayUrl?: string | null;
+  maskOverlayLabel?: string;
   onMaskOverlayError?: () => void;
   showAi?: boolean;
+  /** Annotation-assist view only. Other review/grading canvases stay unchanged. */
+  aiLesionsOverride?: DisplayedLesion[];
   visibleLesionLabels?: LesionLabel[];
   showHuman?: boolean;
   humanAnnotations?: HumanAnnotation[];
@@ -163,7 +166,7 @@ function AiShape({
   onSelect?: (detectionId: string) => void;
 }) {
   const [x1, y1, x2, y2] = lesion.rectangle;
-  const color = LESION_COLORS[lesion.canonical_label as LesionLabel] ?? LESION_COLORS.MICROANEURYSM;
+  const color = lesion.artifactFiltered ? '#F97316' : LESION_COLORS[lesion.canonical_label as LesionLabel] ?? LESION_COLORS.MICROANEURYSM;
   const label = prettyLabel(lesion.canonical_label);
   const shortLabel = lesion.canonical_label === 'MICROANEURYSM' ? 'MA'
     : lesion.canonical_label === 'HEMORRHAGE' ? 'HE'
@@ -236,7 +239,7 @@ function AiShape({
         vectorEffect="non-scaling-stroke"
       />
       <text x={textPoint.x} y={textPoint.y} fill={color} fontSize={Math.max(10, Math.min(18, (x2 - x1) / 8))} fontWeight="700">
-        {corrected ? `${shortLabel} · clinician corrected` : `${shortLabel} · ${displayScore?.toFixed(2) ?? ''}`}
+        {lesion.artifactFiltered ? `${shortLabel} · artifact filtered (AI)` : corrected ? `${shortLabel} · clinician corrected` : `${shortLabel} · ${displayScore?.toFixed(2) ?? ''}`}
       </text>
     </g>
   );
@@ -328,8 +331,10 @@ function HumanShape({
 export function RetinalCanvas({
   item,
   maskOverlayUrl,
+  maskOverlayLabel = 'Mask preview showing retained retinal area and excluded border or artifact area',
   onMaskOverlayError,
   showAi = true,
+  aiLesionsOverride,
   visibleLesionLabels,
   showHuman = true,
   humanAnnotations = item.human_annotations,
@@ -650,7 +655,7 @@ export function RetinalCanvas({
 
   const transform = `translate(${displayView.panX}px, ${displayView.panY}px) scale(${displayView.scale})`;
   const zoomPercent = Math.round(displayView.scale * 100);
-  const aiLesions = displayedLesions(item).filter((lesion) => (
+  const aiLesions = (aiLesionsOverride ?? displayedLesions(item)).filter((lesion) => (
     !visibleLesionLabels || visibleLesionLabels.includes(lesion.canonical_label as LesionLabel)
   ));
   const coordinateText = pointerCoordinate
@@ -794,7 +799,7 @@ export function RetinalCanvas({
         {maskOverlayUrl && (
           <Image
             src={maskOverlayUrl}
-            alt="Mask preview showing retained retinal area and excluded border or artifact area"
+            alt={maskOverlayLabel}
             data-testid="mask-overlay"
             position="absolute"
             inset={0}

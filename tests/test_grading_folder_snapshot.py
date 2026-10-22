@@ -201,7 +201,7 @@ def test_duplicate_content_conflicts_are_held_out_of_numeric_groups(rig, conflic
     assert all(not list(csv.DictReader(path.open(encoding="utf-8"))) for path in rig.output.glob("dataset-snapshot-*/dr_labels.csv"))
 
 
-@pytest.mark.parametrize("origin", ["HOSPITAL_AUTHORIZED", "WORKSPACE", "UNKNOWN"])
+@pytest.mark.parametrize("origin", ["WORKSPACE", "UNKNOWN"])
 def test_unauthorized_source_cannot_write_any_directory_or_file(rig, origin):
     rig.case["admission"]["source_origin"] = origin
     rig.app.state.images[rig.image.image_id] = replace(rig.image, source_origin=origin)
@@ -212,6 +212,63 @@ def test_unauthorized_source_cannot_write_any_directory_or_file(rig, origin):
                                     expected_source_state_digest=preview["source_state_digest"]["digest"],
                                     expected_grading_plan_sha256="0" * 64)
     assert list(rig.output.iterdir()) == [] and rig.source_path.is_file()
+
+
+@pytest.mark.parametrize("grade", range(5))
+def test_consented_hospital_current_grade_copies_original_without_new_clinical_labels(rig, grade):
+    rig.case['admission']['source_origin'] = 'HOSPITAL_AUTHORIZED'
+    rig.app.state.images[rig.image.image_id] = replace(rig.image,
+        source_origin='HOSPITAL_AUTHORIZED', source_type='HOSPITAL_AUTHORIZED')
+    rig.case['reviewed_grade'] = rig.case['clinician_review']['final_grade'] = grade
+    before = deepcopy(rig.store.cases)
+    original = rig.source_path.read_bytes()
+    result = preview_and_export(rig)
+    item = folder_manifest(rig, result)['items'][0]
+    assert item['group'] == f'Grade{grade}'
+    assert (rig.output/result['directory_name']/item['output_path']).read_bytes() == original
+    assert rig.source_path.read_bytes() == original and rig.store.cases == before
+    assert result['manifest']['export_authorization_summary'] == {'ALLOWED_LOCAL_AUTHORIZED_HOSPITAL': 1}
+
+
+def test_consented_hospital_ai_grade_is_not_a_physician_folder_or_gold(rig):
+    rig.case['admission']['source_origin'] = 'HOSPITAL_AUTHORIZED'
+    rig.app.state.images[rig.image.image_id] = replace(rig.image,
+        source_origin='HOSPITAL_AUTHORIZED', source_type='HOSPITAL_AUTHORIZED')
+    rig.case.update(clinician_review=None, grade_status='NOT_REVIEWED', reviewed_grade=None,
+                    **{'global': {'model_id':'fixture','model_version':'NO_MODEL_EXECUTED','grade':4}})
+    result = preview_and_export(rig)
+    assert folder_manifest(rig, result)['items'][0]['group'] == 'UNREVIEWED'
+    assert result['manifest']['row_counts']['dr_labels.csv'] == 0
+    assert result['manifest']['row_counts']['lesion_labels.csv'] == 0
+
+
+def test_physician_folder_organization_does_not_claim_training_readiness(rig):
+    rig.case['admission']['source_origin'] = 'HOSPITAL_AUTHORIZED'
+    rig.case['admission']['quality_state'] = 'NEEDS_REVIEW'
+    rig.app.state.images[rig.image.image_id] = replace(rig.image,
+        source_origin='HOSPITAL_AUTHORIZED', source_type='HOSPITAL_AUTHORIZED')
+    before = deepcopy(rig.store.cases)
+    preview = rig.service.snapshot_preview(include_grade_folders=True)
+    assert preview['grading_folders']['group_counts']['Grade2'] == 1
+    assert preview['row_counts']['dr_labels.csv'] == 0
+    result = preview_and_export(rig)
+    assert folder_manifest(rig, result)['items'][0]['group'] == 'Grade2'
+    assert result['manifest']['row_counts']['dr_labels.csv'] == 0
+    assert result['manifest']['row_counts']['lesion_labels.csv'] == 0
+    assert rig.store.cases == before
+
+
+def test_origin_edit_alone_does_not_authorize_hospital_export(rig):
+    rig.case['admission']['source_origin'] = 'HOSPITAL_AUTHORIZED'
+    preview = rig.service.snapshot_preview(include_grade_folders=True)
+    assert not preview['can_export']
+    assert preview['export_authorization_summary'] == {'BLOCKED_SOURCE_IDENTITY_OR_AUTHORIZATION_MISMATCH':1}
+    with pytest.raises(DatasetManifestError):
+        rig.service.export_snapshot(include_grade_folders=True,
+            expected_workspace_id=preview['workspace_id'],
+            expected_source_state_digest=preview['source_state_digest']['digest'],
+            expected_grading_plan_sha256='0'*64)
+    assert list(rig.output.iterdir()) == []
 
 
 @pytest.mark.parametrize("defect", ["missing", "source_changed", "conflicting_hash", "metadata_changed", "unsupported_format", "excluded"])

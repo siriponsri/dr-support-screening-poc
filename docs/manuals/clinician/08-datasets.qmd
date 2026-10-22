@@ -31,7 +31,9 @@ skipped sources, then **Create grading-folder snapshot**. Grade0–4 contains cu
 recorded clinician confirmations with source provenance; UNREVIEWED, UNGRADABLE
 and UNDETERMINED are separate. The new snapshot copies original bytes and preserves
 previous snapshots after a grade revision. Folder membership does not certify
-lesion labels or clinician credentials. Hospital export remains disabled.
+lesion labels or clinician credentials. Already authorized hospital sources may
+be copied locally under the approved workstation policy; this is not a network
+transfer grant.
 See [grade-organized snapshots](../../operations/GRADING_FOLDER_SNAPSHOTS.md) for
 completion, authorization and recovery limits.
 

@@ -80,6 +80,8 @@ class FixedQASession(SyntheticFenceAuthority):
         if authorization is not None:
             if type(store) is not QualificationMemoryStore or set(images) != {authorization.image_id}:
                 raise TransportError("CASE16_COPIED_MEMORY_STORE_ONLY")
+            if store._authorization != authorization:
+                raise TransportError("CASE16_SAVED_ATTESTATION_MISMATCH")
             authorization.input(images[authorization.image_id], store.get(authorization.image_id), admissions.get(authorization.image_id, {}))
             if store._evidence != Path(directory).parent / "testdata":
                 raise TransportError("CASE16_ISOLATED_EVIDENCE_PATH_REQUIRED")
@@ -139,6 +141,17 @@ class FixedQASession(SyntheticFenceAuthority):
         # Only the explicit MockTransport injection uses this offline capability;
         # do not promote its descriptor to clinically ready or register it.
         return SimpleNamespace(capability_id='core_lesion_localization')
+
+    def preview_eligible(self, admission):
+        from .admission import is_inference_eligible
+        authorization = self.demo_authorization
+        if authorization is None or not authorization.technical_only:
+            return is_inference_eligible(admission)
+        try:
+            authorization.eligible(admission)
+            return True
+        except TransportError:
+            return False
 
     def authorize_prepare(self, wire, recorded_context=None, *, original_bytes=None):
         with self.session_lock:

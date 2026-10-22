@@ -181,10 +181,12 @@ def test_model_api_rejects_hospital_origin_without_model_scope(tmp_path, monkeyp
     assert all("HOSPITAL_AUTHORIZED" in item["authorized_source_origins"] for item in authorized_descriptors)
 
 
-def test_hospital_manifest_and_all_exports_remain_blocked(tmp_path, monkeypatch):
+def test_authorized_hospital_local_exports_preserve_unreviewed_sources(tmp_path, monkeypatch):
     root = tmp_path / "hospital"
     _configure_hospital(monkeypatch, root)
-    (root / "private-source.jpg").write_bytes(_jpeg_bytes())
+    original_bytes = _jpeg_bytes()
+    source = root / "private-source.jpg"
+    source.write_bytes(original_bytes)
     output = tmp_path / "output"
     output.mkdir()
     monkeypatch.setenv("DR_SUPPORT_WORKSPACE_CATALOG", str(tmp_path / "catalog.sqlite"))
@@ -204,11 +206,14 @@ def test_hospital_manifest_and_all_exports_remain_blocked(tmp_path, monkeypatch)
     manifest = client.get("/v1/dataset/manifest").json()
     row = manifest["images"][0]
     assert row["source_origin"] == HOSPITAL_ORIGIN
-    assert row["export_authorization"] == "BLOCKED_HOSPITAL_EXPORT_NOT_AUTHORIZED"
-    assert manifest["can_export"] is False
-    assert client.post("/v1/dataset/export").status_code == 409
-    assert client.post("/v1/dataset/export/grouped-by-grade", json={}).status_code == 409
-    assert not any(path.is_file() for path in output.iterdir())
+    assert row["export_authorization"] == "ALLOWED_LOCAL_AUTHORIZED_HOSPITAL"
+    assert manifest["can_export"] is True
+    assert row["dr_grade_training_ready"] is False
+    assert row["lesion_training_ready"] is False
+    assert client.post("/v1/dataset/export").status_code == 200
+    assert client.post("/v1/dataset/export/grouped-by-grade", json={}).status_code == 200
+    assert source.read_bytes() == original_bytes
+    assert client.get(f"/v1/cases/{case['image_id']}").json()["clinician_review"] is None
 
 
 def test_authorized_hospital_api_pairs_previous_same_eye_and_sequence(tmp_path, monkeypatch):

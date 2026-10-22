@@ -114,8 +114,13 @@ class FrozenBaselinePreparation:
 class BoundLocalPRISM(PRISM):
     prism_preview_protocol = PROPOSED_PROTOCOL
 
-    def __init__(self, *, allow_cpu_fallback=None):
+    def __init__(self, *, allow_cpu_fallback=None, batch_authorization=None):
+        if batch_authorization is not None:
+            from prism_batch_scope import is_batch_authorization
+            if not is_batch_authorization(batch_authorization):
+                raise BoundPlanError("TYPED_APPROVED_BATCH_AUTHORIZATION_REQUIRED")
         super().__init__(allow_cpu_fallback=allow_cpu_fallback)
+        self._batch_authorization = batch_authorization
         self._bound_lock = Lock()
         self._candidates = OrderedDict()
         self._consumed = set()
@@ -125,24 +130,38 @@ class BoundLocalPRISM(PRISM):
 
     def _runtime_identity(self):
         """CPU file verification and package metadata only; no load/metadata/GPU."""
+        from dr_support.services.identity_budget import check_identity_budget
+        from .assets import sha256 as file_digest
+        check_identity_budget()
         source = verify_source(os.environ["PRISM_SOURCE"], REVISION)
+        check_identity_budget()
         weights = Path(os.environ["PRISM_WEIGHTS"])
         lock_path = Path(__file__).with_name("prism_assets.json")
         pins = json.loads(lock_path.read_text())["weights"]
         if len(pins) != 21:
             raise BoundPlanError("EXACT21_CHECKPOINTS_REQUIRED")
         for relative, digest in pins.items():
+            check_identity_budget()
             verify_weight(weights / relative, digest)
+            check_identity_budget()
         package = Path(__file__).resolve().parents[1]
         files = {"adapter": Path(__file__), "provider": Path(__file__).with_name("prism.py"),
                  "loader": Path(__file__).with_name("prism_safe_loader.py"), "lock": lock_path,
                  "FOV": package / "imaging/uwf_white_rim_fov.py",
                  "engine": source / "evaluation/src/image_level_evaluation.py",
                  "config": source / "evaluation/src/config.py", "yaml": source / "evaluation/configs/inference.yaml"}
-        config = {"files": {name: sha(path.read_bytes()) for name, path in files.items()},
+        if self._batch_authorization is not None:
+            import prism_batch_scope
+            files["batch_authority"] = Path(prism_batch_scope.__file__)
+        config = {"files": {name: file_digest(path) for name, path in files.items()},
                   "thresholds": thresholds(), "baseline": PREPROCESSING,
                   "versions": {name: importlib.metadata.version(name) for name in
                                ("numpy", "opencv-python", "Pillow", "torch", "torchvision", "ultralytics", "sahi", "ensemble-boxes")}}
+        if self._batch_authorization is not None:
+            # Policy is part of model/config identity, never disguised as an
+            # uncertain anatomical mask from the baseline detector.
+            config["external_mask_policy"] = self._batch_authorization.external_mask_policy
+        check_identity_budget()
         return {"model_id": self.model_id, "source_revision": REVISION,
                 "preprocessing": PREPROCESSING + "; bound_config=" + sha(canonical(config)),
                 "config_sha256": sha(canonical(config)), "checkpoint_sha256": pins}
@@ -166,6 +185,10 @@ class BoundLocalPRISM(PRISM):
         image = decode(bytes(wire.data))
         if image.size != wire.size or wire.modality not in {"CFP", "UWF"}:
             raise BoundPlanError("WIRE_CONTEXT_MISMATCH")
+        if self._batch_authorization is not None:
+            self._batch_authorization.job_for_wire(wire.data, wire.modality)
+            if wire.source_type != self._batch_authorization.origin_for_wire(wire.data, wire.modality):
+                raise BoundPlanError("BATCH_RECORDED_ORIGIN_CHANGED")
         pins = self._runtime_identity()
         key = (sha(bytes(wire.data)), wire.modality, sha(canonical(pins)))
         now = time.monotonic()
@@ -173,7 +196,12 @@ class BoundLocalPRISM(PRISM):
         if key in self._candidates:
             return self._candidates[key][1]
         mask, metadata, reason, status = None, None, None, "NOT_APPLICABLE"
-        if wire.modality == "UWF":
+        if self._batch_authorization is not None:
+            from prism_batch_scope import EXTERNAL_MASK_REASON
+            # No anatomy detector is attempted in this explicit original-input
+            # experiment. Native PRISM ROI still executes after the fatal fence.
+            reason = EXTERNAL_MASK_REASON
+        elif wire.modality == "UWF":
             fov = self._detect_baseline(image)
             status, reason = str(fov.status), fov.reason_code
             if fov.source_rgb_sha256 != rgb_hash(image) or (fov.image_width, fov.image_height) != image.size:
@@ -222,7 +250,22 @@ class BoundLocalPRISM(PRISM):
             return {"status": value.status, "reason_code": value.reason,
                     "mask_png": value.mask_png, "mask_version": MASK_VERSION if value.mask_png else None}
 
-    def _validate(self, request, wire, mask_png, binding, plan_hash):
+    def _validate(self, request, wire, mask_png, binding, plan_hash, *, demo_authorization=None):
+        from dr_support.services.case16_qualification import Case16Authorization, checked_authorization
+        authorization = checked_authorization(demo_authorization)
+        if self._batch_authorization is not None and authorization is not self._batch_authorization:
+            raise BoundPlanError("BATCH_EXECUTION_AUTHORITY_CHANGED")
+        if (authorization is not None and type(authorization) is not Case16Authorization
+                and authorization is not self._batch_authorization):
+            # checked_authorization already excluded every other type. Do not
+            # add a batch-package import dependency to ordinary case16 users.
+            raise BoundPlanError("BATCH_POLICY_NOT_CONFIGURED")
+        if authorization is not None:
+            # The qualification is exact-case authority, never a rewritten admission.
+            authorization.binding(binding)
+            authorization.wire(wire.data)
+            if mask_png is not None:
+                raise BoundPlanError("CASE16_NO_APPLIED_MASK")
         if not isinstance(wire.data, bytes) or (mask_png is not None and not isinstance(mask_png, bytes)):
             raise BoundPlanError("IMMUTABLE_EXECUTION_BYTES_REQUIRED")
         if sha(canonical(binding)) != plan_hash:
@@ -250,9 +293,13 @@ class BoundLocalPRISM(PRISM):
                 or request.modality != binding["modality"] or wire.modality != request.modality):
             raise BoundPlanError("MODEL_IMAGE_MODALITY_MISMATCH")
         admission = binding["admission"]
-        if (admission["source_origin"] != wire.source_type or not source_allowed_for_model(wire.source_type, model_api=True)
-                or admission["retinal_modality"] != request.modality or admission["modality_admission"] != "FUNDUS_ACCEPTED"
-                or admission["quality_state"] != "GRADABLE"):
+        if (admission["source_origin"] != wire.source_type or
+                (self._batch_authorization is None and not source_allowed_for_model(wire.source_type, model_api=True))
+                or admission["retinal_modality"] != request.modality):
+            raise BoundPlanError("SOURCE_OR_ADMISSION_BLOCKED")
+        if ((authorization is None or not authorization.technical_only)
+                and (admission["modality_admission"] != "FUNDUS_ACCEPTED"
+                     or admission["quality_state"] != "GRADABLE")):
             raise BoundPlanError("SOURCE_OR_ADMISSION_BLOCKED")
         current = self._runtime_identity()
         if set(binding["model_pins"]) != PIN_FIELDS or current != binding["model_pins"]:
@@ -308,15 +355,18 @@ class BoundLocalPRISM(PRISM):
         raise BoundPlanError("BOUND_PLAN_REQUIRED_NO_LEGACY_FALLBACK")
 
     def infer_remote_fenced_prism(self, request, wire, *, mask_png, binding, plan_sha256,
-                                  before_forward, on_native_roi_entry):
+                                  before_forward, on_native_roi_entry, demo_authorization=None):
         # Review-only port; no factory/profile is registered by this patch.
         if not callable(before_forward) or not callable(on_native_roi_entry):
             raise BoundPlanError("FATAL_REMOTE_ENTRY_PORT_REQUIRED")
         return self.infer_bound_prism(request, wire, mask_png=mask_png, binding=binding,
-            plan_sha256=plan_sha256, before_forward=before_forward, _remote_roi_entry=on_native_roi_entry)
+            plan_sha256=plan_sha256, before_forward=before_forward, _remote_roi_entry=on_native_roi_entry,
+            _demo_authorization=demo_authorization)
 
     def infer_bound_prism(self, request, wire, *, mask_png, binding, plan_sha256, before_forward=None,
-                          _remote_roi_entry=None):
+                          _remote_roi_entry=None, _demo_authorization=None):
+        if _demo_authorization is not None and not callable(_remote_roi_entry):
+            raise BoundPlanError("FATAL_REMOTE_ENTRY_PORT_REQUIRED")
         if not self._bound_lock.acquire(blocking=False):
             raise BoundPlanError("SERIAL_EXECUTION_ONLY")
         model_work_started = False
@@ -324,7 +374,8 @@ class BoundLocalPRISM(PRISM):
             binding, request = deepcopy(binding), deepcopy(request)
             if not callable(before_forward):
                 raise BoundPlanError("SERVER_SOURCE_REVALIDATION_REQUIRED")
-            frozen, pins = self._validate(request, wire, mask_png, binding, plan_sha256)
+            frozen, pins = self._validate(request, wire, mask_png, binding, plan_sha256,
+                                          demo_authorization=_demo_authorization)
             plan_identity = (binding["scope"], binding["image_id"], binding["plan_id"])
             if (plan_sha256 in self._consumed or plan_identity in self._consumed_ids
                     or len(self._consumed) >= 4096):
@@ -337,36 +388,38 @@ class BoundLocalPRISM(PRISM):
             if self._loaded_identity != pins:
                 raise BoundPlanError("LOADED_MODELS_DO_NOT_MATCH_PREVIEW")
             # Revalidate after load/wait and immediately before the native ROI.
-            self._validate(request, wire, mask_png, binding, plan_sha256)
+            self._validate(request, wire, mask_png, binding, plan_sha256,
+                           demo_authorization=_demo_authorization)
             before_forward()
             self._active_preparation = frozen
             result = self._infer_loaded(request, wire, _frozen_preparation=frozen, _fatal_roi_entry=_remote_roi_entry)
             result = LesionResult.model_validate(result)
             processing = deepcopy(self.last_processing_evidence)
-            if request.modality == "UWF":
-                processing = PrismProcessingEvidence.model_validate(processing).model_dump(mode="json")
-                if (processing["input_image_sha256"] != binding["wire_sha256"]
-                        or processing["external_fov_status"] != frozen.status
-                        or len(processing["raw_boundary_classes"]) != len(result.lesions)):
-                    raise BoundPlanError("PROCESSING_INPUT_MISMATCH")
-                if processing["native_roi_status"] == "FAILED":
-                    if processing["processing_mode"] != "FALLBACK" or processing["fov_used_for_model_input"]:
-                        raise BoundPlanError("INVALID_NATIVE_ROI_FALLBACK")
-                    # v1 baseline may retain unused candidate geometry. The
-                    # bound contract must not advertise it as actual input.
-                    processing["analysis_field"] = None
-                elif frozen.mask_png is not None:
-                    field = processing["analysis_field"] or {}
-                    if (processing["processing_mode"] != "PREPARED" or not processing["fov_used_for_model_input"]
-                            or field.get("mask_sha256") != binding["mask_sha256"]
-                            or field.get("mask_version") != MASK_VERSION
-                            or field.get("source_rgb_sha256") != binding["wire_rgb_sha256"]):
-                        raise BoundPlanError("APPLIED_MASK_RECEIPT_MISMATCH")
-                    applied = decode(base64.b64decode(field["field_mask_png_base64"], validate=True), mode="L")
-                    if applied.tobytes() != decode(frozen.mask_png, mode="L").tobytes():
-                        raise BoundPlanError("APPLIED_MASK_PIXELS_MISMATCH")
-                    field["field_mask_png_base64"] = base64.b64encode(frozen.mask_png).decode()
-                self.last_processing_evidence = deepcopy(processing)
+            # The native ROI stage runs for CFP as well as UWF; do not discard
+            # its actual coordinates/fallback evidence for the CFP batch route.
+            processing = PrismProcessingEvidence.model_validate(processing).model_dump(mode="json")
+            if (processing["input_image_sha256"] != binding["wire_sha256"]
+                    or processing["external_fov_status"] != frozen.status
+                    or processing["external_fov_reason_code"] != frozen.reason
+                    or len(processing["raw_boundary_classes"]) != len(result.lesions)):
+                raise BoundPlanError("PROCESSING_INPUT_MISMATCH")
+            if processing["native_roi_status"] == "FAILED":
+                expected_mode = "FALLBACK" if request.modality == "UWF" else "LEGACY"
+                if processing["processing_mode"] != expected_mode or processing["fov_used_for_model_input"]:
+                    raise BoundPlanError("INVALID_NATIVE_ROI_FALLBACK")
+                processing["analysis_field"] = None
+            elif frozen.mask_png is not None:
+                field = processing["analysis_field"] or {}
+                if (processing["processing_mode"] != "PREPARED" or not processing["fov_used_for_model_input"]
+                        or field.get("mask_sha256") != binding["mask_sha256"]
+                        or field.get("mask_version") != MASK_VERSION
+                        or field.get("source_rgb_sha256") != binding["wire_rgb_sha256"]):
+                    raise BoundPlanError("APPLIED_MASK_RECEIPT_MISMATCH")
+                applied = decode(base64.b64decode(field["field_mask_png_base64"], validate=True), mode="L")
+                if applied.tobytes() != decode(frozen.mask_png, mode="L").tobytes():
+                    raise BoundPlanError("APPLIED_MASK_PIXELS_MISMATCH")
+                field["field_mask_png_base64"] = base64.b64encode(frozen.mask_png).decode()
+            self.last_processing_evidence = deepcopy(processing)
             if (result.model_id != self.model_id or result.model_version != REVISION
                     or result.modality != request.modality or (result.width, result.height) != wire.size
                     or result.state != "AI_SUGGESTION" or result.provenance.source_type != wire.source_type

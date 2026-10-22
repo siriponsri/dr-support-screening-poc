@@ -276,6 +276,7 @@ export interface PrismProcessingEvidence {
 }
 
 export interface CaseRecord {
+  artifact_roi_assist?: ArtifactRoiAssist;
   image_id: string;
   display_name: string;
   filename: string | null;
@@ -370,6 +371,24 @@ export interface CaseRecord {
   resolution_history?: Array<Record<string, unknown>>;
   queue_state?: 'INCLUDED' | 'EXCLUDED';
   queue_history?: Array<Record<string, unknown>>;
+}
+
+export interface ArtifactRoiAssist {
+  scope_sha256: string;
+  evidence_kind?: string;
+  shadow_proposals?: Array<{ detection_id: string; reason: string }>;
+  enabled: boolean;
+  status: string;
+  policy_version: string;
+  binding_sha256: string | null;
+  input_binding?: { source_sha256: string; raw_result_sha256: string; image_id: string; width: number; height: number };
+  visible_ids: string[];
+  suppressed_ids: string[];
+  suppressed: Array<{ detection_id: string; reason: string }>;
+  restored_ids: string[];
+  overlay_url: string | null;
+  provenance_class: 'NON_GOLD_AI_VISIBILITY_ONLY';
+  negative_labels_from_suppression: false;
 }
 
 export type Laterality = 'LEFT' | 'RIGHT' | 'UNKNOWN';

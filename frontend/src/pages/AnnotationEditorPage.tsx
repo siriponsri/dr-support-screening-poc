@@ -28,6 +28,8 @@ import { CaseNavigation } from '@/components/common/CaseNavigation';
 import { ReviewerField } from '@/components/common/ReviewerField';
 import { GuideHint } from '@/components/common/GuideHint';
 import { AiRoiPopover } from '@/components/review/AiRoiPopover';
+import { ArtifactRoiControls } from '@/components/review/ArtifactRoiControls';
+import { annotationAssistLesions } from '@/lib/artifactRoiAssist';
 import { displayedLesions } from '@/components/review/lesionPresentation';
 import { RetinalCanvas, LESION_COLORS, LESION_SHORT_LABELS, type RectangleResizeHandle } from '@/components/review/RetinalCanvas';
 import { EDIT_CONFIRMED_ANNOTATIONS_DIALOG, SWITCH_IMAGE_DIALOG, LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -461,6 +463,10 @@ function AnnotationEditorPageSession() {
   const [dragStart, setDragStart] = useState<Point | null>(null);
   const [preview, setPreview] = useState<{ type: Tool; geometry: AnnotationGeometry } | null>(null);
   const [showAi, setShowAi] = useState(true);
+  const [showFilteredArtifacts, setShowFilteredArtifacts] = useState(false);
+  const [showArtifactOverlay, setShowArtifactOverlay] = useState(false);
+  const [artifactOverlayFailed, setArtifactOverlayFailed] = useState(false);
+  const [previewArtifactProposals, setPreviewArtifactProposals] = useState(false);
   const [showHuman, setShowHuman] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -505,9 +511,24 @@ function AnnotationEditorPageSession() {
     setLoading(true);
     setError(null);
     try {
-      const loaded = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
+      let loaded = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}`);
       if (!isActive() || !requestIsCurrent()) return;
+      const artifactBeforePrepare = loaded.artifact_roi_assist;
+      if (artifactBeforePrepare?.enabled && ['NOT_PREPARED', 'STALE_OR_UNAVAILABLE_RETAINED_ALL',
+        'INVALID_BINDING_RETAINED_ALL'].includes(artifactBeforePrepare.status)) {
+        try {
+          loaded = await apiJson<CaseRecord>(`/v1/cases/${encodeURIComponent(imageId)}/artifact-roi/prepare`, {
+            method: 'POST', body: JSON.stringify({ revision: loaded.revision, scope_sha256: artifactBeforePrepare.scope_sha256 }),
+          });
+        } catch {
+          loaded = { ...loaded, artifact_roi_assist: { ...artifactBeforePrepare,
+            status: 'UNAVAILABLE_RETAINED_ALL', suppressed_ids: [], suppressed: [], overlay_url: null } };
+        }
+        if (!isActive() || !requestIsCurrent()) return;
+      }
       setItem(loaded);
+      setShowFilteredArtifacts(false); setShowArtifactOverlay(false); setArtifactOverlayFailed(false);
+      setPreviewArtifactProposals(false);
       localTiming.modality(imageId, loaded.modality);
       localTiming.event('case_ready', imageId);
       setDraft(loaded.human_annotations ?? []);
@@ -1393,8 +1414,24 @@ function AnnotationEditorPageSession() {
           {annotationControls}
         </Section>
         <Section title="Retinal image" description="Inspect the image and record only the findings you choose to keep.">
+          <ArtifactRoiControls item={item} showFiltered={showFilteredArtifacts} showOverlay={showArtifactOverlay}
+            previewProposals={previewArtifactProposals} onPreviewProposals={setPreviewArtifactProposals}
+            onShowFiltered={setShowFilteredArtifacts} onShowOverlay={setShowArtifactOverlay}
+            onCaseChange={(saved) => {
+              if (isActive() && saved.image_id === imageId) setItem((current) =>
+                current && current.revision <= saved.revision ? saved : current);
+            }} />
+          {artifactOverlayFailed && <Alert status="warning"><AlertIcon />Artifact overlay unavailable; all suggestions retained.</Alert>}
           <RetinalCanvas
             item={item}
+            aiLesionsOverride={annotationAssistLesions(item, showFilteredArtifacts, artifactOverlayFailed, previewArtifactProposals)}
+            maskOverlayUrl={showArtifactOverlay && !artifactOverlayFailed ? item.artifact_roi_assist?.overlay_url : null}
+            maskOverlayLabel={item.artifact_roi_assist?.status === 'SHADOW_ONLY'
+              ? 'Artifact proposal in orange; optional visibility preview only. No clinical labels or model input changed.'
+              : item.artifact_roi_assist?.evidence_kind === 'GENERIC_IMAGE_ONLY_EMPIRICAL_NOT_CERTIFIED'
+                ? 'Empirical artifact candidates in orange; uncertain areas retained. Original and model input unchanged.'
+              : 'Sure-exclude artifact areas in orange; uncertain areas retained. Original and model input unchanged.'}
+            onMaskOverlayError={() => { setArtifactOverlayFailed(true); setShowArtifactOverlay(false); }}
             showAi={showAi}
             showHuman={showHuman}
             humanAnnotations={draft}

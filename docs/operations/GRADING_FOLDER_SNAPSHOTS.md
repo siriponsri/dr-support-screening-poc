@@ -1,8 +1,9 @@
 # Grade-organized image snapshots
 
-Status: engineering implementation qualified with synthetic files and an in-memory
-store. Hospital export remains disabled. Real PostgreSQL/filesystem deployment,
-hospital permission review and clinician UAT are separate qualification gates.
+Status: local organization of already authorized sources is implemented.
+The 22 October owner authorization permits local hospital demo copies; this is
+not permission for network transfer. Live deployment evidence and clinician UAT
+remain separate qualification gates.
 
 ## Daily workflow
 
@@ -62,8 +63,9 @@ PNG/JPEG/TIFF/DICOM source bytes can be copied without transcoding. This preserv
 embedded metadata and burned-in content; it is not a de-identification operation.
 Existing canonical metadata CSVs may also contain source names or pseudonymous
 identifiers. Export authorization and hospital privacy policy remain mandatory.
-WORKSPACE, UNKNOWN and HOSPITAL_AUTHORIZED export lanes remain blocked before any
-new output directory is created.
+WORKSPACE and UNKNOWN export lanes remain blocked. HOSPITAL_AUTHORIZED local
+copies require matching recorded source authorization and integrity. No endpoint
+grants authorization to a previously unknown source.
 
 ## API and consistency
 

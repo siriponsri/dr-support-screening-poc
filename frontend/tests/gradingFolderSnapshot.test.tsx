@@ -36,10 +36,10 @@ describe('immutable grading-folder snapshot UI', () => {
     expect(create).toBeDisabled();
   });
 
-  it('keeps hospital restriction and no-workspace states disabled without any request', () => {
+  it('keeps unauthorized and no-workspace states disabled without any request', () => {
     const fetch = vi.spyOn(globalThis, 'fetch');
     const view = render(node('hospital-workspace', false));
-    expect(screen.getByText(/hospital export remains disabled/)).toBeInTheDocument();
+    expect(screen.getByText(/check source identity and authorization/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Preview grading folders' }));
     expect(fetch).not.toHaveBeenCalled();
     view.rerender(node(null, false));

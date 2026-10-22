@@ -2,11 +2,13 @@ from contextlib import contextmanager
 from copy import deepcopy
 from types import SimpleNamespace
 import pytest
-from test_prism_bound_adapter import rig as adapter_rig, frozen_module, forbid_real_runtime
+from test_prism_bound_adapter import rig as adapter_rig  # noqa: F401
+from test_prism_bound_adapter import frozen_module as frozen_module
+from test_prism_bound_adapter import forbid_real_runtime as forbid_real_runtime
 from test_prism_owned_runtime import controller
 from dr_support.services.prism_owned_runtime import LoadedPrismExecutor
 from dr_support.services.prism_owned_runtime import OwnedWorkerController
-from scripts.qa.worker_supervisor import Policy,SupervisorBlocked
+from scripts.qa.worker_supervisor import SupervisorBlocked
 from dr_support.providers import prism_bound as bound
 
 @contextmanager
@@ -29,7 +31,7 @@ def setup_executor(rig,monkeypatch):
     return executor,calls
 
 @pytest.mark.parametrize('status',['READY','UNCERTAIN'])
-def test_owned_executor_uses_actual_bound_loop(adapter_rig,monkeypatch,status):
+def test_owned_executor_uses_actual_bound_loop(adapter_rig,monkeypatch,status):  # noqa: F811
     rig=adapter_rig
     rig.calls['status']=status
     executor,loads=setup_executor(rig,monkeypatch)
@@ -42,7 +44,7 @@ def test_owned_executor_uses_actual_bound_loop(adapter_rig,monkeypatch,status):
     assert rig.calls['roi']==1 and rig.calls['fold']==5
     assert response['preview_receipt']['mask_sha256']==binding['mask_sha256']
 
-def test_owned_executor_fatal_rejection_through_actual_bound_loop(adapter_rig,monkeypatch):
+def test_owned_executor_fatal_rejection_through_actual_bound_loop(adapter_rig,monkeypatch):  # noqa: F811
     rig=adapter_rig
     executor,_=setup_executor(rig,monkeypatch)
     binding,mask=rig.prepare()

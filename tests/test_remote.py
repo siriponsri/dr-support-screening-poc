@@ -341,12 +341,11 @@ def test_api_routes_inference_through_remote_provider(monkeypatch, tmp_path):
     response = client.post('/v1/infer/lesion-roi',
                            json={'image_id': FIXTURE_IMAGE.image_id,
                                  'model_id': 'prism-dr-5fold', 'modality': 'CFP'})
-    assert response.status_code == 200
-    body = response.json()
-    assert body['lesions'][0]['canonical_label'] == 'MICROANEURYSM'
+    # PRISM requires its one-use prepared-input route, even in remote mode.
+    assert response.status_code == 409
 
     paths = [call.url.path for call in calls]
-    assert '/v1/predict/dr' in paths and '/v1/predict/lesions' in paths
+    assert '/v1/predict/dr' in paths and '/v1/predict/lesions' not in paths
 
     case = client.get(f'/v1/cases/{FIXTURE_IMAGE.image_id}').json()
     inference_events = [e for e in case['events'] if e.get('action') == 'INFERENCE']
@@ -714,10 +713,12 @@ def test_api_does_not_leak_token_through_models_endpoint(monkeypatch, tmp_path):
     response = client.get('/v1/models')
     assert response.status_code == 200
     assert 'synthetic-remote-secret' not in response.text
-    # Run lesion inference first so the CVAT sync has an upstream prediction to bind to,
-    # then confirm the CVAT round-trip still surfaces OWNER_ACTION_REQUIRED without CVAT_TOKEN.
-    client.post('/v1/infer/lesion-roi', json={'image_id': FIXTURE_IMAGE.image_id,
-                                              'model_id': 'prism-dr-5fold'})
+    # A stored synthetic result isolates CVAT's credential boundary without
+    # using the deliberately blocked legacy PRISM inference route.
+    from copy import deepcopy
+    case = app.state.store.get(FIXTURE_IMAGE.image_id)
+    case['lesion'] = deepcopy(SAMPLE_LESION_BODY)
+    app.state.store.put(case)
     cvat_response = client.post(f'/v1/cases/{FIXTURE_IMAGE.image_id}/cvat/send', json={})
     assert cvat_response.status_code == 503
     assert 'OWNER_ACTION_REQUIRED' in cvat_response.json()['detail']

@@ -126,6 +126,8 @@ class BoundTransportHost:
         if not (0 < ticket_seconds <= 300 and 0 < job_seconds <= 120):
             raise ValueError("INVALID_DEADLINE")
         self.executor, self.authenticate, self.issue_id = executor, authenticate, issue_id
+        from .case16_qualification import checked_authorization
+        self.demo_authorization = checked_authorization(getattr(executor, "demo_authorization", None))
         self.epoch, self.clock = epoch, clock
         self.ticket_seconds, self.job_seconds = ticket_seconds, job_seconds
         self.allowed_origins = allowed_origins
@@ -195,9 +197,16 @@ class BoundTransportHost:
         admission = binding.get("admission", {})
         if (source["case_revision"] != binding.get("case_revision") or source["admission_sha256"] != binding.get("admission_sha256")
                 or source["source_origin"] != admission.get("source_origin")
-                or source["source_origin"] not in self.allowed_origins or admission.get("modality_admission") != "FUNDUS_ACCEPTED"
-                or admission.get("quality_state") != "GRADABLE" or admission.get("retinal_modality") != ticket.modality):
+                or source["source_origin"] not in self.allowed_origins
+                or admission.get("retinal_modality") != ticket.modality):
             raise TransportError("SOURCE_CONTEXT_OR_ADMISSION")
+        if self.demo_authorization is None:
+            if admission.get("modality_admission") != "FUNDUS_ACCEPTED" or admission.get("quality_state") != "GRADABLE":
+                raise TransportError("SOURCE_CONTEXT_OR_ADMISSION")
+        else:
+            # Typed, pinned, no-mask, bounded qualification only. Never infer a
+            # research exception from a client-provided mode flag or new hash.
+            self.demo_authorization.binding(binding)
         image = pixels(ticket.wire)
         rgb_digest = sha(struct.pack(">II", *image.size) + image.tobytes())
         candidate = json.loads(ticket.candidate)
@@ -240,8 +249,15 @@ class BoundTransportHost:
         with Image.open(io.BytesIO(wire)) as encoded:
             if {"PNG": "image/png", "JPEG": "image/jpeg"}.get(encoded.format) != value["wire_media_type"]:
                 raise TransportError("MEDIA_TYPE_MISMATCH", 422)
-        if value["wire_sha256"] != sha(wire) or value["modality"] != "UWF":
+        # CFP is opt-in only for the exact manifest-bound batch. Existing
+        # synthetic/case16 fixed-session paths stay UWF-only.
+        from .case16_qualification import Case16Authorization
+        batch_authorized = self.demo_authorization is not None and type(self.demo_authorization) is not Case16Authorization
+        if (value["wire_sha256"] != sha(wire)
+                or value["modality"] not in ({"CFP", "UWF"} if batch_authorized else {"UWF"})):
             raise TransportError("WIRE_CONTEXT", 422)
+        if batch_authorized:
+            self.demo_authorization.job_for_wire(wire, value["modality"])
         pins = self._pins()
         candidate = self.executor.prepare(wire, value["modality"])
         if self._pins() != pins:
@@ -254,8 +270,10 @@ class BoundTransportHost:
                     or candidate["mask_version"] != MASK_VERSION or value["modality"] != "UWF"):
                 raise TransportError("MASK_CONTEXT")
             mask_digest = sha(MASK_VERSION.encode() + struct.pack(">II", *decoded.size) + decoded.tobytes())
-        elif candidate["status"] not in {"UNCERTAIN", "UNAVAILABLE"}:
+        elif candidate["status"] not in ({"NOT_APPLICABLE"} if batch_authorized else {"UNCERTAIN", "UNAVAILABLE"}):
             raise TransportError("READY_MASK_MISSING")
+        if batch_authorized:
+            self.demo_authorization.candidate(candidate)
         frozen = {"external_fov_status": candidate["status"], "external_fov_reason_code": candidate.get("reason_code"),
                   "mask_sha256": mask_digest, "mask_png_sha256": sha(mask) if mask else None,
                   "mask_version": MASK_VERSION if mask else None}
@@ -295,18 +313,30 @@ class BoundTransportHost:
         return {"job_id": job_id, "epoch": self.epoch}
 
     def _run(self, job, ticket):
+        from .identity_budget import identity_budget
+        try:
+            with identity_budget(job.deadline, cancelled=lambda: job.cancelled, clock=self.clock):
+                return self._run_bounded(job, ticket)
+        except BaseException as error:
+            with job.condition:
+                job.error = error.code if isinstance(error, TransportError) else "EXECUTOR_FAILED_NO_RETRY"
+                job.state = "ABORTED" if job.cancelled else "FAILED"
+                job.condition.notify_all()
+
+    def _run_bounded(self, job, ticket):
         binding = json.loads(job.binding)
-        def check():
+        def check(*, verify_identity=True):
             if job.cancelled or self.clock() >= job.deadline:
                 raise TransportError("CANCELLED_OR_DEADLINE")
-            self._validate(ticket, binding, job.plan_sha256)
+            if verify_identity:
+                self._validate(ticket, binding, job.plan_sha256)
         def gate():
             # Must be called by the executor AFTER its final load/queue wait.
             with job.condition:
                 check();job.challenge = self._id();job.state = "WAITING_SOURCE_FENCE"
                 job.condition.notify_all()
                 while job.fence_id is None:
-                    check();job.condition.wait(min(.05, max(.001, job.deadline - self.clock())))
+                    check(verify_identity=False);job.condition.wait(min(.05, max(.001, job.deadline - self.clock())))
                 check();job.state = "GRANTED_NOT_STARTED"
         def entry():
             # Mandatory fatal hook OUTSIDE the recoverable native-ROI try block.
@@ -326,6 +356,7 @@ class BoundTransportHost:
             if not job.forward_started:
                 raise TransportError("EXECUTOR_SKIPPED_FATAL_ENTRY_HOOK")
             with job.condition:
+                check(verify_identity=False)
                 job.result = returned;job.state = "COMPLETE";job.condition.notify_all()
         except BaseException as error:
             with job.condition:
