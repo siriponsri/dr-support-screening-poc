@@ -1,0 +1,5 @@
+# Preserve byte-pinned upstream algorithms on Windows checkouts.
+dr_support/services/artifact_core_v01.py text eol=lf
+dr_support/services/artifact_rim_shadow_v01.py text eol=lf
+dr_support/services/artifact_generic_v01/core.py text eol=lf
+dr_support/services/artifact_generic_v01/generic_uwf.py text eol=lf
