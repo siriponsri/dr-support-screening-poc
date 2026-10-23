@@ -148,6 +148,16 @@ def admitted_entry(models, result):
             'result_sha256': operations.global_result_digest(result)}
 
 
+def test_readback_finds_the_case_by_its_stored_keys():
+    # The case store keys rows by image_id and records the source hash per inference entry.
+    app = server_app()
+    assert "case_id=%s" in app.CASE_BY_SOURCE and "'inference_history' @>" in app.CASE_BY_SOURCE
+    assert "payload->>'source_sha256'" not in app.CASE_BY_SOURCE
+    workspace, source, history = app.case_parameters('ws', '1' * 64)
+    assert (workspace, source) == ('ws', '1' * 64)
+    assert json.loads(history) == [{'source_sha256': '1' * 64}]
+
+
 def test_trusted_readback_is_bound_to_this_requests_persisted_result(monkeypatch):
     app = server_app()
     models = reviewed(monkeypatch)

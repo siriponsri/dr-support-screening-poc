@@ -65,6 +65,9 @@ class ModelConnectionModel(Contract):
     production_authorization: str | None = None
     runtime_qualification: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    # Origins the Model API itself authorizes; the UI requires HOSPITAL_AUTHORIZED
+    # here before offering a model for an authorized hospital image.
+    authorized_source_origins: list[str] = Field(default_factory=list)
 
 
 class ModelConnectionResponse(Contract):

@@ -172,6 +172,9 @@ def session_environment(*, workspace_id=None, model_port=None, token=None):
             os.environ['DR_SUPPORT_WORKSPACE_ID'] = workspace_id
         if model_port is not None:
             os.environ.update(model_configuration(model_port))
+            # Owner-approved transfer of the approved private-root images to the
+            # owned Model API session: the client-side model boundary opt-in.
+            os.environ.update(MODEL_HOSPITAL_SCOPE='PRIVATE_PROJECT_EVALUATION', MODEL_ALLOW_AUTHORIZED_HOSPITAL='1')
         if token is not None:
             os.environ['REMOTE_MODEL_TOKEN'] = token
         yield
@@ -189,9 +192,10 @@ def ssh(command, *, data=None, timeout=30):
 def host_token(*, allow_remote_token_read=False):
     """Explicitly opted-in existing-host credential transfer into memory only."""
     require_remote_token_opt_in(allow_remote_token_read)
-    raw = ssh("python3 -c \"import sys; sys.path.insert(0, '" + HOST_TOKEN_READER_PATH
+    # The existing host reader takes a pathlib.Path, not a string.
+    raw = ssh("python3 -c \"import sys, pathlib; sys.path.insert(0, '" + HOST_TOKEN_READER_PATH
               + "'); from approved_token_reader import read_private_token; "
-              "sys.stdout.write(read_private_token('" + HOST_TOKEN_PATH + "'))\"")
+              "sys.stdout.write(read_private_token(pathlib.Path('" + HOST_TOKEN_PATH + "')))\"")
     token = raw.decode('ascii').strip()
     require(32 <= len(token) <= 1024 and token.isascii() and ' ' not in token, 'APPROVED_HOST_TOKEN_REQUIRED')
     return token
@@ -415,6 +419,15 @@ def verify_persisted(case, entry, models, operations):
     return latest, all(checks)
 
 
+# Cases are keyed by image_id; the source hash is recorded on each inference entry.
+CASE_BY_SOURCE = ("SELECT payload FROM {}.review_cases WHERE workspace_id=%s AND "
+                  "(case_id=%s OR payload->'inference_history' @> %s::jsonb)")
+
+
+def case_parameters(workspace_id, source_sha256):
+    return (workspace_id, source_sha256, json.dumps([{'source_sha256': source_sha256}]))
+
+
 def readback(args):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'model-server'))
     import m1_operations as operations
@@ -426,11 +439,9 @@ def readback(args):
         with database.session(autocommit=False) as connection:
             with connection.transaction():
                 connection.execute('SET TRANSACTION READ ONLY')
-                rows = connection.execute(sql.SQL(
-                    "SELECT payload FROM {}.review_cases WHERE workspace_id=%s AND "
-                    "(payload->>'source_sha256'=%s OR payload->>'image_sha256'=%s)").format(
-                        sql.Identifier(database.settings.schema)),
-                    (args.workspace_id, entry['source_sha256'], entry['source_sha256'])).fetchall()
+                rows = connection.execute(sql.SQL(CASE_BY_SOURCE).format(
+                    sql.Identifier(database.settings.schema)),
+                    case_parameters(args.workspace_id, entry['source_sha256'])).fetchall()
     require(len(rows) == 1, 'EXACT_PERSISTED_CASE_REQUIRED')
     persisted, matches = verify_persisted(rows[0][0], entry, models, operations)
     value = {'request_id': request_id, 'admission_id': entry['admission_id'],

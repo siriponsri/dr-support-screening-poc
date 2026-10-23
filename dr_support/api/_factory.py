@@ -82,6 +82,7 @@ from ..services.source_mutation_gate import MutationFenced, SourceMutationGate, 
 from ..services.model_gateway import (
     ModelConnection,
     ModelGatewayProbe,
+    _model_summary,
     probe_model_connection,
     response_payload,
 )
@@ -626,6 +627,12 @@ def create_app(
                     or connection.token != owned_connection_token):
                 raise ValueError()
             descriptor = WorkspaceRemotePRISM.prism_preview_identity(workspace_prism_provider)['descriptor']
+            # Same summary shape as ordinary discovery (the response contract
+            # forbids the provider descriptor's extra identity fields).
+            summary = _model_summary([descriptor], assets_verified=True)
+            if not summary:
+                raise ValueError()
+            descriptor = summary[0]
         except (ValueError, RuntimeError, AttributeError):
             raise HTTPException(409, 'The model session changed. Stop and restart with the approved configuration.') from None
         # Identity was authenticated at session start; live reachability is
