@@ -16,6 +16,7 @@ from PIL import Image
 from dr_support.persistence import PostgresDatabase, PostgresSettings
 from dr_support.persistence import recovery
 from dr_support.persistence.migrations import MIGRATIONS
+from dr_support.persistence.cases import PostgresCaseStore
 from dr_support.images import synthetic_image
 from dr_support.services.admission import scan_input_folder
 from dr_support.services import admission as hospital_admission
@@ -757,6 +758,7 @@ def test_hospital_v3_exact_scanner_backup_and_isolated_restore_without_original_
     receipt = json.loads((arguments["output_destination"] / "recovery-receipt.json").read_text())
     assert receipt["restore_map_sha256"] == rig.restore_pin
     assert receipt["source_map_sha256"] == rig.source_pin
+    assert receipt["workspace_id"] == rig.mapping["workspace_id"]
 
 
 @pytest.mark.parametrize("fault", ["missing_pin", "wrong_pin", "source_roots", "source_scope", "privacy",
@@ -936,9 +938,23 @@ def test_hospital_acceptance_environment_requires_exact_restored_process_roots(h
                         or key == "DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL"})
     kwargs = {key: value for key, value in args.items()
               if key not in {"image_destination", "output_destination"}}
+    kwargs["workspace_id"] = rig.mapping["workspace_id"]
     for key, value in environment.items():
         monkeypatch.setenv(key, value)
     assert recovery.validate_restored_app_environment(target.settings, **kwargs)["status"] == "ENVIRONMENT_VERIFIED"
+    app = SimpleNamespace(state=SimpleNamespace(case_store_mode="postgres", workspace_id=rig.mapping["workspace_id"],
+                                                store=PostgresCaseStore(target, rig.mapping["workspace_id"])))
+    assert recovery.validate_restored_app_selection(app, target.settings, **kwargs)["status"] == "APP_SELECTION_VERIFIED"
+    for mismatch in (None, "ws_bootstrap", "another-synthetic-workspace"):
+        with pytest.raises(recovery.RecoveryError, match="explicitly select"):
+            recovery.validate_restored_app_environment(target.settings, **{**kwargs, "workspace_id": mismatch})
+    for mismatch in ("ws_bootstrap", "another-synthetic-workspace"):
+        app.state.store = PostgresCaseStore(target, mismatch)
+        with pytest.raises(recovery.RecoveryError, match="did not select"):
+            recovery.validate_restored_app_selection(app, target.settings, **kwargs)
+    app.state.store = PostgresCaseStore(rig.db, rig.mapping["workspace_id"])
+    with pytest.raises(recovery.RecoveryError, match="verified restored target"):
+        recovery.validate_restored_app_selection(app, target.settings, **kwargs)
     for override in ({source_policy.HOSPITAL_ROOTS_ENV: json.dumps({"UWF": rig.hospital_roots[0]["path"], "CFP": rig.hospital_roots[1]["path"]})},
                      {"DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOT": rig.hospital_roots[0]["path"]},
                      {"REMOTE_MODEL_URL": "http://unapproved.invalid"}, {"CVAT_URL": "https://unapproved.invalid"},

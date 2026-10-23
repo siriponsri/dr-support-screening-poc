@@ -87,7 +87,9 @@ new image parent, containing only the `uwf` and `cfp` subdirectories; missing
 hospital configuration cannot silently expose originals through workspace fallback.
 The app must use an isolated fixtures-disabled target environment with exactly the
 restored roots, no original root/legacy/demo/libpq overrides and no Model API/CVAT
-connection for recovery acceptance. All inference remains NOT_RUN.
+connection for recovery acceptance. It must explicitly select the pinned hospital
+workspace ID and verify the constructed store matches; default latest-opened or
+bootstrap selection is insufficient. All inference remains NOT_RUN.
 
 Acceptance requires: source/bundle/restored scanner identity equality; independent
 pin and layout failure regressions; exact DB revisions/clinical payload; actual
@@ -163,11 +165,20 @@ CVAT connection or inherited libpq endpoint override may be configured. The
 `validate_restored_app_environment` preflight must receive `bundle`,
 `expected_manifest_sha256`, `hospital_source_map`,
 `expected_hospital_source_map_sha256`, `hospital_restore_map` and
-`expected_hospital_restore_map_sha256` as well as target settings/name. For v3 it
+`expected_hospital_restore_map_sha256` as well as target settings/name and explicit
+`workspace_id` equal to the independently pinned restore map. For v3 it
 validates the actual process environment; a substituted environment dictionary is
 not accepted. The preflight rechecks copied scanner identity but is not a DB/app
-acceptance receipt. Construct the existing app with both fixtures flags false,
-without importing any further configuration. There is no new application launcher
+acceptance receipt. Construct the existing app with
+`create_app(workspace_id=verified["workspace_id"], include_samples=False, include_demo_fixtures=False)`,
+where `verified` is the preflight result. Then call
+`validate_restored_app_selection(app, target_settings, **same_preflight_arguments)`
+before accepting a reopen result. This verifies the actual app/store workspace,
+PostgreSQL target and schema; it does not create missing profiles or rewrite
+name/history/last-opened metadata. An identity-only workspace may still lack an
+active export profile and must report the existing export denial. Never rely on
+the catalog's default latest-opened/bootstrap selection. Do not import any further
+configuration between these checks and construction. There is no new application launcher
 or orchestration in this increment.
 
 ### M1 entry-guard limitation

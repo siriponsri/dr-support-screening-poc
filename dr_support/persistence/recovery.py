@@ -27,6 +27,7 @@ from ..services.admission import scan_input_folder
 from ..services import admission as hospital_admission
 from ..services import source_policy
 from .config import PostgresSettings
+from .cases import PostgresCaseStore
 from .database import PostgresDatabase
 from .migrations import SchemaMigrator
 
@@ -292,6 +293,7 @@ def _isolated_restore_environment(environ=None, *, hospital: bool = False) -> No
 
 
 def validate_restored_app_environment(settings: PostgresSettings, *, expected_database: str, environ=None,
+                                      workspace_id: str | None = None,
                                       bundle: str | Path | None = None,
                                       expected_manifest_sha256: str | None = None,
                                       hospital_source_map: str | Path | None = None,
@@ -332,6 +334,8 @@ def validate_restored_app_environment(settings: PostgresSettings, *, expected_da
         restored, _, _ = _restore_map(hospital_restore_map, expected_hospital_restore_map_sha256,
                                      mapping, source_pin, expected_manifest_sha256,
                                      bundle=root, database=expected_database)
+        if workspace_id != restored["workspace_id"]:
+            raise RecoveryError("Hospital acceptance must explicitly select the independently pinned restored workspace")
         expected_roots = {row["modality"]: row["path"] for row in restored["roots"]}
         try:
             configured = json.loads(source.get("DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS", "{}"))
@@ -362,7 +366,7 @@ def validate_restored_app_environment(settings: PostgresSettings, *, expected_da
         _hospital_layout(json.loads(_json_bytes(manifest)), restored["roots"], mapping, source_pin,
                          expected=manifest["source_layout"])
     else:
-        if any(value is not None for value in (hospital_restore_map, expected_hospital_source_map_sha256,
+        if any(value is not None for value in (workspace_id, hospital_restore_map, expected_hospital_source_map_sha256,
                                                expected_hospital_restore_map_sha256, bundle, expected_manifest_sha256)):
             raise RecoveryError("Hospital acceptance requires the complete independently approved map set")
         _isolated_restore_environment(source)
@@ -374,7 +378,33 @@ def validate_restored_app_environment(settings: PostgresSettings, *, expected_da
     if hospital and any(value for key, value in source.items()
                         if key.startswith(("MODEL_API", "CVAT_", "DR_SUPPORT_MODEL_API", "REMOTE_MODEL"))):
         raise RecoveryError("Recovery acceptance must have no model API or CVAT connection configured")
-    return {"status": "ENVIRONMENT_VERIFIED", "application_reopen_export": "NOT_RUN"}
+    report = {"status": "ENVIRONMENT_VERIFIED", "application_reopen_export": "NOT_RUN"}
+    if hospital:
+        report["workspace_id"] = restored["workspace_id"]
+    return report
+
+
+def validate_restored_app_selection(app, settings: PostgresSettings, **acceptance) -> dict:
+    """Read-only v3 harness gate after fixtures-disabled app construction.
+
+    Revalidate the independently pinned process configuration, then prove the
+    constructed app actually selected that PostgreSQL store. This is still not
+    original-image HTTP, clinician-state readback or export acceptance.
+    """
+    report = validate_restored_app_environment(settings, **acceptance)
+    selected = report.get("workspace_id")
+    state = app.state
+    store = getattr(state, "store", None)
+    if (selected is None or not isinstance(store, PostgresCaseStore)
+            or getattr(state, "case_store_mode", None) != "postgres"
+            or getattr(state, "workspace_id", None) != selected or store.workspace_id != selected):
+        raise RecoveryError("The acceptance app did not select the independently pinned restored PostgreSQL workspace")
+    expected, actual = conninfo_to_dict(settings.dsn), conninfo_to_dict(store.database.settings.dsn)
+    identity = lambda value: (value.get("dbname"), value.get("host"), value.get("hostaddr"), value.get("port", "5432"))
+    if (identity(expected) != identity(actual) or actual.get("service")
+            or store.database.settings.schema != settings.schema):
+        raise RecoveryError("The acceptance app store did not select the verified restored target")
+    return {**report, "status": "APP_SELECTION_VERIFIED"}
 
 
 def _pg_environment(settings: PostgresSettings) -> dict[str, str]:
@@ -985,6 +1015,8 @@ def restore(database: PostgresDatabase, *, bundle: str | Path, expected_database
               "target_database": expected_database,
               "workspace_count": len(manifest["workspaces"]), "case_count": len(manifest["cases"]),
               "image_count": len(manifest["images"]), "paths_remapped_in_isolated_target": True}
+    if hospital:
+        report["workspace_id"] = restored["workspace_id"]
     if not apply:
         return report
     if not target_quiesced:
@@ -1053,7 +1085,8 @@ def restore(database: PostgresDatabase, *, bundle: str | Path, expected_database
         "application_reopen_export": "NOT_RUN", "inference": "NOT_RUN"}
     if hospital:
         receipt.update(source_map_sha256=source_pin, restore_map_sha256=restore_pin,
-                       restored_roots=restored["roots"], scope=restored["scope"])
+                       restored_roots=restored["roots"], scope=restored["scope"],
+                       workspace_id=restored["workspace_id"])
         _private_recovery_root(outputs, restored["roots"])
     _write_json(outputs / "recovery-receipt.json", receipt)
     return {**report, "status": "RESTORE_DATA_VERIFIED", "application_reopen_export": "NOT_RUN"}
