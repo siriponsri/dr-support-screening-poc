@@ -3,6 +3,7 @@ from copy import deepcopy
 from pathlib import Path
 import subprocess
 import sys
+import json
 from threading import Event, Thread
 from types import SimpleNamespace
 
@@ -178,6 +179,32 @@ def complete(rig, *, state="COMPLETE", started=True):
 
 def acquire_count(rig):
     return sum(isinstance(call, tuple) and call[0] == "acquire" for call in rig.database.calls)
+
+
+def test_unchanged_real_checkpoint_name_map_can_stage_fence_and_recover_without_weights(rig):
+    manifest = Path(__file__).resolve().parents[1] / 'dr_support/providers/prism_assets.json'
+    checkpoints = json.loads(manifest.read_text())['weights']
+    assert len(checkpoints) == 21 and any('/' in key and ' ' in key for key in checkpoints)
+    rig.context['model_pins']['checkpoint_sha256'] = checkpoints
+    binding, status = plan(rig)
+    rig.authority.authorize_execute(binding, sha(canonical(binding)))
+    lease = rig.authority.acquire(binding, status, lambda: None)
+    lease.quarantine('synthetic unknown native outcome')
+    rig.authority.close()
+    restarted = rig.create()
+    assert restarted.gate.snapshot().state == 'QUARANTINED'
+    complete(rig)
+    restarted.recover()
+    assert restarted.gate.snapshot().state == 'OPEN' and rig.database.binding is None
+    assert binding['model_pins']['checkpoint_sha256'] == checkpoints
+
+
+@pytest.mark.parametrize('name', ['', 'checkpoint\nsecret', 'checkpoint\x00name', 'x' * 513])
+def test_opaque_checkpoint_names_remain_bounded_and_reject_control_characters(rig, name):
+    rig.context['model_pins']['checkpoint_sha256'] = {name: 'b' * 64}
+    with pytest.raises(TransportError, match='FULL_RECORDED_WORKSPACE_CONTEXT_REQUIRED'):
+        stage(rig)
+    assert acquire_count(rig) == 0
 
 
 def test_composed_lease_commits_raw_database_fence_before_grant_and_reauthenticates_release(rig):

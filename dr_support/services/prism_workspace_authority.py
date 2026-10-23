@@ -40,7 +40,10 @@ def _pins(value):
         raise TransportError("REVIEWED_NONSECRET_MODEL_PINS_REQUIRED")
     require_sha256(value["config_sha256"])
     for name, digest in value["checkpoint_sha256"].items():
-        if not _identifier(name):
+        # Checkpoint names are opaque identity keys from the unchanged asset
+        # lock, e.g. "Final Models/.../weights/best.pt". They are never opened
+        # as paths here; an RPC/job identifier regex rejects the genuine map.
+        if not isinstance(name, str) or not 0 < len(name) <= 512 or not name.isprintable():
             raise TransportError("REVIEWED_NONSECRET_MODEL_PINS_REQUIRED")
         require_sha256(digest)
 
