@@ -53,6 +53,7 @@ def verify_assets(which: str = 'all') -> dict[str, Any]:
         'prism': {'prism'},
         'uspec': {'uspec'},
         'combined': {'retfound', 'prism', 'uspec'},
+        'grading': {'retfound', 'uspec'},
     }
     if which not in selections:
         raise ValueError(f'Unknown model selection: {which}')

@@ -148,13 +148,16 @@ _PROVIDER_SETS = {
     'retfound': frozenset({'retfound'}),
     'uspec': frozenset({'uspec'}),
     'combined': frozenset({'retfound', 'prism', 'uspec'}),
+    # Global DR graders only; the M1 host session serves PRISM through its
+    # bound transport executor instead of a second ordinary PRISM provider.
+    'grading': frozenset({'retfound', 'uspec'}),
 }
 
 
 def _provider_set() -> str:
     selected = os.environ.get('MODEL_API_PROVIDER_SET', 'legacy').strip().lower()
     if selected not in _PROVIDER_SETS:
-        raise ValueError('MODEL_API_PROVIDER_SET must be legacy, retfound, prism, uspec, or combined')
+        raise ValueError('MODEL_API_PROVIDER_SET must be legacy, retfound, prism, uspec, combined, or grading')
     return selected
 
 
