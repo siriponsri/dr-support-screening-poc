@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 import shutil
 import subprocess
@@ -10,12 +11,15 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from PIL import Image
 
 from dr_support.persistence import PostgresDatabase, PostgresSettings
 from dr_support.persistence import recovery
 from dr_support.persistence.migrations import MIGRATIONS
 from dr_support.images import synthetic_image
 from dr_support.services.admission import scan_input_folder
+from dr_support.services import admission as hospital_admission
+from dr_support.services import source_policy
 
 
 class Result:
@@ -49,6 +53,8 @@ class Connection:
             return Result([(self.state.name, "127.0.0.1", 5432)])
         if text == "SELECT current_database()":
             return Result([(self.state.name,)])
+        if "AS recovery_unqualified_guard" in text:
+            return Result([(1,)] if getattr(self.state, "unqualified_guard", False) else [])
         if "FROM pg_namespace" in text:
             return Result([("occupied",)] if self.state.occupied else [])
         if "schema_migrations ORDER" in text:
@@ -445,7 +451,7 @@ def test_restore_preserves_case_history_and_bytes_and_remaps_only_target_paths(r
     assert calls[0][-1] == str(args["output_destination"] / "restore-database.dump")
     assert calls[0][-1] != str(rig.bundle / "database.dump")
     assert not any(flag in " ".join(calls[0]) for flag in ("--clean", "--create", "synthetic_password"))
-    assert len([q for q, _ in state.queries if "FROM pg_namespace" in q]) == 2
+    assert len([q for q, _ in state.queries if "SELECT nspname FROM pg_namespace" in q]) == 2
     assert (args["output_destination"] / "recovery-receipt.json").exists()
 
 
@@ -485,7 +491,7 @@ def test_restore_detects_concurrent_target_change_before_db_mutation(rig):
     def concurrent(connection, query, values=None):
         nonlocal occupancy_checks
         text = query if isinstance(query, str) else query.as_string(None)
-        if "FROM pg_namespace" in text:
+        if "SELECT nspname FROM pg_namespace" in text:
             occupancy_checks += 1
             if occupancy_checks == 2:
                 state.occupied = True
@@ -592,3 +598,491 @@ def test_windows_wrappers_do_not_start_stop_or_provision_services():
         assert "Ensure-ReleasePostgres" not in content
         assert "Start-Process" not in content
         assert "Stop-Process" not in content
+
+
+def write_map(path, value):
+    path.write_bytes(recovery._json_bytes(value))
+    return recovery._file_hash(path)
+
+
+def clear_hospital_configuration(monkeypatch):
+    for key in list(os.environ):
+        if ((key.startswith(("DR_SUPPORT_AUTHORIZED_HOSPITAL", "DR_SUPPORT_HOSPITAL_"))
+             and key != source_policy.HOSPITAL_LINKAGE_KEY_ENV)
+                or key in {"DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "DR_SUPPORT_DATABASE_URL", "DR_DEMO_FOLDER"}):
+            monkeypatch.delenv(key)
+
+
+def configure_hospital(monkeypatch, roots):
+    clear_hospital_configuration(monkeypatch)
+    monkeypatch.setenv(source_policy.HOSPITAL_ROOTS_ENV, json.dumps({row["modality"]: row["path"] for row in roots}))
+    monkeypatch.setenv("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "1")
+    monkeypatch.setenv("DR_SUPPORT_HOSPITAL_SCOPE", source_policy.PRIVATE_PROJECT_SCOPE)
+    readers = recovery._reader_bindings(roots)
+    if readers:
+        monkeypatch.setenv(source_policy.HOSPITAL_WINDOWS_READERS_ENV, json.dumps(readers))
+
+
+def hospital_cases(scan):
+    return [("synthetic_workspace", case_id, 3,
+             {"image_id": case_id, "revision": 3, "admission": json.loads(json.dumps(record)),
+              "reviewed_grade": 2, "human_annotations": [{"id": "synthetic-clinician-roi"}],
+              "review_history": [{"reviewer": "Synthetic reviewer"}],
+              "raw_predictions": [{"id": "synthetic-only-retained"}]})
+            for case_id, record in sorted(scan.records.items())]
+
+
+@pytest.fixture
+def hospital_rig(rig, monkeypatch):
+    # No ACL subprocess, grants, model, network or live database. The real
+    # source-policy and admission scanner run against generated image bytes.
+    monkeypatch.setattr(source_policy, "private_hospital_root", lambda *args, **kwargs: True)
+    roots = []
+    for root_id, modality in (("uwf", "UWF"), ("cfp", "CFP")):
+        folder = rig.root / f"source-{root_id}"
+        folder.mkdir()
+        image = Image.open(io.BytesIO(synthetic_image().data)).copy()
+        if root_id == "cfp":
+            image.putpixel((0, 0), (40, 50, 60))
+        image.save(folder / "PATIENT01_L1.png")
+        roots.append({"root_id": root_id, "modality": modality, "path": str(folder), "read_only_sids": []})
+    monkeypatch.setenv(source_policy.HOSPITAL_LINKAGE_KEY_ENV, "synthetic-only-existing-key-" * 2)
+    configure_hospital(monkeypatch, roots)
+    scan = hospital_admission.scan_authorized_hospital_roots()
+    assert len(scan.images) == 2
+    assert {row["trusted_patient_key"] for row in scan.records.values()} != {None}
+    rig.state.cases = hospital_cases(scan)
+    # Bootstrap metadata without a usable input folder is allowed only for the
+    # independently named hospital workspace; actual roots are server binding.
+    rig.state.workspaces[0] = ("synthetic_workspace", 2, None, None)
+    _, summaries = recovery._hospital_candidates(roots)
+    mapping = {"version": recovery.SOURCE_MAP_VERSION, "approval_id": "synthetic-owner-it-approval",
+               "workspace_id": "synthetic_workspace", "scope": source_policy.PRIVATE_PROJECT_SCOPE,
+               "backup_destination": str(rig.bundle), "linkage_key_ref": "synthetic-existing-ref",
+               "roots": [{**row, "candidate_inventory_sha256": summary["candidate_inventory_sha256"]}
+                         for row, summary in zip(roots, summaries, strict=True)]}
+    rig.source_map = rig.root / "approved-source-map.json"
+    rig.source_pin = write_map(rig.source_map, mapping)
+    rig.mapping, rig.hospital_roots, rig.scan = mapping, roots, scan
+    return rig
+
+
+def hospital_backup_args(rig):
+    return {"destination": rig.bundle, "release": "02ff0bc",
+            "hospital_source_map": rig.source_map, "expected_hospital_source_map_sha256": rig.source_pin}
+
+
+def make_hospital_bundle(rig):
+    result = recovery.backup(rig.db, **hospital_backup_args(rig), apply=True, runner=rig.runner)
+    rig.pin = result["manifest_sha256"]
+    return result
+
+
+def hospital_restore_args(rig):
+    images, outputs = rig.root / "restored-images", rig.root / "restored-outputs"
+    mapping = {"version": recovery.RESTORE_MAP_VERSION, "approval_id": "synthetic-restore-approval",
+               "source_map_sha256": rig.source_pin, "expected_manifest_sha256": rig.pin,
+               "workspace_id": rig.mapping["workspace_id"], "scope": rig.mapping["scope"],
+               "target_database": "restore_test", "bundle_path": str(rig.bundle),
+               "image_destination": str(images), "output_destination": str(outputs),
+               "linkage_key_ref": rig.mapping["linkage_key_ref"],
+               "roots": [{**row, "path": str(images / row["root_id"])} for row in rig.hospital_roots]}
+    rig.restore_map = rig.root / "approved-restore-map.json"
+    rig.restore_mapping = mapping
+    rig.restore_pin = write_map(rig.restore_map, mapping)
+    return {"bundle": rig.bundle, "expected_database": "restore_test", "expected_manifest_sha256": rig.pin,
+            "image_destination": images, "output_destination": outputs,
+            "hospital_source_map": rig.source_map, "expected_hospital_source_map_sha256": rig.source_pin,
+            "hospital_restore_map": rig.restore_map, "expected_hospital_restore_map_sha256": rig.restore_pin}
+
+
+def target_hospital_db(rig):
+    target, state = database("restore_test", rig.images)
+    state.cases = json.loads(json.dumps(rig.state.cases))
+    state.cases = [tuple(row) for row in state.cases]
+    state.workspaces = list(rig.state.workspaces)
+    return target, state
+
+
+def test_hospital_v3_exact_scanner_backup_and_isolated_restore_without_original_reads(hospital_rig, monkeypatch):
+    rig = hospital_rig
+    before = json.loads(json.dumps(rig.state.cases))
+    originals = {row["path"]: {path.name: path.read_bytes() for path in Path(row["path"]).iterdir()}
+                 for row in rig.hospital_roots}
+    result = make_hospital_bundle(rig)
+    assert result["snapshot_approved"] is True
+    assert rig.pin == recovery._file_hash(rig.bundle / "manifest.json")
+    manifest = json.loads((rig.bundle / "manifest.json").read_text())
+    assert manifest["version"] == recovery.HOSPITAL_BUNDLE_VERSION
+    assert manifest["source_layout"]["source_map_sha256"] == rig.source_pin
+    assert [case["source_reference"] for case in manifest["cases"]] == [row[3]["admission"]["source_reference"]
+                                                                        for row in rig.state.cases]
+    assert all(row["source_reference"].startswith("HOSPITAL_AUTHORIZED/CASE-") for row in manifest["cases"])
+    assert "synthetic-only-existing-key" not in (rig.bundle / "manifest.json").read_text()
+    arguments = hospital_restore_args(rig)
+    target, state = target_hospital_db(rig)
+    clear_hospital_configuration(monkeypatch)
+    # Deny even filesystem metadata/read access to original roots during
+    # restore. Lexical source-map paths remain audit/deny-list metadata only.
+    original_lstat, original_open = Path.lstat, Path.open
+    source_roots = [Path(row["path"]) for row in rig.hospital_roots]
+
+    def deny_original(path):
+        if any(path == root or path.is_relative_to(root) for root in source_roots):
+            pytest.fail("Restore attempted to inspect an original source root")
+
+    def guarded_lstat(path, *args, **kwargs):
+        deny_original(path)
+        return original_lstat(path, *args, **kwargs)
+
+    def guarded_open(path, *args, **kwargs):
+        deny_original(path)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "lstat", guarded_lstat)
+    monkeypatch.setattr(Path, "open", guarded_open)
+    calls = []
+    restored = recovery.restore(target, **arguments, apply=True, target_quiesced=True,
+                                runner=lambda command, **kw: calls.append(command) or SimpleNamespace(returncode=0))
+    assert restored["status"] == "RESTORE_DATA_VERIFIED"
+    assert restored["application_reopen_export"] == "NOT_RUN"
+    assert "--dbname=restore_test" in calls[0]
+    assert json.loads(json.dumps(state.cases)) == before
+    assert state.workspaces[0][2] == str(arguments["image_destination"])
+    assert not list(arguments["image_destination"].glob("*.png"))
+    for row in rig.hospital_roots:
+        for name, data in originals[row["path"]].items():
+            assert (arguments["image_destination"] / row["root_id"] / name).read_bytes() == data
+    assert not os.environ.get(source_policy.HOSPITAL_ROOTS_ENV)
+    receipt = json.loads((arguments["output_destination"] / "recovery-receipt.json").read_text())
+    assert receipt["restore_map_sha256"] == rig.restore_pin
+    assert receipt["source_map_sha256"] == rig.source_pin
+
+
+@pytest.mark.parametrize("fault", ["missing_pin", "wrong_pin", "source_roots", "source_scope", "privacy",
+                                   "wrong_workspace", "mixed_workspace", "missing_case", "wrong_key", "no_key"])
+def test_hospital_backup_activation_fails_closed_before_dump(hospital_rig, monkeypatch, fault):
+    rig = hospital_rig
+    args = hospital_backup_args(rig)
+    if fault == "missing_pin":
+        args["expected_hospital_source_map_sha256"] = None
+    elif fault == "wrong_pin":
+        args["expected_hospital_source_map_sha256"] = "f" * 64
+    elif fault == "source_roots":
+        monkeypatch.setenv(source_policy.HOSPITAL_ROOTS_ENV, "{}")
+    elif fault == "source_scope":
+        monkeypatch.setenv("DR_SUPPORT_HOSPITAL_SCOPE", "UNAPPROVED")
+    elif fault == "privacy":
+        monkeypatch.setattr(source_policy, "private_hospital_root", lambda *a, **kw: False)
+    elif fault == "wrong_workspace":
+        rig.mapping["workspace_id"] = "not_the_hospital_workspace"
+    elif fault == "mixed_workspace":
+        rig.state.workspaces.append(("other", 0, str(rig.images), None))
+    elif fault == "missing_case":
+        rig.state.cases.pop()
+    elif fault in {"wrong_key", "no_key"}:
+        if fault == "wrong_key":
+            monkeypatch.setenv(source_policy.HOSPITAL_LINKAGE_KEY_ENV, "different-synthetic-key-" * 2)
+        else:
+            monkeypatch.delenv(source_policy.HOSPITAL_LINKAGE_KEY_ENV)
+    if fault == "wrong_workspace":
+        args["expected_hospital_source_map_sha256"] = write_map(rig.source_map, rig.mapping)
+    with pytest.raises(recovery.RecoveryError):
+        recovery.backup(rig.db, **args, apply=True, runner=rig.runner)
+    assert not rig.commands
+    assert not rig.bundle.exists()
+
+
+@pytest.mark.parametrize("change", ["added", "deleted", "renamed", "bytes", "unsupported", "decode_failed"])
+def test_hospital_complete_candidate_set_cannot_shift_or_renumber(hospital_rig, change):
+    rig = hospital_rig
+    folder = Path(rig.hospital_roots[0]["path"])
+    path = next(folder.iterdir())
+    if change == "added":
+        (folder / "A_SYNTHETIC_R2.png").write_bytes(path.read_bytes())
+    elif change == "deleted":
+        path.unlink()  # Synthetic fixture only, never runtime/original data.
+    elif change == "renamed":
+        path.rename(folder / "B_SYNTHETIC_L2.png")
+    elif change == "unsupported":
+        (folder / "unexpected.bin").write_bytes(b"synthetic unsupported candidate")
+    else:
+        path.write_bytes(b"not a decodable image")
+        if change == "decode_failed":
+            _, summaries = recovery._hospital_candidates(rig.hospital_roots)
+            rig.mapping["roots"][0]["candidate_inventory_sha256"] = summaries[0]["candidate_inventory_sha256"]
+            rig.source_pin = write_map(rig.source_map, rig.mapping)
+    with pytest.raises(recovery.RecoveryError):
+        recovery.backup(rig.db, **hospital_backup_args(rig), apply=True, runner=rig.runner)
+    assert not rig.commands
+    assert not rig.bundle.exists()
+
+
+def test_hospital_null_snapshot_is_read_only_plan_not_authority(hospital_rig):
+    rig = hospital_rig
+    for row in rig.mapping["roots"]:
+        row["candidate_inventory_sha256"] = None
+    rig.source_pin = write_map(rig.source_map, rig.mapping)
+    report = recovery.backup(rig.db, **hospital_backup_args(rig), runner=rig.runner)
+    assert report["status"] == "PLAN_ONLY"
+    assert report["snapshot_approved"] is False
+    assert all(recovery._HASH.fullmatch(row["candidate_inventory_sha256"]) for row in report["hospital_candidate_snapshots"])
+    with pytest.raises(recovery.RecoveryError, match="non-null"):
+        recovery.backup(rig.db, **hospital_backup_args(rig), apply=True, runner=rig.runner)
+    assert not rig.commands
+    assert not rig.bundle.exists()
+
+
+@pytest.mark.parametrize("duplicate", ["same_root", "cross_modality"])
+def test_hospital_duplicates_preserve_existing_scanner_alias_and_unknown_semantics(hospital_rig, duplicate):
+    rig = hospital_rig
+    uwf, cfp = (Path(row["path"]) for row in rig.hospital_roots)
+    destination = uwf if duplicate == "same_root" else cfp
+    (destination / "A_SYNTHETIC_DUP_R2.png").write_bytes(next(uwf.iterdir()).read_bytes())
+    scan = hospital_admission.scan_authorized_hospital_roots()
+    rig.state.cases = hospital_cases(scan)
+    _, summaries = recovery._hospital_candidates(rig.hospital_roots)
+    for row, summary in zip(rig.mapping["roots"], summaries, strict=True):
+        row["candidate_inventory_sha256"] = summary["candidate_inventory_sha256"]
+    rig.source_pin = write_map(rig.source_map, rig.mapping)
+    make_hospital_bundle(rig)
+    manifest = recovery.verify_bundle(rig.bundle, hospital_source_map=rig.source_map,
+                                      expected_hospital_source_map_sha256=rig.source_pin,
+                                      expected_manifest_sha256=rig.pin)
+    assert len(manifest["images"]) == 3
+    assert len(manifest["cases"]) == 2
+    assert manifest["source_layout"]["scanner_identity_projection_sha256"] == recovery._digest(recovery._scanner_projection(scan))
+    if duplicate == "cross_modality":
+        assert "UNKNOWN" in {case["hospital_admission"]["retinal_modality"] for case in manifest["cases"]}
+
+
+@pytest.mark.parametrize("fault", ["source_pin", "restore_pin", "manifest_pin", "no_restore_map", "target",
+                                   "image_root", "root_order", "original_root", "key", "source_env", "privacy"])
+def test_hospital_restore_independent_maps_and_environment_gates_precede_target_queries(hospital_rig, monkeypatch, fault):
+    rig = hospital_rig
+    make_hospital_bundle(rig)
+    args = hospital_restore_args(rig)
+    target, state = target_hospital_db(rig)
+    clear_hospital_configuration(monkeypatch)
+    if fault in {"source_pin", "restore_pin", "manifest_pin"}:
+        key = {"source_pin": "expected_hospital_source_map_sha256", "restore_pin": "expected_hospital_restore_map_sha256",
+               "manifest_pin": "expected_manifest_sha256"}[fault]
+        args[key] = "f" * 64
+    elif fault == "no_restore_map":
+        args["hospital_restore_map"] = None
+    elif fault == "target":
+        rig.restore_mapping["target_database"] = "different_test"
+    elif fault == "image_root":
+        args["image_destination"] = rig.root / "unapproved-images"
+    elif fault == "root_order":
+        rig.restore_mapping["roots"].reverse()
+    elif fault == "original_root":
+        rig.restore_mapping["image_destination"] = rig.hospital_roots[0]["path"]
+    elif fault == "key":
+        monkeypatch.setenv(source_policy.HOSPITAL_LINKAGE_KEY_ENV, "different-synthetic-key-" * 2)
+    elif fault == "source_env":
+        configure_hospital(monkeypatch, rig.hospital_roots)
+    elif fault == "privacy":
+        monkeypatch.setattr(source_policy, "private_hospital_root", lambda *a, **kw: False)
+    if fault in {"target", "root_order", "original_root"}:
+        args["expected_hospital_restore_map_sha256"] = write_map(rig.restore_map, rig.restore_mapping)
+    with pytest.raises(recovery.RecoveryError):
+        recovery.restore(target, **args, apply=True, target_quiesced=True,
+                         runner=lambda *a, **kw: pytest.fail("Gate must run before restore"))
+    assert not state.queries
+    assert not (rig.root / "restored-images").exists()
+
+
+def test_hospital_transferred_bundle_requires_explicit_current_bundle_approval(hospital_rig, monkeypatch):
+    rig = hospital_rig
+    make_hospital_bundle(rig)
+    transferred = rig.root / "approved-private-transfer"
+    shutil.copytree(rig.bundle, transferred)
+    with pytest.raises(recovery.RecoveryError, match="Transferred"):
+        recovery.verify_bundle(transferred, expected_manifest_sha256=rig.pin, hospital_source_map=rig.source_map,
+                               expected_hospital_source_map_sha256=rig.source_pin)
+    rig.bundle = transferred
+    args = hospital_restore_args(rig)
+    clear_hospital_configuration(monkeypatch)
+    target, _ = target_hospital_db(rig)
+    assert recovery.restore(target, **args)["status"] == "PLAN_ONLY"
+
+
+def test_hospital_scoped_binding_restores_process_configuration_after_failure(hospital_rig):
+    rig = hospital_rig
+    before = dict(os.environ)
+    roots = recovery._copy_roots(rig.root / "unavailable-copies", rig.mapping)
+    with pytest.raises(recovery.RecoveryError, match="privacy/authorization"):
+        with recovery._hospital_binding(roots):
+            pytest.fail("Unavailable roots must not activate")
+    assert dict(os.environ) == before
+
+
+def test_hospital_acceptance_environment_requires_exact_restored_process_roots(hospital_rig, monkeypatch):
+    rig = hospital_rig
+    make_hospital_bundle(rig)
+    args = hospital_restore_args(rig)
+    target, _ = target_hospital_db(rig)
+    clear_hospital_configuration(monkeypatch)
+    recovery.restore(target, **args, apply=True, target_quiesced=True,
+                     runner=lambda *a, **kw: SimpleNamespace(returncode=0))
+    configure_hospital(monkeypatch, rig.restore_mapping["roots"])
+    monkeypatch.delenv("DR_SUPPORT_STATE", raising=False)
+    monkeypatch.delenv("DR_SUPPORT_WORKSPACE_CATALOG", raising=False)
+    environment = {"DR_SUPPORT_DATABASE_URL": target.settings.dsn, "DR_SUPPORT_DATABASE_SCHEMA": target.settings.schema,
+                   "DR_SUPPORT_CASE_STORE": "postgres", "APP_PROFILE": "review", "MODEL_RUNTIME": "remote"}
+    environment.update({key: value for key, value in os.environ.items()
+                        if key.startswith(("DR_SUPPORT_AUTHORIZED_HOSPITAL", "DR_SUPPORT_HOSPITAL_"))
+                        or key == "DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL"})
+    kwargs = {key: value for key, value in args.items()
+              if key not in {"image_destination", "output_destination"}}
+    for key, value in environment.items():
+        monkeypatch.setenv(key, value)
+    assert recovery.validate_restored_app_environment(target.settings, **kwargs)["status"] == "ENVIRONMENT_VERIFIED"
+    for override in ({source_policy.HOSPITAL_ROOTS_ENV: json.dumps({"UWF": rig.hospital_roots[0]["path"], "CFP": rig.hospital_roots[1]["path"]})},
+                     {"DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOT": rig.hospital_roots[0]["path"]},
+                     {"REMOTE_MODEL_URL": "http://unapproved.invalid"}, {"CVAT_URL": "https://unapproved.invalid"},
+                     {"PGHOST": "unapproved.invalid"}):
+        with pytest.MonkeyPatch.context() as changed:
+            for key, value in override.items():
+                changed.setenv(key, value)
+            with pytest.raises(recovery.RecoveryError):
+                recovery.validate_restored_app_environment(target.settings, **kwargs)
+    # A supplied environment dictionary cannot conceal the process's old roots.
+    configure_hospital(monkeypatch, rig.hospital_roots)
+    monkeypatch.setenv("DR_SUPPORT_DATABASE_URL", target.settings.dsn)
+    with pytest.raises(recovery.RecoveryError):
+        recovery.validate_restored_app_environment(target.settings, **kwargs, environ=environment)
+    with pytest.raises(recovery.RecoveryError):
+        recovery.validate_restored_app_environment(target.settings, **kwargs)
+
+
+def test_hospital_absent_linkage_state_is_explicit_and_cannot_silently_gain_a_key(hospital_rig, monkeypatch):
+    rig = hospital_rig
+    monkeypatch.delenv(source_policy.HOSPITAL_LINKAGE_KEY_ENV)
+    rig.mapping["linkage_key_ref"] = None
+    rig.source_pin = write_map(rig.source_map, rig.mapping)
+    rig.state.cases = hospital_cases(hospital_admission.scan_authorized_hospital_roots())
+    make_hospital_bundle(rig)
+    manifest = recovery.verify_bundle(rig.bundle, hospital_source_map=rig.source_map,
+                                      expected_hospital_source_map_sha256=rig.source_pin)
+    assert manifest["source_layout"]["linkage"] == {"state": "ABSENT", "key_ref": None, "challenge": None, "response": None}
+    monkeypatch.setenv(source_policy.HOSPITAL_LINKAGE_KEY_ENV, "unexpected-synthetic-key-" * 2)
+    with pytest.raises(recovery.RecoveryError, match="key absence"):
+        recovery.verify_bundle(rig.bundle, hospital_source_map=rig.source_map,
+                               expected_hospital_source_map_sha256=rig.source_pin)
+
+
+@pytest.mark.parametrize("fault", ["inner_hash", "inner_reference", "inner_alias", "trusted_linkage"])
+def test_hospital_stored_admission_cannot_detach_from_case_or_scanner_identity(hospital_rig, fault):
+    rig = hospital_rig
+    record = rig.state.cases[0][3]["admission"]
+    if fault == "inner_hash":
+        record["image_id"] = "f" * 64
+    elif fault == "inner_reference":
+        record["source_reference"] = "HOSPITAL_AUTHORIZED/CASE-9999"
+    elif fault == "inner_alias":
+        record["integrity"]["aliases"] = []
+    else:
+        record["trusted_patient_key"] = "HOSPITAL-SYNTHETIC-OTHER"
+    with pytest.raises(recovery.RecoveryError, match="references or trusted linkage"):
+        recovery.backup(rig.db, **hospital_backup_args(rig), apply=True, runner=rig.runner)
+    assert not rig.commands
+
+
+def test_hospital_manual_modality_decision_survives_without_retyping_raw_scanner(hospital_rig):
+    rig = hospital_rig
+    record = rig.state.cases[0][3]["admission"]
+    record.update(retinal_modality="CFP", retinal_modality_state="CONFIRMED", retinal_modality_method="MANUAL")
+    make_hospital_bundle(rig)
+    manifest = recovery.verify_bundle(rig.bundle, expected_manifest_sha256=rig.pin,
+                                      hospital_source_map=rig.source_map,
+                                      expected_hospital_source_map_sha256=rig.source_pin)
+    assert manifest["cases"][0]["hospital_admission"] == record
+    assert manifest["source_layout"]["scanner_identity_projection_sha256"] == recovery._digest(recovery._scanner_projection(rig.scan))
+
+
+@pytest.mark.parametrize("fault", ["map_in_bundle", "duplicate_map_key", "wrong_reader_sid"])
+def test_hospital_map_authority_is_external_strict_and_reader_bound(hospital_rig, monkeypatch, fault):
+    rig = hospital_rig
+    if fault == "map_in_bundle":
+        make_hospital_bundle(rig)
+        supplied = rig.bundle / "self-approved-map.json"
+        supplied.write_bytes(rig.source_map.read_bytes())
+        with pytest.raises(recovery.RecoveryError, match="outside the supplied bundle"):
+            recovery.verify_bundle(rig.bundle, hospital_source_map=supplied,
+                                   expected_hospital_source_map_sha256=rig.source_pin)
+        return
+    if fault == "duplicate_map_key":
+        content = rig.source_map.read_bytes()
+        rig.source_map.write_bytes(b'{"approval_id":"untrusted-duplicate",' + content[1:])
+        rig.source_pin = recovery._file_hash(rig.source_map)
+    else:
+        monkeypatch.setenv(source_policy.HOSPITAL_WINDOWS_READERS_ENV,
+                           json.dumps({rig.hospital_roots[0]["path"]: ["S-1-5-21-1-2-3-4000"]}))
+    with pytest.raises(recovery.RecoveryError):
+        recovery.backup(rig.db, **hospital_backup_args(rig), apply=True, runner=rig.runner)
+    assert not rig.commands
+
+
+def test_hospital_private_bundle_gate_runs_before_dump_and_retains_empty_partial(hospital_rig, monkeypatch):
+    rig = hospital_rig
+    known_roots = {Path(row["path"]) for row in rig.hospital_roots}
+    monkeypatch.setattr(source_policy, "private_hospital_root", lambda root, **kwargs: root in known_roots)
+    with pytest.raises(recovery.RecoveryError, match="private-storage gate"):
+        recovery.backup(rig.db, **hospital_backup_args(rig), apply=True, runner=rig.runner)
+    assert rig.bundle.is_dir()
+    assert not list(rig.bundle.iterdir())
+    assert not rig.commands
+
+
+def test_hospital_cli_verify_forwards_maps_without_database_or_model_call(hospital_rig, monkeypatch, capsys):
+    rig = hospital_rig
+    make_hospital_bundle(rig)
+    clear_hospital_configuration(monkeypatch)
+    assert recovery.main(["verify", "--bundle", str(rig.bundle), "--expected-manifest-sha256", rig.pin,
+                          "--hospital-source-map", str(rig.source_map),
+                          "--expected-hospital-source-map-sha256", rig.source_pin]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "BUNDLE_VERIFIED"
+    assert result["trust"] == "MATCHED_INDEPENDENT_PIN"
+    assert result["live_restore"] == "NOT_RUN"
+
+
+@pytest.mark.parametrize("lane", ["ordinary", "hospital"])
+def test_entry_guard_source_is_not_qualified_and_never_starts_dump(rig, hospital_rig, lane):
+    selected = hospital_rig if lane == "hospital" else rig
+    selected.state.unqualified_guard = True
+    args = (hospital_backup_args(selected) if lane == "hospital" else
+            {"image_root": selected.images, "destination": selected.bundle, "release": "02ff0bc"})
+    with pytest.raises(recovery.RecoveryError, match="M1 guard-aware recovery is NOT_QUALIFIED"):
+        recovery.backup(selected.db, **args, apply=True, runner=selected.runner)
+    assert not selected.commands
+    assert not selected.bundle.exists()
+
+
+def test_entry_guard_target_is_not_qualified_before_any_restore_write(rig):
+    make_bundle(rig)
+    target, state = database("restore_test", rig.images)
+    state.unqualified_guard = True
+    with pytest.raises(recovery.RecoveryError, match="guard-aware recovery"):
+        recovery.restore(target, **restore_args(rig), apply=True, target_quiesced=True,
+                         runner=lambda *a, **kw: pytest.fail("Guard-aware restore must not run"))
+    assert not (rig.root / "restored-images").exists()
+    query = next(text for text, _ in state.queries if "AS recovery_unqualified_guard" in text)
+    assert "p.pronamespace<>c.relnamespace" in query
+    assert "m1_entry_fence" in query and "entry_fence" in query
+
+
+def test_entry_guard_found_after_restore_cannot_receive_success_receipt(rig):
+    make_bundle(rig)
+    target, state = database("restore_test", rig.images)
+
+    def restored_with_unqualified_guard(*args, **kwargs):
+        state.unqualified_guard = True
+        return SimpleNamespace(returncode=0)
+
+    with pytest.raises(recovery.RecoveryError, match="guard-aware recovery"):
+        recovery.restore(target, **restore_args(rig), apply=True, target_quiesced=True,
+                         runner=restored_with_unqualified_guard)
+    assert not (rig.root / "restored-outputs/recovery-receipt.json").exists()
