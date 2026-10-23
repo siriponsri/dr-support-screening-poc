@@ -402,8 +402,21 @@ class BoundTransportHost:
             if not isinstance(principal, Principal) or "review-client" not in principal.scopes:
                 raise TransportError("UNAUTHORIZED", 401)
             if method == "GET" and path == BASE + "/capabilities":
-                return 200, {"transport": TRANSPORT, "binding_protocol": PROTOCOL, "epoch": self.epoch,
-                             "pins": json.loads(self._pins()), "runtime_registered": False}
+                pins = json.loads(self._pins())
+                value = {"transport": TRANSPORT, "binding_protocol": PROTOCOL, "epoch": self.epoch,
+                         "pins": pins, "runtime_registered": False}
+                if self._workspace_enabled():
+                    from .source_policy import HOSPITAL_ORIGIN, PUBLIC_ORIGINS, source_allowed_for_model
+                    if (self.executor.loaded_identity() != pins or not self.allowed_origins
+                            or not self.allowed_origins <= PUBLIC_ORIGINS | {HOSPITAL_ORIGIN}):
+                        raise TransportError("WORKSPACE_LOADED_PINS_OR_SOURCE_SCOPE_CHANGED", 503)
+                    value["workspace_runtime"] = {
+                        "profile": "HOSPITAL_M1", "modalities": ["CFP", "UWF"],
+                        "authorized_source_origins": sorted(origin for origin in self.allowed_origins
+                                                            if source_allowed_for_model(origin, model_api=True)),
+                        "native_entry_protocol": PROTOCOL, "load_state": "LOADED",
+                    }
+                return 200, value
             if headers.get("x-prism-epoch") != self.epoch:
                 raise TransportError("SESSION_RESTARTED_OR_EXPIRED")
             if len(body) > 20_100_000:

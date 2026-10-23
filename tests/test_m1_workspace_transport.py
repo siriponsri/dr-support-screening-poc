@@ -7,7 +7,7 @@ from types import ModuleType
 from PIL import Image
 import pytest
 
-from dr_support.services.prism_remote_transport import BoundTransportHost, Principal, TransportError, sha
+from dr_support.services.prism_remote_transport import BASE, PROTOCOL, BoundTransportHost, Principal, TransportError, sha
 from test_prism_remote_transport import FakeExecutor, png
 
 
@@ -85,6 +85,21 @@ def test_executor_swap_after_bootstrap_cannot_prepare_or_read_pins(rig):
         host._prepare(principal, envelope)
     with pytest.raises(TransportError, match='SCOPE_CHANGED'):
         host._pins()
+
+
+def test_workspace_capability_reports_actual_loaded_pins_without_inference_claim(rig):
+    host, executor, _, _ = rig
+    host.enable_workspace_executor(executor)
+    code, _ = host.handle('GET', BASE + '/capabilities', {}, b'')
+    assert code == 503  # Identity metadata alone cannot claim a loaded runtime.
+    executor.loaded = True
+    code, value = host.handle('GET', BASE + '/capabilities', {}, b'')
+    assert code == 200
+    assert value['workspace_runtime'] == {
+        'profile': 'HOSPITAL_M1', 'modalities': ['CFP', 'UWF'],
+        'authorized_source_origins': ['SYNTHETIC'], 'native_entry_protocol': PROTOCOL, 'load_state': 'LOADED'}
+    assert 'inference_pass' not in value and 'clinical_validation' not in value
+    assert executor.loads == executor.roi == 0
 
 
 @pytest.mark.parametrize('modality,status', [('CFP', 'UNCERTAIN'), ('UWF', 'NOT_APPLICABLE')])
