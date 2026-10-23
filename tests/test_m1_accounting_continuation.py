@@ -180,6 +180,18 @@ def test_unpinned_approval_and_different_directory_cannot_create_a_second_counte
     assert not rig.directory.exists()
 
 
+def test_duplicate_operation_identity_rejects_distinct_valid_job_hashes(rig):
+    first, second = rig.proposal["operations"][:2]
+    second["operation_id"] = first["operation_id"]
+    second["job_id"] = digest(canonical({key: value for key, value in second.items() if key != "job_id"}))
+    assert first["job_id"] != second["job_id"] and first["model_id"] != second["model_id"]
+    assert len({job["job_id"] for job in rig.proposal["operations"]}) == 24
+    seal(rig)
+    with pytest.raises(RuntimeError, match="EXACT_24_OPERATIONS_REQUIRED"):
+        owned(rig)
+    assert not rig.directory.exists()
+
+
 def test_independent_replay_rejects_forged525_even_with_rehashed_input_documents(rig, monkeypatch):
     raw = b"\n".join(rig.paths["batch_ledger"].read_bytes().splitlines()[:-4]) + b"\n"
     rig.paths["batch_ledger"].write_bytes(raw)

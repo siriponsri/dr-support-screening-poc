@@ -186,6 +186,7 @@ def _verify_m1(directory, proposal_path, approval_path, proposal_sha256, approva
             "M1_FINITE_DEMO_CLOSURE_OR_RESERVATION_INVALID")
     jobs = proposal["operations"]
     require(type(jobs) is list and len(jobs) == 24 and len({job["job_id"] for job in jobs}) == 24
+            and len({job["operation_id"] for job in jobs}) == 24
             and Counter(job["purpose"] for job in jobs) == M1_ALLOCATIONS,
             "M1_EXACT_24_OPERATIONS_REQUIRED")
     fields = {"job_id", "operation_id", "purpose", "window_id", "source_sha256", "model_id",
