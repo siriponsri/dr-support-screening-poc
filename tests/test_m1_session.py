@@ -183,6 +183,21 @@ def test_readback_never_passes_on_other_or_unapplied_evidence(monkeypatch, scena
     assert app.verify_persisted(case, entry, models, operations)[1] is False
 
 
+@pytest.mark.parametrize('probabilities', [[.1, .2, .7, 0, 0], [1, 0, 0, 0, 0], None])
+def test_host_and_persisted_global_digests_agree_through_the_real_contract(probabilities):
+    from dr_support.contracts import GlobalResult
+    raw = {'model_id': 'retfound-aptos5', 'model_version': 'v', 'modality': 'CFP', 'state': 'UNGRADABLE',
+           'grade': None, 'warnings': [], 'provenance': {
+               'image_sha256': '1' * 64, 'source_type': 'HOSPITAL_AUTHORIZED', 'preprocessing': 'p',
+               'source_revision': 'r', 'checkpoint_sha256': {'aptos5': 'a' * 64}}}
+    if probabilities is not None:
+        raw.update(state='AI_SUGGESTION', grade=probabilities.index(max(probabilities)),
+                   probabilities=probabilities, confidence=max(probabilities))
+    # Host hashes the raw HTTP JSON; the app persists the parsed contract.
+    persisted = json.loads(json.dumps(GlobalResult.model_validate(raw).model_dump(mode='json')))
+    assert operations.global_result_digest(raw) == operations.global_result_digest(persisted)
+
+
 def test_prism_readback_is_bound_by_the_one_use_plan(monkeypatch):
     app = server_app()
     models = reviewed(monkeypatch)

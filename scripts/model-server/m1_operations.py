@@ -114,8 +114,14 @@ def global_result_digest(value):
     """
     require(type(value) is dict and type(value.get('provenance')) is dict, 'M1_GLOBAL_RESULT_REQUIRED')
     provenance = value['provenance']
+    probabilities = value.get('probabilities') or []
+    require(type(probabilities) is list and all(type(item) in (int, float) and type(item) is not bool
+                                                for item in probabilities), 'M1_GLOBAL_RESULT_REQUIRED')
+    # Normalise exactly as GlobalResult persists them: a missing list is [] and
+    # every probability is a float (raw JSON may carry 0 where storage has 0.0).
     return digest(canonical({
-        **{key: value.get(key) for key in ('model_id', 'model_version', 'modality', 'state', 'grade', 'probabilities')},
+        **{key: value.get(key) for key in ('model_id', 'model_version', 'modality', 'state', 'grade')},
+        'probabilities': [float(item) for item in probabilities],
         'provenance': {key: provenance.get(key) for key in ('checkpoint_sha256', 'source_revision', 'image_sha256')},
     }))
 

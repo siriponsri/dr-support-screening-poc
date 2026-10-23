@@ -206,9 +206,11 @@ def listener_pid(port):
     """PID owning the single IPv4 loopback LISTEN socket on port (Windows netstat)."""
     completed = subprocess.run(['C:/Windows/System32/NETSTAT.EXE', '-ano', '-p', 'TCP'],
                                capture_output=True, text=True, timeout=10)
+    # A listening row has foreign address 0.0.0.0:0; this does not depend on the
+    # localised state text (LISTENING) of this Windows installation.
     owners = {int(fields[4]) for fields in (line.split() for line in completed.stdout.splitlines())
               if len(fields) == 5 and fields[0] == 'TCP' and fields[1] == f'127.0.0.1:{port}'
-              and fields[3] == 'LISTENING'}
+              and fields[2] == '0.0.0.0:0' and fields[4].isdigit()}
     return owners.pop() if len(owners) == 1 else None
 
 
@@ -362,11 +364,14 @@ def verify_persisted(case, entry, models, operations):
     history = [item for item in case.get('inference_history', [])
                if item.get('model_id') == entry['model_id'] and item.get('source_sha256') == entry['source_sha256']]
     require(history, 'PERSISTED_INFERENCE_NOT_FOUND')
-    latest = history[-1]
+    prism = entry['model_id'] == operations.PRISM
+    plan = entry['correlation'].get('plan_sha256')
+    # PRISM: the entry of THIS one-use plan, wherever it sits in the history.
+    planned = [item for item in history if (item.get('preview_binding') or {}).get('plan_sha256') == plan]
+    latest = planned[-1] if prism and planned else history[-1]
     pins = models[entry['model_id']]['pins']
     result = latest.get('result') or {}
     provenance = result.get('provenance') or {}
-    prism = entry['model_id'] == operations.PRISM
     if prism:
         bound = (SHA256.fullmatch(str(entry['correlation'].get('plan_sha256'))) is not None
                  and (latest.get('preview_binding') or {}).get('plan_sha256') == entry['correlation']['plan_sha256'])
