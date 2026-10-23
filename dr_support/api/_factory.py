@@ -71,6 +71,7 @@ from ..services.source_policy import (
     source_allowed_for_model,
 )
 from ..services.capability_routing import CapabilityRoutingError, route_capability
+from ..services.deployment_profile import DeploymentProfileError
 from ..services.prism_preview import PrismPreviewService, install_prism_preview_routes
 from ..services.prism_preview_runtime import ReviewPrismPreview
 from ..services.workspaces import WorkspaceManager
@@ -539,7 +540,10 @@ def create_app(
 
     @app.post('/v1/model-connection/test', response_model=ModelConnectionResponse)
     def test_model_connection(request: ModelConnectionInput):
-        connection = ModelConnection(request.name, request.url, request.token)
+        try:
+            connection = ModelConnection(request.name, request.url, request.token)
+        except DeploymentProfileError as exc:
+            raise HTTPException(422, str(exc)) from None
         probe = connection_probe(connection)
         return response_payload(connection, probe=probe)
 
@@ -549,7 +553,10 @@ def create_app(
         token = request.token
         if token is None and previous is not None and previous.url == request.url:
             token = previous.token
-        candidate = ModelConnection(request.name, request.url, token)
+        try:
+            candidate = ModelConnection(request.name, request.url, token)
+        except DeploymentProfileError as exc:
+            raise HTTPException(422, str(exc)) from None
         probe = connection_probe(candidate)
         if not probe.verified:
             # Do not mutate either the active providers or the saved candidate.
