@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot "release-docker.ps1")
 
 $script:ReleaseRepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $script:ReleaseStateRoot = Join-Path $script:ReleaseRepoRoot "local-state\release"
@@ -75,6 +76,18 @@ function Set-ReleaseReviewEnvironment {
     $env:HOST = "127.0.0.1"
     $env:PORT = "8000"
     $env:WORKERS = "1"
+    if ($env:DR_SUPPORT_DEPLOYMENT_PROFILE) {
+        $python = Get-ReleasePythonPath
+        Push-Location $script:ReleaseRepoRoot
+        try {
+            $null = & $python -c "from dr_support.services.deployment_profile import validate_deployment_environment; validate_deployment_environment()" 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                throw "QA deployment configuration is invalid. Check the selected QA_SERVER/QA_LOCAL profile and its private Model API endpoint before starting PostgreSQL. No endpoint was probed."
+            }
+        } finally {
+            Pop-Location
+        }
+    }
 }
 
 function Get-ReleaseDockerPath {
@@ -277,13 +290,12 @@ function New-ReleaseLocalDatabaseConfig {
 
 function Start-ReleaseLocalPostgres([object] $Database) {
     $docker = Get-ReleaseDockerPath
-    if (-not $docker) {
-        throw "No Docker CLI was found. Install and start Docker Desktop, then retry; configure an external PostgreSQL URL to use an existing server."
-    }
+    $engine = Ensure-ReleaseDockerEngine -Docker $docker -ManagedLocal $true
+    if (-not $engine.Ready) { throw $engine.Detail }
     try {
         Invoke-ReleaseCompose $docker @("up", "-d", $script:ReleaseComposeService)
     } catch {
-        throw "Project-owned PostgreSQL could not start. Start Docker Desktop and confirm the loopback port $($Database.Port) is available. No SQLite fallback is used."
+        throw "Project-owned PostgreSQL could not start after local Docker readiness. Check the configured loopback port and the approved PostgreSQL image availability. No SQLite fallback is used."
     }
     for ($attempt = 0; $attempt -lt 30; $attempt++) {
         $composeArguments = Get-ReleaseComposeArguments @(

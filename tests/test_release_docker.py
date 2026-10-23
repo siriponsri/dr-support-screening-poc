@@ -13,6 +13,40 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts/windows/release-docker.ps1"
 
 
+def test_managed_database_path_gates_compose_on_engine_readiness(tmp_path):
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if powershell is None:
+        pytest.skip("PowerShell is unavailable")
+    common = str(ROOT / "scripts/windows/release-common.ps1").replace("'", "''")
+    program = f"""
+$ErrorActionPreference='Stop'
+. '{common}'
+function Get-ReleaseDockerPath {{ return 'synthetic-docker' }}
+function Ensure-ReleaseDockerEngine {{
+    param($Docker,$ManagedLocal)
+    if (-not $ManagedLocal) {{ throw 'managed gate missing' }}
+    return [pscustomobject]@{{Ready=$false; Detail='EXPECTED_ENGINE_BLOCK'}}
+}}
+function Invoke-ReleaseCompose {{ throw 'Compose must not run before readiness' }}
+try {{ Start-ReleaseLocalPostgres ([pscustomobject]@{{Port=55432}}); exit 4 }}
+catch {{ if ($_.Exception.Message -ne 'EXPECTED_ENGINE_BLOCK') {{ throw }} }}
+function Read-ReleaseDotEnv {{}}
+function Test-ReleasePostgres {{ return [pscustomobject]@{{Ready=$true; Detail='external'}} }}
+function Ensure-ReleaseDockerEngine {{ throw 'External database must not touch Docker' }}
+$env:DR_SUPPORT_DATABASE_URL='dbname=synthetic_test'
+$env:DR_SUPPORT_CASE_STORE='postgres'
+$result=Ensure-ReleasePostgres
+if ($result.ManagedLocal -or -not $result.Ready) {{ exit 5 }}
+Write-Output 'INTEGRATION_GATES_PASS'
+"""
+    script = tmp_path / "integration.ps1"
+    script.write_text(program, encoding="utf-8")
+    result = subprocess.run([powershell, "-NoProfile", "-NonInteractive", "-File", str(script)],
+                            capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+    assert "INTEGRATION_GATES_PASS" in result.stdout
+
+
 def run_fake(tmp_path, scenario):
     powershell = shutil.which("powershell") or shutil.which("pwsh")
     if powershell is None:

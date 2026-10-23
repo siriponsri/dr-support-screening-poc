@@ -169,6 +169,7 @@ def workstation_allowlist() -> list[str]:
         "frontend/dist", "dr_support", "web", "deployment/docker-compose.local-postgres.yml", "scripts/windows/release-common.ps1",
         "scripts/windows/release-first-run.ps1", "scripts/windows/release-start.ps1",
         "scripts/windows/release-stop.ps1", "scripts/windows/release-check-system.ps1",
+        "scripts/windows/release-docker.ps1",
         "scripts/windows/release-backup.ps1", "scripts/windows/release-restore.ps1",
         "FIRST_RUN.bat", "START_DR_SCREENING.bat", "STOP_DR_SCREENING.bat", "CHECK_SYSTEM.bat",
         "BACKUP_DR_SCREENING.bat", "RESTORE_DR_SCREENING.bat",
