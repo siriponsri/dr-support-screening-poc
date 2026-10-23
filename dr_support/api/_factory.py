@@ -6,6 +6,7 @@ inference dispatcher, which routes to local providers or the remote proxy.
 import os
 from copy import deepcopy
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
 from threading import RLock
 from uuid import uuid4
@@ -151,6 +152,31 @@ def _build_case_store(case_store_mode: str, state_path, workspace_id: str | None
     return store, selected_workspace_id, settings, database
 
 
+def _workspace_composition(function):
+    @wraps(function)
+    def composed(*args, **kwargs):
+        authority = kwargs.get('workspace_authority')
+        provider = kwargs.get('workspace_prism_provider')
+        if authority is None and provider is None:
+            return function(*args, **kwargs)
+        from ..providers.prism_workspace_remote import WorkspaceRemotePRISM
+        from ..services.m1_workspace_context import WorkspaceContextReader
+        from ..services.prism_workspace_authority import WorkspaceAuthority
+        if (type(authority) is not WorkspaceAuthority or type(provider) is not WorkspaceRemotePRISM
+                or provider.authority is not authority or type(authority.context_reader) is not WorkspaceContextReader):
+            raise ValueError('An exact owned workspace authority and PRISM provider pair is required')
+        reader = authority.context_reader
+        # Synchronous app composition only: no request or ASGI await holds this
+        # lock. Concurrent factories cannot both write before the one-use bind.
+        with authority.lock, reader._bind_lock:
+            if reader._app is not None or reader._gate is not None:
+                raise ValueError('The workspace context reader is already bound')
+            WorkspaceAuthority._ready(authority)
+            return function(*args, **kwargs)
+    return composed
+
+
+@_workspace_composition
 def create_app(
     state_path=None,
     include_samples=True,
@@ -161,10 +187,32 @@ def create_app(
     qa_fixed_session=None,
     qa_batch_profile=None,
     source_mutation_gate=None,
+    workspace_authority=None,
+    workspace_prism_provider=None,
 ):
     # Reject an invalid private boundary before creating stores or migrating DBs.
     # Availability is deliberately not checked here: review remains usable offline.
-    validate_deployment_environment()
+    deployment = validate_deployment_environment()
+    if workspace_authority is not None:
+        from ..providers.prism_workspace_remote import WorkspaceRemotePRISM
+        if (qa_fixed_session is not None or qa_batch_profile is not None
+                or (source_mutation_gate is not None and source_mutation_gate is not workspace_authority.gate)):
+            raise ValueError('The owned workspace session requires its own writer gate and excludes isolated QA')
+        if (deployment.profile not in {'QA_SERVER', 'QA_LOCAL'}
+                or os.environ.get('DR_SUPPORT_DATABASE_MIGRATION_MODE') != 'verify'
+                or not isinstance(workspace_id, str) or not workspace_id.strip()
+                or _resolve_case_store_mode(case_store_mode, state_path) != 'postgres' or state_path is not None):
+            raise ValueError('The owned workspace session requires an explicit QA profile, PostgreSQL workspace and migration verify')
+        identity = WorkspaceRemotePRISM.prism_preview_identity(workspace_prism_provider)
+        url = workspace_prism_provider.channel.client.base_url
+        if (url.host not in {'127.0.0.1', '::1'} or url.path != '/' or url.username or url.password
+                or url.query or url.fragment or str(url).rstrip('/') != deployment.model_endpoint
+                or identity['descriptor'].get('ready') is not True):
+            raise ValueError('The owned model channel must match the configured loopback endpoint and loaded identity')
+        reader = workspace_authority.context_reader
+        reader.preflight_runtime_database(PostgresDatabase(PostgresSettings.from_env()))
+        workspace_authority._ready()
+        source_mutation_gate = workspace_authority.gate
     if source_mutation_gate is not None:
         if (type(source_mutation_gate) is not SourceMutationGate
                 or source_mutation_gate.snapshot().state != 'OPEN'):
@@ -177,6 +225,7 @@ def create_app(
             raise ValueError('Explicit isolated batch profile required')
     app = FastAPI(title='Retinal Review Workbench', version='0.7.0')
     app.state.source_mutation_gate = source_mutation_gate
+    app.state.workspace_authority = workspace_authority
     root = Path(__file__).resolve().parents[2]
 
     if qa_fixed_session is not None:
@@ -439,6 +488,14 @@ def create_app(
         app.state.model_connection = None
         app.state.model_connection_probe = None
         app.state.providers = {'prism-dr-5fold': qa_fixed_session.provider}
+    elif workspace_authority is not None:
+        app.state.remote_runtime = True
+        app.state.model_connection = ModelConnection(
+            (os.environ.get('REMOTE_MODEL_NAME') or 'Model API').strip(), deployment.model_endpoint,
+            os.environ.get('REMOTE_MODEL_TOKEN') or None,
+        )
+        app.state.model_connection_probe = None
+        app.state.providers = {'prism-dr-5fold': workspace_prism_provider}
     elif runtime == 'remote':
         app.state.remote_runtime = True
         configured_url = (os.environ.get('REMOTE_MODEL_URL') or '').strip().rstrip('/')
@@ -515,8 +572,31 @@ def create_app(
             providers[provider.model_id] = provider
         return providers
 
-    @guard_writes(lambda: app.state.source_mutation_gate)
+    def workspace_cached_probe():
+        from ..providers.prism_workspace_remote import WorkspaceRemotePRISM
+        with writer_scope(app.state.source_mutation_gate, invalidate=False):
+            try:
+                current = validate_deployment_environment()
+                connection = app.state.model_connection
+                if (current != deployment or app.state.workspace_authority is not workspace_authority
+                        or app.state.source_mutation_gate is not workspace_authority.gate
+                        or app.state.providers.get('prism-dr-5fold') is not workspace_prism_provider
+                        or workspace_prism_provider.authority is not workspace_authority
+                        or connection.url != deployment.model_endpoint
+                        or connection.token != owned_connection_token):
+                    raise ValueError()
+                descriptor = WorkspaceRemotePRISM.prism_preview_identity(workspace_prism_provider)['descriptor']
+            except (ValueError, RuntimeError, AttributeError):
+                raise HTTPException(409, 'The model session changed. Stop and restart with the approved configuration.') from None
+            return ModelGatewayProbe(True, True, True, True, 'CONNECTED',
+                'Last authenticated model identity is available; inference is not verified.', (descriptor,))
+
+    owned_connection_token = app.state.model_connection.token if workspace_authority is not None else None
+
+    @guard_writes(lambda: None if workspace_authority is not None else app.state.source_mutation_gate)
     def refresh_remote_state():
+        if workspace_authority is not None:
+            return workspace_cached_probe()
         if qa_fixed_session is not None:
             return None
         if not app.state.remote_runtime:
@@ -575,6 +655,9 @@ def create_app(
 
     @app.post('/v1/model-connection/test', response_model=ModelConnectionResponse)
     def test_model_connection(request: ModelConnectionInput):
+        if workspace_authority is not None:
+            owned_connection(request)
+            return response_payload(app.state.model_connection, probe=workspace_cached_probe())
         try:
             connection = ModelConnection(request.name, request.url, request.token)
         except DeploymentProfileError as exc:
@@ -583,8 +666,14 @@ def create_app(
         return response_payload(connection, probe=probe)
 
     @app.put('/v1/model-connection', response_model=ModelConnectionResponse)
-    @guard_writes(lambda: app.state.source_mutation_gate)
+    @guard_writes(lambda: None if workspace_authority is not None else app.state.source_mutation_gate)
     def save_model_connection(request: ModelConnectionInput):
+        if workspace_authority is not None:
+            with writer_scope(app.state.source_mutation_gate, invalidate=False):
+                candidate = owned_connection(request)
+                probe = workspace_cached_probe()
+                app.state.model_connection = candidate
+                return response_payload(candidate, probe=probe)
         previous = getattr(app.state, 'model_connection', None)
         token = request.token
         if token is None and previous is not None and previous.url == request.url:
