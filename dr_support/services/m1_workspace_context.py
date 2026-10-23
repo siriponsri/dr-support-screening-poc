@@ -68,6 +68,25 @@ class WorkspaceContextReader:
 
     def _principal_sql(self):
         """One catalog snapshot, including inherited privileged memberships."""
+        # Name-to-regclass/regprocedure casts would require guard-schema USAGE,
+        # which the runtime correctly lacks. Inspect public catalog OIDs instead.
+        def function_oid(name, arguments):
+            argument_checks = sql.SQL('').join(sql.SQL('''
+                AND p.proargtypes[{}]=(SELECT t.oid FROM pg_catalog.pg_type t
+                    JOIN pg_catalog.pg_namespace nt ON nt.oid=t.typnamespace
+                    WHERE nt.nspname='pg_catalog' AND t.typname={})
+            ''').format(sql.Literal(index), sql.Literal(argument))
+                for index, argument in enumerate(arguments))
+            return sql.SQL('''(SELECT p.oid FROM pg_catalog.pg_proc p
+                JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+                WHERE n.nspname={} AND p.proname={} AND p.pronargs={} {})''').format(
+                    sql.Literal(self._roles.guard_schema), sql.Literal(name),
+                    sql.Literal(len(arguments)), argument_checks)
+
+        table_oid = sql.SQL('''(SELECT c.oid FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+            WHERE n.nspname={} AND c.relname='entry_fence' AND c.relkind IN ('r','p'))''').format(
+                sql.Literal(self._roles.guard_schema))
         return sql.SQL("""jsonb_build_object(
             'database', current_database(), 'current_user', current_user::text,
             'session_user', session_user::text,
@@ -88,16 +107,15 @@ class WorkspaceContextReader:
                 WHERE ((n.nspname=%s AND c.relname=ANY(%s)) OR n.nspname=%s)
                 AND pg_has_role(current_user, c.relowner, 'MEMBER')),
             'guard_write', has_schema_privilege(current_user, %s, 'CREATE')
-                OR has_table_privilege(current_user, {}::regclass, 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER'),
-            'guard_execute', has_function_privilege(current_user, {}::regprocedure, 'EXECUTE')
-                OR has_function_privilege(current_user, {}::regprocedure, 'EXECUTE')
-                OR has_function_privilege(current_user, {}::regprocedure, 'EXECUTE'),
+                OR has_table_privilege(current_user, {}, 'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER'),
+            'guard_execute', has_function_privilege(current_user, {}, 'EXECUTE')
+                OR has_function_privilege(current_user, {}, 'EXECUTE')
+                OR has_function_privilege(current_user, {}, 'EXECUTE'),
             'replication_origin', current_setting('session_replication_role')='origin'
         )""").format(
-            sql.Literal(f'{self._roles.guard_schema}.entry_fence'),
-            sql.Literal(f'{self._roles.guard_schema}.begin_entry(text,text,jsonb,jsonb,jsonb)'),
-            sql.Literal(f'{self._roles.guard_schema}.release_entry(jsonb)'),
-            sql.Literal(f'{self._roles.guard_schema}.read_entry()'),
+            table_oid,
+            function_oid('begin_entry', ('text', 'text', 'jsonb', 'jsonb', 'jsonb')),
+            function_oid('release_entry', ('jsonb',)), function_oid('read_entry', ()),
         )
 
     def _principal_parameters(self):

@@ -50,6 +50,9 @@ role memberships, owner/authority membership, effective ownership of protected
 tables, guard-schema/table write capability, direct execution of guard-authority
 functions and a non-origin replication mode. The complete fence installation and
 effective role boundary still need their separate SQL qualification.
+Guard table/function privileges are inspected through catalog OIDs with exact
+function signatures; the runtime is not granted guard-schema USAGE merely to
+resolve schema-qualified object names.
 
 Unprovisioned PASSWORD NULL roles or missing private runtime configuration block
 actual authenticated login. Mock results do not remove that boundary; any

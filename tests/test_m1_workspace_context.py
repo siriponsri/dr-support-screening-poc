@@ -143,6 +143,11 @@ def test_preflight_checks_actual_read_connection_before_any_factory_write(rig):
     assert len(selects) == 1 and 'pg_catalog.pg_roles' in selects[0]
     assert 'pg_has_role' in selects[0] and 'protected_owner' in selects[0]
     assert 'has_function_privilege' in selects[0] and 'has_table_privilege' in selects[0]
+    # The runtime deliberately has no guard-schema USAGE. Resolving a qualified
+    # regclass/regprocedure name would fail before privilege checks can run.
+    assert '::regclass' not in selects[0] and '::regprocedure' not in selects[0]
+    assert 'pg_catalog.pg_proc' in selects[0] and 'pg_catalog.pg_class' in selects[0]
+    assert 'p.proargtypes[4]' in selects[0] and 'p.pronargs=0' in selects[0]
     assert rig.connection.closed
 
 
