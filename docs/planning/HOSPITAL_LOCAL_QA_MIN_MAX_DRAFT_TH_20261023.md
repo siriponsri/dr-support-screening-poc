@@ -89,6 +89,7 @@
 | Q24 | Mask และ export ถูกตีความเกินหลักฐานได้ | เป็น scope/acceptance gap: offline CPU post-filter เสนอซ่อน 8/65,639 raw ROI, UI subset 3, undo 7 nonempty cases; 28 UWF cases retain-all, CFP ไม่ใช้ UWF mask ไม่มี external pre-mask และยังไม่มี clinical-error reduction proof; export ข้าม 80 ภาพตาม admission ไม่ใช่เหตุให้ลด gate |
 | Q25 | ชุด environment ของแต่ละ provider ต่างกัน; old package/no-code Model API เป็น contract-only | ต้องขนย้าย exact qualified environments/assets แล้วทดสอบใหม่ ไม่ใช้ one-installer หรือ presence of files เป็น runtime proof; persistent hospital service/full offline install/multiuser/backup restore ยังไม่ qualified โดยผลชุดนี้ |
 | Q26 | Ad-hoc SSH source read ที่ไม่ได้ใช้ identity options ของ runtime ถูกปฏิเสธ publickey/password | ไม่ retry source read ผ่านทางอื่นหรือเปลี่ยน credentials; ช่องทาง batch ที่ owner อนุญาตยังทำงานตามสิทธิ์เดิม เหตุการณ์นี้ไม่ใช่หลักฐานว่า private inference credentials เสีย |
+| Q27 | Documentation QA บน canonical workspace วันที่ 23 ต.ค. พบ broken links, duplicate sources และ PDF นอกตำแหน่งใน owner untracked/ignored presentation/archive/runtime files | Clean tracked worktree ของเอกสารผ่าน แต่ full canonical-workspace scan ยัง FAIL ต้องแยก release source จาก owner/runtime artifacts อย่างตรวจสอบได้ ห้ามลบ/ย้ายไฟล์เดิมหรือปรับ checker ให้ผ่านโดยไม่อนุมัติ; นี่เป็น packaging/workspace-hygiene gap ไม่ใช่ GPU/model failure |
 
 ข้อเสนอ hardware เดิมวันที่ 21 ต.ค. มีฐานผล 42 งานและข้อค้างก่อน C02/B03 จึงใช้เป็นประวัติการวางแผนเท่านั้น ร่างฉบับนี้ใช้ผล 467 งานและ current local integration แทน โดยไม่เขียนทับเอกสารเดิมหรืออ้างว่าข้อค้าง persistent service เก่าได้รับการแก้แล้ว
 
@@ -105,6 +106,7 @@
 - ใช้ private LAN/approved protected boundary, secrets server-side และ operator access ที่โรงพยาบาลอนุมัติ ไม่เปิด Model API public และไม่ส่งภาพออกนอกพื้นที่โดยอัตโนมัติ
 - ให้มี receipt รายงาน invocation/source SHA, model/source/weight hashes, environment, GPU identity, stage times, error class, DB readback, cleanup และ durable request intent; ผลส่งไม่ชัดเจนต้องหยุดตรวจ ไม่ auto-retry inference
 - แยก app readiness, DB readiness และ model readiness ให้เห็นชัด เมื่อ AI ใช้ไม่ได้ต้องอ่าน/บันทึก manual review ได้ตาม flow ที่ผ่าน UAT ไม่แสดง AI Ready จากแค่ health/file presence
+- จัดส่งจาก clean versioned release ที่ตรวจได้ ไม่เหมารวม owner archives, local-state, runtime databases, images, weights หรือ private evidence จาก workspace; full local workspace QA ที่ FAIL ต้องรายงานแยกจาก clean tracked-source QA ที่ PASS
 
 ## 5. ร่าง hardware spec ที่เสนอ
 
@@ -184,7 +186,7 @@ usable_primary >= (R + K*R + M + D + E + L) / 0.75
 - `CLI_DEMO_DELIVERY_20261023.json` และ `demo-evidence-session04-20261023/FINAL_STATUS.json`: current technical scope และข้อค้าง
 - `GPU_SESSION_CLOSE.json`, `EXPORT_VERIFICATION.json`, `PER_JOB_EVIDENCE.json/.csv`: request accounting, fresh readback, export, provenance และ timings
 - `PRISM_POSTFILTER_MEASUREMENT.json`, `SUPPRESSION_AUDIT.json`: raw/post-filter/undo measurements
-- `CLI_DEMO_OPERATIONAL_LOG_20261022.md`: เหตุการณ์สำหรับ Q01–Q26, causes, unknowns, targeted reproduction/repair receipts และ owner decisions
+- `CLI_DEMO_OPERATIONAL_LOG_20261022.md`: เหตุการณ์สำหรับ Q01–Q27, causes, unknowns, targeted reproduction/repair receipts และ owner decisions รวม current documentation-workspace finding
 - `hospital-qa-spec-draft-20261023/MEASURED_BASELINE.json`: aggregate จาก retained records; sampled resource scope และแหล่งข้อมูลพร้อม hashes
 
 ดู [deployment topology เดิม](../operations/DEPLOYMENT.md), [Model API operations และ qualification boundaries](../operations/MODEL_SERVER.md), [configuration](../operations/CONFIGURATION.md), [dataset manifest](../reference/DATASET_MANIFEST.md) ควบคู่กัน ร่างนี้ไม่แก้ frozen behavior หรือแทน current operating guides
