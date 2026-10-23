@@ -34,12 +34,13 @@ class SourceMutationGate:
             return GateSnapshot(self._generation, self._writers, self._state)
 
     @contextmanager
-    def writer(self):
+    def writer(self, *, invalidate=True):
         # Only counters are protected. No lock survives the yield/ASGI await.
         with self._lock:
             if self._state != "OPEN":
                 raise MutationFenced("SOURCE_WRITERS_FENCED")
-            self._generation += 1
+            if invalidate:
+                self._generation += 1
             self._writers += 1
             generation = self._generation
         try:
@@ -87,27 +88,27 @@ class _EntryPermit:
 
 
 @contextmanager
-def writer_scope(gate):
+def writer_scope(gate, *, invalidate=True):
     """Legacy-compatible scope; an injected gate is never silently ignored."""
     if gate is None:
         yield
     else:
         if type(gate) is not SourceMutationGate:
             raise ValueError("EXPLICIT_SOURCE_MUTATION_GATE_REQUIRED")
-        with gate.writer():
+        with gate.writer(invalidate=invalidate):
             yield
 
 
-def _guard(function, resolver):
+def _guard(function, resolver, *, invalidate=True):
     if iscoroutinefunction(function):
         @wraps(function)
         async def guarded(*args, **kwargs):
-            with writer_scope(resolver(args, kwargs)):
+            with writer_scope(resolver(args, kwargs), invalidate=invalidate):
                 return await function(*args, **kwargs)
     else:
         @wraps(function)
         def guarded(*args, **kwargs):
-            with writer_scope(resolver(args, kwargs)):
+            with writer_scope(resolver(args, kwargs), invalidate=invalidate):
                 return function(*args, **kwargs)
     guarded.__source_writer_scope__ = True
     # FastAPI may otherwise resolve copied future-annotation strings against
@@ -116,9 +117,9 @@ def _guard(function, resolver):
     return guarded
 
 
-def guard_writes(gate_getter):
+def guard_writes(gate_getter, *, invalidate=True):
     """Cover a whole app operation, including its later scan/publication."""
-    return lambda function: _guard(function, lambda args, kwargs: gate_getter())
+    return lambda function: _guard(function, lambda args, kwargs: gate_getter(), invalidate=invalidate)
 
 
 def guard_method_writes(function):

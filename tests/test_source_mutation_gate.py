@@ -145,3 +145,17 @@ def test_fastapi_keeps_original_future_annotation_types():
     app.post("/write")(namespace["endpoint"])
     response = TestClient(app).post("/write", json={"value": 12})
     assert response.status_code == 200 and response.json() == {"value": 12}
+
+
+def test_read_check_scope_blocks_entry_but_only_real_nested_writes_invalidate():
+    gate = SourceMutationGate()
+    original = gate.snapshot().generation
+    with gate.writer(invalidate=False):
+        assert gate.snapshot().generation == original
+        with pytest.raises(MutationFenced):
+            gate.begin_entry(expected_generation=original)
+    assert gate.snapshot().generation == original
+    with gate.writer(invalidate=False):
+        with gate.writer():
+            pass
+    assert gate.snapshot().generation == original + 1

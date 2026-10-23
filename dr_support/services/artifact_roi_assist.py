@@ -229,6 +229,8 @@ class RestoreRequest(PrepareRequest):
 
 
 def install(app, detail, current_store, get_image, require_current):
+    from .source_mutation_gate import guard_writes
+    mutation_gate = lambda: getattr(app.state, "source_mutation_gate", None)
     def gate():
         if not enabled():
             raise HTTPException(404, "Annotation-assist artifact view is disabled")
@@ -279,6 +281,7 @@ def install(app, detail, current_store, get_image, require_current):
                         "X-Source-SHA256": value["source_sha256"], "X-Field-SHA256": value["field_sha256"]})
 
     @app.post("/v1/cases/{image_id}/artifact-roi/prepare")
+    @guard_writes(mutation_gate)
     def refresh(image_id: str, request: PrepareRequest):
         gate()
         with locked(image_id) as (store, image, scope):
@@ -318,6 +321,7 @@ def install(app, detail, current_store, get_image, require_current):
             return detail(image_id)
 
     @app.post("/v1/cases/{image_id}/artifact-roi/restore")
+    @guard_writes(mutation_gate)
     def restore(image_id: str, request: RestoreRequest):
         gate()
         with locked(image_id) as (store, image, scope):

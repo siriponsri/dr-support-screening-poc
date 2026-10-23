@@ -15,6 +15,7 @@ from .presentation import annotation_set_hash, lesion_review_view, review_eviden
 from .services.admission import clinician_view, legacy_admission
 from .services.source_identity import source_identity_reason
 from .services import artifact_roi_assist
+from .services.source_mutation_gate import guard_writes, writer_scope
 from .services.resolver import (
     apply_automatic_resolution,
     automatic_resolution_needs_refresh,
@@ -401,21 +402,27 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
                                            if replay_path else GenericUwfArtifactProvider())
     app.state.remote = CVATOnline()
     app.state.admissions = getattr(app.state, 'admissions', {})
+    mutation_gate = lambda: getattr(app.state, "source_mutation_gate", None)
 
     def current_store():
         return app.state.store
 
+    @guard_writes(mutation_gate, invalidate=False)
     def admission_record(image_id):
         case = current_store().get(image_id)
         if case.get('admission') is not None:
-            app.state.admissions[image_id] = case['admission']
+            if app.state.admissions.get(image_id) != case['admission']:
+                with writer_scope(mutation_gate()):
+                    app.state.admissions[image_id] = case['admission']
             return case['admission']
         record = app.state.admissions.get(image_id)
         if record is None and image_id in app.state.images:
             record = legacy_admission(app.state.images[image_id])
-            app.state.admissions[image_id] = record
+            with writer_scope(mutation_gate()):
+                app.state.admissions[image_id] = record
         return record
 
+    @guard_writes(mutation_gate, invalidate=False)
     def case_with_admission(image_id):
         case = current_store().get(image_id)
         record = admission_record(image_id)
@@ -435,6 +442,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             current_store().put(case)
         return case, record
 
+    @guard_writes(mutation_gate, invalidate=False)
     def ensure_resolution(image_id, case, record):
         """Resolve local evidence, refreshing only unresolved automatic state."""
         if not persist_automatic_updates:
@@ -486,6 +494,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             raise HTTPException(404, 'Image not admitted')
         return app.state.images[image_id]
 
+    @guard_writes(mutation_gate, invalidate=False)
     def detail(image_id):
         image = app.state.images.get(image_id)
         record = admission_record(image_id)
@@ -801,6 +810,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
         )
 
     @app.post('/v1/cases/{image_id}/review')
+    @guard_writes(mutation_gate)
     def review(image_id: str, request: Review):
         get_image(image_id)
         store = current_store()
@@ -991,6 +1001,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             return detail(image_id)
 
     @app.post('/v1/cases/{image_id}/queue')
+    @guard_writes(mutation_gate)
     def queue_action(image_id: str, request: QueueAction):
         store = current_store()
         with store.lock:
@@ -1018,6 +1029,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             return detail(image_id)
 
     @app.post('/v1/cases/{image_id}/lesion-review')
+    @guard_writes(mutation_gate)
     def lesion_review(image_id: str, request: LesionReviewAction):
         image = get_image(image_id)
         reviewer = request.reviewer.strip()
@@ -1084,6 +1096,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             return detail(image_id)
 
     @app.post('/v1/cases/{image_id}/admission')
+    @guard_writes(mutation_gate)
     def review_admission(image_id: str, request: AdmissionReview):
         image = get_image(image_id)
         reviewer = request.reviewer.strip()
@@ -1150,6 +1163,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             return detail(image_id)
 
     @app.post('/v1/cases/{image_id}/resolver')
+    @guard_writes(mutation_gate)
     def review_resolver(image_id: str, request: ResolverReview):
         store = current_store()
         with store.lock:
@@ -1241,6 +1255,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             return detail(image_id)
 
     @app.post('/v1/cases/{image_id}/confirm-image')
+    @guard_writes(mutation_gate)
     def confirm_image(image_id: str, request: ConfirmImage):
         """Persist the routine image/context milestone as one clinician action."""
         image = get_image(image_id)
@@ -1398,6 +1413,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             return detail(image_id)
 
     @app.put('/v1/cases/{image_id}/annotations')
+    @guard_writes(mutation_gate)
     def save_human_annotations(image_id: str, request: HumanAnnotationSave):
         image = get_image(image_id)
         reviewer = request.reviewer.strip()
@@ -1466,6 +1482,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             return detail(image_id)
 
     @app.put('/v1/cases/{image_id}/annotation-completeness')
+    @guard_writes(mutation_gate)
     def update_annotation_completeness(image_id: str, request: AnnotationCompletenessUpdate):
         get_image(image_id)
         reviewer = request.reviewer.strip()
@@ -1502,6 +1519,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             return detail(image_id)
 
     @app.post('/v1/cases/{image_id}/annotations/from-ai')
+    @guard_writes(mutation_gate)
     def derive_human_annotation(image_id: str, request: HumanAnnotationDerive):
         image = get_image(image_id)
         reviewer = request.reviewer.strip()
@@ -1584,6 +1602,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
             return detail(image_id)
 
     @app.post('/v1/cases/{image_id}/cvat/{action}')
+    @guard_writes(mutation_gate)
     def cvat(image_id: str, action: Literal['send', 'sync']):
         image = get_image(image_id)
         store = current_store()
@@ -1600,6 +1619,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
         return detail(image_id)
 
     @app.post('/v1/cases/{image_id}/manual-sync')
+    @guard_writes(mutation_gate)
     def manual(image_id: str, request: ManualImport):
         from .contracts import LABELS
         from .cvat import reviewed_shapes

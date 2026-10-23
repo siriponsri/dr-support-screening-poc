@@ -18,6 +18,7 @@ from ..persistence import (
 )
 from ..store import Store
 from .pickers import NativePicker
+from .source_mutation_gate import SourceMutationGate, guard_method_writes
 
 
 class WorkspaceError(RuntimeError):
@@ -231,7 +232,13 @@ class WorkspaceManager:
         database_path: str | None = None,
         postgres_database: PostgresDatabase | None = None,
         picker: NativePicker | None = None,
+        source_mutation_gate=None,
     ):
+        if source_mutation_gate is not None and type(source_mutation_gate) is not SourceMutationGate:
+            raise ValueError("EXPLICIT_SOURCE_MUTATION_GATE_REQUIRED")
+        if source_mutation_gate is not None and source_mutation_gate.snapshot().state != "OPEN":
+            raise ValueError("SOURCE_AUTHORITY_RECOVERY_REQUIRED")
+        self.source_mutation_gate = source_mutation_gate
         self.root = Path(root)
         self.lock = RLock()
         self.picker = picker or NativePicker()
@@ -262,6 +269,7 @@ class WorkspaceManager:
             self.postgres_catalog = PostgresWorkspaceCatalog(postgres_database)
             self.database_path = MANAGED_STORAGE_LABEL
             self._configure_postgres_startup(store)
+            self._bind_store_gate()
             return
 
         try:
@@ -277,14 +285,22 @@ class WorkspaceManager:
             self.store = store
             self.database_status = database_status or "external"
             self.database_path = database_path or "configured"
+            self._bind_store_gate()
             return
 
         if state_path is not None:
             self.store = Store(state_path)
             self.database_path = str(state_path)
+            self._bind_store_gate()
             return
 
         self.store = self._resolve_startup_store()
+        self._bind_store_gate()
+
+    def _bind_store_gate(self):
+        gate = getattr(self, "source_mutation_gate", None)
+        if gate is not None:
+            self.store.source_mutation_gate = gate
 
     def _configure_postgres_startup(self, store) -> None:
         """Restore the most recently opened catalog profile, if one exists."""
@@ -371,6 +387,7 @@ class WorkspaceManager:
             raise WorkspaceDatabaseError(f"Database could not be opened: {exc}") from exc
 
     def attach(self, app) -> None:
+        self._bind_store_gate()
         self.app = app
         app.state.workspace_manager = self
         app.state.workspace_picker = self.picker
@@ -382,6 +399,7 @@ class WorkspaceManager:
             raise WorkspaceCatalogError("Workspace catalog is unavailable")
         return self.catalog
 
+    @guard_method_writes
     def _swap_store(self, store: Store, profile: WorkspaceProfile) -> None:
         if self.app is not None and getattr(self.app.state, 'qa_fixed_session', None) is not None:
             raise WorkspaceDatabaseError('Fixed QA session excludes Workspace/store replacement')
@@ -389,6 +407,8 @@ class WorkspaceManager:
             raise WorkspaceDatabaseError(
                 "Workspace switching is not available for the selected external case store"
             )
+        if getattr(self, "source_mutation_gate", None) is not None:
+            store.source_mutation_gate = self.source_mutation_gate
         self.store = store
         self.active_workspace = profile
         self.database_status = "postgres" if self.postgres_mode else "ready"
@@ -472,6 +492,7 @@ class WorkspaceManager:
         self._swap_store(PostgresCaseStore(self.postgres_database, current.id), opened)
         return opened
 
+    @guard_method_writes
     def create_and_open(self, request: WorkspaceInput) -> WorkspaceProfile:
         with self.lock:
             if self.postgres_mode:
@@ -497,6 +518,7 @@ class WorkspaceManager:
             self._swap_store(store, created)
             return created
 
+    @guard_method_writes
     def update_and_open(self, workspace_id: str, request: WorkspaceInput) -> WorkspaceProfile:
         with self.lock:
             if self.postgres_mode:
@@ -523,6 +545,7 @@ class WorkspaceManager:
             self._swap_store(store, updated)
             return updated
 
+    @guard_method_writes
     def open(self, workspace_id: str) -> WorkspaceProfile:
         with self.lock:
             if self.postgres_mode:
@@ -537,6 +560,7 @@ class WorkspaceManager:
             self._swap_store(store, opened)
             return opened
 
+    @guard_method_writes
     def delete(self, workspace_id: str) -> None:
         with self.lock:
             profile = self.get_profile(workspace_id)
