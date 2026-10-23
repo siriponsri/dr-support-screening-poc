@@ -26,3 +26,17 @@ export function annotationAssistLesions(item: CaseRecord, showFiltered = false, 
   return lesions.filter((row) => protectedRow(row)
     || !row.detection_id || !suppressed.has(row.detection_id));
 }
+
+/** Count the effective review layer, keeping full raw model output separate. */
+export function artifactVisibilityCounts(item: CaseRecord, showFiltered = false, failed = false, previewProposals = false) {
+  const reviewSuggestionCount = displayedLesions(item).length;
+  const marked = annotationAssistLesions(item, true, failed, previewProposals);
+  const shown = showFiltered ? marked : annotationAssistLesions(item, false, failed, previewProposals);
+  return {
+    rawPredictionCount: item.lesion?.lesions.length ?? item.lesion_review?.raw_count ?? 0,
+    reviewSuggestionCount,
+    shownCount: shown.length,
+    hiddenCount: reviewSuggestionCount - shown.length,
+    filteredCount: marked.filter((row) => row.artifactFiltered).length,
+  };
+}
