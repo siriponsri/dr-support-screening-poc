@@ -67,11 +67,12 @@ def authenticated_login(dsn, expected_role):
                 "r.rolsuper, r.rolcreatedb, r.rolcreaterole, r.rolreplication, r.rolbypassrls "
                 "FROM pg_roles r WHERE r.rolname=current_user"
             ).fetchone()
-            require(connection.info.user == expected_role and connection.info.dbname == DATABASE
+            require(connection.pgconn.used_password == 1
+                    and connection.info.user == expected_role and connection.info.dbname == DATABASE
                     and row == (expected_role, expected_role, DATABASE, False, False, False, False, False),
                     "AUTHENTICATED_LEAST_PRIVILEGE_TEST_LOGIN_REQUIRED")
             connection.execute("SELECT 1").fetchone()
-    return {"role": expected_role, "database": DATABASE, "authenticated_login": "PASS",
+    return {"role": expected_role, "database": DATABASE, "authenticated_login": "PASS", "password_used": True,
             "role_flags": "NO_ELEVATED_ATTRIBUTES", "clinical_validation": "NOT_RUN"}
 
 

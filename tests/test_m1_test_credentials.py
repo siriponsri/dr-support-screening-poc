@@ -23,7 +23,7 @@ class Connection:
     def __init__(self, role="admin", *, password_null=True):
         self.role, self.password_null, self.queries = role, password_null, []
         self.info = SimpleNamespace(user=role, dbname=module.DATABASE)
-        self.pgconn = SimpleNamespace(encrypt_password=self.encrypt)
+        self.pgconn = SimpleNamespace(encrypt_password=self.encrypt, used_password=1)
 
     def encrypt(self, password, role, algorithm):
         assert password == b"synthetic-generated-password" and algorithm == b"scram-sha-256"
@@ -164,6 +164,14 @@ def test_logging_failure_does_not_relabel_completed_logins(rig, monkeypatch):
 def test_admin_session_impersonation_is_not_authenticated_runtime_login(monkeypatch):
     connection = Connection(module.RUNTIME)
     connection.info.user = "admin"
+    monkeypatch.setattr(module.psycopg, "connect", lambda *a, **k: connection)
+    with pytest.raises(module.CredentialProvisionError, match="AUTHENTICATED"):
+        module.authenticated_login("synthetic-dsn", module.RUNTIME)
+
+
+def test_trust_authentication_is_not_password_login_proof(monkeypatch):
+    connection = Connection(module.RUNTIME)
+    connection.pgconn.used_password = 0
     monkeypatch.setattr(module.psycopg, "connect", lambda *a, **k: connection)
     with pytest.raises(module.CredentialProvisionError, match="AUTHENTICATED"):
         module.authenticated_login("synthetic-dsn", module.RUNTIME)
