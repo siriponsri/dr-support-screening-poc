@@ -222,6 +222,40 @@ def test_rehashed_but_unclosed_or_nonzero_upstream_evidence_is_rejected(rig, anc
     assert not rig.directory.exists()
 
 
+# Exact retained bytes of the owner-approved legacy demo COMPLETE receipt.
+LEGACY_DEMO_COMPLETE = (
+    b'{"cleanup_confirmed":true,"completion":{"child_returncode":-15,"stderr_bytes":334,'
+    b'"stderr_sha256":"f7ffc7640979ff383194f19208efa183ea2f07c08948c2042d8500b31e682817",'
+    b'"stderr_text_retained":false},"conservative_gpu_reserved_seconds":2430,"new_inference_scope":4,'
+    b'"observed_session_seconds":521.948,"prior_ledger_untouched":true}')
+
+
+def use_demo_complete(rig, raw):
+    rig.paths["demo_complete"].write_bytes(raw)
+    rig.proposal["upstream"]["demo_complete"] = digest(raw)
+    seal(rig)
+
+
+def test_only_the_pinned_legacy_demo_complete_receipt_is_accepted_in_legacy_shape(rig):
+    assert digest(LEGACY_DEMO_COMPLETE) == ledger_module.M1_LEGACY_DEMO_COMPLETE_SHA
+    use_demo_complete(rig, LEGACY_DEMO_COMPLETE)
+    ledger = owned(rig)
+    assert ledger.summary()["global_used"] == 525
+
+
+@pytest.mark.parametrize("change", ["observed_seconds", "unconfirmed", "reservation", "error"])
+def test_any_other_legacy_shaped_demo_complete_is_still_refused(rig, change):
+    value = json.loads(LEGACY_DEMO_COMPLETE)
+    if change == "observed_seconds": value["observed_session_seconds"] = 521.949
+    elif change == "unconfirmed": value["cleanup_confirmed"] = False
+    elif change == "reservation": value["conservative_gpu_reserved_seconds"] = 600
+    else: value["error_class"] = "RuntimeError"
+    use_demo_complete(rig, canonical(value))
+    with pytest.raises(RuntimeError, match="FINITE_DEMO_CLOSURE_OR_RESERVATION_INVALID"):
+        owned(rig)
+    assert not rig.directory.exists()
+
+
 def test_one_exclusive_owner_and_immutable_operation_manifest(rig):
     ledger = owned(rig)
     other = BatchLedger.for_continuation(rig.directory, **rig.options)

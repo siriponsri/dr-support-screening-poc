@@ -24,6 +24,13 @@ M1_WINDOWS = {M1_SERVER: "QA_SERVER", M1_LOCAL: "QA_LOCAL"}
 M1_ALLOCATIONS = {"server_acceptance": 9, "local_acceptance": 6, "post_fix_verification": 9}
 M1_UPSTREAM_LEDGER_SHA = "ebc4f23ac5b9d89f136ada7a36b08350ddacf186e338a50c0ea5ba6f5ba14d98"
 M1_GPU0 = "GPU-044a8b11-4729-458b-a07b-297e45439419"
+# Owner-approved 2026-10-23: the retained finite-demo COMPLETE receipt predates
+# the listener_closed/cleanup_components fields. Its producer (demo_session.py
+# sha256 e0721fe11fc436c3a1b409df4c8010c50e6e49d5f858e04de27b51da71582091)
+# published it only after supervisor close, child drain/close_confirmed and both
+# monitor closes returned, and set cleanup_confirmed from the closed listener.
+# Only these exact bytes are accepted in that legacy shape.
+M1_LEGACY_DEMO_COMPLETE_SHA = "9847e4da6c7d5c4fd0703c0141ccaad7c40feda90dab85b0d5ae94fc5e9d5a06"
 M1_ANCHORS = {"batch_ledger", "original_budget", "second_budget", "demo_requests",
               "demo_activation", "demo_complete", "demo_ready"}
 TERMINAL = {"PASS_READBACK", "FAILED_NO_RETRY", "FAILED_PERSISTENCE", "SENT_OR_UNCERTAIN", "BLOCKED_PREMODEL"}
@@ -167,15 +174,18 @@ def _verify_m1(directory, proposal_path, approval_path, proposal_sha256, approva
             "M1_ZERO_DEMO_JOURNAL_CHAIN_INVALID")
     marker, complete, ready = (json.loads(upstream[key]) for key in
                                ("demo_activation", "demo_complete", "demo_ready"))
+    legacy_complete = digest(upstream["demo_complete"]) == M1_LEGACY_DEMO_COMPLETE_SHA
     require(marker["prior_used"] == 525 and marker["cap"] == 529
             and marker["prior_ledger_sha256"] == M1_UPSTREAM_LEDGER_SHA
             and type(marker.get("run")) is str and marker["run"]
-            and complete.get("cleanup_confirmed") is True and complete.get("listener_closed") is True
+            and complete.get("cleanup_confirmed") is True
             and complete.get("conservative_gpu_reserved_seconds") == 2430
             and not complete.get("logging_blocked") and not complete.get("error_class")
-            and set(complete.get("cleanup_components", {}))
-                == {"supervisor_close", "child_terminal_reap", "gpu_monitor", "disk_monitor"}
-            and all(value.get("confirmed") is True for value in complete["cleanup_components"].values())
+            and (legacy_complete or (
+                complete.get("listener_closed") is True
+                and set(complete.get("cleanup_components", {}))
+                    == {"supervisor_close", "child_terminal_reap", "gpu_monitor", "disk_monitor"}
+                and all(value.get("confirmed") is True for value in complete["cleanup_components"].values())))
             and ready.get("status") == "LOADED_NOT_YET_INFERENCE_VALIDATED"
             and ready.get("gpu_uuid") == M1_GPU0 and ready.get("prior_used") == 525
             and ready.get("cap") == 529 and len(ready.get("models", [])) == 3

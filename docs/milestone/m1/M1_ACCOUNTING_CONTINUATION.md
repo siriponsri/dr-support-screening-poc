@@ -67,6 +67,15 @@ The verifier reads the actual upstream bytes and checks their pinned hashes:
    the same original ledger hash. Any inference intent rejects continuation.
 4. `demo_activation`: retained original activation identity and allowance.
 5. `demo_complete`: confirmed listener/owned cleanup and full2430 reservation.
+   Owner-approved amendment (2026-10-23): the actual retained receipt predates
+   the `listener_closed`/`cleanup_components` fields. Exactly its bytes (SHA-256
+   `9847e4da6c7d5c4fd0703c0141ccaad7c40feda90dab85b0d5ae94fc5e9d5a06`) are
+   accepted in that legacy shape, still requiring `cleanup_confirmed=true`, the
+   2430-second reservation and no error/logging block. Its executed producer
+   (`demo_session.py` SHA-256 `e0721fe1…82091`) wrote the receipt only after
+   supervisor close, child drain/`close_confirmed` and both monitor closes
+   returned, and derived `cleanup_confirmed` from the closed listener. Any other
+   receipt must use the full field set above.
 6. `demo_ready`: exact GPU0 identity and three load records with zero forwards.
 
 A declaration of525, a newly invented closure or an altered old file is never
