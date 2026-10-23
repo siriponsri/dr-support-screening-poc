@@ -19,6 +19,10 @@ Canonical documentation for the Retinal Review Workbench:
 - [Milestone plans](milestone/m1/M1_MASTER_PLAN.md)
 - [Release checklist](release/)
 
+## Planning drafts
+
+- [Hospital local QA findings and inferred minimum/maximum hardware spec (Thai, draft)](planning/HOSPITAL_LOCAL_QA_MIN_MAX_DRAFT_TH_20261023.md) — evidence-based planning; not hospital load-test, deployment, or clinical acceptance.
+
 The milestone documents under `milestone/` and architecture decisions under
 `adr/` preserve historical requirements, decisions, and closeout evidence.
 They should not be used as the daily workstation runbook unless an operating
