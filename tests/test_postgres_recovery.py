@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from contextlib import contextmanager
@@ -13,6 +14,8 @@ import pytest
 from dr_support.persistence import PostgresDatabase, PostgresSettings
 from dr_support.persistence import recovery
 from dr_support.persistence.migrations import MIGRATIONS
+from dr_support.images import synthetic_image
+from dr_support.services.admission import scan_input_folder
 
 
 class Result:
@@ -68,15 +71,18 @@ class Connection:
 
 def database(name, image_root):
     image_hash = recovery._file_hash(image_root / "synthetic.png")
-    payload = {"image_id": "synthetic_case", "revision": 3,
-               "admission": {"source_sha256": image_hash},
+    reference = "WORKSPACE_INPUT/synthetic.png"
+    payload = {"image_id": image_hash, "revision": 3,
+               "admission": {"source_sha256": image_hash, "source_origin": "WORKSPACE",
+                             "source_reference": reference, "filename": "synthetic.png",
+                             "integrity": {"aliases": [{"filename": "synthetic.png", "source_reference": reference}]}},
                "global": {"model_id": "synthetic-only", "grade": 2},
                "reviewed_grade": 1, "review_history": [{"reviewer": "Synthetic reviewer"}],
                "human_annotations": [], "events": [{"action": "SYNTHETIC"}]}
     state = SimpleNamespace(name=name, occupied=False, queries=[],
                             migrations=[(m.version, m.name, m.checksum) for m in MIGRATIONS],
                             workspaces=[("synthetic_workspace", 2, str(image_root), str(image_root / "old-output"))],
-                            cases=[("synthetic_workspace", "synthetic_case", 3, payload)])
+                            cases=[("synthetic_workspace", image_hash, 3, payload)])
     db = PostgresDatabase(PostgresSettings(
         dsn=f"host=127.0.0.1 dbname={name} user=synthetic_user password=synthetic_password",
         schema="dr_recovery"), connector=lambda *args, **kwargs: Connection(state))
@@ -84,10 +90,15 @@ def database(name, image_root):
 
 
 @pytest.fixture
-def rig(tmp_path):
+def rig(tmp_path, monkeypatch):
+    for key in list(os.environ):
+        if (key in {"DR_SUPPORT_DATABASE_URL", "DR_DEMO_FOLDER", "DR_SUPPORT_WORKSPACE_ID",
+                    "DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL"}
+                or key.startswith(("DR_SUPPORT_AUTHORIZED_HOSPITAL", "DR_SUPPORT_HOSPITAL_"))):
+            monkeypatch.delenv(key)
     images = tmp_path / "source"
     images.mkdir()
-    (images / "synthetic.png").write_bytes(b"synthetic image bytes, no patient data")
+    (images / "synthetic.png").write_bytes(synthetic_image().data)
     db, state = database("source_test", images)
     commands = []
 
@@ -104,6 +115,7 @@ def make_bundle(rig):
     result = recovery.backup(rig.db, image_root=rig.images, destination=rig.bundle,
                              release="bbae4b3", apply=True, runner=rig.runner)
     assert result["status"] == "BACKUP_VERIFIED"
+    rig.pin = result["manifest_sha256"]
     return rig.bundle
 
 
@@ -133,6 +145,8 @@ def test_custom_backup_keeps_exact_originals_snapshot_and_secrets_out_of_argv(ri
     manifest = recovery.verify_bundle(bundle)
     assert manifest["workspaces"][0]["input_relative"] == "."
     assert manifest["cases"][0]["revision"] == 3
+    assert rig.pin == recovery._file_hash(bundle / "manifest.json")
+    assert manifest["cases"][0]["image_paths"] == ["synthetic.png"]
     assert (bundle / "originals/synthetic.png").read_bytes() == before
     assert (rig.images / "synthetic.png").read_bytes() == before
     command, kwargs = rig.commands[0]
@@ -142,6 +156,75 @@ def test_custom_backup_keeps_exact_originals_snapshot_and_secrets_out_of_argv(ri
     assert kwargs["env"]["PGPASSWORD"] == "synthetic_password"
     assert "synthetic_password" not in (bundle / "manifest.json").read_text()
     assert not any(text.startswith(("UPDATE", "DELETE", "DROP", "CREATE")) for text, _ in rig.state.queries)
+
+
+@pytest.mark.parametrize("layout", ["other_workspace", "nested_only", "missing_input"])
+def test_global_hash_cannot_substitute_for_workspace_scan_visible_source(rig, layout):
+    workspace = rig.images / "workspace-a"
+    workspace.mkdir()
+    if layout == "missing_input":
+        selected_input = None
+    else:
+        selected_input = str(workspace)
+        image_parent = (rig.images / "workspace-b" if layout == "other_workspace" else workspace / "nested")
+        image_parent.mkdir()
+        (rig.images / "synthetic.png").rename(image_parent / "synthetic.png")
+    row = rig.state.workspaces[0]
+    rig.state.workspaces[0] = (row[0], row[1], selected_input, row[3])
+    if selected_input:
+        assert rig.state.cases[0][1] not in scan_input_folder(selected_input).images
+    with pytest.raises(recovery.RecoveryError):
+        recovery.backup(rig.db, image_root=rig.images, destination=rig.bundle,
+                        release="2dc06c3", apply=True, runner=rig.runner)
+    assert not rig.commands
+    assert not rig.bundle.exists()
+
+
+def test_valid_per_workspace_mapping_uses_real_scanner_and_preserves_references(rig):
+    workspace = rig.images / "workspace-a"
+    workspace.mkdir()
+    (workspace / "synthetic.png").write_bytes((rig.images / "synthetic.png").read_bytes())
+    row = rig.state.workspaces[0]
+    rig.state.workspaces[0] = (row[0], row[1], str(workspace), row[3])
+    before = json.loads(json.dumps(rig.state.cases[0][3]))
+    bundle = make_bundle(rig)
+    manifest = recovery.verify_bundle(bundle, expected_manifest_sha256=rig.pin)
+    assert manifest["cases"][0]["image_paths"] == ["workspace-a/synthetic.png"]
+    assert manifest["cases"][0]["source_reference"] == "WORKSPACE_INPUT/synthetic.png"
+    assert rig.state.cases[0][3] == before
+    copied_scan = scan_input_folder(bundle / "originals/workspace-a")
+    assert copied_scan.images[rig.state.cases[0][1]].sha256 == manifest["cases"][0]["source_sha256"]
+
+
+@pytest.mark.parametrize("origin,reference", [
+    ("HOSPITAL_AUTHORIZED", "HOSPITAL_AUTHORIZED/CASE-0001"),
+    ("PUBLIC", "DR-DEMO/synthetic.png"), ("SYNTHETIC", "Generated workflow fixture"),
+    ("WORKSPACE", "RUNTIME/synthetic.png"),
+])
+def test_unqualified_hospital_demo_and_runtime_cases_are_explicitly_blocked(rig, origin, reference):
+    admission = rig.state.cases[0][3]["admission"]
+    admission.update(source_origin=origin, source_reference=reference)
+    admission["integrity"]["aliases"] = []
+    with pytest.raises(recovery.RecoveryError):
+        recovery.backup(rig.db, image_root=rig.images, destination=rig.bundle,
+                        release="2dc06c3", apply=True, runner=rig.runner)
+    assert not rig.bundle.exists()
+
+
+def test_hash_matched_but_undecodable_image_is_not_recovery_visible(rig):
+    path = rig.images / "synthetic.png"
+    path.write_bytes(b"invalid synthetic image, not a fabricated inference")
+    image_hash = recovery._file_hash(path)
+    old = rig.state.cases[0]
+    payload = old[3]
+    payload["image_id"] = image_hash
+    payload["admission"]["source_sha256"] = image_hash
+    rig.state.cases[0] = (old[0], image_hash, old[2], payload)
+    assert image_hash not in scan_input_folder(rig.images).images
+    with pytest.raises(recovery.RecoveryError, match="cannot be reopened"):
+        recovery.backup(rig.db, image_root=rig.images, destination=rig.bundle,
+                        release="2dc06c3", apply=True, runner=rig.runner)
+    assert not rig.bundle.exists()
 
 
 @pytest.mark.parametrize("fault", ["source_hash", "migration", "missing_image", "bad_revision"])
@@ -242,6 +325,7 @@ def test_offline_verification_rejects_corrupt_or_incomplete_bundle(rig, fault):
 
 def restore_args(rig):
     return dict(bundle=rig.bundle, expected_database="restore_test",
+                expected_manifest_sha256=rig.pin,
                 image_destination=rig.root / "restored-images",
                 output_destination=rig.root / "restored-outputs")
 
@@ -279,6 +363,65 @@ def test_restore_plan_and_quiescence_gate_never_create_files(rig):
     assert not arguments["image_destination"].exists()
 
 
+def test_restore_requires_independent_pin_before_target_inspection_or_writes(rig):
+    make_bundle(rig)
+    target, state = database("restore_test", rig.images)
+    arguments = restore_args(rig)
+    arguments.pop("expected_manifest_sha256")
+    with pytest.raises(recovery.RecoveryError, match="retained independently"):
+        recovery.restore(target, **arguments, apply=True, target_quiesced=True)
+    assert not state.queries
+    assert not arguments["image_destination"].exists()
+
+
+def test_self_consistent_foreign_archive_cannot_replace_independently_pinned_backup(rig):
+    bundle = make_bundle(rig)
+    trusted_pin = rig.pin  # Captured from backup result before supplied bytes change.
+    (bundle / "database.dump").write_bytes(b"PGDMPuntrusted self-consistent synthetic archive")
+    resign_manifest(bundle, lambda m: m.update(dump_sha256=recovery._file_hash(bundle / "database.dump")))
+    # Internal integrity checks alone cannot establish origin/trust.
+    assert recovery.verify_bundle(bundle)["dump_sha256"] == recovery._file_hash(bundle / "database.dump")
+    target, state = database("restore_test", rig.images)
+    assert restore_args(rig)["expected_manifest_sha256"] == trusted_pin
+    with pytest.raises(recovery.RecoveryError, match="independently retained trusted pin"):
+        recovery.restore(target, **restore_args(rig), apply=True, target_quiesced=True,
+                         runner=lambda *a, **kw: pytest.fail("Foreign archive must not execute"))
+    assert not state.queries
+    assert not (rig.root / "restored-images").exists()
+
+
+def test_independent_pin_binds_exact_manifest_bytes_not_only_parsed_self_hash(rig):
+    bundle = make_bundle(rig)
+    manifest = json.loads((bundle / "manifest.json").read_text())
+    (bundle / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    assert recovery._digest(manifest) == rig.pin
+    assert recovery._file_hash(bundle / "manifest.json") != rig.pin
+    target, state = database("restore_test", rig.images)
+    with pytest.raises(recovery.RecoveryError, match="independently retained trusted pin"):
+        recovery.restore(target, **restore_args(rig), apply=True, target_quiesced=True)
+    assert not state.queries
+
+
+@pytest.mark.parametrize("key,value", [
+    ("DR_DEMO_FOLDER", "synthetic-source-override"),
+    ("DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOT", "synthetic-source-override"),
+    ("DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS", '{"UWF":"synthetic-source-override"}'),
+    ("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "1"),
+    ("DR_SUPPORT_DATABASE_URL", "dbname=source_test password=synthetic_private"),
+    ("DR_SUPPORT_WORKSPACE_ID", "source_workspace"),
+])
+def test_restore_rejects_inherited_source_selectors_without_clearing_them(rig, monkeypatch, key, value):
+    make_bundle(rig)
+    monkeypatch.setenv(key, value)
+    target, state = database("restore_test", rig.images)
+    with pytest.raises(recovery.RecoveryError, match="isolated target environment") as error:
+        recovery.restore(target, **restore_args(rig), apply=True, target_quiesced=True)
+    assert value not in str(error.value)
+    assert os.environ[key] == value
+    assert not state.queries
+    assert not (rig.root / "restored-images").exists()
+
+
 def test_restore_preserves_case_history_and_bytes_and_remaps_only_target_paths(rig):
     make_bundle(rig)
     target, state = database("restore_test", rig.images)
@@ -298,6 +441,8 @@ def test_restore_preserves_case_history_and_bytes_and_remaps_only_target_paths(r
     assert state.workspaces[0][2] != rig.state.workspaces[0][2]
     assert "--single-transaction" in calls[0]
     assert "--exit-on-error" in calls[0]
+    assert calls[0][-1] == str(args["output_destination"] / "restore-database.dump")
+    assert calls[0][-1] != str(rig.bundle / "database.dump")
     assert not any(flag in " ".join(calls[0]) for flag in ("--clean", "--create", "synthetic_password"))
     assert len([q for q, _ in state.queries if "FROM pg_namespace" in q]) == 2
     assert (args["output_destination"] / "recovery-receipt.json").exists()
@@ -354,6 +499,47 @@ def test_restore_detects_concurrent_target_change_before_db_mutation(rig):
     assert not any(q.startswith("UPDATE") for q, _ in state.queries)
 
 
+def test_archive_swap_after_initial_verification_is_blocked_before_restore(rig, monkeypatch):
+    make_bundle(rig)
+    target, _ = database("restore_test", rig.images)
+    original = recovery._empty_target
+    checks = 0
+
+    def swap_after_target_check(*args):
+        nonlocal checks
+        original(*args)
+        checks += 1
+        if checks == 2:
+            (rig.bundle / "database.dump").write_bytes(b"PGDMPswapped synthetic archive")
+
+    monkeypatch.setattr(recovery, "_empty_target", swap_after_target_check)
+    with pytest.raises(recovery.RecoveryError, match="archive changed"):
+        recovery.restore(target, **restore_args(rig), apply=True, target_quiesced=True,
+                         runner=lambda *a, **kw: pytest.fail("Swapped archive must not execute"))
+    assert not (rig.root / "restored-outputs/recovery-receipt.json").exists()
+
+
+def test_restored_acceptance_environment_must_select_target_without_source_roots(rig):
+    target, _ = database("restore_test", rig.images)
+    clean = {"DR_SUPPORT_DATABASE_URL": target.settings.dsn,
+             "DR_SUPPORT_DATABASE_SCHEMA": target.settings.schema,
+             "DR_SUPPORT_CASE_STORE": "postgres", "APP_PROFILE": "review", "MODEL_RUNTIME": "remote"}
+    assert recovery.validate_restored_app_environment(
+        target.settings, expected_database="restore_test", environ=clean)["application_reopen_export"] == "NOT_RUN"
+    for override in ({"DR_DEMO_FOLDER": "synthetic-source"},
+                     {"DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS": "synthetic-source"},
+                     {"DR_SUPPORT_DATABASE_URL": rig.db.settings.dsn},
+                     {"DR_SUPPORT_CASE_STORE": "sqlite"},
+                     {"DR_SUPPORT_STATE": "synthetic-legacy-state"}):
+        with pytest.raises(recovery.RecoveryError):
+            recovery.validate_restored_app_environment(
+                target.settings, expected_database="restore_test", environ={**clean, **override})
+    with pytest.raises(recovery.RecoveryError, match="independently recorded test target"):
+        recovery.validate_restored_app_environment(
+            rig.db.settings, expected_database="restore_test",
+            environ={**clean, "DR_SUPPORT_DATABASE_URL": rig.db.settings.dsn})
+
+
 def test_recovery_output_inside_any_checkout_is_rejected(rig):
     checkout = rig.root / "other-checkout"
     checkout.mkdir()
@@ -379,7 +565,9 @@ def test_cli_offline_verify_requires_no_database_and_sanitizes_failures(rig, mon
     bundle = make_bundle(rig)
     monkeypatch.delenv("DR_SUPPORT_DATABASE_URL", raising=False)
     assert recovery.main(["verify", "--bundle", str(bundle)]) == 0
-    assert json.loads(capsys.readouterr().out)["live_restore"] == "NOT_RUN"
+    verified = json.loads(capsys.readouterr().out)
+    assert verified["live_restore"] == "NOT_RUN"
+    assert verified["trust"] == "INTEGRITY_ONLY_NO_ARCHIVE_TRUST"
     assert recovery.main(["verify", "--bundle", str(rig.root / "missing")]) == 2
     result = capsys.readouterr().out
     assert "synthetic_password" not in result
@@ -390,7 +578,11 @@ def test_windows_wrappers_do_not_start_stop_or_provision_services():
     root = Path(__file__).resolve().parents[1]
     for name in ("backup", "restore"):
         content = (root / f"scripts/windows/release-{name}.ps1").read_text()
-        assert "Read-ReleaseDotEnv" in content
+        if name == "backup":
+            assert "Read-ReleaseDotEnv" in content
+        else:
+            assert "Read-ReleaseDotEnv" not in content
+            assert "--expected-manifest-sha256" in content
         assert "dr_support.persistence.recovery" in content
         assert "--apply" in content
         assert "Ensure-ReleasePostgres" not in content
