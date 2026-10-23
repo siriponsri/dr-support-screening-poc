@@ -71,6 +71,18 @@ requires exactly the frozen fields plus `plan_id`, integer nonnegative
 and acknowledgement ownership. Only the latest staged/registered plan is eligible
 in this bounded core. Registration does not grant permission to execute.
 
+`authorize_execute(binding, plan_hash)` is the mandatory predispatch check for
+cached plans: exclusive owner identity, unpoisoned authority, exact registered
+binding/generation and full current context must still agree. Call it before
+accounting or any execute send, outside store locks. It creates no entry permit;
+the after-load acquisition below still repeats all checks under the real fence.
+Gate OPEN alone is insufficient after a verified-release journal failure.
+
+The private review-runtime hook acquires authority, manager and store locks in
+that order for synchronous snapshot/validation. It releases them before remote
+execution and never holds a thread lock across an ASGI await. Ordinary factory
+and fixed QA construction remain unchanged; this hook does not register M1.
+
 `acquire(binding, status, revalidate)` requires the registered plan/generation and
 old-job `WAITING_SOURCE_FENCE` challenge with exact epoch/job/ticket/plan/pins/
 challenge fields. It takes `gate.begin_entry(expected_generation=...)` before

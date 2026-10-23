@@ -1,6 +1,6 @@
 """Actual runtime/core wiring with synthetic context/DB; no load or inference."""
 from copy import deepcopy
-from threading import RLock
+from threading import Event, RLock, Thread, current_thread
 from types import SimpleNamespace
 
 import pytest
@@ -23,7 +23,7 @@ def bound_rig(review_rig, tmp_path, monkeypatch):
     identity['model_version'] = identity['model_pins']['source_revision']
     monkeypatch.setattr(rig.provider, 'prism_preview_identity', lambda: deepcopy(identity))
     rig.store.case.update(image_id='fixture', admission=deepcopy(rig.app.state.admissions['fixture']))
-    manager = SimpleNamespace()
+    manager = SimpleNamespace(lock=RLock())
     rig.app.state.workspace_manager = manager
 
     def context(image_id):
@@ -140,7 +140,82 @@ def test_provider_authority_swap_is_rejected_without_prepare(bound_rig):
     assert not rig.events and rig.provider.calls == 0
 
 
+@pytest.mark.parametrize('drift', ['poison', 'closed', 'writer-generation', 'same-revision'])
+def test_cached_plan_cannot_dispatch_after_authority_changes(bound_rig, monkeypatch, drift):
+    rig = bound_rig
+    plan = rig.service.prepare('fixture', 0)
+    snapshot = rig.service.plans[plan['plan_id']].snapshot
+    binding = deepcopy(rig.service.plans[plan['plan_id']].binding)
+    monkeypatch.setattr(rig.provider, 'infer_bound_prism',
+                        lambda *a, **k: pytest.fail('No remote execute/accounting permitted'))
+    if drift == 'poison':
+        # A verified-release journal failure intentionally keeps this gate OPEN
+        # so the already valid result can save. It must refuse the NEXT dispatch.
+        rig.authority.poisoned = True
+        assert rig.authority.gate.snapshot().state == 'OPEN'
+    elif drift == 'closed':
+        rig.authority.close()
+    elif drift == 'writer-generation':
+        with rig.authority.gate.writer():
+            pass
+    else:
+        rig.store.case['same_revision_automatic_context'] = 'changed outside cooperating writer'
+    with pytest.raises(core.TransportError):
+        rig.runtime.execute(snapshot, binding, plan['plan_sha256'], still_valid=lambda: True)
+    assert not rig.saved and rig.provider.calls == 0
+
+
 def test_ordinary_factory_has_no_workspace_authority_registration(review_rig):
     assert review_rig.runtime.workspace_authority is None
     with pytest.raises(ValueError, match='WORKSPACE_AUTHORITY_REQUIRED'):
         review_rig.runtime.register_workspace_plan(None, {}, 'a' * 64)
+
+
+class ObservedLock:
+    """Real RLock with a barrier when the preview thread attempts acquisition."""
+    def __init__(self):
+        self.lock = RLock()
+        self.attempted = Event()
+
+    def __enter__(self):
+        if current_thread().name == 'workspace-preview':
+            self.attempted.set()
+        self.lock.acquire()
+        return self
+
+    def __exit__(self, *args):
+        self.lock.release()
+
+
+@pytest.mark.parametrize('outer', ['authority', 'manager'])
+def test_snapshot_never_holds_store_while_waiting_for_outer_context_lock(bound_rig, outer):
+    rig = bound_rig
+    observed = ObservedLock()
+    if outer == 'authority':
+        rig.authority.lock = observed
+    else:
+        rig.app.state.workspace_manager.lock = observed
+    outcome = []
+
+    def preview():
+        try:
+            outcome.append(rig.runtime.snapshot('fixture'))
+        except BaseException as error:
+            outcome.append(error)
+
+    with observed:
+        worker = Thread(target=preview, name='workspace-preview')
+        worker.start()
+        try:
+            assert observed.attempted.wait(5), 'Preview did not reach the outer lock'
+            acquired = rig.store.lock.acquire(timeout=1)
+            assert acquired, 'Preview held store while waiting for outer authority/manager'
+            rig.store.lock.release()
+        finally:
+            # The outer lock releases even on failure, so the actual thread
+            # never remains deadlocked in this regression fixture.
+            pass
+    worker.join(timeout=5)
+    assert not worker.is_alive() and len(outcome) == 1
+    assert not isinstance(outcome[0], BaseException), outcome
+    assert rig.provider.calls == 0 and not rig.saved

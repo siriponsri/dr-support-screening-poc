@@ -1,5 +1,6 @@
 """Review-runtime adapter for frozen receipts; no model import or startup."""
 from copy import deepcopy
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 import os
 import secrets
@@ -63,10 +64,25 @@ class ReviewPrismPreview:
             raise ValueError('WORKSPACE_AUTHORITY_REQUIRED')
         authority.register_preview_plan(snapshot, binding, plan_hash)
 
+    @contextmanager
+    def _context_scope(self):
+        authority = self._workspace_authority()
+        # Consistent authority -> manager -> store order. These are synchronous
+        # operations; no thread lock survives an ASGI await. The legacy path
+        # keeps its original store-only scope.
+        with authority.lock if authority is not None else nullcontext():
+            manager = self.app.state.workspace_manager if authority is not None else None
+            with manager.lock if manager is not None else nullcontext():
+                yield
+
     def refresh(self, frozen):
         return self.snapshot(frozen.image_id, refresh_only=True)
 
     def snapshot(self, image_id, *, refresh_only=False):
+        with self._context_scope():
+            return self._snapshot(image_id, refresh_only=refresh_only)
+
+    def _snapshot(self, image_id, *, refresh_only=False):
         if os.environ.get("WORKERS", "1") != "1":
             raise HTTPException(503, "Preview binding requires the qualified single-worker review runtime.")
         state = self.app.state
@@ -175,7 +191,7 @@ class ReviewPrismPreview:
 
     def _execute_locked(self, snapshot, binding, plan_hash, still_valid):
         runtime = snapshot.runtime
-        with runtime.store.lock:
+        with self._context_scope(), runtime.store.lock:
             if self.app.state.store is not runtime.store:
                 raise HTTPException(409, "Workspace changed; prepare a new preview.")
             fresh = self.refresh(snapshot)
@@ -187,6 +203,9 @@ class ReviewPrismPreview:
             if not still_valid():
                 raise HTTPException(409, "Preview expired while waiting for the provider.")
             request = InferenceRequest(image_id=snapshot.image_id, modality=snapshot.modality, model_id=MODEL_ID)
+        authority = self._workspace_authority()
+        if authority is not None:
+            authority.authorize_execute(binding, plan_hash)
         # The explicit protocol must consume this wire/mask/binding as frozen,
         # atomically validate pins before forward, and return its wire receipt.
         def before_forward():

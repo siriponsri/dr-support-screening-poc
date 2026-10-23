@@ -335,6 +335,21 @@ class WorkspaceAuthority:
                 raise TransportError("DURABLE_WORKSPACE_PLAN_REPLAY")
             self._plan = (plan_hash, key, generation)
 
+    def authorize_execute(self, binding, plan_hash):
+        """Refuse a stale/poisoned owner BEFORE execute dispatch or accounting.
+
+        This is not an entry lease. Writers can still invalidate the plan while
+        the worker loads; acquire() must repeat all checks under the real fence.
+        """
+        with self.lock:
+            generation = self._ready()
+            if (self._plan is None or self._plan[0] != plan_hash
+                    or self._plan[2] != generation or sha(canonical(binding)) != plan_hash):
+                raise TransportError("REGISTERED_WORKSPACE_PLAN_REQUIRED_BEFORE_DISPATCH")
+            self._current_stage()
+            if self._ready() != generation:
+                raise TransportError("WORKSPACE_CHANGED_BEFORE_DISPATCH")
+
     def _consume(self, digest, key):
         additions = [item for item in (digest, key) if item not in self._body["consumed"]]
         if len(self._body["consumed"]) + len(additions) > 128:
