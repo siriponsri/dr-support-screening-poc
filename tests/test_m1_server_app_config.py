@@ -93,6 +93,8 @@ def test_explicit_opt_in_reaches_only_the_selected_reader_with_fake_ssh(monkeypa
     assert launcher.host_token(allow_remote_token_read=True) == synthetic.decode()
     assert len(calls) == 1 and launcher.HOST_TOKEN_PATH in calls[0]
     assert launcher.HOST_TOKEN_READER_PATH in calls[0]
+    # The existing host reader requires a pathlib.Path argument.
+    assert f"read_private_token(pathlib.Path('{launcher.HOST_TOKEN_PATH}'))" in calls[0]
     output = capsys.readouterr()
     assert not output.out and not output.err
 

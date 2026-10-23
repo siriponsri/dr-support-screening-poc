@@ -189,9 +189,10 @@ def ssh(command, *, data=None, timeout=30):
 def host_token(*, allow_remote_token_read=False):
     """Explicitly opted-in existing-host credential transfer into memory only."""
     require_remote_token_opt_in(allow_remote_token_read)
-    raw = ssh("python3 -c \"import sys; sys.path.insert(0, '" + HOST_TOKEN_READER_PATH
+    # The existing host reader takes a pathlib.Path, not a string.
+    raw = ssh("python3 -c \"import sys, pathlib; sys.path.insert(0, '" + HOST_TOKEN_READER_PATH
               + "'); from approved_token_reader import read_private_token; "
-              "sys.stdout.write(read_private_token('" + HOST_TOKEN_PATH + "'))\"")
+              "sys.stdout.write(read_private_token(pathlib.Path('" + HOST_TOKEN_PATH + "')))\"")
     token = raw.decode('ascii').strip()
     require(32 <= len(token) <= 1024 and token.isascii() and ' ' not in token, 'APPROVED_HOST_TOKEN_REQUIRED')
     return token
