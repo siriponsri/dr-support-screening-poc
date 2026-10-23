@@ -21,11 +21,12 @@ from typing import Any
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict
 
+from ..services.admission import scan_input_folder
 from .config import PostgresSettings
 from .database import PostgresDatabase
 from .migrations import SchemaMigrator
 
-BUNDLE_VERSION = "dr-support-recovery.v1"
+BUNDLE_VERSION = "dr-support-recovery.v2"
 RESTORE_URL_ENV = "DR_SUPPORT_RESTORE_DATABASE_URL"
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".dcm", ".dicom"}
 _HASH = re.compile(r"^[0-9a-f]{64}$")
@@ -159,7 +160,10 @@ def _snapshot(database: PostgresDatabase, *, export: bool = False):
                     raise RecoveryError("Every backed-up case requires an admitted original-image hash")
                 cases.append({"workspace_id": workspace_id, "case_id": case_id,
                               "revision": revision, "payload_sha256": _digest(payload),
-                              "source_sha256": source_hash})
+                              "source_sha256": source_hash,
+                              "source_origin": admission.get("source_origin"),
+                              "source_reference": admission.get("source_reference"),
+                              "source_aliases": (admission.get("integrity") or {}).get("aliases") or []})
             snapshot_id = (connection.execute("SELECT pg_export_snapshot()").fetchone()[0]
                            if export else None)
             yield {"source_database": {"database": identity[0], "server_address": identity[1],
@@ -176,9 +180,6 @@ def _image_plan(state: dict, root: Path) -> list[dict]:
     names = [_relative(item["path"]).as_posix().casefold() for item in inventory]
     if len(names) != len(set(names)):
         raise RecoveryError("Original-image inventory has a destination path collision")
-    hashes = {item["sha256"] for item in inventory}
-    if any(case["source_sha256"] not in hashes for case in state["cases"]):
-        raise RecoveryError("An admitted original-image hash is missing from the approved image root")
     for workspace in state["workspaces"]:
         folder = workspace["input_folder"]
         if folder:
@@ -188,7 +189,98 @@ def _image_plan(state: dict, root: Path) -> list[dict]:
             workspace["input_relative"] = path.relative_to(root).as_posix()
         else:
             workspace["input_relative"] = None
+    bindings = _workspace_case_bindings(state, root)
+    by_path = {item["path"]: item["sha256"] for item in inventory}
+    for case, paths in zip(state["cases"], bindings, strict=True):
+        if any(by_path.get(path) != case["source_sha256"] for path in paths):
+            raise RecoveryError("A scan-visible admitted original is missing from the image inventory")
+        case["image_paths"] = paths
     return inventory
+
+
+def _workspace_case_bindings(state: dict, root: Path) -> list[list[str]]:
+    """Prove ordinary admission identity using the same top-level scanner as the app.
+
+    Hospital/demo/runtime-root lanes cannot be reconstructed by changing catalog
+    folders alone and are explicitly outside this increment. No admission or
+    historical provenance is rewritten to make a source fit this lane.
+    """
+    workspaces = {row["workspace_id"]: row for row in state["workspaces"]}
+    scans = {}
+    result = []
+    for case in state["cases"]:
+        workspace = workspaces.get(case["workspace_id"])
+        if workspace is None or workspace.get("input_relative") is None:
+            raise RecoveryError("Every persisted case requires its own workspace input folder")
+        if case.get("source_origin") != "WORKSPACE" or case["case_id"] != case["source_sha256"]:
+            raise RecoveryError("Recovery supports only ordinary workspace scanner identities; hospital, demo and runtime-root cases are blocked")
+        reference = case.get("source_reference")
+        aliases = case.get("source_aliases")
+        if not isinstance(aliases, list):
+            raise RecoveryError("Ordinary workspace source aliases are invalid")
+        references = [reference, *(alias.get("source_reference") if isinstance(alias, dict) else None
+                                    for alias in aliases)]
+        for value in references:
+            if not isinstance(value, str) or not value.startswith("WORKSPACE_INPUT/"):
+                raise RecoveryError("Recovery requires preserved ordinary WORKSPACE_INPUT references")
+            if len(_relative(value.removeprefix("WORKSPACE_INPUT/")).parts) != 1:
+                raise RecoveryError("Workspace recovery requires top-level scan-visible source references")
+        relative = workspace["input_relative"]
+        folder = _path(root / relative, exists=True)
+        if not folder.is_relative_to(root):
+            raise RecoveryError("Workspace image mapping escapes the approved restored image root")
+        key = workspace["workspace_id"]
+        if key not in scans:
+            scans[key] = scan_input_folder(folder)
+        scan = scans[key]
+        image, record = scan.images.get(case["case_id"]), scan.records.get(case["case_id"])
+        if image is None or record is None or image.sha256 != case["source_sha256"]:
+            raise RecoveryError("A persisted case cannot be reopened by its own top-level workspace scanner")
+        visible = {alias["source_reference"] for alias in (record.get("integrity") or {}).get("aliases", [])}
+        matched = sorted(set(references) & visible)
+        if not matched:
+            raise RecoveryError("Stored workspace references do not match a scan-visible original")
+        result.append(sorted((folder / value.removeprefix("WORKSPACE_INPUT/")).relative_to(root).as_posix()
+                             for value in matched))
+    return result
+
+
+def _isolated_restore_environment(environ=None) -> None:
+    """Refuse inherited source selectors; never silently clear or rewrite them."""
+    source = os.environ if environ is None else environ
+    forbidden = ("DR_DEMO_FOLDER", "DR_SUPPORT_DATABASE_URL", "DR_SUPPORT_WORKSPACE_ID")
+    if (any(str(source.get(key, "")).strip() for key in forbidden)
+            or any(str(value).strip() for key, value in source.items()
+                   if key.startswith(("DR_SUPPORT_AUTHORIZED_HOSPITAL", "DR_SUPPORT_HOSPITAL_")))
+            or str(source.get("DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL", "")).strip() not in {"", "0"}):
+        raise RecoveryError("Restore requires an isolated target environment without source database, workspace, hospital-root or demo overrides; the source configuration was not changed")
+
+
+def validate_restored_app_environment(settings: PostgresSettings, *, expected_database: str, environ=None) -> dict:
+    """Preflight for a separately launched, fixtures-disabled restore acceptance app.
+
+    The caller must construct create_app(include_samples=False,
+    include_demo_fixtures=False) after this check and must not reload a source
+    .env afterward. This check alone never establishes application acceptance.
+    """
+    source = dict(os.environ if environ is None else environ)
+    dsn = source.pop("DR_SUPPORT_DATABASE_URL", "")
+    if not dsn:
+        raise RecoveryError("A restored acceptance app requires its explicit target database configuration")
+    expected, actual = conninfo_to_dict(settings.dsn), conninfo_to_dict(dsn)
+    if (expected.get("dbname") != expected_database
+            or "test" not in re.split(r"[^a-z0-9]+", expected_database.lower())):
+        raise RecoveryError("Restored acceptance app must select the exact independently recorded test target")
+    identity = lambda value: (value.get("dbname"), value.get("host"), value.get("hostaddr"), value.get("port", "5432"))
+    if identity(actual) != identity(expected):
+        raise RecoveryError("Restored acceptance app configuration does not select the restored target")
+    _isolated_restore_environment(source)
+    if (source.get("DR_SUPPORT_CASE_STORE") != "postgres"
+            or source.get("DR_SUPPORT_DATABASE_SCHEMA") != settings.schema
+            or source.get("APP_PROFILE") != "review" or source.get("MODEL_RUNTIME") != "remote"
+            or any(source.get(key) for key in ("DR_SUPPORT_STATE", "DR_SUPPORT_WORKSPACE_CATALOG"))):
+        raise RecoveryError("Use an isolated PostgreSQL review-app environment without legacy state/catalog overrides")
+    return {"status": "ENVIRONMENT_VERIFIED", "application_reopen_export": "NOT_RUN"}
 
 
 def _pg_environment(settings: PostgresSettings) -> dict[str, str]:
@@ -268,7 +360,8 @@ def backup(database: PostgresDatabase, *, image_root: str | Path,
         _write_json(target / "receipt.json", {"version": BUNDLE_VERSION, "status": "BACKUP_COMPLETE",
                     "manifest_sha256": _digest(manifest)})
     verify_bundle(target)
-    return {**report, "status": "BACKUP_VERIFIED", "inference_requests": 0}
+    return {**report, "status": "BACKUP_VERIFIED", "inference_requests": 0,
+            "manifest_sha256": _digest(manifest)}
 
 
 def _load_json(path: Path) -> dict:
@@ -290,13 +383,18 @@ def _relative(value: Any) -> Path:
     return path
 
 
-def verify_bundle(bundle: str | Path) -> dict:
+def verify_bundle(bundle: str | Path, *, expected_manifest_sha256: str | None = None) -> dict:
     root = _path(bundle, exists=True)
     manifest, receipt = _load_json(root / "manifest.json"), _load_json(root / "receipt.json")
     if (manifest.get("version") != BUNDLE_VERSION or receipt.get("version") != BUNDLE_VERSION
             or receipt.get("status") != "BACKUP_COMPLETE"
             or receipt.get("manifest_sha256") != _digest(manifest)):
         raise RecoveryError("Backup completion receipt does not match the manifest")
+    if expected_manifest_sha256 is not None and (
+            not isinstance(expected_manifest_sha256, str) or not _HASH.fullmatch(expected_manifest_sha256)
+            or expected_manifest_sha256 != _digest(manifest)
+            or expected_manifest_sha256 != _file_hash(_path(root / "manifest.json", exists=True))):
+        raise RecoveryError("Backup manifest does not match the independently retained trusted pin")
     try:
         settings = PostgresSettings(dsn="dbname=recovery_verify", schema=manifest["schema"])
         expected = [{"version": item.version, "name": item.name, "checksum": item.checksum}
@@ -345,9 +443,12 @@ def verify_bundle(bundle: str | Path) -> dict:
             if (not _HASH.fullmatch(item["sha256"]) or image.stat().st_size != item["size"]
                     or _file_hash(image) != item["sha256"]):
                 raise RecoveryError("Backup original-image hash or size does not match")
-        hashes = {item["sha256"] for item in images}
-        if any(case["source_sha256"] not in hashes for case in manifest["cases"]):
-            raise RecoveryError("Backup is missing an admitted original-image hash")
+        bindings = _workspace_case_bindings(manifest, root / "originals")
+        by_path = {item["path"]: item["sha256"] for item in images}
+        for case, paths in zip(cases, bindings, strict=True):
+            if (case["image_paths"] != paths
+                    or any(by_path.get(path) != case["source_sha256"] for path in paths)):
+                raise RecoveryError("Backup case mapping does not match its workspace-visible originals")
         source_name = manifest["source_database"]["database"]
         if not isinstance(source_name, str) or not source_name:
             raise RecoveryError("Backup source identity is missing")
@@ -390,17 +491,23 @@ def _empty_target(database: PostgresDatabase, expected_name: str, source_name: s
 
 
 def restore(database: PostgresDatabase, *, bundle: str | Path, expected_database: str,
+            expected_manifest_sha256: str | None = None,
             image_destination: str | Path, output_destination: str | Path,
             apply: bool = False, target_quiesced: bool = False,
             pg_restore: str = "pg_restore", runner=subprocess.run) -> dict:
+    if (not isinstance(expected_manifest_sha256, str)
+            or not _HASH.fullmatch(expected_manifest_sha256)):
+        raise RecoveryError("Restore requires the manifest SHA-256 retained independently from trusted backup creation; do not derive trust from the supplied bundle")
+    _isolated_restore_environment()
     root = _path(bundle, exists=True)
-    manifest = verify_bundle(root)
+    manifest = verify_bundle(root, expected_manifest_sha256=expected_manifest_sha256)
     if database.settings.schema != manifest["schema"]:
         raise RecoveryError("Restore schema does not match the explicitly configured target schema")
     images = _new_directory(image_destination, root)
     outputs = _new_directory(output_destination, root, images)
     _empty_target(database, expected_database, manifest["source_database"]["database"])
     report = {"status": "PLAN_ONLY", "action": "restore", "schema": manifest["schema"],
+              "target_database": expected_database,
               "workspace_count": len(manifest["workspaces"]), "case_count": len(manifest["cases"]),
               "image_count": len(manifest["images"]), "paths_remapped_in_isolated_target": True}
     if not apply:
@@ -420,8 +527,15 @@ def restore(database: PostgresDatabase, *, bundle: str | Path, expected_database
             raise RecoveryError("Restored original-image hash does not match; partial output retained")
     # Recheck after file copying, immediately before the first DB mutation.
     _empty_target(database, expected_database, manifest["source_database"]["database"])
+    # Execute only a private, verified copy bound to the independent manifest
+    # pin, never an archive that can be swapped in the supplied bundle later.
+    restore_dump = outputs / "restore-database.dump"
+    with _path(root / "database.dump", exists=True).open("rb") as incoming, restore_dump.open("xb") as outgoing:
+        shutil.copyfileobj(incoming, outgoing)
+    if _file_hash(restore_dump) != manifest["dump_sha256"]:
+        raise RecoveryError("The database archive changed after verification; no restore was attempted")
     _run([pg_restore, "--no-password", "--exit-on-error", "--single-transaction",
-          "--no-owner", "--no-privileges", str(root / "database.dump")],
+          "--no-owner", "--no-privileges", str(restore_dump)],
          database.settings, runner=runner)
     expected_workspaces = [dict(item) for item in manifest["workspaces"]]
     with database.transaction() as connection:
@@ -438,15 +552,16 @@ def restore(database: PostgresDatabase, *, bundle: str | Path, expected_database
                 (input_folder, str(output_folder), workspace["workspace_id"]))
             workspace["input_folder"], workspace["output_folder"] = input_folder, str(output_folder)
     with _snapshot(database) as (state, _):
+        _image_plan(state, images)
         if state["cases"] != manifest["cases"]:
             raise RecoveryError("Restored case identities, revisions or payload hashes differ")
-        expected = [{key: value for key, value in item.items() if key != "input_relative"}
-                    for item in expected_workspaces]
+        expected = expected_workspaces
         if state["workspaces"] != expected:
             raise RecoveryError("Restored workspace identities, revisions or mapped paths differ")
     _write_json(outputs / "recovery-receipt.json", {
         "version": BUNDLE_VERSION, "status": "RESTORE_DATA_VERIFIED",
         "manifest_sha256": _digest(manifest), "release": manifest["release"],
+        "target_database": expected_database,
         "application_reopen_export": "NOT_RUN", "inference": "NOT_RUN"})
     return {**report, "status": "RESTORE_DATA_VERIFIED", "application_reopen_export": "NOT_RUN"}
 
@@ -464,9 +579,11 @@ def main(argv: list[str] | None = None) -> int:
             command.add_argument("--pg-dump", default="pg_dump")
     command = commands.add_parser("verify")
     command.add_argument("--bundle", required=True)
+    command.add_argument("--expected-manifest-sha256")
     command = commands.add_parser("restore")
     command.add_argument("--bundle", required=True)
     command.add_argument("--expected-target-database", required=True)
+    command.add_argument("--expected-manifest-sha256", required=True)
     command.add_argument("--image-destination", required=True)
     command.add_argument("--output-destination", required=True)
     command.add_argument("--apply", action="store_true")
@@ -475,8 +592,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "verify":
-            manifest = verify_bundle(args.bundle)
+            manifest = verify_bundle(args.bundle, expected_manifest_sha256=args.expected_manifest_sha256)
             result = {"status": "BUNDLE_VERIFIED", "live_restore": "NOT_RUN",
+                      "trust": "MATCHED_INDEPENDENT_PIN" if args.expected_manifest_sha256 else "INTEGRITY_ONLY_NO_ARCHIVE_TRUST",
                       "image_count": len(manifest["images"])}
         else:
             settings = PostgresSettings.from_env(
@@ -484,6 +602,7 @@ def main(argv: list[str] | None = None) -> int:
             database = PostgresDatabase(settings)
             if args.command == "restore":
                 result = restore(database, bundle=args.bundle,
+                                 expected_manifest_sha256=args.expected_manifest_sha256,
                                  expected_database=args.expected_target_database,
                                  image_destination=args.image_destination,
                                  output_destination=args.output_destination, apply=args.apply,

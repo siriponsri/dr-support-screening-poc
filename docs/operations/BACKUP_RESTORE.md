@@ -80,18 +80,39 @@ migration checksums, workspace configuration/revisions, case revisions/payload
 hashes and original file paths/sizes/SHA-256. AI and physician fields remain
 separate in the original JSONB payload; backup never creates labels.
 
-Every case must have an admitted `admission.source_sha256` matching an included
-original, and every workspace input folder must be inside the approved root.
-Missing hashes, inconsistent case identities, redirected paths and incompatible
-migration history fail closed. Dump and metadata share one exported read-only
-PostgreSQL snapshot. Originals are copied without moving/recompressing; hashes
-are checked again during copying. Completion is recorded only after verification.
+This increment uses bundle format `dr-support-recovery.v2` and supports only
+ordinary `WORKSPACE` admissions with preserved `WORKSPACE_INPUT/<filename>`
+references and content-hash case identities. For each persisted case the existing
+application scanner must decode a matching original at the **top level of that
+case's own workspace input folder**. A matching hash in another workspace or a
+nested directory is insufficient. Workspaces containing cases need an input
+folder inside the approved image root. The manifest binds each case to those
+scan-visible relative paths; verification repeats the same scanner on copied
+originals, and post-restore verification scans only the new restored roots.
+
+Hospital-authorized, demo, generated/runtime-registry admissions and their
+external root/linkage configuration are explicitly **BLOCKED** in this increment.
+Their recovery contract needs separate qualification; moving a catalog folder
+does not reproduce those source lanes. No admission, source origin, logical
+reference, historical migration path or case payload is rewritten to fit the
+ordinary lane. Old v1 bundles remain unchanged and are not accepted by this tool.
+This bounded recovery increment does not complete Hospital M1 acceptance E.
+
+Missing hashes, missing/undecodable or non-visible originals, inconsistent case
+identities, redirected paths and incompatible migration history fail closed.
+Dump and metadata share one exported read-only PostgreSQL snapshot. Originals
+are copied without moving/recompressing; hashes are checked again during copying.
+Completion is recorded only after verification.
 
 Historical export archives, model weights/dependencies, credentials/environment
 files, roles and server configuration are not included. Preserve these separately
 according to approved hospital retention/offline-install/secret-management policy.
-Dataset export alone is not a full recovery backup. Bundle hashes detect changes;
-they are not a digital signature or proof that an untrusted dump is safe to run.
+Dataset export alone is not a full recovery backup. Bundle self-hashes detect
+changes but do not establish archive trust. Restore requires an independent
+manifest pin retained from the trusted backup-creation result before the bundle
+is transferred or supplied for restore. `pg_restore` can execute archive SQL;
+a self-consistent foreign archive is not safe merely because its own receipt
+matches. Never calculate the expected pin from an untrusted supplied bundle.
 
 ### Plan, back up and verify on Windows
 
@@ -111,8 +132,20 @@ or creating output. Review counts/scope, then explicitly apply and verify:
 .\BACKUP_DR_SCREENING.bat -Destination "E:\QA-Backups\recovery-001" -Verify
 ```
 
-`BACKUP_VERIFIED` means the saved archive and included files passed integrity
-checks. `-Verify` reads only saved bytes/migration metadata: no DB/model request.
+`BACKUP_VERIFIED` includes `manifest_sha256`. Retain that value in a separate
+trusted operator-controlled record, outside the bundle, together with the release
+and source/target approval. This pin covers manifest metadata and the exact dump/
+image hashes. Without that independently retained pin, restore remains blocked.
+Do not use the supplied bundle's `receipt.json` as the independent record.
+
+`-Verify` reads only saved bytes/migration metadata/scanner results: no DB/model
+request. Without an independent pin it establishes integrity only, not origin or
+permission to execute archive SQL. Portable verification can also compare the pin:
+
+```bash
+python -m dr_support.persistence.recovery verify --bundle <absolute-bundle> --expected-manifest-sha256 <independently-retained-64-hex-pin>
+```
+
 The existing application's DB lifecycle is unchanged. If a maintenance window
 requires quiescing review writers, use the approved operating procedure while
 keeping the DB available.
@@ -134,25 +167,35 @@ name even on another host, mismatched configured/actual/expected names, occupied
 targets (including custom schemas), mismatched schema, corrupt/missing image
 hashes, redirected paths and existing destinations. It never empties a target.
 
-Privately set `DR_SUPPORT_RESTORE_DATABASE_URL` for this target and configure the
-same `DR_SUPPORT_DATABASE_SCHEMA` as the backup. Never paste connection values
-into commands/logs. Keep the target isolated from concurrent application/admin
-writers throughout plan/apply. The tool repeats its empty-target check just before
-restore, but cannot stop unrelated administrative writes.
+Use a fresh, isolated target shell and privately set
+`DR_SUPPORT_RESTORE_DATABASE_URL` and the matching `DR_SUPPORT_DATABASE_SCHEMA`.
+The restore launcher deliberately does **not** load the source checkout's `.env`.
+Restore rejects inherited `DR_SUPPORT_DATABASE_URL`, `DR_SUPPORT_WORKSPACE_ID`,
+`DR_DEMO_FOLDER`, hospital root/linkage/scope configuration and enabled hospital
+ingest. It does not clear or modify source configuration for you. This prevents a
+source-root override from concealing broken restored workspace paths.
+
+Never paste connection values into commands/logs. Keep the target isolated from
+concurrent application/admin writers throughout plan/apply. The tool repeats its
+empty-target check just before restore, but cannot stop unrelated admin writes.
 
 Use separate new image/output directories whose approved parents already exist:
 
 ```powershell
-.\RESTORE_DR_SCREENING.bat -Bundle "E:\QA-Backups\recovery-001" -ExpectedTargetDatabase "dr_review_restore_test" -ImageDestination "D:\Approved-QA\restored-originals-001" -OutputDestination "D:\Approved-QA\restored-output-001"
+.\RESTORE_DR_SCREENING.bat -Bundle "E:\QA-Backups\recovery-001" -ExpectedTargetDatabase "dr_review_restore_test" -ExpectedManifestSha256 "<independently-retained-64-hex-pin>" -ImageDestination "D:\Approved-QA\restored-originals-001" -OutputDestination "D:\Approved-QA\restored-output-001"
 ```
 
 After `PLAN_ONLY` and confirming target writers are quiescent:
 
 ```powershell
-.\RESTORE_DR_SCREENING.bat -Bundle "E:\QA-Backups\recovery-001" -ExpectedTargetDatabase "dr_review_restore_test" -ImageDestination "D:\Approved-QA\restored-originals-001" -OutputDestination "D:\Approved-QA\restored-output-001" -TargetQuiesced -Apply
+.\RESTORE_DR_SCREENING.bat -Bundle "E:\QA-Backups\recovery-001" -ExpectedTargetDatabase "dr_review_restore_test" -ExpectedManifestSha256 "<independently-retained-64-hex-pin>" -ImageDestination "D:\Approved-QA\restored-originals-001" -OutputDestination "D:\Approved-QA\restored-output-001" -TargetQuiesced -Apply
 ```
 
-Originals are copied and verified before DB mutation. `pg_restore` uses
+Originals are copied and verified before DB mutation. The dump is also copied to
+the new private output root and its hash checked against the independently pinned
+manifest immediately before execution. A changed supplied archive is rejected;
+`pg_restore` reads the verified private copy. Include space for this additional
+dump copy in restore storage planning. `pg_restore` uses
 `--single-transaction --exit-on-error --no-owner --no-privileges`, without
 `--clean`/`--create`. Only restored target workspace input/output paths are remapped
 to new roots; case payloads and label revisions remain unchanged. Per-workspace
@@ -166,13 +209,27 @@ reopen/export and inference `NOT_RUN`.
 Portable restore uses the same private target environment:
 
 ```bash
-python -m dr_support.persistence.recovery restore --bundle <absolute-bundle> --expected-target-database dr_review_restore_test --image-destination <new-absolute-images> --output-destination <new-absolute-outputs> --target-quiesced --apply
+python -m dr_support.persistence.recovery restore --bundle <absolute-bundle> --expected-target-database dr_review_restore_test --expected-manifest-sha256 <independently-retained-64-hex-pin> --image-destination <new-absolute-images> --output-destination <new-absolute-outputs> --target-quiesced --apply
 ```
 
 ### Acceptance, failure handling and rollback
 
-After a live restore, start an isolated app against the restored target through
-approved configuration. Check workspace selection, original display/source
+After a live restore, start an isolated app against the exact `target_database`
+recorded in the verified restore result/receipt. Do not reuse the ordinary source
+launcher or reload its `.env` for restore acceptance. Use a fresh target app
+environment with explicit target `DR_SUPPORT_DATABASE_URL`/schema,
+`DR_SUPPORT_CASE_STORE=postgres`, `APP_PROFILE=review`, `MODEL_RUNTIME=remote`,
+without legacy state/catalog/workspace overrides, demo folders or hospital roots.
+
+Before constructing the existing app, the acceptance harness must call
+`validate_restored_app_environment(target_settings, expected_database=<recorded-test-target>)`
+and then `create_app(include_samples=False, include_demo_fixtures=False)` without
+loading any additional source configuration between validation and construction.
+The environment guard does not start an app or establish an application pass.
+This fixtures-disabled acceptance launch is **NOT_RUN** until measured, and the
+standard no-code source launcher is not a validated restored-app selector.
+
+Check workspace selection, original display/source
 hashes, patient/eye context, AI/physician separation, audit/history, save/reopen/
 edit and export to the new output directory. Record exact release, PostgreSQL
 version, counts/revisions and hash comparisons without secret/identifying data.
