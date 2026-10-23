@@ -1,6 +1,7 @@
 """Synthetic HTTP/DB ports only: no native model, network or login proof."""
 from copy import deepcopy
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
@@ -199,6 +200,47 @@ def test_exact_authority_and_channel_are_mandatory(rig):
     with pytest.raises(TransportError, match='EXACT_EXPLICIT_CHANNEL'):
         WorkspaceRemotePRISM(SimpleNamespace(client=rig.channel.client), source_authority=rig.authority, expected_pins=pins())
     assert rig.requests == []
+
+
+def test_tracked_21_checkpoint_metadata_names_work_without_opening_weights(rig):
+    manifest = Path(__file__).resolve().parents[1] / 'dr_support/providers/prism_assets.json'
+    weights = json.loads(manifest.read_text(encoding='utf-8'))['weights']
+    assert len(weights) == 21 and any(' ' in name and '/' in name for name in weights)
+    expected = dict(pins(), checkpoint_sha256=weights)
+    client = WorkspaceRemotePRISM(rig.channel, source_authority=rig.authority, expected_pins=expected)
+    assert not client.metadata()['ready']
+    rig.caps['pins'] = deepcopy(expected)
+    rig.loaded['pins'] = deepcopy(expected)
+    client.negotiate()
+    assert client.prism_preview_identity()['model_pins'] == expected
+    binding = dict(old_binding(), pins=deepcopy(expected))
+    rig.status = dict(binding, state='COMPLETE', forward_started=True, terminal=True)
+    assert rig.reader(binding)['pins']['checkpoint_sha256'] == weights
+    assert rig.requests[-1] == ('GET', BASE + '/jobs/old-job', 'old-epoch')
+
+
+@pytest.mark.parametrize('name', ['', 'x' * 513, 'fold\nweights.pt', 'fold\tweights.pt', 'fold\x00.pt', 'fold\x7f.pt'])
+def test_checkpoint_names_are_bounded_printable_opaque_metadata_before_any_rpc(rig, name):
+    candidate = dict(pins(), checkpoint_sha256={name: 'b' * 64})
+    with pytest.raises(TransportError, match='REVIEWED_MODEL_PINS_REQUIRED'):
+        WorkspaceRemotePRISM(rig.channel, source_authority=rig.authority, expected_pins=candidate)
+    with pytest.raises(TransportError, match='REVIEWED_MODEL_PINS_REQUIRED'):
+        rig.reader(dict(old_binding(), pins=candidate))
+    assert rig.requests == []
+
+
+def test_checkpoint_name_limit_and_full_map_identity_are_preserved(rig):
+    expected = dict(pins(), checkpoint_sha256={'x' * 512: 'b' * 64})
+    client = WorkspaceRemotePRISM(rig.channel, source_authority=rig.authority, expected_pins=expected)
+    rig.caps['pins'] = deepcopy(expected)
+    rig.loaded['pins'] = deepcopy(expected)
+    client.negotiate()
+    assert client.prism_preview_identity()['model_pins'] == expected
+    rig.caps['pins']['checkpoint_sha256'] = {'different-name/same hash.pt': 'b' * 64}
+    with pytest.raises(TransportError, match='EXPECTED_MODEL_PINS_MISMATCH'): client.negotiate()
+    too_many = dict(pins(), checkpoint_sha256={f'fold/{index}.pt': 'b' * 64 for index in range(65)})
+    with pytest.raises(TransportError, match='REVIEWED_MODEL_PINS_REQUIRED'):
+        WorkspaceRemotePRISM(rig.channel, source_authority=rig.authority, expected_pins=too_many)
 
 
 def test_independent_pins_are_copied_and_metadata_does_not_promote_inference_or_origins(rig):

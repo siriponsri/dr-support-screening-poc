@@ -24,6 +24,11 @@ source_revision, preprocessing, config_sha256 and checkpoint_sha256. Model ID is
 `prism-dr-5fold`; hashes are lowercase SHA-256. Mutable caller dictionaries cannot
 replace those expected values. Exact channel and authority object bindings remain
 required for preparation and execution.
+Checkpoint maps contain one to 64 entries. Each checkpoint name is opaque identity
+text, nonempty and at most 512 printable characters without controls; the tracked
+21-checkpoint manifest includes spaces and slashes. Names are never interpreted
+as filesystem paths, opened, normalized or rewritten. Exact name-to-hash mapping
+equality remains required for expected pins, negotiation and old-job status.
 
 Negotiation clears prior evidence and tickets before making requests. It requires
 authenticated `GET /v1/prism-bound/capabilities` with the existing transport and

@@ -29,12 +29,18 @@ def _digest(value):
     return type(value) is str and re.fullmatch(r'[0-9a-f]{64}', value) is not None
 
 
+def _checkpoint_name(value):
+    # Identity metadata only. Spaces/slashes in reviewed asset names are not
+    # filesystem instructions and must never be resolved, opened or normalized.
+    return type(value) is str and 0 < len(value) <= 512 and value.isprintable()
+
+
 def _pins(value):
     _require(type(value) is dict and set(value) == _PIN_KEYS and value['model_id'] == 'prism-dr-5fold'
              and _identifier(value['source_revision']) and type(value['preprocessing']) is str
              and 0 < len(value['preprocessing']) <= 1000 and _digest(value['config_sha256'])
              and type(value['checkpoint_sha256']) is dict and 0 < len(value['checkpoint_sha256']) <= 64
-             and all(_identifier(name) and _digest(digest) for name, digest in value['checkpoint_sha256'].items()),
+             and all(_checkpoint_name(name) and _digest(digest) for name, digest in value['checkpoint_sha256'].items()),
              'M1_REVIEWED_MODEL_PINS_REQUIRED')
     return deepcopy(value)
 
