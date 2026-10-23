@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import HTTPException
 
 from ..contracts import DatabasePickerRequest, FolderPickerRequest, PickerResult, WorkspaceInput
+from ..services.source_mutation_gate import guard_writes
 from ..services.workspaces import (
     WorkspaceCatalogError,
     WorkspaceActiveError,
@@ -67,11 +68,13 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
         return manager.active_payload()
 
     @app.post("/v1/admissions/scan")
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def scan_admissions():
         """Scan only the active workspace input folder and retain audit records."""
         return app.state.scan_active_workspace()
 
     @app.post("/v1/workspaces")
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def create_workspace(request: WorkspaceInput):
         try:
             profile = manager.create_and_open(request)
@@ -119,6 +122,7 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
         return _picker_result(result).model_dump(mode="json")
 
     @app.put("/v1/workspaces/{workspace_id}")
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def update_workspace(workspace_id: str, request: WorkspaceInput):
         try:
             profile = manager.update_and_open(workspace_id, request)
@@ -130,6 +134,7 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
         return response
 
     @app.post("/v1/workspaces/{workspace_id}/open")
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def open_workspace(workspace_id: str):
         try:
             profile = manager.open(workspace_id)
@@ -141,6 +146,7 @@ def install_workspace_routes(app, manager: WorkspaceManager) -> None:
         return response
 
     @app.delete("/v1/workspaces/{workspace_id}")
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def delete_workspace(workspace_id: str):
         try:
             manager.delete(workspace_id)
