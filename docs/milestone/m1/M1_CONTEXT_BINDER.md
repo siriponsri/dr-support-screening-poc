@@ -37,7 +37,9 @@ the connection. It neither obtains nor changes credentials, grants, ACLs, roles,
 schema or data. Success is not cached as authorization for another connection.
 
 The SQL current user and session user and the driver's authenticated startup
-`connection.info.user` must all equal the configured runtime role. Both actual SQL
+`connection.info.user` must all equal the configured runtime role. Libpq must also
+report `connection.pgconn.used_password == 1`; trust or unknown authentication is
+not password-login proof. Both actual SQL
 database and driver database must match the approved test database. Administrative
 `SET SESSION AUTHORIZATION` is not genuine runtime authentication and is rejected
 when the driver still identifies the administrative connection.

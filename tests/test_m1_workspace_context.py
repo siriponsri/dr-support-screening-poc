@@ -49,6 +49,7 @@ class MockConnection:
     def __init__(self, rig):
         self.rig = rig
         self.info = SimpleNamespace(user=ROLES.runtime_role, dbname=DATABASE)
+        self.pgconn = SimpleNamespace(used_password=1)
         self.result = None
         self.closed = False
 
@@ -173,6 +174,21 @@ def test_preflight_success_is_not_cached_as_future_connection_authority(rig):
     rig.connection.info.user = 'postgres'
     with pytest.raises(WorkspaceContextError, match='AUTHENTICATED_RUNTIME_PRINCIPAL_REQUIRED'):
         rig.reader(rig.image.image_id)
+
+
+@pytest.mark.parametrize('used_password', [0, None, '1'])
+def test_trust_or_unknown_password_authentication_is_not_runtime_login_proof(rig, used_password):
+    rig.connection.pgconn.used_password = used_password
+    with pytest.raises(WorkspaceContextError, match='AUTHENTICATED_RUNTIME_PRINCIPAL_REQUIRED'):
+        rig.reader.preflight_runtime_database(rig.database)
+    with pytest.raises(WorkspaceContextError, match='AUTHENTICATED_RUNTIME_PRINCIPAL_REQUIRED'):
+        rig.reader(rig.image.image_id)
+
+
+def test_missing_libpq_password_proof_is_refused(rig):
+    del rig.connection.pgconn
+    with pytest.raises(WorkspaceContextError, match='AUTHENTICATED_RUNTIME_PRINCIPAL_REQUIRED'):
+        rig.reader.preflight_runtime_database(rig.database)
 
 
 def test_database_errors_are_secret_safe_and_close_the_read_connection(rig, monkeypatch):

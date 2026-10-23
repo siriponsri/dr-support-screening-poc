@@ -114,6 +114,7 @@ class WorkspaceContextReader:
                     'protected_tables': 4, 'protected_owner': False, 'guard_write': False,
                     'guard_execute': False, 'replication_origin': True}
         _require(type(value) is dict and canonical(value) == canonical(expected)
+                 and getattr(getattr(connection, 'pgconn', None), 'used_password', None) == 1
                  and connection.info.user == self._roles.runtime_role
                  and connection.info.dbname == self._database_name,
                  'M1_CONTEXT_AUTHENTICATED_RUNTIME_PRINCIPAL_REQUIRED')
