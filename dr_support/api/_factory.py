@@ -3,6 +3,7 @@
 Routes the clinician UI, cases, review state, CVAT integration, and the
 inference dispatcher, which routes to local providers or the remote proxy.
 """
+import hmac
 import os
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -189,11 +190,11 @@ def create_app(
     source_mutation_gate=None,
     workspace_authority=None,
     workspace_prism_provider=None,
-    workspace_global_probe=None,
 ):
     # Reject an invalid private boundary before creating stores or migrating DBs.
     # Availability is deliberately not checked here: review remains usable offline.
     deployment = validate_deployment_environment()
+    workspace_global_probe = None
     if workspace_authority is not None:
         from ..providers.prism_workspace_remote import WorkspaceRemotePRISM
         if (qa_fixed_session is not None or qa_batch_profile is not None
@@ -210,12 +211,25 @@ def create_app(
                 or url.query or url.fragment or str(url).rstrip('/') != deployment.model_endpoint
                 or identity['descriptor'].get('ready') is not True):
             raise ValueError('The owned model channel must match the configured loopback endpoint and loaded identity')
-        # USPEC/RETFound grading stays on the existing remote providers. Their
-        # one authenticated startup discovery is cached; later GETs never probe.
-        if type(workspace_global_probe) is not ModelGatewayProbe or not workspace_global_probe.verified:
-            raise ValueError('The owned session requires a verified startup Model API discovery')
         reader = workspace_authority.context_reader
-        reader.preflight_runtime_database(PostgresDatabase(PostgresSettings.from_env()))
+        runtime_database = PostgresDatabase(PostgresSettings.from_env())
+        reader.preflight_runtime_database(runtime_database)
+        # ensure_workspace() would insert a bare row for an unknown ID; the
+        # owned session only opens an existing, unarchived catalog profile.
+        if PostgresWorkspaceCatalog(runtime_database).get(workspace_id.strip()) is None:
+            raise ValueError('The owned session requires an existing PostgreSQL workspace profile')
+        # USPEC/RETFound grading stays on the existing remote providers. One
+        # authenticated discovery against the owned endpoint/token happens at
+        # composition; later status GETs reuse it and never probe.
+        workspace_global_probe = probe_model_connection(
+            deployment.model_endpoint, os.environ.get('REMOTE_MODEL_TOKEN') or None,
+        )
+        advertised = {item.get('model_id'): item for item in workspace_global_probe.models
+                      if item.get('task') == 'global' and item.get('ready') is True}
+        if (not workspace_global_probe.verified
+                or 'UWF' not in (advertised.get('uspec-uwf-grading') or {}).get('modalities', [])
+                or 'CFP' not in (advertised.get('retfound-aptos5') or {}).get('modalities', [])):
+            raise ValueError('The owned session requires ready USPEC UWF and RETFound CFP grading at startup')
         workspace_authority._ready()
         source_mutation_gate = workspace_authority.gate
     if source_mutation_gate is not None:
@@ -591,27 +605,36 @@ def create_app(
                 'status', 'message')),
             workspace_global_descriptors, workspace_global_probe.descriptor_status,
         ))
+        # providers_from_probe skips a malformed descriptor; never continue as
+        # a silent PRISM-only session.
+        if not {'uspec-uwf-grading', 'retfound-aptos5'} <= set(global_providers):
+            raise ValueError('The owned session requires USPEC UWF and RETFound CFP grading providers')
         app.state.providers = {**global_providers, 'prism-dr-5fold': workspace_prism_provider}
 
     def workspace_cached_probe():
+        # Read-only: never a writer scope, so status polling cannot fence or
+        # race preview entry, and it still answers while entry is FENCED.
         from ..providers.prism_workspace_remote import WorkspaceRemotePRISM
-        with writer_scope(app.state.source_mutation_gate, invalidate=False):
-            try:
-                current = validate_deployment_environment()
-                connection = app.state.model_connection
-                if (current != deployment or app.state.workspace_authority is not workspace_authority
-                        or app.state.source_mutation_gate is not workspace_authority.gate
-                        or app.state.providers.get('prism-dr-5fold') is not workspace_prism_provider
-                        or workspace_prism_provider.authority is not workspace_authority
-                        or connection.url != deployment.model_endpoint
-                        or connection.token != owned_connection_token):
-                    raise ValueError()
-                descriptor = WorkspaceRemotePRISM.prism_preview_identity(workspace_prism_provider)['descriptor']
-            except (ValueError, RuntimeError, AttributeError):
-                raise HTTPException(409, 'The model session changed. Stop and restart with the approved configuration.') from None
-            return ModelGatewayProbe(True, True, True, True, 'CONNECTED',
-                'Last authenticated model identity is available; inference is not verified.',
-                (*workspace_global_descriptors, descriptor))
+        try:
+            current = validate_deployment_environment()
+            connection = app.state.model_connection
+            if (current != deployment or app.state.workspace_authority is not workspace_authority
+                    or app.state.source_mutation_gate is not workspace_authority.gate
+                    or app.state.providers.get('prism-dr-5fold') is not workspace_prism_provider
+                    or workspace_prism_provider.authority is not workspace_authority
+                    or connection.url != deployment.model_endpoint
+                    or connection.token != owned_connection_token):
+                raise ValueError()
+            descriptor = WorkspaceRemotePRISM.prism_preview_identity(workspace_prism_provider)['descriptor']
+        except (ValueError, RuntimeError, AttributeError):
+            raise HTTPException(409, 'The model session changed. Stop and restart with the approved configuration.') from None
+        # Identity was authenticated at session start; live reachability is
+        # not polled, so it is never reported as CONNECTED/reachable here.
+        # A request to an unavailable Model API fails safely at dispatch.
+        return ModelGatewayProbe(False, True, True, True, 'UNVERIFIED',
+            'Model identity was authenticated at session start; live availability is not polled '
+            'and inference is not verified.',
+            (*workspace_global_descriptors, descriptor))
 
     owned_connection_token = app.state.model_connection.token if workspace_authority is not None else None
 
@@ -627,7 +650,8 @@ def create_app(
         except DeploymentProfileError as exc:
             raise HTTPException(422, str(exc)) from None
         if (candidate.url != deployment.model_endpoint
-                or (request.token is not None and request.token != owned_connection_token)):
+                or (request.token is not None and not hmac.compare_digest(
+                    request.token.encode(), (owned_connection_token or '').encode()))):
             raise HTTPException(
                 409, 'The model connection is fixed for this session. Stop and restart with the approved configuration.',
             )
