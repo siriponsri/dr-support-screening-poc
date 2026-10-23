@@ -24,6 +24,7 @@ $script:ReleaseCheckoutIdentity = Get-ReleaseCheckoutIdentity
 $script:ReleaseComposeProject = "dr-support-workstation-$script:ReleaseCheckoutIdentity"
 $script:ReleaseComposeVolume = "dr_support_workstation_postgres_data_$script:ReleaseCheckoutIdentity"
 $script:ReleaseDatabaseSource = $null
+$script:ReleaseDockerEndpoint = $null
 
 function Ensure-ReleaseDirectories {
     foreach ($path in @($script:ReleaseStateRoot, $script:ReleaseLogRoot)) {
@@ -213,8 +214,7 @@ function Invoke-ReleaseCompose([string] $Docker, [string[]] $Arguments) {
         throw "The project-owned PostgreSQL Compose definition is missing. Re-extract the complete workstation package."
     }
     $composeArguments = Get-ReleaseComposeArguments $Arguments
-    $null = & $Docker @composeArguments 2>$null
-    if ($LASTEXITCODE -ne 0) {
+    if (-not (Invoke-ReleaseLocalDocker -Docker $Docker -Endpoint $script:ReleaseDockerEndpoint -Arguments $composeArguments)) {
         throw "Docker Compose could not complete the project-owned PostgreSQL operation. Start Docker Desktop and retry; no SQLite fallback is used."
     }
 }
@@ -292,6 +292,8 @@ function Start-ReleaseLocalPostgres([object] $Database) {
     $docker = Get-ReleaseDockerPath
     $engine = Ensure-ReleaseDockerEngine -Docker $docker -ManagedLocal $true
     if (-not $engine.Ready) { throw $engine.Detail }
+    $script:ReleaseDockerEndpoint = $engine.Endpoint
+    $Database | Add-Member -NotePropertyName DockerEndpoint -NotePropertyValue $engine.Endpoint -Force
     try {
         Invoke-ReleaseCompose $docker @("up", "-d", $script:ReleaseComposeService)
     } catch {
@@ -302,8 +304,7 @@ function Start-ReleaseLocalPostgres([object] $Database) {
             "exec", "-T", $script:ReleaseComposeService,
             "pg_isready", "-U", $Database.User, "-d", $Database.Database
         )
-        $null = & $docker @composeArguments 2>$null
-        if ($LASTEXITCODE -eq 0) { return }
+        if (Invoke-ReleaseLocalDocker -Docker $docker -Endpoint $script:ReleaseDockerEndpoint -Arguments $composeArguments -TimeoutSeconds 5) { return }
         Start-Sleep -Seconds 1
     }
     throw "Project-owned PostgreSQL did not become ready. Check Docker Desktop and retry START_DR_SCREENING.bat; existing local data remains in the named volume."
@@ -326,6 +327,16 @@ function Stop-ReleaseLocalPostgres([object] $Database) {
         ""
     }
     if (-not $managedLocal) { return }
+    $endpoint = if ($Database.PSObject.Properties.Name -contains "DockerEndpoint") {
+        [string]$Database.DockerEndpoint
+    } elseif ($Database.PSObject.Properties.Name -contains "docker_endpoint") {
+        [string]$Database.docker_endpoint
+    } else { "" }
+    if ($endpoint -notin @("npipe:////./pipe/docker_engine", "npipe:////./pipe/dockerDesktopLinuxEngine")) {
+        Write-Warning "Recorded PostgreSQL state has no verified local Docker endpoint; the database was left running."
+        return
+    }
+    $script:ReleaseDockerEndpoint = $endpoint
     if ([string]$Database.Project -ne $script:ReleaseComposeProject -or
         [string]$Database.Service -ne $script:ReleaseComposeService -or
         $composeFile -ne $script:ReleaseComposeFile) {
@@ -647,6 +658,7 @@ function Write-ReleaseRecord([int] $ProcessId, [object] $Database = $null) {
                     project = [string]$Database.Project
                     service = [string]$Database.Service
                     compose_file = [string]$Database.ComposeFile
+                    docker_endpoint = [string]$Database.DockerEndpoint
                 }
             } else {
                 [pscustomobject]@{ managed_local = $false }

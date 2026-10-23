@@ -80,8 +80,62 @@ function Get-ReleaseDockerElapsedMilliseconds([object]$Watch) {
     return [long]$Watch.ElapsedMilliseconds
 }
 
-function New-ReleaseDockerStatus([bool]$Ready, [string]$Status, [bool]$Started, [string]$Detail) {
-    return [pscustomobject]@{ Ready=$Ready; Required=$true; Status=$Status; Started=$Started; Detail=$Detail }
+function New-ReleaseDockerStatus([bool]$Ready, [string]$Status, [bool]$Started, [string]$Detail, [string]$Endpoint = "") {
+    return [pscustomobject]@{ Ready=$Ready; Required=$true; Status=$Status; Started=$Started; Detail=$Detail; Endpoint=$Endpoint }
+}
+
+function ConvertTo-ReleaseDockerArgument([string]$Value) {
+    # Windows native argv quoting, including quotes and trailing backslashes.
+    $quoted = New-Object Text.StringBuilder
+    $null = $quoted.Append('"')
+    $slashes = 0
+    foreach ($character in $Value.ToCharArray()) {
+        if ($character -eq '\') { $slashes++; continue }
+        if ($character -eq '"') {
+            $null = $quoted.Append(('\' * (2 * $slashes + 1))).Append('"')
+        } else {
+            $null = $quoted.Append(('\' * $slashes)).Append($character)
+        }
+        $slashes = 0
+    }
+    return $quoted.Append(('\' * (2 * $slashes))).Append('"').ToString()
+}
+
+function Invoke-ReleaseLocalDocker {
+    param([string]$Docker, [string]$Endpoint, [string[]]$Arguments,
+        [ValidateRange(1, 180)][int]$TimeoutSeconds = 90)
+    if ($Endpoint -notin @("npipe:////./pipe/docker_engine", "npipe:////./pipe/dockerDesktopLinuxEngine")) {
+        throw "A verified local Docker endpoint is required; no Docker operation was sent."
+    }
+    $process = $null
+    try {
+        $start = New-Object Diagnostics.ProcessStartInfo
+        $start.FileName = $Docker
+        $start.Arguments = ((@('--host', $Endpoint) + $Arguments | ForEach-Object { ConvertTo-ReleaseDockerArgument $_ }) -join ' ')
+        $start.UseShellExecute = $false
+        $start.CreateNoWindow = $true
+        $start.RedirectStandardInput = $true
+        $start.RedirectStandardOutput = $true
+        $start.RedirectStandardError = $true
+        foreach ($name in @('DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH')) {
+            $start.EnvironmentVariables.Remove($name)
+        }
+        $process = New-Object Diagnostics.Process
+        $process.StartInfo = $start
+        if (-not $process.Start()) { return $false }
+        $process.StandardInput.Close()
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) { return $false }
+        return $process.ExitCode -eq 0
+    } catch {
+        return $false
+    } finally {
+        if ($null -ne $process) {
+            try { if (-not $process.HasExited) { $process.Kill() } } catch { }
+            $process.Dispose()
+        }
+    }
 }
 
 function Ensure-ReleaseDockerEngine {
@@ -118,7 +172,7 @@ function Ensure-ReleaseDockerEngine {
     while (($remaining = $budget - (Get-ReleaseDockerElapsedMilliseconds $watch)) -gt 0) {
         $probe = Invoke-ReleaseDockerProbe -Docker $Docker -Operation Engine -Endpoint $endpoint -TimeoutMilliseconds ([Math]::Min(2000, $remaining))
         if ($probe.Succeeded -and $probe.Output -eq "linux") {
-            return New-ReleaseDockerStatus $true "READY" $started "The approved local Linux Docker engine is ready for project-owned PostgreSQL."
+            return New-ReleaseDockerStatus $true "READY" $started "The approved local Linux Docker engine is ready for project-owned PostgreSQL." $endpoint
         }
         if ($probe.Succeeded -and $probe.Output -eq "windows") {
             return New-ReleaseDockerStatus $false "LINUX_ENGINE_REQUIRED" $started "The local Docker engine is in Windows-container mode. Ask IT to select the approved Linux-container mode; no engine mode was changed."

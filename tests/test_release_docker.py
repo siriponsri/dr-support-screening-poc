@@ -47,6 +47,47 @@ Write-Output 'INTEGRATION_GATES_PASS'
     assert "INTEGRATION_GATES_PASS" in result.stdout
 
 
+def test_compose_exec_and_stop_keep_verified_endpoint_after_context_changes(tmp_path):
+    powershell = shutil.which("powershell") or shutil.which("pwsh")
+    if powershell is None:
+        pytest.skip("PowerShell is unavailable")
+    common = str(ROOT / "scripts/windows/release-common.ps1").replace("'", "''")
+    program = f"""
+$ErrorActionPreference='Stop'
+. '{common}'
+$script:Calls=@()
+function Get-ReleaseDockerPath {{ return 'synthetic-docker' }}
+function Ensure-ReleaseDockerEngine {{
+    param($Docker,$ManagedLocal)
+    $env:DOCKER_CONTEXT='unapproved-context-changed-after-readiness'
+    $env:DOCKER_HOST='ssh://unapproved.invalid'
+    return [pscustomobject]@{{Ready=$true; Endpoint='npipe:////./pipe/dockerDesktopLinuxEngine'}}
+}}
+function Invoke-ReleaseLocalDocker {{
+    param($Docker,$Endpoint,$Arguments,$TimeoutSeconds)
+    $script:Calls += [pscustomobject]@{{Endpoint=$Endpoint; Arguments=$Arguments}}
+    return $true
+}}
+$db=[pscustomobject]@{{ManagedLocal=$true; Project=$script:ReleaseComposeProject;
+    Service=$script:ReleaseComposeService; ComposeFile=$script:ReleaseComposeFile;
+    User='synthetic'; Database='synthetic_test'; Port=55432}}
+Start-ReleaseLocalPostgres $db
+Stop-ReleaseLocalPostgres $db
+$legacy=[pscustomobject]@{{ManagedLocal=$true}}
+Stop-ReleaseLocalPostgres $legacy 3>$null
+ConvertTo-Json -InputObject $script:Calls -Depth 5 -Compress
+"""
+    script = tmp_path / "pinned-context.ps1"
+    script.write_text(program, encoding="utf-8")
+    result = subprocess.run([powershell, "-NoProfile", "-NonInteractive", "-File", str(script)],
+                            capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
+    calls = json.loads(result.stdout)
+    assert len(calls) == 3  # compose up, pg_isready exec, owned stop
+    assert all(call["Endpoint"] == "npipe:////./pipe/dockerDesktopLinuxEngine" for call in calls)
+    assert [call["Arguments"][7] for call in calls] == ["up", "exec", "stop"]
+
+
 def run_fake(tmp_path, scenario):
     powershell = shutil.which("powershell") or shutil.which("pwsh")
     if powershell is None:
@@ -186,6 +227,15 @@ def test_native_probe_drains_output_hides_stderr_and_bounds_owned_child(tmp_path
     source = """
 public class SyntheticDockerProbe {
     public static int Main(string[] args) {
+        string record = System.Environment.GetEnvironmentVariable("SYNTHETIC_PROBE_RECORD");
+        if (record != null) {
+            var rows = new System.Collections.Generic.List<string>();
+            foreach (string name in new [] { "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH" }) {
+                rows.Add(System.Environment.GetEnvironmentVariable(name) ?? "<unset>");
+            }
+            rows.AddRange(args);
+            System.IO.File.WriteAllLines(record, rows);
+        }
         if (System.Environment.GetEnvironmentVariable("SYNTHETIC_PROBE_HANG") == "1") {
             System.Threading.Thread.Sleep(30000);
         }
@@ -204,11 +254,19 @@ Add-Type -TypeDefinition @'
 '@ -OutputAssembly '{executable}' -OutputType ConsoleApplication
 $context=Invoke-ReleaseDockerProbe -Docker '{executable}' -Operation Context -TimeoutMilliseconds 2000
 $engine=Invoke-ReleaseDockerProbe -Docker '{executable}' -Operation Engine -Endpoint 'npipe:////./pipe/dockerDesktopLinuxEngine' -TimeoutMilliseconds 2000
+$env:SYNTHETIC_PROBE_RECORD='{(tmp_path / 'native-argv.txt').as_posix()}'
+$env:DOCKER_HOST='ssh://unapproved.invalid'
+$env:DOCKER_CONTEXT='synthetic-changed-context'
+$env:DOCKER_TLS_VERIFY='synthetic-override'
+$env:DOCKER_CERT_PATH='synthetic-override'
+$command=Invoke-ReleaseLocalDocker -Docker '{executable}' -Endpoint 'npipe:////./pipe/dockerDesktopLinuxEngine' -Arguments @('compose',('path with spaces' + [char]92),('quoted"argument' + [char]92)) -TimeoutSeconds 2
+if ($env:DOCKER_CONTEXT -ne 'synthetic-changed-context') {{ throw 'Parent environment changed' }}
+$env:SYNTHETIC_PROBE_RECORD=$null
 $env:SYNTHETIC_PROBE_HANG='1'
 $watch=[Diagnostics.Stopwatch]::StartNew()
 $timeout=Invoke-ReleaseDockerProbe -Docker '{executable}' -Operation Context -TimeoutMilliseconds 100
 $elapsed=$watch.ElapsedMilliseconds
-[pscustomobject]@{{Context=$context; Engine=$engine; Timeout=$timeout; Elapsed=$elapsed}} | ConvertTo-Json -Depth 5 -Compress
+[pscustomobject]@{{Context=$context; Engine=$engine; Command=$command; Timeout=$timeout; Elapsed=$elapsed}} | ConvertTo-Json -Depth 5 -Compress
 """
     path = tmp_path / "native-fake-probe.ps1"
     path.write_text(program, encoding="utf-8")
@@ -220,6 +278,11 @@ $elapsed=$watch.ElapsedMilliseconds
     assert data["Context"]["Succeeded"] is True
     assert data["Context"]["Output"] == "npipe:////./pipe/dockerDesktopLinuxEngine"
     assert data["Engine"]["Output"] == "linux"
+    assert data["Command"] is True
+    assert (tmp_path / "native-argv.txt").read_text(encoding="utf-8-sig").splitlines() == [
+        *(["<unset>"] * 4), "--host", "npipe:////./pipe/dockerDesktopLinuxEngine",
+        "compose", "path with spaces\\", 'quoted"argument\\',
+    ]
     assert data["Timeout"]["TimedOut"] is True
     assert data["Timeout"]["Succeeded"] is False
     assert data["Elapsed"] < 2000
