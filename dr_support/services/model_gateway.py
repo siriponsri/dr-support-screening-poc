@@ -14,6 +14,7 @@ from .capability_routing import (
     release_status_blocked,
 )
 from .deployment_profile import QA_LOCAL, resolve_deployment_profile, validate_model_endpoint
+from .source_policy import KNOWN_ORIGINS
 
 
 EXPECTED_MODELS = EXPECTED_MODEL_TASKS
@@ -127,6 +128,11 @@ def _model_summary(
                 if isinstance(item.get("runtime_qualification"), str) else None
             ),
             "warnings": list(item.get("warnings") or []),
+            # Kept so an authorized hospital image can be routed; unknown values dropped.
+            "authorized_source_origins": sorted(
+                origin for origin in (item.get("authorized_source_origins") or [])
+                if isinstance(origin, str) and origin in KNOWN_ORIGINS
+            ) if isinstance(item.get("authorized_source_origins"), list) else [],
         })
     if not summaries:
         return None
