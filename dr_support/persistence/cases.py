@@ -12,6 +12,7 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 
 from ..store import apply_case_defaults, new_case
+from ..services.source_mutation_gate import guard_method_writes
 from .database import PostgresDatabase
 
 
@@ -33,6 +34,7 @@ class PostgresCaseStore:
         self.database = database
         self.workspace_id = workspace_id
         self.lock = RLock()
+        self.source_mutation_gate = None
         # Same-revision automatic enrichment needs the payload observed by get().
         # Revision-changing writes use the database revision predicate directly.
         self._observed: dict[str, str | None] = {}
@@ -147,6 +149,7 @@ class PostgresCaseStore:
                     cases.append(case)
                 yield cases
 
+    @guard_method_writes
     def put(self, case: dict[str, Any]) -> None:
         """Persist a case with an atomic revision check across connections."""
         image_id = str(case.get("image_id") or "").strip()

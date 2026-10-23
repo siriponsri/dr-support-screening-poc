@@ -4,6 +4,8 @@ import sqlite3
 from pathlib import Path
 from threading import RLock
 
+from .services.source_mutation_gate import guard_method_writes
+
 
 class Store:
     def __init__(self, path):
@@ -13,6 +15,7 @@ class Store:
         self.db.execute('CREATE TABLE IF NOT EXISTS cases (id TEXT PRIMARY KEY, data TEXT NOT NULL)')
         self.db.commit()
         self.lock = RLock()
+        self.source_mutation_gate = None
 
     def get(self, image_id):
         with self.lock:
@@ -30,6 +33,7 @@ class Store:
                 cases.append(apply_case_defaults(json.loads(data)))
             return cases
 
+    @guard_method_writes
     def put(self, case):
         with self.lock:
             self.db.execute('INSERT OR REPLACE INTO cases VALUES (?, ?)',

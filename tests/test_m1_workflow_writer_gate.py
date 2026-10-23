@@ -86,3 +86,20 @@ def test_quarantined_manager_cannot_open_or_create_storage(tmp_path):
     with pytest.raises(ValueError, match="RECOVERY_REQUIRED"):
         WorkspaceManager(tmp_path / "not_created", source_mutation_gate=SourceMutationGate(quarantined=True))
     assert not (tmp_path / "not_created").exists()
+
+
+def test_attach_propagates_gate_and_rejects_conflicting_authorities(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_CATALOG", str(tmp_path / "catalog.sqlite"))
+    gate = SourceMutationGate()
+    manager = WorkspaceManager(tmp_path, state_path=tmp_path / "store.sqlite", source_mutation_gate=gate)
+    app = SimpleNamespace(state=SimpleNamespace())
+    manager.attach(app)
+    assert app.state.source_mutation_gate is manager.source_mutation_gate is manager.store.source_mutation_gate
+    wrong_app = SimpleNamespace(state=SimpleNamespace(source_mutation_gate=SourceMutationGate()))
+    with pytest.raises(ValueError, match="IDENTITY_CONFLICT"):
+        manager.attach(wrong_app)
+    assert manager.app is app
+    manager.store.source_mutation_gate = SourceMutationGate()
+    with pytest.raises(ValueError, match="IDENTITY_CONFLICT"):
+        manager.attach(app)

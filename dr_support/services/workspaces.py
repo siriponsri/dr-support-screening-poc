@@ -300,6 +300,9 @@ class WorkspaceManager:
     def _bind_store_gate(self):
         gate = getattr(self, "source_mutation_gate", None)
         if gate is not None:
+            existing = getattr(self.store, "source_mutation_gate", None)
+            if existing is not None and existing is not gate:
+                raise ValueError("SOURCE_MUTATION_GATE_IDENTITY_CONFLICT")
             self.store.source_mutation_gate = gate
 
     def _configure_postgres_startup(self, store) -> None:
@@ -387,7 +390,13 @@ class WorkspaceManager:
             raise WorkspaceDatabaseError(f"Database could not be opened: {exc}") from exc
 
     def attach(self, app) -> None:
+        gate = getattr(self, "source_mutation_gate", None)
+        app_gate = getattr(app.state, "source_mutation_gate", None)
+        if app_gate is not None and app_gate is not gate:
+            raise ValueError("SOURCE_MUTATION_GATE_IDENTITY_CONFLICT")
         self._bind_store_gate()
+        if gate is not None:
+            app.state.source_mutation_gate = gate
         self.app = app
         app.state.workspace_manager = self
         app.state.workspace_picker = self.picker
@@ -408,6 +417,9 @@ class WorkspaceManager:
                 "Workspace switching is not available for the selected external case store"
             )
         if getattr(self, "source_mutation_gate", None) is not None:
+            existing = getattr(store, "source_mutation_gate", None)
+            if existing is not None and existing is not self.source_mutation_gate:
+                raise ValueError("SOURCE_MUTATION_GATE_IDENTITY_CONFLICT")
             store.source_mutation_gate = self.source_mutation_gate
         self.store = store
         self.active_workspace = profile
