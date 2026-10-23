@@ -3,3 +3,6 @@ dr_support/services/artifact_core_v01.py text eol=lf
 dr_support/services/artifact_rim_shadow_v01.py text eol=lf
 dr_support/services/artifact_generic_v01/core.py text eol=lf
 dr_support/services/artifact_generic_v01/generic_uwf.py text eol=lf
+
+# Keep qualified finite-QA control sources byte-identical across checkouts.
+scripts/qa/batch_runtime/*.py text eol=lf
