@@ -6,6 +6,8 @@ entry permit. This mechanism alone is not a qualified source authority.
 """
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import wraps
+from inspect import iscoroutinefunction, signature
 from threading import RLock
 
 
@@ -82,3 +84,43 @@ class _EntryPermit:
 
     def _release_after_verified_authority(self):
         self._gate._release_verified(self)
+
+
+@contextmanager
+def writer_scope(gate):
+    """Legacy-compatible scope; an injected gate is never silently ignored."""
+    if gate is None:
+        yield
+    else:
+        if type(gate) is not SourceMutationGate:
+            raise ValueError("EXPLICIT_SOURCE_MUTATION_GATE_REQUIRED")
+        with gate.writer():
+            yield
+
+
+def _guard(function, resolver):
+    if iscoroutinefunction(function):
+        @wraps(function)
+        async def guarded(*args, **kwargs):
+            with writer_scope(resolver(args, kwargs)):
+                return await function(*args, **kwargs)
+    else:
+        @wraps(function)
+        def guarded(*args, **kwargs):
+            with writer_scope(resolver(args, kwargs)):
+                return function(*args, **kwargs)
+    guarded.__source_writer_scope__ = True
+    # FastAPI may otherwise resolve copied future-annotation strings against
+    # this helper's globals instead of the endpoint's original module globals.
+    guarded.__signature__ = signature(function, eval_str=True)
+    return guarded
+
+
+def guard_writes(gate_getter):
+    """Cover a whole app operation, including its later scan/publication."""
+    return lambda function: _guard(function, lambda args, kwargs: gate_getter())
+
+
+def guard_method_writes(function):
+    """Cover direct service/store callers too, outside the HTTP route wrapper."""
+    return _guard(function, lambda args, kwargs: getattr(args[0], "source_mutation_gate", None))
