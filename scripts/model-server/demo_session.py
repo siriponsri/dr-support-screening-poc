@@ -16,6 +16,7 @@ import socket
 import sys
 from threading import Lock, RLock
 import time
+from uuid import uuid4
 
 PROJECT = Path('/home/siripon/projects/dr-model-api-qa')
 STAGE = PROJECT / 'deployments/demo-batch-20261022-b03r8'
@@ -36,12 +37,30 @@ def sha(raw):
 
 
 def new_json(path, value):
-    with Path(path).open('xb') as stream:
-        raw = canonical(value)
-        if stream.write(raw) != len(raw):
-            raise OSError('PARTIAL_RECEIPT_WRITE')
-        stream.flush()
-        os.fsync(stream.fileno())
+    """Publish a complete receipt atomically, without replacing any receipt.
+
+    Both processes poll final names. A same-directory hard link makes the
+    already-fsynced bytes visible in one operation and fails if a receipt exists.
+    A failed publication never removes a previously published final receipt.
+    """
+    path = Path(path)
+    temporary = path.with_name(f'.{path.name}.{uuid4().hex}.pending')
+    try:
+        with temporary.open('xb') as stream:
+            raw = canonical(value)
+            if stream.write(raw) != len(raw):
+                raise OSError('PARTIAL_RECEIPT_WRITE')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(temporary, path)
+        if os.name == 'posix':
+            directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 @dataclass(frozen=True)

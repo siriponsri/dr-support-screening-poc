@@ -90,7 +90,7 @@ def _normalized_endpoint(url: str) -> tuple[str, str]:
 
 
 def _require_local_host(host: str) -> None:
-    if host in {"localhost", "model-gateway"}:
+    if host in {"localhost", "gateway"}:
         return
     try:
         if ip_address(host).is_loopback:
@@ -98,7 +98,7 @@ def _require_local_host(host: str) -> None:
     except ValueError:
         pass
     raise DeploymentProfileError(
-        "QA_LOCAL requires a loopback Model API or the model-gateway Compose service."
+        "QA_LOCAL requires a loopback Model API or the gateway Compose service."
     )
 
 

@@ -27,6 +27,7 @@ from typing import Any
 
 from fastapi import FastAPI
 from .services.prism_remote_profile import reject_disabled_profile
+from .services.deployment_profile import validate_deployment_environment
 
 from .api._factory import create_app as create_review_app
 from .services.model_api import create_app as create_model_api_app
@@ -135,6 +136,7 @@ def create_app(
         Optional explicit profile override. Falls back to the ``APP_PROFILE``
         environment variable, then to ``"review"``.
     """
+    validate_deployment_environment()
     resolved_profile = _resolve_profile(profile)
     runtime = _resolve_runtime()
     _enforce_invariants(resolved_profile, runtime)

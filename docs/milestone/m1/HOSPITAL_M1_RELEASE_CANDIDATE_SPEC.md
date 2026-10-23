@@ -21,7 +21,8 @@ Hospital M1 installation examples must set it explicitly.
   and model protocol. A closed VLAN is not assumed to reach dr-train.
 - QA_LOCAL: all serving, weights, app, database and images stay on the hospital
   hardware. Ordinary use makes no internet/dr-train request. The configured model
-  endpoint must be loopback or the existing `model-gateway` Compose service;
+  endpoint must be loopback or the existing `gateway` Compose service (the
+  `model-gateway` image name is not its Compose DNS service name);
   fail closed on an external endpoint, redirect or attempted manual override.
   Never silently fall back from local to server mode.
 - Preserve existing review/model_api profile invariants and the tracked

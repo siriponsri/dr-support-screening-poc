@@ -59,7 +59,7 @@ def test_qa_requires_operator_configured_endpoint(profile):
     "http://127.2.3.4:17860",
     "http://[::1]:17860",
     "http://localhost:17860",
-    "http://model-gateway:8880",
+    "http://gateway:8880",
 ])
 def test_local_accepts_only_explicit_loopback_or_existing_compose_gateway(endpoint):
     settings = _settings(endpoint=endpoint)
@@ -73,6 +73,7 @@ def test_local_accepts_only_explicit_loopback_or_existing_compose_gateway(endpoi
     "https://external.test",
     "http://127.0.0.1.external.test:17860",
     "http://model-gateway.external.test:8880",
+    "http://model-gateway:8880",
     "http://localhost.:17860",
     "http://0.0.0.0:17860",
     "http://[::]:17860",
@@ -127,6 +128,16 @@ def test_server_configuration_does_not_claim_network_approval_or_inference():
     assert result.model_endpoint == settings["REMOTE_MODEL_URL"]
     assert not hasattr(result, "ready")
     assert not hasattr(result, "inference_pass")
+
+
+@pytest.mark.parametrize("entrypoint", ["public", "review"])
+def test_invalid_profile_stops_before_any_database_construction(monkeypatch, entrypoint):
+    from dr_support.api import _factory
+    for name, value in _settings(endpoint="https://unapproved.invalid").items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setattr(_factory, "_build_case_store", lambda *a, **kw: pytest.fail("DB touched"))
+    with pytest.raises(DeploymentProfileError):
+        (create_app if entrypoint == "public" else _factory.create_app)()
 
 
 @pytest.mark.parametrize("method,path", [

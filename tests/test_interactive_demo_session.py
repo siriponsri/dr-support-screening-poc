@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 from types import SimpleNamespace
+from threading import Event, Thread
 
 import pytest
 
@@ -17,6 +18,43 @@ spec = importlib.util.spec_from_file_location(
 demo = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = demo
 spec.loader.exec_module(demo)
+
+
+def test_receipt_is_invisible_until_complete_and_never_replaces(tmp_path, monkeypatch):
+    target = tmp_path / 'request.admitted.json'
+    prepared, release = Event(), Event()
+    link = demo.os.link
+    errors = []
+
+    def paused_link(source, destination):
+        # The final name must remain absent while a writer is in progress.
+        assert json.loads(Path(source).read_bytes()) == {'request': 'complete'}
+        prepared.set()
+        assert release.wait(5)
+        link(source, destination)
+
+    def publish():
+        try:
+            demo.new_json(target, {'request': 'complete'})
+        except BaseException as exc:
+            errors.append(exc)
+
+    monkeypatch.setattr(demo.os, 'link', paused_link)
+    writer = Thread(target=publish)
+    writer.start()
+    try:
+        assert prepared.wait(5)
+        assert not target.exists()
+    finally:
+        release.set()
+        writer.join(5)
+    assert not writer.is_alive() and not errors
+    assert json.loads(target.read_bytes()) == {'request': 'complete'}
+    monkeypatch.setattr(demo.os, 'link', link)
+    with pytest.raises(FileExistsError):
+        demo.new_json(target, {'request': 'replacement'})
+    assert json.loads(target.read_bytes()) == {'request': 'complete'}
+    assert not list(tmp_path.glob('*.pending'))
 
 
 @pytest.fixture

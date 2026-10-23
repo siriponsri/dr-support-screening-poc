@@ -71,7 +71,7 @@ from ..services.source_policy import (
     source_allowed_for_model,
 )
 from ..services.capability_routing import CapabilityRoutingError, route_capability
-from ..services.deployment_profile import DeploymentProfileError
+from ..services.deployment_profile import DeploymentProfileError, validate_deployment_environment
 from ..services.prism_preview import PrismPreviewService, install_prism_preview_routes
 from ..services.prism_preview_runtime import ReviewPrismPreview
 from ..services.workspaces import WorkspaceManager
@@ -153,6 +153,9 @@ def create_app(
     qa_fixed_session=None,
     qa_batch_profile=None,
 ):
+    # Reject an invalid private boundary before creating stores or migrating DBs.
+    # Availability is deliberately not checked here: review remains usable offline.
+    validate_deployment_environment()
     if qa_batch_profile is not None:
         from batch_profile import TechnicalBatchProfile
         if type(qa_batch_profile) is not TechnicalBatchProfile or qa_fixed_session is not None:
