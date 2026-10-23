@@ -115,7 +115,7 @@ def configure(administrator_configuration, *, directory=PRIVATE_DIRECTORY, apply
                 role_dsns[role] = make_conninfo(host="127.0.0.1", port="54805", dbname=DATABASE,
                                                user=role, password=password)
                 raw = (f"{variable}={role_dsns[role]}\nDR_SUPPORT_DATABASE_SCHEMA={PLAN.application_schema}\n"
-                       "DR_SUPPORT_DATABASE_SCHEMA_MODE=verify\n").encode()
+                       "DR_SUPPORT_DATABASE_MIGRATION_MODE=verify\n").encode()
                 write_new(directory / filename, raw)
                 require(private_hospital_root(directory), "NEW_PRIVATE_FILE_CHECK_FAILED_RETAINED")
                 # Only a SCRAM verifier enters the ALTER statement; neither

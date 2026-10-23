@@ -121,7 +121,10 @@ def test_generated_files_are_distinct_role_logins_and_only_scram_verifiers_reach
     assert {item.name for item in rig.private.iterdir()} == set(module.FILES)
     for filename, role in zip(module.FILES[:2], (module.RUNTIME, module.AUTHORITY), strict=True):
         content = (rig.private / filename).read_text()
-        assert f"user={role}" in content and "SCHEMA_MODE=verify" in content
+        configuration = dict(line.split("=", 1) for line in content.splitlines())
+        assert f"user={role}" in content
+        assert configuration["DR_SUPPORT_DATABASE_MIGRATION_MODE"] == "verify"
+        assert "DR_SUPPORT_DATABASE_SCHEMA_MODE" not in configuration
         assert "synthetic-existing-admin" not in content
     altered = [text for text, _ in rig.admin.queries if "ALTER ROLE" in text]
     assert len(altered) == 2 and all("SCRAM-SHA-256$synthetic-verifier-only" in text for text in altered)
