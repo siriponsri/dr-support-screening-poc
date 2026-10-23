@@ -411,7 +411,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
     def admission_record(image_id):
         case = current_store().get(image_id)
         if case.get('admission') is not None:
-            if app.state.admissions.get(image_id) != case['admission']:
+            if mutation_gate() is None or app.state.admissions.get(image_id) != case['admission']:
                 with writer_scope(mutation_gate()):
                     app.state.admissions[image_id] = case['admission']
             return case['admission']
