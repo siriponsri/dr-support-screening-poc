@@ -27,8 +27,16 @@ def _jpeg_bytes(color=(30, 90, 60)) -> bytes:
 
 
 
+def _require_permission_test_opt_in() -> None:
+    """An ordinary suite run must not mutate even synthetic fixture ACLs."""
+    if os.environ.get("DR_SUPPORT_TEST_ALLOW_PERMISSION_MUTATIONS") != "1":
+        import pytest
+        pytest.skip("Native synthetic permission mutation requires explicit owner-approved opt-in")
+
+
 def _private_test_root(root) -> None:
     """Apply privacy to synthetic fixtures using the host's actual permission model."""
+    _require_permission_test_opt_in()
     if os.name != "nt":
         root.chmod(0o700)
         return
@@ -343,6 +351,7 @@ def test_multi_root_app_scans_without_workspace_profile_and_preserves_one_queue(
 
 
 def test_invalid_multi_root_binding_fails_closed(tmp_path, monkeypatch):
+    _require_permission_test_opt_in()
     uwf = tmp_path / "uwf"
     uwf.mkdir()
     uwf.chmod(0o700)
@@ -468,6 +477,7 @@ _WINDOWS_FIXTURE_READER_SID = "S-1-5-21-111111111-222222222-333333333-9999"
 
 
 def _grant_synthetic_reader(root, sid, rights="RX"):
+    _require_permission_test_opt_in()
     rights_name = {"RX": "ReadAndExecute", "W": "Write", "D": "Delete",
                    "WDAC": "ChangePermissions", "WO": "TakeOwnership"}[rights]
     subprocess.run(
