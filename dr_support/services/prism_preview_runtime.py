@@ -24,7 +24,8 @@ class _Runtime:
 
 
 class ReviewPrismPreview:
-    def __init__(self, app, *, save_result, source_allowed, eligible, route, map_result, inference_lock):
+    def __init__(self, app, *, save_result, source_allowed, eligible, route, map_result, inference_lock,
+                 workspace_authority=None):
         self.app = app
         self.save_result = save_result
         self.source_allowed = source_allowed
@@ -33,6 +34,34 @@ class ReviewPrismPreview:
         self.map_result = map_result
         self.inference_lock = inference_lock
         self.scopes = WeakKeyDictionary()
+        # Internal composition only. The ordinary app factory never supplies
+        # this port; its presence does not qualify a provider or open a route.
+        self.workspace_authority = workspace_authority
+        if workspace_authority is not None:
+            self._workspace_authority()
+
+    def _workspace_authority(self):
+        authority = self.workspace_authority
+        if authority is None:
+            return None
+        from .prism_workspace_authority import WorkspaceAuthority
+        state = self.app.state
+        if (type(authority) is not WorkspaceAuthority
+                or getattr(state, 'qa_fixed_session', None) is not None
+                or getattr(state, 'qa_batch_profile', None) is not None
+                or getattr(state, 'source_mutation_gate', None) is not authority.gate
+                or getattr(state.store, 'source_mutation_gate', None) is not authority.gate
+                or getattr(getattr(state, 'workspace_manager', None), 'source_mutation_gate', None)
+                    is not authority.gate):
+            raise ValueError('EXACT_WORKSPACE_AUTHORITY_AND_SHARED_WRITER_GATE_REQUIRED')
+        return authority
+
+    def register_workspace_plan(self, snapshot, binding, plan_hash):
+        """Private plan callback for a separately qualified app composition."""
+        authority = self._workspace_authority()
+        if authority is None:
+            raise ValueError('WORKSPACE_AUTHORITY_REQUIRED')
+        authority.register_preview_plan(snapshot, binding, plan_hash)
 
     def refresh(self, frozen):
         return self.snapshot(frozen.image_id, refresh_only=True)
@@ -41,6 +70,7 @@ class ReviewPrismPreview:
         if os.environ.get("WORKERS", "1") != "1":
             raise HTTPException(503, "Preview binding requires the qualified single-worker review runtime.")
         state = self.app.state
+        authority = self._workspace_authority()
         store = state.store
         with store.lock:
             image = state.images.get(image_id)
@@ -83,6 +113,8 @@ class ReviewPrismPreview:
                             source_origin=admission["source_origin"], case_revision=case["revision"],
                             admission_sha256=sha(canonical(admission)))
             provider = state.providers.get(MODEL_ID)
+            if authority is not None and getattr(provider, 'authority', None) is not authority:
+                raise HTTPException(503, 'PRISM provider does not own this workspace authority.')
             if (getattr(provider, "prism_preview_protocol", None) != PROTOCOL
                     or not callable(getattr(provider, "prism_preview_identity", None))
                     or not callable(getattr(provider, "prepare_prism_preview_candidate", None))
@@ -102,7 +134,7 @@ class ReviewPrismPreview:
             if audit["source_sha256"] != image.sha256 or audit["analysis_sha256"] != wire.sha256:
                 raise HTTPException(409, "Prepared wire lineage is inconsistent.")
             self.scopes.setdefault(store, secrets.token_hex(16))
-            session = getattr(state, 'qa_fixed_session', None)
+            session = authority if authority is not None else getattr(state, 'qa_fixed_session', None)
             if session is not None and not refresh_only:
                 context = dict(scope=self.scopes[store], image_id=image_id, case_revision=case['revision'],
                     source_sha256=image.sha256, wire_sha256=wire.sha256,
