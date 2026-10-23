@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { CaseRecord } from '@/lib/api';
-import { annotationAssistLesions } from '@/lib/artifactRoiAssist';
+import { annotationAssistLesions, artifactVisibilityCounts } from '@/lib/artifactRoiAssist';
 import { ArtifactRoiControls } from '@/components/review/ArtifactRoiControls';
 
 function fixture(): CaseRecord {
@@ -33,6 +33,61 @@ function controls(item: CaseRecord, change = vi.fn(), show = vi.fn(), overlay = 
 }
 
 describe('annotation-assist visibility', () => {
+  it('identifies the saved ROI post-filter field and policy without claiming model input masking', async () => {
+    const item = fixture(); const overlay = vi.fn();
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    render(controls(item, vi.fn(), vi.fn(), overlay));
+    expect(screen.getByText('ROI post-filter · 1 ROI suggestion hidden')).toBeInTheDocument();
+    expect(screen.getByText(/After inference: changes ROI visibility only/)).toHaveTextContent('Original and model input are unchanged');
+    expect(screen.getByText('Review suggestions shown: 1 of 2. Raw model ROIs retained: 2.')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Post-filter decision details'));
+    expect(screen.getByText(item.artifact_roi_assist!.policy_version)).toBeVisible();
+    expect(screen.getByText(item.artifact_roi_assist!.binding_sha256!)).toBeVisible();
+    expect(screen.getByText('The overlay uses the saved, source-bound decision field.')).toBeVisible();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Show saved post-filter field' }));
+    expect(overlay).toHaveBeenCalledWith(true);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('counts the effective layer separately from the full raw prediction and protects physician decisions', () => {
+    const item = fixture();
+    item.lesion!.lesions.push({ ...item.lesion!.lesions[1], detection_id: 'raw-only' });
+    item.lesion_review = { lesions: item.lesion!.lesions.slice(0, 2), raw_count: 3 } as CaseRecord['lesion_review'];
+    const before = JSON.stringify(item);
+    expect(artifactVisibilityCounts(item)).toEqual({
+      rawPredictionCount: 3, reviewSuggestionCount: 2, shownCount: 1, hiddenCount: 1, filteredCount: 1,
+    });
+    expect(artifactVisibilityCounts(item, true)).toEqual({
+      rawPredictionCount: 3, reviewSuggestionCount: 2, shownCount: 2, hiddenCount: 0, filteredCount: 1,
+    });
+    expect(JSON.stringify(item)).toBe(before);
+    item.review_evidence = { status: 'REVIEWED', reviewer: null, timestamp: null, summary: {},
+      unresolved_count: 0, items: [{ annotation_id: 'roi-a', source: 'AI', label: 'MICROANEURYSM',
+        score: .9, status: 'CLINICIAN_CONFIRMED', model_id: 'prism-dr-5fold', model_version: 'fixture',
+        reviewer: 'synthetic reviewer', timestamp: null }] } as CaseRecord['review_evidence'];
+    expect(artifactVisibilityCounts(item)).toMatchObject({ shownCount: 2, hiddenCount: 0, filteredCount: 0 });
+  });
+
+  it('updates visibility counts when filtered suggestions are shown without changing saved predictions', () => {
+    const item = fixture(); const before = JSON.stringify(item);
+    const mounted = render(controls(item));
+    mounted.rerender(<ChakraProvider><ArtifactRoiControls item={item} showFiltered={true} showOverlay={false}
+      onShowFiltered={vi.fn()} onShowOverlay={vi.fn()} onCaseChange={vi.fn()} /></ChakraProvider>);
+    expect(screen.getByText('ROI post-filter · 1 filtered ROI suggestion shown for inspection')).toBeInTheDocument();
+    expect(screen.getByText('Review suggestions shown: 2 of 2. Raw model ROIs retained: 2.')).toBeInTheDocument();
+    expect(JSON.stringify(item)).toBe(before);
+  });
+
+  it('never presents a stale binding as the current saved field', () => {
+    const item = fixture(); item.source_sha256 = 'e'.repeat(64);
+    render(controls(item));
+    expect(screen.getByText('ROI post-filter · Unavailable · all review suggestions retained')).toBeInTheDocument();
+    expect(screen.getByText('Review suggestions shown: 2 of 2. Raw model ROIs retained: 2.')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Show saved post-filter field' })).toBeDisabled();
+    expect(screen.queryByText(item.artifact_roi_assist!.binding_sha256!)).not.toBeInTheDocument();
+  });
+
   it('reversibly previews cached proposals locally, defaulting to all suggestions', () => {
     const item = fixture(); item.artifact_roi_assist!.status = 'SHADOW_ONLY';
     item.artifact_roi_assist!.suppressed_ids = [];

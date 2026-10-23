@@ -1,8 +1,8 @@
-import { Alert, AlertIcon, Button, Checkbox, HStack, Stack, Text } from '@chakra-ui/react';
+import { Alert, AlertIcon, Box, Button, Checkbox, Code, HStack, Stack, Text } from '@chakra-ui/react';
 import { useEffect, useRef, useState } from 'react';
 import type { CaseRecord } from '@/lib/api';
 import { apiJson } from '@/lib/api';
-import { artifactViewCurrent } from '@/lib/artifactRoiAssist';
+import { artifactViewCurrent, artifactVisibilityCounts } from '@/lib/artifactRoiAssist';
 
 export function ArtifactRoiControls({ item, showFiltered, showOverlay, previewProposals = false,
   onPreviewProposals, onShowFiltered, onShowOverlay, onCaseChange }: {
@@ -25,6 +25,13 @@ export function ArtifactRoiControls({ item, showFiltered, showOverlay, previewPr
   if (!view?.enabled) return null;
   const current = artifactViewCurrent(item) && !error;
   const count = current && view.status === 'READY' ? view.suppressed_ids.length : 0;
+  const counts = artifactVisibilityCounts(item, showFiltered, Boolean(error), previewProposals);
+  const visibility = !current ? 'Unavailable · all review suggestions retained'
+    : view.status === 'SHADOW_ONLY'
+      ? previewProposals ? `${counts.hiddenCount} proposed ROI${counts.hiddenCount === 1 ? '' : 's'} hidden in local preview` : 'Preview only · all review suggestions shown'
+      : counts.hiddenCount > 0 ? `${counts.hiddenCount} ROI suggestion${counts.hiddenCount === 1 ? '' : 's'} hidden`
+        : counts.filteredCount > 0 ? `${counts.filteredCount} filtered ROI suggestion${counts.filteredCount === 1 ? '' : 's'} shown for inspection`
+          : 'All review suggestions shown';
   const restore = async () => {
     const currentGeneration = generation.current;
     const requestIsCurrent = () => {
@@ -50,16 +57,16 @@ export function ArtifactRoiControls({ item, showFiltered, showOverlay, previewPr
     } finally { if (requestIsCurrent()) setBusy(false); }
   };
   return <Stack spacing={2} data-testid="artifact-roi-controls">
-    <Text fontSize="sm">Annotation assist · {view.status === 'SHADOW_ONLY'
-      ? previewProposals ? 'Experimental visibility preview · proposed ROIs hidden locally' : 'Experimental overlay · all AI suggestions shown'
-      : current ? `${count} artifact ROI suggestions filtered` : 'Artifact view unavailable · all AI suggestions shown'}</Text>
+    <Text fontSize="sm" fontWeight="semibold">ROI post-filter · {visibility}</Text>
+    <Text fontSize="xs">After inference: changes ROI visibility only. Original and model input are unchanged.</Text>
+    <Text fontSize="xs">Review suggestions shown: {counts.shownCount} of {counts.reviewSuggestionCount}. Raw model ROIs retained: {counts.rawPredictionCount}.</Text>
     {view.evidence_kind && <Text fontSize="xs">{view.evidence_kind === 'PROVEN_TECHNICAL_PADDING_ONLY'
       ? 'Technical padding only' : view.evidence_kind === 'EMPIRICAL_RIM_SHADOW_NOT_CERTIFIED'
         ? 'Empirical proposal · no automatic hiding' : view.evidence_kind === 'CACHED_OFFLINE_ARTIFACT_REPLAY_NOT_CERTIFIED'
           ? 'Cached source-bound replay · not a validated detector or new inference'
           : view.evidence_kind === 'GENERIC_IMAGE_ONLY_EMPIRICAL_NOT_CERTIFIED'
             ? 'Image-only empirical candidates · uncertainty retained; quality not validated' : 'Annotation-assist test view'}</Text>}
-    <Text fontSize="xs">Orange marks artifact proposals; other areas are retained or uncertain. This is not retina segmentation or a negative label. Raw AI detections are retained.</Text>
+    <Text fontSize="xs">Orange shows the saved post-filter field for this decision; other areas are retained or uncertain. This is not retina segmentation or a negative label. Raw AI detections are retained.</Text>
     <HStack flexWrap="wrap">
       {view.status === 'SHADOW_ONLY' && onPreviewProposals ? <Checkbox isChecked={previewProposals && current}
         isDisabled={!current || !view.shadow_proposals?.length}
@@ -67,10 +74,18 @@ export function ArtifactRoiControls({ item, showFiltered, showOverlay, previewPr
         : <Checkbox isChecked={showFiltered} isDisabled={Boolean(error) || view.status === 'SHADOW_ONLY'}
           onChange={(event) => onShowFiltered(event.target.checked)}>Show filtered artifact ROIs</Checkbox>}
       <Checkbox isChecked={showOverlay && current} isDisabled={!current || !view.overlay_url}
-        onChange={(event) => onShowOverlay(event.target.checked)}>Show artifact overlay</Checkbox>
+        onChange={(event) => onShowOverlay(event.target.checked)}>Show saved post-filter field</Checkbox>
       <Button size="sm" isDisabled={!current || (count === 0 && !previewProposals)} isLoading={busy}
         onClick={() => previewProposals ? onPreviewProposals?.(false) : void restore()}>Restore all filtered ROIs</Button>
     </HStack>
+    <Box as="details" fontSize="xs">
+      <Box as="summary" cursor="pointer">Post-filter decision details</Box>
+      <Stack spacing={1} mt={1}>
+        <Text>Saved visibility policy: <Code fontSize="inherit">{view.policy_version}</Code></Text>
+        {current && view.binding_sha256 && <Text>Decision binding: <Code fontSize="inherit" whiteSpace="normal" overflowWrap="anywhere">{view.binding_sha256}</Code></Text>}
+        <Text>{current && view.overlay_url ? 'The overlay uses the saved, source-bound decision field.' : 'A current saved field is unavailable; no exclusion area is asserted.'}</Text>
+      </Stack>
+    </Box>
     {error && <Alert status="warning"><AlertIcon />{error}</Alert>}
   </Stack>;
 }
