@@ -67,7 +67,8 @@ class M1AdmissionConsumer:
                     and all(facts[key] == job[key] for key in FACTS),
                     "M1_PREPARED_REQUEST_OUTSIDE_FROZEN_OPERATION")
             admission = self.ledger.admit(job_id, request_sha256=request_sha256, budget=self.budget)
-            self.active = {**admission, "request_id": request_id, "response_retained": False}
+            self.active = {**admission, "request_id": request_id,
+                           "response_observed": False, "response_retained": False}
             try:
                 self.supervisor.admit(admission["admission_id"])
             except Exception:
@@ -102,7 +103,7 @@ class M1AdmissionConsumer:
         """
         with self.ledger.lock:
             active = self._matching(admission_id)
-            require(not active["response_retained"] and _sha(response_sha256) and type(success) is bool,
+            require(not active["response_observed"] and _sha(response_sha256) and type(success) is bool,
                     "M1_EXACT_TERMINAL_RESPONSE_REQUIRED")
             accounting, supervision = "PASS", "PASS"
             try:
@@ -114,6 +115,7 @@ class M1AdmissionConsumer:
                 self.supervisor.finish(admission_id, success=success)
             except Exception:
                 self.poisoned, supervision = True, "BLOCKED"
+            active["response_observed"] = success
             active["response_retained"] = success and accounting == "PASS"
             if not success:
                 self.active = None
@@ -130,8 +132,15 @@ class M1AdmissionConsumer:
         """
         with self.ledger.lock:
             active = self._matching(admission_id)
-            require(active["response_retained"] and _sha(readback_sha256) and type(matches) is bool,
-                    "M1_RETAINED_RESPONSE_AND_ACTUAL_READBACK_REQUIRED")
+            require(active["response_observed"] and _sha(readback_sha256) and type(matches) is bool,
+                    "M1_OBSERVED_RESPONSE_AND_ACTUAL_READBACK_REQUIRED")
+            if not active["response_retained"]:
+                # Actual inference and DB readback can both succeed while the
+                # earlier journal/head write is uncertain. Do not manufacture
+                # a missing RESPONSE_RETAINED transition or discard DB proof.
+                self.poisoned, self.active = True, None
+                return {"inference": "MODEL_COMPLETE", "persistence": "PASS" if matches else "FAILED",
+                        "accounting": "BLOCKED", "automatic_retries": 0}
             accounting = "PASS"
             try:
                 self.ledger.append(active["job_id"], "PASS_READBACK" if matches else "FAILED_PERSISTENCE",
@@ -143,7 +152,10 @@ class M1AdmissionConsumer:
                     "accounting": accounting, "automatic_retries": 0}
 
     def status(self):
-        return {"global_used": self.ledger.base_used + self.ledger.attempts, "cap": self.ledger.cap,
+        observed = self.ledger.base_used + self.ledger.attempts
+        return {"global_used": None if self.ledger.poisoned else observed,
+                "global_used_at_least": observed,
+                "usage_status": "UNCERTAIN" if self.ledger.poisoned else "EXACT", "cap": self.ledger.cap,
                 "poisoned": self.poisoned or self.ledger.poisoned,
                 "active_admission": self.active is not None, "supervisor_state": self.supervisor.state,
                 "automatic_retries": 0, "counter_source": "EXISTING_BATCH_LEDGER"}

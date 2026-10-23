@@ -117,6 +117,10 @@ def test_intent_io_failure_does_not_authorize_native_dispatch(rig, monkeypatch):
     with pytest.raises(OSError):
         admit(rig)
     assert rig.supervisor.jobs_started == 0 and rig.ledger.poisoned
+    status = rig.consumer.status()
+    assert status['global_used'] is None and status['usage_status'] == 'UNCERTAIN'
+    assert status['global_used_at_least'] == 525
+    assert b'ATTEMPT_INTENT' in (rig.ledger.directory / 'LEDGER.jsonl').read_bytes()
 
 
 def test_native_admission_failure_consumes_without_replay(rig, monkeypatch):
@@ -184,3 +188,24 @@ def test_uncertain_ack_retains_consumed_intent_and_blocks_all_new_calls(rig):
     with pytest.raises(RuntimeError):
         admit(rig, rig.jobs[1])
     assert rig.ledger.attempts == 1
+
+
+@pytest.mark.parametrize('matches', [True, False])
+def test_response_log_failure_still_reports_subsequent_actual_readback(rig, monkeypatch, matches):
+    proof = admit(rig)
+    calls = []
+
+    def fail(*a, **k):
+        calls.append(a)
+        raise OSError('synthetic response log failure')
+
+    monkeypatch.setattr(rig.ledger, 'append', fail)
+    received = rig.consumer.record_response(proof['admission_id'], response_sha256='a' * 64, success=True)
+    assert received['accounting'] == 'BLOCKED'
+    readback = rig.consumer.acknowledge_readback(proof['admission_id'], readback_sha256='b' * 64, matches=matches)
+    assert readback == dict(inference='MODEL_COMPLETE', persistence='PASS' if matches else 'FAILED',
+                           accounting='BLOCKED', automatic_retries=0)
+    assert len(calls) == 1  # Never invent a missing retained-response transition.
+    assert rig.consumer.poisoned and rig.ledger.attempts == 1
+    with pytest.raises(RuntimeError):
+        admit(rig, rig.jobs[1])
