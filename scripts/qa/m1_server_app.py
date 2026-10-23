@@ -172,6 +172,9 @@ def session_environment(*, workspace_id=None, model_port=None, token=None):
             os.environ['DR_SUPPORT_WORKSPACE_ID'] = workspace_id
         if model_port is not None:
             os.environ.update(model_configuration(model_port))
+            # Owner-approved transfer of the approved private-root images to the
+            # owned Model API session: the client-side model boundary opt-in.
+            os.environ.update(MODEL_HOSPITAL_SCOPE='PRIVATE_PROJECT_EVALUATION', MODEL_ALLOW_AUTHORIZED_HOSPITAL='1')
         if token is not None:
             os.environ['REMOTE_MODEL_TOKEN'] = token
         yield
