@@ -6,13 +6,15 @@ clinical authority, inference retries, or persistent service registration.
 from __future__ import annotations
 
 import argparse
+import asyncio
+from dataclasses import asdict, dataclass
 import hashlib
 import json
 import os
 from pathlib import Path
 import socket
 import sys
-from threading import RLock
+from threading import Lock, RLock
 import time
 
 PROJECT = Path('/home/siripon/projects/dr-model-api-qa')
@@ -35,9 +37,20 @@ def sha(raw):
 
 def new_json(path, value):
     with Path(path).open('xb') as stream:
-        stream.write(canonical(value))
+        raw = canonical(value)
+        if stream.write(raw) != len(raw):
+            raise OSError('PARTIAL_RECEIPT_WRITE')
         stream.flush()
         os.fsync(stream.fileno())
+
+
+@dataclass(frozen=True)
+class Intent:
+    id: str
+    model_id: str
+    image_sha256: str
+    request_sha256: str
+    global_used: int
 
 
 class RequestJournal:
@@ -72,6 +85,7 @@ class RequestJournal:
         self.used, self.seen, self.sequence = self.base, set(), 0
         self.previous, self.poisoned = '0' * 64, False
         self.log_failure = False
+        self.active = None
         with self.path.open('xb') as stream:
             self._write(stream, {'state': 'ANCHOR', 'prior_ledger_sha256': expected_prior,
                                  'base_used': self.base, 'cap': CAP})
@@ -90,29 +104,37 @@ class RequestJournal:
     def claim(self, model, image_sha, request_raw):
         with self.lock:
             identity = (model, image_sha)
-            if self.poisoned or self.used >= CAP or model not in MODELS or identity in self.seen:
-                return False
+            if self.poisoned or self.active is not None or self.used >= CAP or model not in MODELS or identity in self.seen:
+                return None
+            intent = Intent(f'req_{self.used + 1}_{sha(request_raw)[:16]}', model,
+                            image_sha, sha(request_raw), self.used + 1)
             try:
                 with self.path.open('ab') as stream:
-                    self._write(stream, {'state': 'ATTEMPT_INTENT', 'model_id': model,
-                                         'image_sha256': image_sha, 'request_sha256': sha(request_raw),
-                                         'global_used': self.used + 1})
+                    self._write(stream, {'state': 'ATTEMPT_INTENT', **asdict(intent)})
             except OSError:
                 self.poisoned = self.log_failure = True
                 raise
             self.used += 1
             self.seen.add(identity)
-            return True
+            self.active = intent
+            return intent
 
-    def terminal(self, status, response_sha):
+    def terminal(self, intent, status, response_sha, *, complete):
         with self.lock:
+            if intent != self.active:
+                raise ValueError('NO_MATCHING_ACTIVE_INTENT')
             try:
                 with self.path.open('ab') as stream:
-                    self._write(stream, {'state': 'HTTP_RESPONSE', 'http_status': status,
-                                         'response_sha256': response_sha, 'global_used': self.used})
+                    self._write(stream, {'state': 'HTTP_RESPONSE', **asdict(intent),
+                                         'http_status': status, 'response_sha256': response_sha,
+                                         'response_complete': complete})
             except OSError:
                 self.poisoned = self.log_failure = True
                 # Intent remains durable. Preserve the actual HTTP/model result.
+            finally:
+                self.active = None
+                if not complete:
+                    self.poisoned = True
 
     def status(self):
         return {'global_used': self.used, 'cap': CAP, 'remaining': CAP - self.used,
@@ -121,8 +143,9 @@ class RequestJournal:
 
 
 class QuotaApplication:
-    def __init__(self, app, journal, *, stop, metadata):
+    def __init__(self, app, journal, *, stop, metadata, admission=None, upload_seconds=15):
         self.app, self.journal, self.stop, self.metadata = app, journal, stop, metadata
+        self.admission, self.upload_seconds, self.busy = admission, upload_seconds, Lock()
 
     async def respond(self, send, code, value):
         raw = canonical(value)
@@ -144,9 +167,24 @@ class QuotaApplication:
             return await self.app(scope, receive, send)
         if method != 'POST' or path not in PATHS:
             return await self.respond(send, 405, {'detail': 'Outside demo session scope'})
+        if not self.busy.acquire(blocking=False):
+            return await self.respond(send, 429, {'detail': 'One prediction is already in progress'})
+        try:
+            return await self.predict(scope, receive, send)
+        finally:
+            self.busy.release()
+
+    async def predict(self, scope, receive, send):
         body = bytearray()
+        deadline = time.monotonic() + self.upload_seconds
         while True:
-            message = await receive()
+            try:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError
+                message = await asyncio.wait_for(receive(), remaining)
+            except TimeoutError:
+                return await self.respond(send, 408, {'detail': 'Upload deadline exceeded; no inference dispatched'})
             if message['type'] == 'http.disconnect':
                 return
             body.extend(message.get('body', b''))
@@ -159,27 +197,83 @@ class QuotaApplication:
             model, image_sha = payload['model_id'], payload['image_sha256']
             if not isinstance(image_sha, str) or len(image_sha) != 64:
                 raise ValueError('INVALID_IMAGE_DIGEST')
-            admitted = self.journal.claim(model, image_sha, bytes(body))
+            intent = self.journal.claim(model, image_sha, bytes(body))
         except (ValueError, KeyError, TypeError):
             return await self.respond(send, 422, {'detail': 'Invalid prediction envelope'})
         except OSError:
             return await self.respond(send, 503, {'detail': 'Accounting unavailable; no inference dispatched'})
-        if not admitted:
+        if intent is None:
             return await self.respond(send, 409, {'detail': 'Demo allowance unavailable or request already consumed'})
-        response_hash, status = hashlib.sha256(), 500
+        response_hash, status, complete = hashlib.sha256(), 500, False
         async def replay():
             return {'type': 'http.request', 'body': bytes(body), 'more_body': False}
         async def observe(message):
-            nonlocal status
+            nonlocal status, complete
             if message['type'] == 'http.response.start':
                 status = message['status']
             if message['type'] == 'http.response.body':
                 response_hash.update(message.get('body', b''))
             await send(message)
+            if message['type'] == 'http.response.body' and not message.get('more_body'):
+                complete = True
         try:
+            if self.admission is not None:
+                try:
+                    await self.admission.admit(intent)
+                except (OSError, ValueError, TimeoutError):
+                    status = 503
+                    return await self.respond(send, 503, {'detail': 'Native request authority unavailable; no inference dispatched'})
             await self.app(scope, replay, observe)
         finally:
-            self.journal.terminal(status, response_hash.hexdigest())
+            self.journal.terminal(intent, status, response_hash.hexdigest(), complete=complete)
+            if self.admission is not None:
+                try:
+                    self.admission.finish(intent, success=status == 200 and complete)
+                except OSError:
+                    self.journal.poisoned = self.journal.log_failure = True
+
+
+class WorkerAdmission:
+    """Child dispatch waits for the existing parent's native supervisor ACK."""
+    def __init__(self, run, *, seconds=5):
+        self.run, self.seconds = run, seconds
+
+    async def admit(self, intent):
+        body = {**asdict(intent), 'pid': os.getpid()}
+        new_json(self.run / f'{intent.id}.request.json', body)
+        until = time.monotonic() + self.seconds
+        ack = self.run / f'{intent.id}.admitted.json'
+        while time.monotonic() < until:
+            if ack.is_file():
+                if json.loads(ack.read_bytes()) != body:
+                    raise ValueError('NATIVE_ADMISSION_IDENTITY_CHANGED')
+                return
+            await asyncio.sleep(.025)
+        raise TimeoutError('NO_NATIVE_ADMISSION_ACK_NO_DISPATCH')
+
+    def finish(self, intent, *, success):
+        new_json(self.run / f'{intent.id}.finished.json',
+                 {'id': intent.id, 'pid': os.getpid(), 'success': success})
+
+
+def service_admissions(run, child, supervisor, seen, finished):
+    """Parent-only polling; the child cannot ACK its own native admission."""
+    for path in sorted(run.glob('req_*.request.json')):
+        value = json.loads(path.read_bytes())
+        key = value['id']
+        if path.name != key + '.request.json' or value['pid'] != child.identity.pid:
+            raise ValueError('REQUEST_CHILD_IDENTITY_CHANGED')
+        if key not in seen:
+            supervisor.admit(key)
+            new_json(run / f'{key}.admitted.json', value)
+            seen.add(key)
+        done = run / f'{key}.finished.json'
+        if key not in finished and done.is_file():
+            end = json.loads(done.read_bytes())
+            if end.get('id') != key or end.get('pid') != child.identity.pid or type(end.get('success')) is not bool:
+                raise ValueError('REQUEST_COMPLETION_IDENTITY_CHANGED')
+            supervisor.finish(key, success=end['success'])
+            finished.add(key)
 
 
 def bindings():
@@ -237,10 +331,41 @@ def worker(run):
     def stop():
         if not (run / 'STOP_REQUESTED').exists():
             new_json(run / 'STOP_REQUESTED', {'requested': True})
-    scoped = QuotaApplication(app, journal, stop=stop, metadata=lambda: ready)
+    scoped = QuotaApplication(app, journal, stop=stop, metadata=lambda: ready,
+                             admission=WorkerAdmission(run))
     uvicorn.run(PrivateGatewayAuth(scoped, token), host='127.0.0.1', port=7860,
                 workers=1, access_log=False, log_level='critical', log_config=None,
                 timeout_graceful_shutdown=10)
+
+
+def cleanup_owned(child, supervisor, gpu, disk):
+    """Attempt every owned cleanup; failures never skip unrelated finalizers."""
+    outcomes = {}
+    def attempt(name, callback):
+        try:
+            callback()
+            outcomes[name] = {'confirmed': True}
+        except BaseException as error:
+            outcomes[name] = {'confirmed': False, 'error_class': type(error).__name__}
+    if supervisor is not None:
+        attempt('supervisor_close', supervisor.close)
+    if child is not None:
+        def drain():
+            if child.inspect():
+                child.signal_verified(child.identity, force=False)
+            until = time.monotonic() + 22
+            while child.inspect() and time.monotonic() < until:
+                time.sleep(.1)
+            if child.inspect():
+                child.signal_verified(child.identity, force=True)
+            until = time.monotonic() + 5
+            while child.inspect() and time.monotonic() < until:
+                time.sleep(.1)
+            child.close_confirmed()
+        attempt('child_terminal_reap', drain)
+    attempt('gpu_monitor', gpu.close)
+    attempt('disk_monitor', disk.close)
+    return outcomes
 
 
 def parent(run):
@@ -284,7 +409,7 @@ def parent(run):
         supervisor = WorkerSupervisor(Policy('prism-dr-5fold', os.getpid(), scope, command_digest(argv),
                                             GPU, max_jobs=4, max_seconds=SOFT_SECONDS, drain_seconds=20,
                                             monitor_seconds=2), child)
-        announced = False
+        announced, seen, finished = False, set(), set()
         while child.inspect():
             supervisor.tick()
             if not announced and (run / 'READY.json').is_file() and owned_loopback_listener(7860, child.identity.pid):
@@ -292,42 +417,41 @@ def parent(run):
                                   'run': str(run), 'models_really_loaded': 3, 'forward_attempts': 0,
                                   'max_session_seconds': SOFT_SECONDS}), flush=True)
                 announced = True
+            if announced:
+                service_admissions(run, child, supervisor, seen, finished)
             if (run / 'STOP_REQUESTED').exists() or time.monotonic() - started >= SOFT_SECONDS:
                 break
             if not announced and time.monotonic() - started > 180:
                 raise RuntimeError('LOAD_READINESS_DEADLINE')
-            if supervisor.state != 'IDLE':
+            if supervisor.state not in {'IDLE', 'BUSY'}:
                 break
             time.sleep(.5)
     except BaseException as error:
         result['error_class'] = type(error).__name__
         result['raw_error_retained'] = False
     finally:
-        if child is not None:
-            if supervisor is not None:
-                supervisor.close()
-            elif child.inspect():
-                child.signal_verified(child.identity, force=False)
-            until = time.monotonic() + 22
-            while child.inspect() and time.monotonic() < until:
-                if supervisor is not None:
-                    supervisor.tick()
-                time.sleep(.1)
-            if child.inspect():
-                child.signal_verified(child.identity, force=True)
-            until = time.monotonic() + 5
-            while child.inspect() and time.monotonic() < until:
-                time.sleep(.1)
-            child.close_confirmed()
-            result['completion'] = child.completion()
-        gpu.close()
-        disk.close()
-        with socket.socket() as sock:
-            result['cleanup_confirmed'] = sock.connect_ex(('127.0.0.1', 7860)) != 0
+        result['cleanup_components'] = cleanup_owned(child, supervisor, gpu, disk)
+        try:
+            if child is not None:
+                result['completion'] = child.completion()
+            with socket.socket() as sock:
+                result['listener_closed'] = sock.connect_ex(('127.0.0.1', 7860)) != 0
+            result['cleanup_confirmed'] = (result['listener_closed'] and
+                all(item['confirmed'] for item in result['cleanup_components'].values()))
+        except BaseException as error:
+            result['cleanup_observation_error_class'] = type(error).__name__
+        result['supervisor_reason'] = supervisor.reason if supervisor is not None else None
         result['observed_session_seconds'] = round(time.monotonic() - started, 3)
         result['conservative_gpu_reserved_seconds'] = HARD_SECONDS
-        new_json(run / 'COMPLETE.json', result)
+        failure = ('error_class' in result or not result['cleanup_confirmed'] or
+                   result['supervisor_reason'] not in {None, 'OWNER_CLOSE', 'WORKLOAD_DEADLINE'})
+        try:
+            new_json(run / 'COMPLETE.json', result)
+        except OSError:
+            result['logging_blocked'] = True
+            failure = True
         print(json.dumps({'phase': 'STOPPED', **result}), flush=True)
+    return 1 if failure else 0
 
 
 def main():
@@ -337,8 +461,8 @@ def main():
     args = parser.parse_args()
     if sys.platform != 'linux':
         parser.error('Start through the existing approved SSH connection on dr-train')
-    (worker if args.worker else parent)(args.run)
+    return (worker if args.worker else parent)(args.run)
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
