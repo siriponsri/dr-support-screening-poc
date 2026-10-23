@@ -4,6 +4,7 @@ import json
 from dr_support.contracts import LesionResult
 from dr_support.cvat import rectangles, reviewed_shapes, OnlineError
 from dr_support.presentation import annotation_set_hash, lesion_review_view
+from dr_support.services.source_mutation_gate import guard_method_writes
 
 
 def digest(value):
@@ -14,6 +15,11 @@ class Sync:
     def __init__(self, store, remote):
         self.store, self.remote = store, remote
 
+    @property
+    def source_mutation_gate(self):
+        return getattr(self.store, 'source_mutation_gate', None)
+
+    @guard_method_writes
     def send(self, image):
         with self.store.lock:
             case = self.store.get(image.image_id)
@@ -77,6 +83,7 @@ class Sync:
             self.store.put(case)
             return mapping
 
+    @guard_method_writes
     def pull(self, image):
         with self.store.lock:
             case = self.store.get(image.image_id)
