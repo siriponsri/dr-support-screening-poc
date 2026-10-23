@@ -174,6 +174,7 @@ def workstation_allowlist() -> list[str]:
         "BACKUP_DR_SCREENING.bat", "RESTORE_DR_SCREENING.bat",
         "docs/operations/INSTALLATION.md", "docs/operations/CONFIGURATION.md",
         "docs/operations/BACKUP_RESTORE.md",
+        "docs/operations/DATABASE_ROLES.md",
         "docs/operations/TROUBLESHOOTING.md", "docs/operations/SECURITY_PRIVACY.md",
         "docs/manuals/clinician", "docs/reference/DATASET_MANIFEST.md",
     ]

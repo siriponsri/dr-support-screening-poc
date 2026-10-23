@@ -132,9 +132,16 @@ def _build_case_store(case_store_mode: str, state_path, workspace_id: str | None
     if state_path is not None:
         raise ValueError("state_path cannot be used with PostgreSQL case storage")
     selected_workspace_id = (workspace_id or os.environ.get(WORKSPACE_ID_ENV) or "").strip()
+    migration_mode = os.environ.get("DR_SUPPORT_DATABASE_MIGRATION_MODE", "apply").strip()
+    if migration_mode not in {"apply", "verify"}:
+        raise ValueError("DR_SUPPORT_DATABASE_MIGRATION_MODE must be apply or verify")
     settings = PostgresSettings.from_env()
     database = PostgresDatabase(settings)
-    SchemaMigrator(database).migrate()
+    migrator = SchemaMigrator(database)
+    if migration_mode == "verify":
+        migrator.verify()
+    else:
+        migrator.migrate()
     if not selected_workspace_id:
         profile = PostgresWorkspaceCatalog(database).latest_opened()
         selected_workspace_id = profile.id if profile is not None else "ws_bootstrap"

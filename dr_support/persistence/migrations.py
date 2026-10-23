@@ -176,6 +176,26 @@ class SchemaMigrator:
         if actual_versions != expected_versions:
             raise ValueError("Migrations must be ordered, contiguous, and start at version 1")
 
+    def verify(self) -> MigrationResult:
+        """Check the complete release history using only a read-only transaction.
+
+        A runtime role needs SELECT on the migration receipt, not schema CREATE
+        or table ownership. Missing/old/drifted schemas fail closed; verification
+        never repairs them or falls back to the DDL path.
+        """
+        with self.database.session(autocommit=False) as connection:
+            with connection.transaction():
+                connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                rows = connection.execute(sql.SQL(
+                    "SELECT version, name, checksum FROM {}.schema_migrations ORDER BY version"
+                ).format(sql.Identifier(self.schema))).fetchall()
+                applied = {row[0]: (row[1], row[2]) for row in rows}
+                self._validate_history(applied)
+                latest = self.migrations[-1].version if self.migrations else 0
+                if len(rows) != len(applied) or max(applied, default=0) != latest:
+                    raise MigrationError("Database schema must be migrated by the release operator before startup")
+        return MigrationResult(latest, latest, ())
+
     def migrate(self, *, target_version: int | None = None) -> MigrationResult:
         latest = self.migrations[-1].version if self.migrations else 0
         target = latest if target_version is None else target_version

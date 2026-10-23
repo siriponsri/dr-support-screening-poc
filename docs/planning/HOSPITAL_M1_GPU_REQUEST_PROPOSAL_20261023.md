@@ -1,7 +1,9 @@
 # Proposed additional inference scope for Hospital M1
 
-Status: PROPOSED, NOT ACTIVATED. No new quota is granted by this file.
-The owner must approve exact extra requests/session time before exceeding529.
+Status: OWNER_APPROVED, NOT ACTIVATED. The owner approved this exact proposal
+in the task conversation on 2026-10-23: 20 additional requests, cap549, at most
+two named windows with the limits below. Approval does not reset any ledger or
+start a service. Activation and each dispatch still require durable accounting.
 
 Verified anchor: original closed batch ledger SHA256
 `ebc4f23ac5b9d89f136ada7a36b08350ddacf186e338a50c0ea5ba6f5ba14d98`;
@@ -34,7 +36,7 @@ two sessions. Activate each only after its actual backend/profile/hardware and
 source-policy preflight. Do not reserve/start a nonexistent hospital target or
 infer IT/data-owner authorization from compute approval. Keep every historical
 session intact. No session is renewed automatically; time exhaustion blocks its
-remaining work rather than resetting the clock. Current530-plus accounting must
+remaining work rather than resetting the clock. Accounting for requests530+ must
 be written durably before every additional dispatch after approval.
 
 This proposal cannot remove the protected PRISM preview integration gate,
