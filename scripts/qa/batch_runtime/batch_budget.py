@@ -9,10 +9,12 @@ from datetime import datetime, timezone
 import json
 import math
 import os
+import re
 from pathlib import Path
 import time
 
-from batch_ledger import canonical, digest, require
+from batch_ledger import (canonical, digest, require, M1_SERVER, M1_LOCAL, M1_WINDOWS,
+                          M1_GPU0, _is_sha, _direct, _regular, _new_file)
 
 APPROVED_RECOVERY_LEASE = "batch_retfound_aptos5_dbf5070ece3d72f24748"
 APPROVED_RECOVERY_HASHES = {
@@ -304,10 +306,123 @@ def recover_approved_lease(ledger, *, owner_approved_lease, observe, process_exi
     return result
 
 
+def _m1_lifetime(body):
+    require(type(body["lease_count"]) is int and body["lease_count"] in {0, 1}
+            and type(body["charged_gpu_seconds"]) in (int, float)
+            and math.isfinite(body["charged_gpu_seconds"])
+            and type(body["window_closed"]) is bool and type(body["quarantined"]) is bool,
+            "M1_WINDOW_BUDGET_CHANGED")
+    active = body["active"]
+    if body["lease_count"] == 0:
+        require(active is None and body["charged_gpu_seconds"] == 0 and not body["window_closed"],
+                "M1_UNFUNDED_OR_REWRITTEN_LIFETIME_RESERVATION")
+    else:
+        require(body["charged_gpu_seconds"] >= 10800
+                and (active is not None or body["window_closed"] or body["quarantined"]),
+                "M1_UNFUNDED_OR_REWRITTEN_LIFETIME_RESERVATION")
+        if active is not None:
+            require(type(active) is dict and set(active) == {"lease_id", "started", "deadline"}
+                    and type(active["lease_id"]) is str
+                    and re.fullmatch(r"[A-Za-z0-9_-]{1,100}", active["lease_id"])
+                    and all(type(active[key]) in (int, float) and math.isfinite(active[key])
+                            for key in ("started", "deadline"))
+                    and active["started"] >= body["started_monotonic"]
+                    and active["deadline"] == active["started"] + 10800
+                    and active["deadline"] <= body["started_monotonic"] + 14400 - 45
+                    and not body["window_closed"], "M1_NATIVE_LIFETIME_DEADLINE_CHANGED")
+
+
+def continuation_window_context(ledger, window_id):
+    """Read verified M1 window state; never activates or adopts Local."""
+    require(ledger.continuation is not None, "M1_VERIFIED_CONTINUATION_REQUIRED")
+    require(window_id != M1_LOCAL, "M1_LOCAL_ADOPTION_NOT_QUALIFIED")
+    require(window_id == M1_SERVER, "M1_EXACT_NAMED_WINDOW_REQUIRED")
+    ledger._check_continuation()
+    require(not (ledger.directory / "M1_WINDOW_ACTIVATION.lock").exists(),
+            "M1_PARTIAL_WINDOW_ACTIVATION_PRESERVED")
+    directory = _direct(ledger.directory / "windows" / window_id)
+    complete_raw = _regular(directory / "COMPLETE.json")
+    complete = json.loads(complete_raw)
+    require((directory / "ACTIVATION.lock.completed").is_file()
+            and complete["window_id"] == window_id
+            and complete["profile"] == M1_WINDOWS[window_id]
+            and complete["proposal_sha256"] == ledger.continuation["proposal_sha256"]
+            and complete["approval_sha256"] == ledger.continuation["approval_sha256"]
+            and complete["manifest"] == ledger.manifest_sha256
+            and complete["gpu_uuid"] == M1_GPU0 and complete["gpu_index"] == 0
+            and complete["gpu_seconds_cap"] == 10800 and complete["wall_seconds_cap"] == 14400
+            and complete["refund_unused"] is False and complete["renew"] is False
+            and _is_sha(complete["clock_origin"])
+            and all(type(complete[key]) in (int, float) and math.isfinite(complete[key]) and complete[key] > 0
+                    for key in ("started_monotonic", "started_utc")),
+            "M1_WINDOW_AUTHORIZATION_CHANGED")
+    path = directory / "BUDGET.json"
+    saved = json.loads(_regular(path))
+    body = saved["body"]
+    require(saved["sha256"] == digest(canonical(body))
+            and body["manifest"] == ledger.manifest_sha256
+            and body["session_id"] == window_id and body["authorization_sha256"] == digest(complete_raw)
+            and all(body[key] == complete[key] for key in ("started_monotonic", "started_utc", "clock_origin"))
+            and type(body["window_closed"]) is bool and type(body["quarantined"]) is bool
+            and type(body["lease_count"]) is int and 0 <= body["lease_count"] <= 1
+            and type(body["charged_gpu_seconds"]) in (int, float)
+            and math.isfinite(body["charged_gpu_seconds"]) and body["charged_gpu_seconds"] >= 0,
+            "M1_WINDOW_BUDGET_CHANGED")
+    _m1_lifetime(body)
+    return path, complete, body
+
+
+def activate_continuation_window(ledger, *, window_id, clock_origin, gpu_uuid,
+                                 clock=time.monotonic, utc=time.time, write=None):
+    """One explicit Server window, no launches; Local remains fail-closed.
+
+    A host/boot clock-origin digest must be supplied by the qualified runtime.
+    This function does not observe hardware or grant access to a machine.
+    """
+    with ledger.lock:
+        ledger.assert_owner()
+        require(ledger.continuation is not None, "M1_VERIFIED_CONTINUATION_REQUIRED")
+        require(window_id != M1_LOCAL, "M1_LOCAL_ADOPTION_NOT_QUALIFIED")
+        require(window_id == M1_SERVER and _is_sha(clock_origin) and gpu_uuid == M1_GPU0,
+                "M1_EXACT_WINDOW_GPU0_AND_CLOCK_ORIGIN_REQUIRED")
+        directory = _direct(ledger.directory / "windows" / window_id)
+        gate = ledger.directory / "M1_WINDOW_ACTIVATION.lock"
+        require(not gate.exists() and not directory.exists() and not ledger.rows and not ledger.uncertain(),
+                "M1_WINDOW_ACTIVATION_ONCE_OR_PARTIAL_PRESERVED")
+        now, utc_now = clock(), utc()
+        require(all(type(value) in (int, float) and math.isfinite(value) and value > 0 for value in (now, utc_now)),
+                "M1_WINDOW_CLOCK_INVALID")
+        complete = {"window_id": window_id, "profile": M1_WINDOWS[window_id],
+            "manifest": ledger.manifest_sha256, "proposal_sha256": ledger.continuation["proposal_sha256"],
+            "approval_sha256": ledger.continuation["approval_sha256"], "gpu_uuid": gpu_uuid, "gpu_index": 0,
+            "started_monotonic": now, "started_utc": utc_now, "clock_origin": clock_origin,
+            "gpu_seconds_cap": 10800, "wall_seconds_cap": 14400, "refund_unused": False, "renew": False}
+        body = {"manifest": ledger.manifest_sha256, "session_id": window_id,
+            "authorization_sha256": digest(canonical(complete)),
+            "started_monotonic": now, "started_utc": utc_now, "clock_origin": clock_origin,
+            "charged_gpu_seconds": 0, "lease_count": 0, "active": None,
+            "quarantined": False, "window_closed": False}
+        write = write or _new_file
+        try:
+            _new_file(gate, canonical({"window_id": window_id, "owner_sha256": digest(ledger.owned_lock)}))
+            directory.mkdir(parents=True, exist_ok=False)
+            write(directory / "INTENT.json", canonical(complete))
+            write(directory / "BUDGET.json", canonical({"body": body, "sha256": digest(canonical(body))}))
+            ledger.assert_owner()
+            write(directory / "COMPLETE.json", canonical(complete))
+            os.rename(gate, directory / "ACTIVATION.lock.completed")
+            continuation_window_context(ledger, window_id)
+        except BaseException:
+            ledger.poisoned = True
+            raise
+        return complete
+
+
 class BatchBudget:
     GPU_SECONDS, SESSION_SECONDS, LEASE_SECONDS = 10800, 14400, 600
 
-    def __init__(self, ledger, *, clock=time.monotonic, utc=lambda: datetime.now(timezone.utc).timestamp(), session_id=None):
+    def __init__(self, ledger, *, clock=time.monotonic, utc=lambda: datetime.now(timezone.utc).timestamp(), session_id=None,
+                 clock_origin=None):
         require(ledger.owned_lock is not None, "OWNED_LEDGER_REQUIRED_FOR_BUDGET")
         self.ledger, self.clock, self.utc = ledger, clock, utc
         self.epoch, self.file_sha = ledger.owned_lock, None
@@ -315,6 +430,19 @@ class BatchBudget:
         self.path = Path(ledger.directory)/"BUDGET.json"
         self.session_id, self.prior_gpu_seconds = session_id, 0
         self.authorization_sha = self.complete = None
+        self.m1 = ledger.continuation is not None
+        if self.m1:
+            self.path, self.complete, self.body = continuation_window_context(ledger, session_id)
+            require(clock_origin == self.complete["clock_origin"], "M1_CLOCK_ORIGIN_CHANGED_NO_RESUME")
+            require(self.body["active"] is None and not self.body["quarantined"]
+                    and not self.body["window_closed"], "M1_UNCERTAIN_OR_CLOSED_WINDOW_NO_RESUME")
+            self.authorization_sha = digest(_regular(self.path.parent / "COMPLETE.json"))
+            self.file_sha = digest(_regular(self.path))
+            self.prior_gpu_seconds = 17002.874
+            self.LEASE_SECONDS = 10800  # Whole owned lifetime: load + idle + inference.
+            self.check()
+            ledger._window_budget = self
+            return
         if session_id is not None:
             self.path, self.complete, self.authorization_sha, old = approved_session_context(ledger.directory, session_id)
             self.prior_gpu_seconds = old["charged_gpu_seconds"]
@@ -338,6 +466,11 @@ class BatchBudget:
 
     def persist(self):
         self.assert_current()
+        if self.m1:
+            _m1_lifetime(self.body)
+            previous = json.loads(_regular(self.path))["body"]
+            require(self.body["charged_gpu_seconds"] >= previous["charged_gpu_seconds"]
+                    and self.body["lease_count"] >= previous["lease_count"], "M1_NO_REFUND_OR_LEASE_RESET")
         raw = canonical({"body":self.body,"sha256":digest(canonical(self.body))})
         pending = self.path.with_suffix(".pending")
         require(not pending.exists() and not pending.is_symlink(), "UNCERTAIN_BUDGET_WRITE_PRESERVED")
@@ -360,7 +493,13 @@ class BatchBudget:
         else:
             require(self.path.is_file() and not self.path.is_symlink()
                     and digest(self.path.read_bytes()) == self.file_sha, "STALE_BUDGET_HANDLE")
-        if self.session_id is not None:
+        if self.m1:
+            _, complete, _ = continuation_window_context(self.ledger, self.session_id)
+            require(digest(_regular(self.path.parent / "COMPLETE.json")) == self.authorization_sha
+                    and all(self.body[key] == complete[key] for key in
+                            ("started_monotonic", "started_utc", "clock_origin")),
+                    "M1_WINDOW_OR_CLOCK_CHANGED")
+        elif self.session_id is not None:
             require(not (self.ledger.directory / "SESSION_ACTIVATION.lock").exists()
                     and digest(_read_regular(self.path.parent / "COMPLETE.json")) == self.authorization_sha
                     and digest(_read_regular(self.ledger.directory / "BUDGET.json")) == self.complete["original_budget_sha256"]
@@ -372,6 +511,13 @@ class BatchBudget:
     def check(self):
         self.assert_current()
         now, utc_now = self.clock(), self.utc()
+        if self.m1:
+            require(not self.body["window_closed"], "M1_WINDOW_CLOSED_NO_RENEWAL")
+            if not (all(type(x) in (int, float) and math.isfinite(x) for x in (now, utc_now))
+                    and now >= self.body["started_monotonic"] and utc_now >= self.body["started_utc"]):
+                self.body["quarantined"] = True
+                self.persist()
+                raise RuntimeError("M1_CLOCK_ROLLBACK_OR_INVALID_QUARANTINED")
         require(all(type(x) in (int,float) and math.isfinite(x) for x in (now,utc_now)), "BUDGET_CLOCK_INVALID")
         require(now >= self.body["started_monotonic"] and utc_now >= self.body["started_utc"], "CLOCK_ROLLBACK_NO_AUTOMATIC_RESUME")
         require(now-self.body["started_monotonic"] < self.SESSION_SECONDS and utc_now-self.body["started_utc"] < self.SESSION_SECONDS, "WHOLE_BATCH_DEADLINE")
@@ -387,6 +533,8 @@ class BatchBudget:
 
     def _reserve_worker(self, lease_id):
         now = self.check()
+        if self.m1:
+            require(self.body["lease_count"] == 0, "M1_NO_WORKER_RENEWAL_OR_SECOND_LEASE")
         require(self.body["active"] is None and self.body["charged_gpu_seconds"] + self.LEASE_SECONDS <= self.GPU_SECONDS, "NO_CONCURRENT_OR_UNFUNDED_GPU_WORKER")
         require(type(lease_id) is str and 1 <= len(lease_id) <= 100 and lease_id.isascii() and all(x.isalnum() or x in "_-" for x in lease_id), "BOUNDED_LEASE_ID_REQUIRED")
         # Keep45s within whole-session horizon for final parent/tunnel cleanup.
@@ -413,7 +561,10 @@ class BatchBudget:
             self.body["quarantined"] = True
             self.persist()  # keep full conservative reservation and active ID
             raise RuntimeError("OWNED_WORKER_STOP_UNCONFIRMED_NO_REFUND")
-        self.body["charged_gpu_seconds"] -= self.LEASE_SECONDS-elapsed
+        if self.m1:
+            self.body["window_closed"] = True
+        else:
+            self.body["charged_gpu_seconds"] -= self.LEASE_SECONDS-elapsed
         self.body["active"] = None
         self.persist()
 
@@ -423,4 +574,7 @@ class BatchBudget:
             result.update(session_id=self.session_id, prior_gpu_seconds_preserved=self.prior_gpu_seconds,
                           aggregate_gpu_seconds=self.prior_gpu_seconds+self.body["charged_gpu_seconds"],
                           started_utc=self.body["started_utc"], started_monotonic=self.body["started_monotonic"])
+        if self.m1:
+            result.update(window_closed=self.body["window_closed"], refund_unused=False,
+                          local_adoption_available=False, automatic_renewal=False)
         return result

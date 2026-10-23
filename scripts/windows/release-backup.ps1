@@ -2,6 +2,11 @@ param(
     [string]$ImageRoot,
     [string]$Destination,
     [string]$Release,
+    [string]$HospitalSourceMap,
+    [string]$ExpectedHospitalSourceMapSha256,
+    [string]$HospitalRestoreMap,
+    [string]$ExpectedHospitalRestoreMapSha256,
+    [string]$ExpectedManifestSha256,
     [switch]$Apply,
     [switch]$Verify
 )
@@ -15,9 +20,12 @@ try {
     if ($Verify) {
         if (-not $Destination) { throw "Supply the existing backup directory with -Destination." }
         $recoveryArguments = @("-m", "dr_support.persistence.recovery", "verify", "--bundle", $Destination)
+        if ($ExpectedManifestSha256) { $recoveryArguments += @("--expected-manifest-sha256", $ExpectedManifestSha256) }
+        if ($HospitalRestoreMap) { $recoveryArguments += @("--hospital-restore-map", $HospitalRestoreMap) }
+        if ($ExpectedHospitalRestoreMapSha256) { $recoveryArguments += @("--expected-hospital-restore-map-sha256", $ExpectedHospitalRestoreMapSha256) }
     } else {
-        if (-not $ImageRoot -or -not $Destination -or -not $Release) {
-            throw "Supply -ImageRoot, a new -Destination outside the checkout, and -Release. Default is plan only; -Apply performs the backup."
+        if (([bool]$ImageRoot -eq [bool]$HospitalSourceMap) -or -not $Destination -or -not $Release -or $HospitalRestoreMap -or $ExpectedHospitalRestoreMapSha256 -or $ExpectedManifestSha256) {
+            throw "Supply either -ImageRoot or the independently pinned -HospitalSourceMap, a new -Destination, and -Release. Default is plan only."
         }
         Read-ReleaseDotEnv
         if (-not ([string]$env:DR_SUPPORT_DATABASE_URL).Trim()) {
@@ -25,9 +33,12 @@ try {
             if (-not $local) { throw "Configure the approved database privately or start the existing workstation first." }
         }
         $recoveryArguments = @("-m", "dr_support.persistence.recovery", "backup",
-            "--image-root", $ImageRoot, "--destination", $Destination, "--release", $Release)
+            "--destination", $Destination, "--release", $Release)
+        if ($ImageRoot) { $recoveryArguments += @("--image-root", $ImageRoot) }
         if ($Apply) { $recoveryArguments += "--apply" }
     }
+    if ($HospitalSourceMap) { $recoveryArguments += @("--hospital-source-map", $HospitalSourceMap) }
+    if ($ExpectedHospitalSourceMapSha256) { $recoveryArguments += @("--expected-hospital-source-map-sha256", $ExpectedHospitalSourceMapSha256) }
     & $python @recoveryArguments
     exit $LASTEXITCODE
 } catch {

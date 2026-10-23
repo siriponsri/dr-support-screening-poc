@@ -4,6 +4,10 @@ param(
     [string]$ExpectedManifestSha256,
     [string]$ImageDestination,
     [string]$OutputDestination,
+    [string]$HospitalSourceMap,
+    [string]$ExpectedHospitalSourceMapSha256,
+    [string]$HospitalRestoreMap,
+    [string]$ExpectedHospitalRestoreMapSha256,
     [switch]$Apply,
     [switch]$TargetQuiesced
 )
@@ -26,6 +30,10 @@ try {
         "--bundle", $Bundle, "--expected-target-database", $ExpectedTargetDatabase,
         "--expected-manifest-sha256", $ExpectedManifestSha256,
         "--image-destination", $ImageDestination, "--output-destination", $OutputDestination)
+    if ($HospitalSourceMap) { $recoveryArguments += @("--hospital-source-map", $HospitalSourceMap) }
+    if ($ExpectedHospitalSourceMapSha256) { $recoveryArguments += @("--expected-hospital-source-map-sha256", $ExpectedHospitalSourceMapSha256) }
+    if ($HospitalRestoreMap) { $recoveryArguments += @("--hospital-restore-map", $HospitalRestoreMap) }
+    if ($ExpectedHospitalRestoreMapSha256) { $recoveryArguments += @("--expected-hospital-restore-map-sha256", $ExpectedHospitalRestoreMapSha256) }
     if ($Apply) { $recoveryArguments += "--apply" }
     if ($TargetQuiesced) { $recoveryArguments += "--target-quiesced" }
     & $python @recoveryArguments
