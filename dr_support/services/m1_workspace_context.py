@@ -5,6 +5,7 @@ Mock connection tests are not evidence of a real authenticated runtime login.
 """
 from copy import deepcopy
 from contextlib import contextmanager
+from datetime import datetime
 import os
 import re
 from threading import RLock
@@ -43,6 +44,19 @@ def _require(condition, code):
 
 def _digest(value):
     return type(value) is str and len(value) == 64 and all(ch in '0123456789abcdef' for ch in value)
+
+
+def _profile_timestamp(value):
+    if value is None:
+        return None
+    _require(type(value) is str, 'M1_CONTEXT_CATALOG_TIMESTAMP_INVALID')
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        raise WorkspaceContextError('M1_CONTEXT_CATALOG_TIMESTAMP_INVALID') from None
+    _require(parsed.tzinfo is not None and parsed.utcoffset() is not None,
+             'M1_CONTEXT_CATALOG_TIMESTAMP_INVALID')
+    return parsed
 
 
 @contextmanager
@@ -304,7 +318,12 @@ class WorkspaceContextReader:
                          'M1_CONTEXT_LOADED_RAW_CASE_CHANGED')
                 fields = ('workspace_id', 'name', 'input_folder', 'output_folder', 'database_path',
                           'note', 'created_at', 'updated_at', 'last_opened')
-                profile = PostgresWorkspaceCatalog._profile(tuple(workspace[key] for key in fields))
+                # JSONB timestamps and driver datetimes may format the same
+                # instant differently. Normalize only the profile projection;
+                # the complete raw workspace row remains untouched below.
+                profile = PostgresWorkspaceCatalog._profile(tuple(
+                    _profile_timestamp(workspace[key]) if key in {'created_at', 'updated_at', 'last_opened'}
+                    else workspace[key] for key in fields))
                 _require(profile.model_dump(mode='json') == manager.active_workspace.model_dump(mode='json'),
                          'M1_CONTEXT_CATALOG_PROJECTION_CHANGED')
                 _require(type(admission) is dict and case.get('admission') == admission
