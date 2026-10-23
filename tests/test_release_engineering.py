@@ -22,6 +22,20 @@ def test_no_code_launchers_have_expected_roles():
     assert "127.0.0.1:8000/app/" in start
 
 
+def test_workstation_package_includes_recovery_entrypoints_and_instructions():
+    import scripts.release.build_release as builder
+
+    selected = set(builder.workstation_allowlist())
+    required = {
+        "BACKUP_DR_SCREENING.bat", "RESTORE_DR_SCREENING.bat",
+        "scripts/windows/release-backup.ps1", "scripts/windows/release-restore.ps1",
+        "docs/operations/BACKUP_RESTORE.md",
+    }
+    assert required <= selected
+    assert all((ROOT / item).is_file() and not builder.forbidden(item) for item in required)
+    assert "dr_support" in selected  # includes the actual controller, not launchers alone
+
+
 def test_windows_launcher_owns_local_postgres_and_reports_manual_mode_safely():
     common = (ROOT / "scripts/windows/release-common.ps1").read_text(encoding="utf-8")
     start = (ROOT / "scripts/windows/release-start.ps1").read_text(encoding="utf-8")
