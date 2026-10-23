@@ -1,7 +1,8 @@
 # M1 PostgreSQL workspace context reader
 
-Status: unregistered internal port. Synthetic controls only; actual authenticated
-runtime-role PostgreSQL qualification is NOT_RUN. Read with
+Status: unregistered internal port. The actual authenticated read-only runtime
+principal preflight passed for the approved test database on 23 October 2026.
+Actual complete case/context and native integration qualification is NOT_RUN. Read with
 `M1_MUTABLE_PRISM_ENTRY_AUTHORITY.md` and the shared
 `M1_WORKSPACE_AUTHORITY_PORTS.md` contract. No environment selector, API route,
 factory registration, provider promotion, credential, access grant or model call
@@ -77,8 +78,12 @@ descriptor/protocol remains unqualified and unregistered; reading its cached
 identity does not promote it. A future qualified provider implementation requires
 a separately reviewed extension.
 
-The reader captures the gate, then takes the existing manager and store locks in
-that order. One joined SQL SELECT reads row revision, complete original JSONB case,
+The reader captures the gate, then requests the existing manager and store locks
+in that order without waiting. A busy lock returns `M1_CONTEXT_SOURCE_LOCK_BUSY`
+and releases only locks acquired by this invocation. This avoids a deadlock when
+preview preparation already holds the reentrant store lock and a racing workspace
+writer holds manager while waiting for store. No gate lock spans these operations.
+One joined SQL SELECT reads row revision, complete original JSONB case,
 complete `to_jsonb(workspaces)` catalog row and principal metadata from one
 statement snapshot in a read-only transaction. Identity/revision, loaded raw case,
 current admission and active workspace profile must agree. Raw catalog fields
@@ -100,13 +105,35 @@ The returned mapping has exactly:
 
 ```text
 workspace_id, image_id, case, workspace, admission, source_sha256,
-preparation_context, model_pins, objects
+preparation_context, model_pins, runtime_context, objects
 ```
 
 `preparation_context` is the existing helper's value. `objects` is
 `(store, provider, manager, derivative_service)`, retaining references for the
 authority's individual `is` comparisons. All other values together must fit the
 shared eight-MiB canonical-JSON bound. Originals are not included in this mapping.
+
+`runtime_context` has the exact non-secret shape below. It is read again before
+return, so in-place database configuration or model destination changes cannot
+hide behind the unchanged four outer objects:
+
+```text
+database: host, port, dbname, user, schema, connect_timeout, application_name
+model: base_url, worker_epoch, transport, binding_protocol
+```
+
+Database configuration must explicitly name the approved runtime identity at
+`127.0.0.1:54805`; DSN service/options/hostaddr and other unbound options, and
+inherited nonempty libpq PG environment overrides, are refused. Driver host/port
+must agree on every actual read. No DSN, password, token or auth header is returned.
+
+The model channel must be an actual `ExplicitHttpChannel` with its HTTPx client
+using a literal loopback root HTTP(S) URL, no userinfo/query/fragment, no redirects
+and no environment proxy trust. Any valid local port may be represented. Epoch,
+transport and binding protocol must come from the existing negotiated cache.
+The URL is destination identity only: it does not prove an SSH tunnel or mapping
+exists. A future approved builder must independently verify that mapping before
+negotiation; this reader makes no RPC and supplies no production fallback.
 
 The reader requires zero active writers and unchanged gate generation/state,
 objects, image identity, admission and cached pins through the read. OPEN, FENCED
@@ -120,6 +147,14 @@ to compare with its prepared plan.
 Tests use actual model-independent classes with synthetic raw documents and mock
 driver/connection results. They verify refusal, binding, immutable source limits,
 same-revision drift, complete payload/catalog preservation, object/pin/gate races
-and read-only query construction. They are not PostgreSQL SQL execution, genuine
-runtime authentication, database-fence qualification, app registration, native
-entry, GPU inference or clinical validation evidence.
+and read-only query construction. Two real-thread interleavings exercise busy
+manager/store refusal and release of only acquired locks. These tests are not
+PostgreSQL SQL execution or genuine runtime authentication evidence.
+
+Separately, the actual authenticated read-only principal preflight passed after
+reproducing and repairing an `InsufficientPrivilege` / SQLSTATE `42501` defect in
+guard name resolution. Catalog OID lookup removed the unintended schema-USAGE
+requirement. No guard grants, credentials, ACLs or database data were changed by
+that repair or preflight. The complete joined case/context read, database-fence
+qualification, app registration, native entry, GPU inference and clinical
+validation remain separate gates.

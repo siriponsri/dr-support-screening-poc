@@ -4,16 +4,22 @@ No app construction, source authorization, RPC, enrichment or database writes.
 Mock connection tests are not evidence of a real authenticated runtime login.
 """
 from copy import deepcopy
+from contextlib import contextmanager
+import os
+import re
 from threading import RLock
 
+import httpx
 from psycopg import sql
+from psycopg.conninfo import conninfo_to_dict
 
 from ..images import BridgeImage
 from ..imaging import DerivativeService
-from ..persistence import PostgresCaseStore, PostgresDatabase, PostgresWorkspaceCatalog
+from ..persistence import PostgresCaseStore, PostgresDatabase, PostgresSettings, PostgresWorkspaceCatalog
 from ..persistence.entry_fence_plan import EntryFencePlan
-from ..providers.prism_remote_bound import RemoteBoundTransportCandidate
+from ..providers.prism_remote_bound import ExplicitHttpChannel, RemoteBoundTransportCandidate
 from .prism_preview import MAX_BYTES, MODEL_ID, canonical, preparation_context, sha
+from .prism_remote_transport import PROTOCOL, TRANSPORT
 from .source_identity import source_identity_reason
 from .source_mutation_gate import SourceMutationGate
 from .workspaces import WorkspaceManager
@@ -37,6 +43,21 @@ def _require(condition, code):
 
 def _digest(value):
     return type(value) is str and len(value) == 64 and all(ch in '0123456789abcdef' for ch in value)
+
+
+@contextmanager
+def _source_locks(manager, store):
+    # Preview preparation may already own store.lock. Never wait for manager
+    # while a workspace writer owns manager and is waiting for that store.
+    _require(manager.lock.acquire(blocking=False), 'M1_CONTEXT_SOURCE_LOCK_BUSY')
+    try:
+        _require(store.lock.acquire(blocking=False), 'M1_CONTEXT_SOURCE_LOCK_BUSY')
+        try:
+            yield
+        finally:
+            store.lock.release()
+    finally:
+        manager.lock.release()
 
 
 class WorkspaceContextReader:
@@ -63,8 +84,42 @@ class WorkspaceContextReader:
 
     def _database(self, database):
         _require(type(database) is PostgresDatabase
+                 and type(database.settings) is PostgresSettings
                  and database.settings.schema == self._roles.application_schema,
                  'M1_CONTEXT_EXACT_RUNTIME_DATABASE_REQUIRED')
+        parameters = conninfo_to_dict(database.settings.dsn)
+        _require(not any(key.startswith('PG') and value for key, value in os.environ.items())
+                 and set(parameters) <= {'host', 'port', 'dbname', 'user', 'password'}
+                 and parameters.get('host') == '127.0.0.1' and parameters.get('port') == '54805'
+                 and parameters.get('dbname') == self._database_name
+                 and parameters.get('user') == self._roles.runtime_role,
+                 'M1_CONTEXT_APPROVED_DATABASE_ROUTE_REQUIRED')
+        return dict(host=parameters['host'], port=int(parameters['port']), dbname=parameters['dbname'],
+                    user=parameters['user'], schema=database.settings.schema,
+                    connect_timeout=database.settings.connect_timeout_seconds,
+                    application_name=database.settings.application_name)
+
+    def _runtime_context(self, store, provider):
+        database = self._database(store.database)
+        channel, capabilities = provider.channel, provider.capabilities
+        _require(type(channel) is ExplicitHttpChannel and type(channel.client) is httpx.Client
+                 and channel.client.trust_env is False and channel.client.follow_redirects is False,
+                 'M1_CONTEXT_EXPLICIT_LOOPBACK_CHANNEL_REQUIRED')
+        url = channel.client.base_url
+        rendered = str(url)
+        _require(url.scheme in {'http', 'https'} and url.host in {'127.0.0.1', '::1'}
+                 and not url.username and not url.password and not url.query and not url.fragment
+                 and not any(char in rendered for char in ('@', '?', '#'))
+                 and url.path == '/' and (url.port is None or 1 <= url.port <= 65535),
+                 'M1_CONTEXT_LOOPBACK_ROUTE_IDENTITY_REQUIRED')
+        _require(type(capabilities) is dict and capabilities.get('transport') == TRANSPORT
+                 and capabilities.get('binding_protocol') == PROTOCOL
+                 and type(capabilities.get('epoch')) is str
+                 and re.fullmatch(r'[A-Za-z0-9_.:-]{1,160}', capabilities['epoch']) is not None,
+                 'M1_CONTEXT_CACHED_RUNTIME_IDENTITY_REQUIRED')
+        return dict(database=database, model=dict(base_url=rendered,
+                    worker_epoch=capabilities['epoch'], transport=capabilities['transport'],
+                    binding_protocol=capabilities['binding_protocol']))
 
     def _principal_sql(self):
         """One catalog snapshot, including inherited privileged memberships."""
@@ -134,7 +189,8 @@ class WorkspaceContextReader:
         _require(type(value) is dict and canonical(value) == canonical(expected)
                  and getattr(getattr(connection, 'pgconn', None), 'used_password', None) == 1
                  and connection.info.user == self._roles.runtime_role
-                 and connection.info.dbname == self._database_name,
+                 and connection.info.dbname == self._database_name
+                 and connection.info.host == '127.0.0.1' and str(connection.info.port) == '54805',
                  'M1_CONTEXT_AUTHENTICATED_RUNTIME_PRINCIPAL_REQUIRED')
 
     def preflight_runtime_database(self, database):
@@ -212,7 +268,7 @@ class WorkspaceContextReader:
                      'M1_CONTEXT_WRITER_ACTIVE')
             objects = self._objects()
             store, provider, manager, _ = objects
-            with manager.lock, store.lock:
+            with _source_locks(manager, store):
                 _require(all(left is right for left, right in zip(objects, self._objects(), strict=True)),
                          'M1_CONTEXT_OBJECTS_CHANGED')
                 image = self._app.state.images.get(image_id)
@@ -221,6 +277,7 @@ class WorkspaceContextReader:
                          and 0 < len(image.data) <= self._max_source_bytes,
                          'M1_CONTEXT_IMMUTABLE_BOUNDED_SOURCE_REQUIRED')
                 source_hash, pins = sha(image.data), self._pins(provider)
+                runtime_context = self._runtime_context(store, provider)
                 with store.database.session(autocommit=False) as connection:
                     with connection.transaction():
                         connection.execute('SET TRANSACTION READ ONLY')
@@ -260,12 +317,14 @@ class WorkspaceContextReader:
                          'M1_CONTEXT_RECORDED_SOURCE_CHANGED')
                 value = dict(workspace_id=workspace_id, image_id=image_id, case=deepcopy(case),
                              workspace=deepcopy(workspace), admission=admission, source_sha256=source_hash,
-                             preparation_context=preparation_context(case), model_pins=pins)
+                             preparation_context=preparation_context(case), model_pins=pins,
+                             runtime_context=runtime_context)
                 _require(len(canonical(value)) <= _CONTEXT_LIMIT, 'M1_CONTEXT_LIMIT')
                 _require(all(left is right for left, right in zip(objects, self._objects(), strict=True))
                          and self._app.state.images.get(image_id) is image
                          and self._app.state.admissions.get(image_id) == admission
                          and canonical(self._pins(provider)) == canonical(pins)
+                         and canonical(self._runtime_context(store, provider)) == canonical(runtime_context)
                          and self._gate.snapshot() == before, 'M1_CONTEXT_CHANGED_DURING_READ')
                 return {**value, 'objects': objects}
         except WorkspaceContextError:

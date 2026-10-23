@@ -1,20 +1,23 @@
 """Synthetic connection/objects only: NOT authenticated PostgreSQL qualification."""
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import replace
-from threading import RLock
+from threading import Event, RLock
 from types import SimpleNamespace
 
 from fastapi import FastAPI
+import httpx
 import pytest
 
 from dr_support.images import synthetic_image
 from dr_support.imaging import DerivativeService
 from dr_support.persistence import PostgresCaseStore, PostgresDatabase, PostgresSettings, PostgresWorkspaceCatalog
 from dr_support.persistence.entry_fence_plan import EntryFencePlan
-from dr_support.providers.prism_remote_bound import RemoteBoundTransportCandidate
+from dr_support.providers.prism_remote_bound import ExplicitHttpChannel, RemoteBoundTransportCandidate
 from dr_support.services.m1_workspace_context import WorkspaceContextError, WorkspaceContextReader
 from dr_support.services.prism_preview import MODEL_ID, canonical, preparation_context
+from dr_support.services.prism_remote_transport import PROTOCOL, TRANSPORT
 from dr_support.services.source_mutation_gate import SourceMutationGate
 from dr_support.services.workspaces import WorkspaceManager
 
@@ -37,10 +40,13 @@ class NoChannel:
 
 
 def provider():
-    value = RemoteBoundTransportCandidate(NoChannel())
+    channel = ExplicitHttpChannel('http://127.0.0.1:48765',
+        transport=httpx.MockTransport(lambda *_: pytest.fail('No RPC allowed')), auth_headers=lambda *_: {})
+    value = RemoteBoundTransportCandidate(channel)
     value.capabilities = {'pins': dict(model_id=MODEL_ID, source_revision='synthetic-reviewed-revision',
         preprocessing='synthetic-reviewed-preprocessing', config_sha256='a' * 64,
-        checkpoint_sha256={'fold0': 'b' * 64})}
+        checkpoint_sha256={'fold0': 'b' * 64}), 'epoch': 'synthetic-worker-epoch',
+        'transport': TRANSPORT, 'binding_protocol': PROTOCOL}
     return value
 
 
@@ -48,7 +54,7 @@ class MockConnection:
     """A SQL-inspection fixture, not a driver/authentication implementation."""
     def __init__(self, rig):
         self.rig = rig
-        self.info = SimpleNamespace(user=ROLES.runtime_role, dbname=DATABASE)
+        self.info = SimpleNamespace(user=ROLES.runtime_role, dbname=DATABASE, host='127.0.0.1', port=54805)
         self.pgconn = SimpleNamespace(used_password=1)
         self.result = None
         self.closed = False
@@ -84,7 +90,8 @@ def rig(tmp_path):
     rig = SimpleNamespace(queries=[], on_read=None, revision=0, principal=principal())
     rig.connection = MockConnection(rig)
     rig.database = PostgresDatabase(PostgresSettings(
-        f'dbname={DATABASE} user={ROLES.runtime_role}'), connector=lambda *a, **k: rig.connection)
+        f'host=127.0.0.1 port=54805 dbname={DATABASE} user={ROLES.runtime_role}'),
+        connector=lambda *a, **k: rig.connection)
     rig.store = PostgresCaseStore(rig.database, 'ws_synthetic_m1')
     rig.image = synthetic_image()
     admission = dict(source_origin='SYNTHETIC', source_sha256=rig.image.sha256,
@@ -122,12 +129,16 @@ def test_complete_raw_case_and_catalog_use_one_read_only_statement_without_enric
     caches = deepcopy((rig.store._observed, rig.store._observed_revision))
     context = rig.reader(rig.image.image_id)
     assert set(context) == {'workspace_id', 'image_id', 'case', 'workspace', 'admission',
-                            'source_sha256', 'preparation_context', 'model_pins', 'objects'}
+                            'source_sha256', 'preparation_context', 'model_pins', 'runtime_context', 'objects'}
     assert context['case'] == rig.case and context['case'] is not rig.case
     assert context['workspace'] == rig.workspace
     assert 'global' not in context['case']  # Defaults are not silently added.
     assert context['source_sha256'] == rig.image.sha256
     assert context['preparation_context'] == preparation_context(rig.case)
+    assert context['runtime_context']['database'] == dict(host='127.0.0.1', port=54805, dbname=DATABASE,
+        user=ROLES.runtime_role, schema='dr_support', connect_timeout=5, application_name='dr-support-workbench')
+    assert context['runtime_context']['model']['base_url'] == 'http://127.0.0.1:48765'
+    assert 'password' not in canonical(context['runtime_context']).decode()
     assert all(a is b for a, b in zip(context['objects'], (rig.store, rig.app.state.providers[MODEL_ID],
         rig.app.state.workspace_manager, rig.app.state.derivatives), strict=True))
     assert (rig.store._observed, rig.store._observed_revision) == caches
@@ -149,6 +160,13 @@ def test_preflight_checks_actual_read_connection_before_any_factory_write(rig):
     assert 'pg_catalog.pg_proc' in selects[0] and 'pg_catalog.pg_class' in selects[0]
     assert 'p.proargtypes[4]' in selects[0] and 'p.pronargs=0' in selects[0]
     assert rig.connection.closed
+
+
+def test_preflight_is_available_before_app_binding_or_model_channel_construction(rig):
+    reader = WorkspaceContextReader(role_config=ROLES, database_name=DATABASE)
+    assert reader.preflight_runtime_database(rig.database) is None
+    with pytest.raises(WorkspaceContextError, match='BOUND_IMAGE_REQUIRED'):
+        reader(rig.image.image_id)
 
 
 @pytest.mark.parametrize('field,value', [
@@ -276,6 +294,61 @@ def test_cached_pin_drift_is_detected_without_rpc(rig):
         rig.reader(rig.image.image_id)
 
 
+@pytest.mark.parametrize('change', ['database_settings', 'channel_destination', 'worker_epoch'])
+def test_in_place_runtime_configuration_drift_cannot_hide_behind_outer_object_identity(rig, change):
+    outer = (rig.store, rig.app.state.providers[MODEL_ID], rig.app.state.workspace_manager, rig.app.state.derivatives)
+    def changed():
+        if change == 'database_settings':
+            rig.database.settings = replace(rig.database.settings, application_name='changed-runtime')
+        elif change == 'channel_destination':
+            rig.app.state.providers[MODEL_ID].channel.client.base_url = 'http://127.0.0.1:48766/'
+        else:
+            rig.app.state.providers[MODEL_ID].capabilities['epoch'] = 'new-worker-epoch'
+    rig.on_read = changed
+    with pytest.raises(WorkspaceContextError, match='CHANGED_DURING_READ'):
+        rig.reader(rig.image.image_id)
+    assert all(a is b for a, b in zip(outer, (rig.store, rig.app.state.providers[MODEL_ID],
+        rig.app.state.workspace_manager, rig.app.state.derivatives), strict=True))
+
+
+@pytest.mark.parametrize('route', ['http://100.77.149.83:48765/', 'http://user@127.0.0.1:48765/',
+                                 'http://127.0.0.1:48765/?token=unapproved',
+                                 'http://127.0.0.1:48765/#fragment', 'http://127.0.0.1:48765/private/'])
+def test_external_or_ambiguous_model_route_is_never_context_authority(rig, route):
+    rig.app.state.providers[MODEL_ID].channel.client.base_url = route
+    with pytest.raises(WorkspaceContextError, match='LOOPBACK_ROUTE_IDENTITY_REQUIRED'):
+        rig.reader(rig.image.image_id)
+    assert rig.queries == []
+
+
+@pytest.mark.parametrize('override', ['service=unapproved', 'options=-csearch_path=public',
+                                    'hostaddr=127.0.0.1', 'sslmode=disable'])
+def test_database_overrides_cannot_change_the_bound_runtime_route(rig, override):
+    rig.database.settings = replace(rig.database.settings, dsn=rig.database.settings.dsn + ' ' + override)
+    with pytest.raises(WorkspaceContextError, match='APPROVED_DATABASE_ROUTE_REQUIRED'):
+        rig.reader.preflight_runtime_database(rig.database)
+    assert rig.queries == []
+
+
+def test_inherited_libpq_override_cannot_redirect_the_explicit_database_route(rig, monkeypatch):
+    monkeypatch.setenv('PGHOSTADDR', '100.77.149.83')
+    with pytest.raises(WorkspaceContextError, match='APPROVED_DATABASE_ROUTE_REQUIRED'):
+        rig.reader.preflight_runtime_database(rig.database)
+    assert rig.queries == []
+
+
+def test_unknown_channel_or_proxy_redirect_policy_is_refused_without_rpc(rig):
+    selected = rig.app.state.providers[MODEL_ID]
+    channel = selected.channel
+    selected.channel = NoChannel()
+    with pytest.raises(WorkspaceContextError, match='EXPLICIT_LOOPBACK_CHANNEL_REQUIRED'):
+        rig.reader(rig.image.image_id)
+    selected.channel = channel
+    channel.client.follow_redirects = True
+    with pytest.raises(WorkspaceContextError, match='EXPLICIT_LOOPBACK_CHANNEL_REQUIRED'):
+        rig.reader(rig.image.image_id)
+
+
 @pytest.mark.parametrize('invalid', ['extra_field', 'no_cache', 'invalid_hash'])
 def test_only_existing_reviewed_nonsecret_cached_pin_schema_is_accepted(rig, invalid):
     selected = rig.app.state.providers[MODEL_ID]
@@ -323,6 +396,86 @@ def test_writer_or_generation_change_is_refused_but_fenced_inspection_is_support
     permit.quarantine()
     assert rig.reader(rig.image.image_id)['case'] == rig.case
     assert rig.gate.snapshot().state == 'QUARANTINED'
+
+
+def test_preview_store_owner_refuses_a_racing_manager_owner_without_deadlock_or_sql(rig, monkeypatch):
+    start_writer, manager_owned = Event(), Event()
+    original_snapshot = rig.gate.snapshot
+    first = [True]
+
+    def snapshot_before_writer():
+        captured = original_snapshot()
+        if first[0]:
+            first[0] = False
+            start_writer.set()
+            assert manager_owned.wait(2)
+        return captured
+
+    monkeypatch.setattr(rig.gate, 'snapshot', snapshot_before_writer)
+
+    def workspace_writer():
+        assert start_writer.wait(2)
+        with rig.gate.writer(), rig.app.state.workspace_manager.lock:
+            manager_owned.set()
+            # This is the actual opposing manager->store edge. A timeout only
+            # prevents a regressed blocking implementation hanging the suite.
+            acquired = rig.store.lock.acquire(timeout=3)
+            if acquired:
+                rig.store.lock.release()
+            return acquired
+
+    def preview_reader():
+        with rig.store.lock:
+            with pytest.raises(WorkspaceContextError, match='SOURCE_LOCK_BUSY'):
+                rig.reader(rig.image.image_id)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        writer = pool.submit(workspace_writer)
+        reader = pool.submit(preview_reader)
+        reader.result(timeout=2)
+        assert writer.result(timeout=2)
+    assert rig.queries == []
+    assert original_snapshot().writers == 0
+
+
+def test_busy_store_refusal_releases_only_reader_manager_lock(rig, monkeypatch):
+    start_writer, store_owned, release_store = Event(), Event(), Event()
+    original_snapshot = rig.gate.snapshot
+    first = [True]
+
+    def snapshot_before_writer():
+        captured = original_snapshot()
+        if first[0]:
+            first[0] = False
+            start_writer.set()
+            assert store_owned.wait(2)
+        return captured
+
+    monkeypatch.setattr(rig.gate, 'snapshot', snapshot_before_writer)
+
+    def store_writer():
+        assert start_writer.wait(2)
+        with rig.gate.writer(), rig.store.lock:
+            store_owned.set()
+            assert release_store.wait(3)
+
+    def another_thread_can_acquire_manager():
+        acquired = rig.app.state.workspace_manager.lock.acquire(blocking=False)
+        if acquired:
+            rig.app.state.workspace_manager.lock.release()
+        return acquired
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        writer = pool.submit(store_writer)
+        try:
+            with pytest.raises(WorkspaceContextError, match='SOURCE_LOCK_BUSY'):
+                rig.reader(rig.image.image_id)
+            # The failed reader did acquire manager, so it must release it.
+            assert pool.submit(another_thread_can_acquire_manager).result(timeout=2)
+        finally:
+            release_store.set()
+        writer.result(timeout=2)
+    assert rig.queries == [] and original_snapshot().writers == 0
 
 
 def test_context_is_bounded_canonical_json_and_bind_is_one_use(rig):
