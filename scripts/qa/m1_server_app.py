@@ -305,10 +305,11 @@ def readback(args):
     persisted, matches = verify_persisted(rows[0][0], entry, models)
     value = {'request_id': request_id, 'admission_id': entry['admission_id'],
              'readback_sha256': sha(canonical(persisted)), 'matches': matches}
+    # The host parent reads trusted readback only from its separate readback/ directory.
     publish = ("python3 -c \"import os,sys,uuid; d=sys.argv[1]; p=os.path.join(d,sys.argv[2]+'.readback.json'); "
                "t=os.path.join(d,'.'+uuid.uuid4().hex+'.pending'); b=sys.stdin.buffer.read(); "
                "f=open(t,'xb'); f.write(b); f.flush(); os.fsync(f.fileno()); f.close(); os.link(t,p); os.unlink(t)\" "
-               f"{args.run} {request_id}")
+               f"{args.run}/readback {request_id}")
     ssh(publish, data=canonical(value))
     print(json.dumps({'request_id': request_id, 'operation_id': entry['operation_id'], 'matches': matches,
                       'readback_sha256': value['readback_sha256']}))

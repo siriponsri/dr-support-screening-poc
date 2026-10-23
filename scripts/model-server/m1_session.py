@@ -36,7 +36,12 @@ REQUEST_ID = re.compile(r'm1_[0-9]{4}_[a-f0-9]{16}')
 MAX_BODY = 20_100_000
 SESSION_SECONDS = 2640       # Inside WorkerSupervisor's 2700 s and the child's 2730 s hard cap.
 CHILD_HARD_SECONDS = 2730
-PRISM_JOB_SECONDS = 28       # Inside the supervisor's 30 s per-request deadline.
+# The supervisor's 30 s request deadline starts at parent admission; the PRISM
+# job deadline starts later at execute. 24 + 1 s grace + polling stays inside it
+# (observed native PRISM time in the closed batch: p50 11.9 s, max 19.0 s).
+PRISM_JOB_SECONDS = 24
+WATCH_GRACE_SECONDS = 1
+PRISM_PRINCIPAL = 'fixed-qa-backend'  # child_application's single trusted backend subject.
 FINAL = {'COMPLETE', 'FAILED', 'ABORTED'}
 
 
@@ -119,12 +124,13 @@ class ChildAdmission:
     """
 
     def __init__(self, *, model_app, prism_app, host, models, run, operations,
-                 clock=time.monotonic, ack_seconds=5, upload_seconds=15, poll_seconds=.025):
+                 clock=time.monotonic, ack_seconds=10, upload_seconds=15, poll_seconds=.025):
         self.model_app, self.prism_app, self.host = model_app, prism_app, host
         self.models, self.run, self.operations = models, Path(run), operations
         self.clock, self.ack_seconds = clock, ack_seconds
         self.upload_seconds, self.poll_seconds = upload_seconds, poll_seconds
         self.sequence, self.busy, self.ready_callback = 0, False, None
+        self.tasks = set()
 
     async def respond(self, send, code, value):
         await send({'type': 'http.response.start', 'status': code,
@@ -206,8 +212,13 @@ class ChildAdmission:
                 raise ValueError()
             with self.host.lock:
                 ticket = self.host.tickets.get(ticket_id)
-                if ticket is None or any(job.state not in FINAL for job in self.host.jobs.values()):
+                if (ticket is None or ticket.owner != PRISM_PRINCIPAL
+                        or any(job.state not in FINAL for job in self.host.jobs.values())):
                     raise Refused('PRISM_TICKET_OR_IDLE_HOST_REQUIRED')
+                # The same replay refusals the host applies in _start, before any charge.
+                if (ticket_id in self.host.consumed_tickets or plan in self.host.consumed_plans
+                        or (binding['scope'], binding['image_id'], binding['plan_id']) in self.host.consumed_ids):
+                    raise Refused('PRISM_PLAN_REPLAY')
                 # Existing frozen-plan validation, before any charge.
                 self.host._validate(ticket, binding, plan)
             pins = self.models[self.operations.PRISM]['pins']
@@ -294,23 +305,36 @@ class ChildAdmission:
             self._finish(request_id, success=False, response_sha256=sha(bytes(captured['body'])))
             self.busy = False
             return
-        asyncio.get_running_loop().create_task(self._watch(request_id, job_id))
+        task = asyncio.get_running_loop().create_task(self._watch(request_id, job_id))
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
 
     async def _watch(self, request_id, job_id):
-        """Report the authenticated terminal job state, never the execute 202."""
+        """Report the authenticated terminal job state, never the execute 202.
+
+        A job that is not terminal by its deadline may still be forwarding on the
+        GPU: that is an uncertain outcome, not a model failure. It is reported as
+        uncertain and this child stays busy, so no further work is admitted.
+        """
+        job = self.host.jobs.get(job_id)
+        if job is None:
+            self._finish(request_id, success=False, response_sha256=sha(b''))
+            self.busy = False
+            return
+        while job.state not in FINAL and self.clock() < job.deadline + WATCH_GRACE_SECONDS:
+            await asyncio.sleep(self.poll_seconds)
+        if job.state not in FINAL:
+            new_json(self.run / f'{request_id}.uncertain.json', {'request_id': request_id, 'pid': os.getpid()})
+            return
         try:
-            job = self.host.jobs[job_id]
-            deadline = job.deadline + 2
-            while job.state not in FINAL and self.clock() < deadline:
-                await asyncio.sleep(self.poll_seconds)
             status = self.host._status(job)
             success = status['state'] == 'COMPLETE'
             evidence = status['result'] if success else {'state': status['state'], 'error': status['error']}
-            self._finish(request_id, success=success, response_sha256=sha(canonical(evidence)))
+            response = sha(canonical(evidence))
         except Exception:
-            self._finish(request_id, success=False, response_sha256=sha(b''))
-        finally:
-            self.busy = False
+            success, response = False, sha(b'')
+        self._finish(request_id, success=success, response_sha256=response)
+        self.busy = False
 
 
 # ---------------------------------------------------------------------------
@@ -321,9 +345,13 @@ class ChildAdmission:
 class ParentAdmissions:
     """Turns child receipts into M1AdmissionConsumer calls; never dispatches itself."""
 
-    def __init__(self, run, *, consumer, ledger, child, window_id, operations):
+    def __init__(self, run, *, consumer, ledger, child, window_id, operations, readback_dir=None):
         self.run, self.consumer, self.ledger, self.child = Path(run), consumer, ledger, child
         self.window_id, self.operations = window_id, operations
+        # Readback comes from the Windows PostgreSQL adapter over SSH into its
+        # own directory; the child never writes there. Same-uid isolation is
+        # not claimed: the child is our code behind authenticated loopback.
+        self.readback_dir = Path(readback_dir) if readback_dir is not None else self.run / 'readback'
         self.requests, self.stop_reason = {}, None
 
     def _refuse(self, request_id, pid, code):
@@ -344,10 +372,15 @@ class ParentAdmissions:
                 continue
             self._admit(request_id, pid, value)
         for request_id, entry in self.requests.items():
-            if entry['state'] == 'ADMITTED':
-                self._observe(request_id, entry)
-            if entry['state'] == 'RESPONSE_OBSERVED':
-                self._readback(request_id, entry)
+            try:
+                if entry['state'] == 'ADMITTED':
+                    self._observe(request_id, entry)
+                if entry['state'] == 'RESPONSE_OBSERVED':
+                    self._readback(request_id, entry)
+            except Exception:
+                # A malformed receipt or consumer refusal stops admission; it is
+                # never retried and never relabels an observed model result.
+                entry['state'], self.stop_reason = 'RECEIPT_REFUSED', 'RECEIPT_OR_ACCOUNTING_REFUSED'
 
     def _admit(self, request_id, pid, value):
         if self.consumer.poisoned or self.consumer.active is not None:
@@ -377,16 +410,20 @@ class ParentAdmissions:
                                      **{key: job[key] for key in ('source_sha256', 'model_id', 'modality')}}
 
     def _observe(self, request_id, entry):
-        finished, abandoned = self.run / f'{request_id}.finished.json', self.run / f'{request_id}.abandoned.json'
-        if abandoned.is_file() and not finished.is_file():
-            self.consumer.ack_failed(entry['admission_id'])
-            entry['state'], self.stop_reason = 'UNCERTAIN_HANDOFF', 'ADMISSION_HANDOFF_UNCERTAIN'
-            return
+        finished = self.run / f'{request_id}.finished.json'
         if not finished.is_file():
+            for name, state, reason in (('abandoned', 'UNCERTAIN_HANDOFF', 'ADMISSION_HANDOFF_UNCERTAIN'),
+                                        ('uncertain', 'UNCERTAIN_OUTCOME', 'MODEL_OUTCOME_UNCERTAIN')):
+                if (self.run / f'{request_id}.{name}.json').is_file():
+                    # Sent or possibly still forwarding: consumed, never retried.
+                    self.consumer.ack_failed(entry['admission_id'])
+                    entry['state'], self.stop_reason = state, reason
+                    return
             return
         value = read_json(finished)
         if (value.get('request_id') != request_id or value.get('pid') != self.child.identity.pid
-                or type(value.get('success')) is not bool):
+                or type(value.get('success')) is not bool
+                or not re.fullmatch(r'[a-f0-9]{64}', str(value.get('response_sha256')))):
             self.stop_reason = 'COMPLETION_IDENTITY_CHANGED'
             entry['state'] = 'INVALID_COMPLETION'
             return
@@ -398,12 +435,14 @@ class ParentAdmissions:
             self.stop_reason = 'REQUEST_FAILED_NO_RETRY'
 
     def _readback(self, request_id, entry):
-        path = self.run / f'{request_id}.readback.json'
+        path = self.readback_dir / f'{request_id}.readback.json'
         if not path.is_file():
             return
         value = read_json(path)
-        if (set(value) != {'request_id', 'admission_id', 'readback_sha256', 'matches'}
-                or value['request_id'] != request_id or value['admission_id'] != entry['admission_id']):
+        if (type(value) is not dict or set(value) != {'request_id', 'admission_id', 'readback_sha256', 'matches'}
+                or value['request_id'] != request_id or value['admission_id'] != entry['admission_id']
+                or type(value['matches']) is not bool
+                or not re.fullmatch(r'[a-f0-9]{64}', str(value['readback_sha256']))):
             self.stop_reason = 'READBACK_IDENTITY_CHANGED'
             entry['state'] = 'INVALID_READBACK'
             return
@@ -576,30 +615,40 @@ def parent(args):
     if run.exists() or run.is_symlink() or not run.parent.resolve() == (PROJECT / 'runs').resolve():
         raise RuntimeError('FRESH_PROJECT_RUN_REQUIRED')
     run.mkdir(mode=0o700)
+    (run / 'readback').mkdir(mode=0o700)
     new_json(run / 'STARTED_ONCE', {'started_utc': time.time(), 'session_seconds': SESSION_SECONDS})
-    with socket.socket() as probe:
-        probe.bind(('127.0.0.1', PORT))
-    upstream = read_json(args.upstream_paths)
-    ledger = BatchLedger.for_continuation(
-        args.accounting, proposal_path=args.proposal, approval_path=args.approval,
-        proposal_sha256=args.proposal_sha256, approval_sha256=args.approval_sha256,
-        upstream_paths=upstream, installation_sha256=installation_digest(args.deploy))
-    ledger.acquire()
-    clock_origin = host_clock_origin()
-    if not (Path(args.accounting) / 'windows' / M1_SERVER).exists():
-        activate_continuation_window(ledger, window_id=M1_SERVER, clock_origin=clock_origin, gpu_uuid=M1_GPU0)
-    budget = BatchBudget(ledger, session_id=M1_SERVER, clock_origin=clock_origin)
-    lease = 'm1_server_' + uuid4().hex[:16]
-    budget.reserve_worker(lease)
+    result = {'window_id': M1_SERVER, 'automatic_retries': 0}
     disk, gpu, child, supervisor = ProjectDiskMonitor(PROJECT), GPU0Monitor(GPU), None, None
-    result = {'window_id': M1_SERVER, 'lease_id': lease, 'automatic_retries': 0}
+    ledger = budget = lease = service = None
     started = time.monotonic()
-    service = None
     try:
+        # Every refusable preflight happens BEFORE the window/lease exists:
+        # confirming a stop permanently closes the only Server window.
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', PORT))
         disk.start()
         gpu.start()
         if gpu.sample()['vram_mib'] > 64:
             raise RuntimeError('GPU0_NOT_IDLE_NO_ADOPTION')
+        models = operations.reviewed_models(Path(args.models).read_bytes(), read_json(args.prism_pins))
+        os.environ.update({key: value for key, value in child_environment(run).items()
+                           if key.startswith(('RETFOUND_', 'PRISM_', 'USPEC_'))})
+        from dr_support.providers.prism_bound import BoundLocalPRISM
+        if (BoundLocalPRISM(allow_cpu_fallback=False)._runtime_identity() != models[operations.PRISM]['pins']
+                or any(global_identity(model_id) != models[model_id]['pins'] for model_id in operations.GLOBAL_MODELS)):
+            raise RuntimeError('REVIEWED_MODEL_IDENTITY_CHANGED_BEFORE_RESERVATION')
+        ledger = BatchLedger.for_continuation(
+            args.accounting, proposal_path=args.proposal, approval_path=args.approval,
+            proposal_sha256=args.proposal_sha256, approval_sha256=args.approval_sha256,
+            upstream_paths=read_json(args.upstream_paths), installation_sha256=installation_digest(args.deploy))
+        ledger.acquire()
+        clock_origin = host_clock_origin()
+        if not (Path(args.accounting) / 'windows' / M1_SERVER).exists():
+            activate_continuation_window(ledger, window_id=M1_SERVER, clock_origin=clock_origin, gpu_uuid=M1_GPU0)
+        budget = BatchBudget(ledger, session_id=M1_SERVER, clock_origin=clock_origin)
+        candidate = 'm1_server_' + uuid4().hex[:16]
+        budget.reserve_worker(candidate)
+        lease = result['lease_id'] = candidate
         argv = [str(PROJECT / 'environments/prism-qa-torch213/bin/python'), '-I', '-B',
                 str(Path(__file__).resolve()), '--worker', '--deploy', str(args.deploy), '--run', str(run),
                 '--models', str(args.models), '--prism-pins', str(args.prism_pins)]
@@ -612,7 +661,7 @@ def parent(args):
                                              drain_seconds=20, monitor_seconds=2), child)
         consumer = M1AdmissionConsumer(ledger, budget, supervisor, child=child, lease_id=lease)
         service = ParentAdmissions(run, consumer=consumer, ledger=ledger, child=child,
-                                   window_id=M1_SERVER, operations=operations)
+                                   window_id=M1_SERVER, operations=operations, readback_dir=run / 'readback')
         announced = False
         while child.inspect():
             supervisor.tick()
@@ -644,15 +693,22 @@ def parent(args):
         result['stop_reason'] = service.stop_reason if service is not None else None
         result['requests'] = service.requests if service is not None else {}
         result['observed_session_seconds'] = round(time.monotonic() - started, 3)
-        for name, action in (('window_stop', lambda: budget.confirm_stop(lease, cleanup_confirmed=result['cleanup_confirmed'])),
-                             ('ledger_close', lambda: ledger.close(cleanup_confirmed=result['cleanup_confirmed']))):
+        actions = []
+        if lease is not None:
+            # Only a reserved lease is stopped; that confirmed stop closes the window.
+            actions.append(('window_stop', lambda: budget.confirm_stop(lease, cleanup_confirmed=result['cleanup_confirmed'])))
+        if ledger is not None and ledger.owned_lock is not None:
+            actions.append(('ledger_close', lambda: ledger.close(cleanup_confirmed=result['cleanup_confirmed'])))
+        for name, action in actions:
             try:
                 action()
                 result[name] = 'CONFIRMED'
             except BaseException as error:
                 # Uncertain stop keeps its reservation/quarantine; no refund or unlock.
                 result[name] = 'RETAINED_' + type(error).__name__
-        result['accounting'] = consumer.status() if service is not None else None
+        result['window_stop'] = result.get('window_stop', 'NO_LEASE_RESERVED')
+        result['ledger_close'] = result.get('ledger_close', 'NOT_OPENED')
+        result['accounting'] = service.consumer.status() if service is not None else None
         try:
             new_json(run / 'COMPLETE.json', result)
         except OSError:

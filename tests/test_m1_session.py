@@ -148,10 +148,21 @@ def test_trusted_readback_checks_persisted_provenance_not_http_success(monkeypat
 def parent(admission_rig, tmp_path):
     run = tmp_path / 'run'
     run.mkdir()
+    (run / 'readback').mkdir()
     service = session.ParentAdmissions(run, consumer=admission_rig.consumer, ledger=admission_rig.ledger,
                                        child=admission_rig.child, window_id=admission_rig.jobs[0]['window_id'],
-                                       operations=operations)
+                                       operations=operations, readback_dir=run / 'readback')
     return SimpleNamespace(rig=admission_rig, run=run, service=service)
+
+
+def finish(parent, request_id, success=True):
+    session.new_json(parent.run / f'{request_id}.finished.json', {
+        'request_id': request_id, 'pid': parent.rig.child.identity.pid, 'success': success,
+        'response_sha256': 'b' * 64})
+
+
+def trusted_readback(parent, name, **value):
+    session.new_json(parent.run / 'readback' / f'{name}.readback.json', value)
 
 
 def child_request(parent, job, number=1, **changes):
@@ -210,9 +221,14 @@ def test_full_cycle_response_then_trusted_readback_then_next_admission(parent):
     assert parent.rig.ledger.states[first['job_id']] == 'RESPONSE_RETAINED'
     # Readback is still pending: the next operation is refused, never queued.
     assert receipt(parent, f'{blocked}.refused.json')['code'] == 'ADMISSION_BUSY_READBACK_PENDING_OR_CLOSED'
+    # A readback receipt in the child-writable run directory is never trusted.
     session.new_json(parent.run / f'{request_id}.readback.json', {
         'request_id': request_id, 'admission_id': admitted['admission_id'], 'readback_sha256': 'c' * 64,
         'matches': True})
+    parent.service.service()
+    assert parent.rig.ledger.states[first['job_id']] == 'RESPONSE_RETAINED'
+    trusted_readback(parent, request_id, request_id=request_id, admission_id=admitted['admission_id'],
+                     readback_sha256='c' * 64, matches=True)
     parent.service.service()
     assert parent.rig.ledger.states[first['job_id']] == 'PASS_READBACK'
     third = child_request(parent, second, number=3)
@@ -257,11 +273,38 @@ def test_readback_for_another_admission_is_rejected(parent):
         'request_id': request_id, 'pid': parent.rig.child.identity.pid, 'success': True,
         'response_sha256': 'b' * 64})
     parent.service.service()
-    session.new_json(parent.run / f'{request_id}.readback.json', {
-        'request_id': request_id, 'admission_id': '0' * 64, 'readback_sha256': 'c' * 64, 'matches': True})
+    trusted_readback(parent, request_id, request_id=request_id, admission_id='0' * 64,
+                     readback_sha256='c' * 64, matches=True)
     parent.service.service()
     assert parent.service.stop_reason == 'READBACK_IDENTITY_CHANGED'
     assert parent.rig.ledger.states[job['job_id']] == 'RESPONSE_RETAINED'
+
+
+@pytest.mark.parametrize('bad', [{'matches': 'yes'}, {'readback_sha256': 'not-a-digest'}, {'extra': 1}])
+def test_malformed_trusted_readback_stops_cleanly_without_crashing_the_parent(parent, bad):
+    job = parent.rig.jobs[0]
+    request_id = child_request(parent, job)
+    parent.service.service()
+    admitted = receipt(parent, f'{request_id}.admitted.json')
+    finish(parent, request_id)
+    parent.service.service()
+    value = {'request_id': request_id, 'admission_id': admitted['admission_id'], 'readback_sha256': 'c' * 64,
+             'matches': True, **bad}
+    trusted_readback(parent, request_id, **value)
+    parent.service.service()  # Must not raise out of the service loop.
+    assert parent.service.stop_reason == 'READBACK_IDENTITY_CHANGED'
+    assert parent.rig.ledger.states[job['job_id']] == 'RESPONSE_RETAINED'
+
+
+def test_uncertain_prism_outcome_is_consumed_as_uncertain_never_as_model_failure(parent):
+    job = parent.rig.jobs[0]
+    request_id = child_request(parent, job)
+    parent.service.service()
+    session.new_json(parent.run / f'{request_id}.uncertain.json', {'request_id': request_id,
+                                                                   'pid': parent.rig.child.identity.pid})
+    parent.service.service()
+    assert parent.rig.ledger.states[job['job_id']] == 'SENT_OR_UNCERTAIN'
+    assert parent.service.stop_reason == 'MODEL_OUTCOME_UNCERTAIN'
 
 
 # -------------------------------------------------------------------- child
@@ -284,7 +327,9 @@ class FakeHost:
     def __init__(self, models):
         from threading import RLock
         self.lock, self.models = RLock(), models
-        self.tickets, self.jobs, self.validated = {'ticket_0001': object()}, {}, []
+        self.tickets = {'ticket_0001': SimpleNamespace(owner=session.PRISM_PRINCIPAL)}
+        self.jobs, self.validated = {}, []
+        self.consumed_tickets, self.consumed_plans, self.consumed_ids = set(), set(), set()
 
     def _validate(self, ticket, binding, plan):
         self.validated.append(plan)
@@ -408,8 +453,8 @@ def test_invalid_global_envelope_is_refused_before_admission(child, change):
 
 
 def prism_body(child, **binding_changes):
-    binding = {'source_sha256': '3' * 64, 'modality': 'UWF',
-               'model_pins': child.models['prism-dr-5fold']['pins'], **binding_changes}
+    binding = {'source_sha256': '3' * 64, 'modality': 'UWF', 'scope': 'scope', 'image_id': 'image',
+               'plan_id': 'plan_0001', 'model_pins': child.models['prism-dr-5fold']['pins'], **binding_changes}
     return json.dumps({'ticket_id': 'ticket_0001', 'binding': binding, 'plan_sha256': '9' * 64}).encode()
 
 
@@ -463,6 +508,48 @@ def test_prism_with_unreviewed_pins_or_busy_host_is_refused_before_admission(chi
     status, body = call(child.app, 'POST', '/v1/prism-bound/execute', prism_body(child))
     assert status == 409 and b'PRISM_TICKET_OR_IDLE_HOST_REQUIRED' in body
     assert not list(child.run.iterdir()) and not child.prism_app.calls
+
+
+@pytest.mark.parametrize('drift', ['consumed_ticket', 'consumed_plan', 'consumed_id', 'foreign_owner'])
+def test_replayed_or_foreign_prism_plan_is_refused_before_any_charge(child, drift):
+    if drift == 'consumed_ticket': child.host.consumed_tickets.add('ticket_0001')
+    elif drift == 'consumed_plan': child.host.consumed_plans.add('9' * 64)
+    elif drift == 'consumed_id': child.host.consumed_ids.add(('scope', 'image', 'plan_0001'))
+    else: child.host.tickets['ticket_0001'].owner = 'other-principal'
+    status, _ = call(child.app, 'POST', '/v1/prism-bound/execute', prism_body(child))
+    assert status == 409 and not list(child.run.iterdir()) and not child.prism_app.calls
+
+
+def test_prism_job_still_running_after_deadline_is_uncertain_and_keeps_admission_closed(child):
+    child.app.clock = lambda: 10.0 ** 9  # Already past the job deadline.
+    job = SimpleNamespace(state='FORWARD_STARTED', deadline=0)
+    original = child.prism_app
+
+    async def execute(scope, receive, send):
+        child.host.jobs['job_0001'] = job
+        await original(scope, receive, send)
+    child.app.prism_app = execute
+    child.app.ack_seconds = 10.0 ** 10  # Fake clock: rely on the auto parent, not the deadline.
+    stop = auto_parent(child)
+
+    async def scenario():
+        async def receive():
+            return {'type': 'http.request', 'body': prism_body(child), 'more_body': False}
+
+        async def send(message):
+            pass
+        await child.app({'type': 'http', 'method': 'POST', 'path': '/v1/prism-bound/execute', 'headers': []},
+                        receive, send)
+        for _ in range(100):
+            if list(child.run.glob('*.uncertain.json')):
+                break
+            await asyncio.sleep(.01)
+    try:
+        asyncio.run(scenario())
+    finally:
+        stop.set()
+    assert list(child.run.glob('*.uncertain.json')) and not list(child.run.glob('*.finished.json'))
+    assert child.app.busy  # Possibly still forwarding: no further admission from this child.
 
 
 def test_second_charged_request_while_busy_is_rejected_without_receipt(child):
