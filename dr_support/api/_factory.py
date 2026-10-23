@@ -189,6 +189,7 @@ def create_app(
     source_mutation_gate=None,
     workspace_authority=None,
     workspace_prism_provider=None,
+    workspace_global_probe=None,
 ):
     # Reject an invalid private boundary before creating stores or migrating DBs.
     # Availability is deliberately not checked here: review remains usable offline.
@@ -209,6 +210,10 @@ def create_app(
                 or url.query or url.fragment or str(url).rstrip('/') != deployment.model_endpoint
                 or identity['descriptor'].get('ready') is not True):
             raise ValueError('The owned model channel must match the configured loopback endpoint and loaded identity')
+        # USPEC/RETFound grading stays on the existing remote providers. Their
+        # one authenticated startup discovery is cached; later GETs never probe.
+        if type(workspace_global_probe) is not ModelGatewayProbe or not workspace_global_probe.verified:
+            raise ValueError('The owned session requires a verified startup Model API discovery')
         reader = workspace_authority.context_reader
         reader.preflight_runtime_database(PostgresDatabase(PostgresSettings.from_env()))
         workspace_authority._ready()
@@ -494,7 +499,9 @@ def create_app(
             (os.environ.get('REMOTE_MODEL_NAME') or 'Model API').strip(), deployment.model_endpoint,
             os.environ.get('REMOTE_MODEL_TOKEN') or None,
         )
-        app.state.model_connection_probe = None
+        app.state.model_connection_probe = workspace_global_probe
+        # Global providers are added from the cached discovery once the
+        # provider helpers below exist; PRISM is only the owned bound provider.
         app.state.providers = {'prism-dr-5fold': workspace_prism_provider}
     elif runtime == 'remote':
         app.state.remote_runtime = True
@@ -572,6 +579,20 @@ def create_app(
             providers[provider.model_id] = provider
         return providers
 
+    workspace_global_descriptors = ()
+    if workspace_authority is not None:
+        workspace_global_descriptors = tuple(
+            dict(item) for item in workspace_global_probe.models
+            if item.get('task') == 'global' and item.get('model_id') != 'prism-dr-5fold'
+        )
+        global_providers = providers_from_probe(app.state.model_connection, ModelGatewayProbe(
+            *(getattr(workspace_global_probe, key) for key in (
+                'server_reachable', 'api_contract_valid', 'connection_verified', 'capabilities_ready',
+                'status', 'message')),
+            workspace_global_descriptors, workspace_global_probe.descriptor_status,
+        ))
+        app.state.providers = {**global_providers, 'prism-dr-5fold': workspace_prism_provider}
+
     def workspace_cached_probe():
         from ..providers.prism_workspace_remote import WorkspaceRemotePRISM
         with writer_scope(app.state.source_mutation_gate, invalidate=False):
@@ -589,9 +610,28 @@ def create_app(
             except (ValueError, RuntimeError, AttributeError):
                 raise HTTPException(409, 'The model session changed. Stop and restart with the approved configuration.') from None
             return ModelGatewayProbe(True, True, True, True, 'CONNECTED',
-                'Last authenticated model identity is available; inference is not verified.', (descriptor,))
+                'Last authenticated model identity is available; inference is not verified.',
+                (*workspace_global_descriptors, descriptor))
 
     owned_connection_token = app.state.model_connection.token if workspace_authority is not None else None
+
+    def owned_connection(request: ModelConnectionInput) -> ModelConnection:
+        """Allow only a display-name change of the owned session connection.
+
+        URL or token replacement is refused before any probe or state change:
+        the owned channel, authority and plans are bound to the configured
+        endpoint, so a swap requires stopping and restarting the session.
+        """
+        try:
+            candidate = ModelConnection(request.name, request.url, request.token or owned_connection_token)
+        except DeploymentProfileError as exc:
+            raise HTTPException(422, str(exc)) from None
+        if (candidate.url != deployment.model_endpoint
+                or (request.token is not None and request.token != owned_connection_token)):
+            raise HTTPException(
+                409, 'The model connection is fixed for this session. Stop and restart with the approved configuration.',
+            )
+        return candidate
 
     @guard_writes(lambda: None if workspace_authority is not None else app.state.source_mutation_gate)
     def refresh_remote_state():
@@ -1066,10 +1106,19 @@ def create_app(
         eligible=qa_batch_profile.preview_eligible if qa_batch_profile is not None else qa_fixed_session.preview_eligible if qa_fixed_session else is_inference_eligible,
         route=preview_route,
         map_result=map_lesion_result_to_review, inference_lock=inference_lock,
+        workspace_authority=workspace_authority,
     )
+    if workspace_authority is not None:
+        register_plan = preview_runtime.register_workspace_plan
+    elif qa_batch_profile is not None:
+        register_plan = qa_batch_profile.register_preview_plan
+    elif qa_fixed_session is not None:
+        register_plan = qa_fixed_session.register_preview_plan
+    else:
+        register_plan = None
+    # Installed before the routes below capture the service.
     app.state.prism_preview = PrismPreviewService(preview_runtime.snapshot, preview_runtime.execute,
-                                                refresh=preview_runtime.refresh,
-                                                register_plan=qa_batch_profile.register_preview_plan if qa_batch_profile is not None else qa_fixed_session.register_preview_plan if qa_fixed_session else None)
+                                                refresh=preview_runtime.refresh, register_plan=register_plan)
     install_prism_preview_routes(app, app.state.prism_preview)
 
     @app.post('/v1/infer/global', response_model=GlobalResult)
@@ -1196,4 +1245,8 @@ def create_app(
     if qa_fixed_session is not None:
         qa_fixed_session.bind(app)
         qa_fixed_session.seal()
+    if workspace_authority is not None:
+        # One-use bind after every store/provider/preview object exists and
+        # before the app is exposed; the composition decorator holds the lock.
+        workspace_authority.context_reader.bind(app, workspace_authority.gate)
     return app

@@ -411,6 +411,62 @@ def test_unknown_store_or_provider_never_uses_duck_typed_data_access(rig):
     assert rig.queries == []
 
 
+def _workspace_provider(tmp_path, monkeypatch, *, negotiate=True):
+    from dr_support.providers.prism_workspace_remote import WorkspaceRemotePRISM, WorkspaceStatusReader
+    from dr_support.services import prism_workspace_authority as core
+    from dr_support.services.prism_remote_transport import BASE
+    monkeypatch.setattr(core, 'private_hospital_root', lambda *a, **k: True)
+    pins = dict(model_id=MODEL_ID, source_revision='synthetic-reviewed-revision',
+                preprocessing='synthetic-reviewed-preprocessing', config_sha256='a' * 64,
+                checkpoint_sha256={'Final Models/fold 0/weights/best.pt': 'b' * 64})
+    caps = dict(transport=TRANSPORT, binding_protocol=PROTOCOL, epoch='synthetic-worker-epoch', pins=pins,
+                workspace_runtime=dict(profile='HOSPITAL_M1', modalities=['CFP', 'UWF'],
+                    authorized_source_origins=['SYNTHETIC'], native_entry_protocol=PROTOCOL, load_state='LOADED'))
+    requests = []
+
+    def endpoint(request):
+        requests.append(request.url.path)
+        if request.url.path == BASE + '/capabilities':
+            return httpx.Response(200, json=caps)
+        if request.url.path == BASE + '/readiness':
+            return httpx.Response(200, json=dict(state='LOADED', pins=pins, epoch='synthetic-worker-epoch'))
+        pytest.fail('Unexpected route: ' + request.url.path)
+    channel = ExplicitHttpChannel('http://127.0.0.1:48765', transport=httpx.MockTransport(endpoint),
+                                  auth_headers=lambda *_: {})
+    fence = SimpleNamespace(read=lambda: None, acquire=lambda **_: None, recover=lambda: None)
+    authority = core.WorkspaceAuthority(tmp_path / 'synthetic-authority', context_reader=lambda _image: None,
+                                        database_fence=fence, authenticated_status_reader=WorkspaceStatusReader(channel))
+    value = WorkspaceRemotePRISM(channel, source_authority=authority, expected_pins=pins)
+    if negotiate:
+        value.negotiate()
+    return value, requests, authority
+
+
+def test_negotiated_workspace_provider_is_a_reviewed_context_object_without_rpc(rig, tmp_path, monkeypatch):
+    selected, requests, authority = _workspace_provider(tmp_path, monkeypatch)
+    try:
+        rig.app.state.providers[MODEL_ID] = selected
+        negotiated = list(requests)
+        context = rig.reader(rig.image.image_id)
+        assert context['objects'][1] is selected
+        assert context['model_pins']['checkpoint_sha256'] == {'Final Models/fold 0/weights/best.pt': 'b' * 64}
+        assert context['runtime_context']['model']['worker_epoch'] == 'synthetic-worker-epoch'
+        assert requests == negotiated  # Cache-only identity: no RPC during context reads.
+    finally:
+        authority.close()
+
+
+def test_unnegotiated_workspace_provider_is_refused_without_rpc(rig, tmp_path, monkeypatch):
+    selected, requests, authority = _workspace_provider(tmp_path, monkeypatch, negotiate=False)
+    try:
+        rig.app.state.providers[MODEL_ID] = selected
+        with pytest.raises(WorkspaceContextError):
+            rig.reader(rig.image.image_id)
+        assert requests == [] and rig.queries == []
+    finally:
+        authority.close()
+
+
 def test_writer_or_generation_change_is_refused_but_fenced_inspection_is_supported(rig):
     with rig.gate.writer():
         with pytest.raises(WorkspaceContextError, match='WRITER_ACTIVE'): rig.reader(rig.image.image_id)

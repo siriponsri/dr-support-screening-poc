@@ -19,6 +19,7 @@ from ..imaging import DerivativeService
 from ..persistence import PostgresCaseStore, PostgresDatabase, PostgresSettings, PostgresWorkspaceCatalog
 from ..persistence.entry_fence_plan import EntryFencePlan
 from ..providers.prism_remote_bound import ExplicitHttpChannel, RemoteBoundTransportCandidate
+from ..providers.prism_workspace_remote import WorkspaceRemotePRISM
 from .prism_preview import MAX_BYTES, MODEL_ID, canonical, preparation_context, sha
 from .prism_remote_transport import PROTOCOL, TRANSPORT
 from .source_identity import source_identity_reason
@@ -31,6 +32,9 @@ _SCOPE = ('dr_support', 'dr_support_entry_guard', 'dr_support_m1_owner_test',
           'dr_support_m1_runtime_test', 'dr_support_m1_authority_test')
 _CONTEXT_LIMIT = 8 * 1024 * 1024
 _PROTECTED_TABLES = ['workspaces', 'review_cases', 'legacy_migration_receipts']
+# Exact reviewed classes only. Each one's own cache-only identity method is
+# called through the class, so an instance override cannot introduce an RPC.
+_REVIEWED_PROVIDERS = (RemoteBoundTransportCandidate, WorkspaceRemotePRISM)
 
 
 class WorkspaceContextError(RuntimeError):
@@ -242,7 +246,7 @@ class WorkspaceContextReader:
         store, manager = state.store, state.workspace_manager
         provider, derivatives = state.providers.get(MODEL_ID), state.derivatives
         _require(type(store) is PostgresCaseStore and type(manager) is WorkspaceManager
-                 and type(provider) is RemoteBoundTransportCandidate and type(derivatives) is DerivativeService,
+                 and type(provider) in _REVIEWED_PROVIDERS and type(derivatives) is DerivativeService,
                  'M1_CONTEXT_REVIEWED_OBJECTS_REQUIRED')
         self._database(store.database)
         _require(state.source_mutation_gate is self._gate
@@ -258,9 +262,10 @@ class WorkspaceContextReader:
 
     @staticmethod
     def _pins(provider):
-        _require(type(provider.capabilities) is dict, 'M1_CONTEXT_CACHED_PINS_REQUIRED')
+        _require(type(provider) in _REVIEWED_PROVIDERS and type(provider.capabilities) is dict,
+                 'M1_CONTEXT_CACHED_PINS_REQUIRED')
         # Call the reviewed implementation, never an overridden method/RPC hook.
-        identity = RemoteBoundTransportCandidate.prism_preview_identity(provider)
+        identity = type(provider).prism_preview_identity(provider)
         pins = identity['model_pins']
         _require(type(pins) is dict and set(pins) == {
             'model_id', 'source_revision', 'preprocessing', 'config_sha256', 'checkpoint_sha256'}
@@ -269,7 +274,8 @@ class WorkspaceContextReader:
                     for key in ('source_revision', 'preprocessing'))
             and _digest(pins['config_sha256']) and type(pins['checkpoint_sha256']) is dict
             and 0 < len(pins['checkpoint_sha256']) <= 64
-            and all(type(key) is str and 0 < len(key) <= 200 and _digest(value)
+            # Same opaque checkpoint-name bound as the reviewed authority pins.
+            and all(type(key) is str and 0 < len(key) <= 512 and key.isprintable() and _digest(value)
                     for key, value in pins['checkpoint_sha256'].items()), 'M1_CONTEXT_REVIEWED_PIN_SCHEMA_REQUIRED')
         return pins
 
