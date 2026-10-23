@@ -419,6 +419,15 @@ def verify_persisted(case, entry, models, operations):
     return latest, all(checks)
 
 
+# Cases are keyed by image_id; the source hash is recorded on each inference entry.
+CASE_BY_SOURCE = ("SELECT payload FROM {}.review_cases WHERE workspace_id=%s AND "
+                  "(case_id=%s OR payload->'inference_history' @> %s::jsonb)")
+
+
+def case_parameters(workspace_id, source_sha256):
+    return (workspace_id, source_sha256, json.dumps([{'source_sha256': source_sha256}]))
+
+
 def readback(args):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'model-server'))
     import m1_operations as operations
@@ -430,11 +439,9 @@ def readback(args):
         with database.session(autocommit=False) as connection:
             with connection.transaction():
                 connection.execute('SET TRANSACTION READ ONLY')
-                rows = connection.execute(sql.SQL(
-                    "SELECT payload FROM {}.review_cases WHERE workspace_id=%s AND "
-                    "(payload->>'source_sha256'=%s OR payload->>'image_sha256'=%s)").format(
-                        sql.Identifier(database.settings.schema)),
-                    (args.workspace_id, entry['source_sha256'], entry['source_sha256'])).fetchall()
+                rows = connection.execute(sql.SQL(CASE_BY_SOURCE).format(
+                    sql.Identifier(database.settings.schema)),
+                    case_parameters(args.workspace_id, entry['source_sha256'])).fetchall()
     require(len(rows) == 1, 'EXACT_PERSISTED_CASE_REQUIRED')
     persisted, matches = verify_persisted(rows[0][0], entry, models, operations)
     value = {'request_id': request_id, 'admission_id': entry['admission_id'],
