@@ -76,6 +76,7 @@ from ..services.prism_preview import PrismPreviewService, install_prism_preview_
 from ..services.prism_preview_runtime import ReviewPrismPreview
 from ..services.workspaces import WorkspaceManager
 from ..services.resolver import ResolverService
+from ..services.source_mutation_gate import MutationFenced, SourceMutationGate, guard_writes, writer_scope
 from ..services.model_gateway import (
     ModelConnection,
     ModelGatewayProbe,
@@ -159,15 +160,23 @@ def create_app(
     workspace_id: str | None = None,
     qa_fixed_session=None,
     qa_batch_profile=None,
+    source_mutation_gate=None,
 ):
     # Reject an invalid private boundary before creating stores or migrating DBs.
     # Availability is deliberately not checked here: review remains usable offline.
     validate_deployment_environment()
+    if source_mutation_gate is not None:
+        if (type(source_mutation_gate) is not SourceMutationGate
+                or source_mutation_gate.snapshot().state != 'OPEN'):
+            raise ValueError('An open source mutation gate must be explicitly injected')
+        if qa_fixed_session is not None or qa_batch_profile is not None:
+            raise ValueError('Source mutation gates cannot be combined with isolated QA sessions')
     if qa_batch_profile is not None:
         from batch_profile import TechnicalBatchProfile
         if type(qa_batch_profile) is not TechnicalBatchProfile or qa_fixed_session is not None:
             raise ValueError('Explicit isolated batch profile required')
     app = FastAPI(title='Retinal Review Workbench', version='0.7.0')
+    app.state.source_mutation_gate = source_mutation_gate
     root = Path(__file__).resolve().parents[2]
 
     if qa_fixed_session is not None:
@@ -202,10 +211,12 @@ def create_app(
     app.state.workspace_admission_ids = set()
     app.state.resolver = ResolverService()
     app.state.derivatives = DerivativeService()
+    if selected_store is not None and source_mutation_gate is not None:
+        selected_store.source_mutation_gate = source_mutation_gate
     if qa_fixed_session is not None:
         workspace_manager = WorkspaceManager.for_fixed_qa_store(root, selected_store)
     elif selected_store is None:
-        workspace_manager = WorkspaceManager(root, state_path=state_path)
+        workspace_manager = WorkspaceManager(root, state_path=state_path, source_mutation_gate=source_mutation_gate)
     else:
         workspace_manager = WorkspaceManager(
             root,
@@ -213,7 +224,10 @@ def create_app(
             database_status="postgres",
             database_path="Managed PostgreSQL storage",
             postgres_database=postgres_database,
+            source_mutation_gate=source_mutation_gate,
         )
+    if source_mutation_gate is not None:
+        workspace_manager.store.source_mutation_gate = source_mutation_gate
     install_workflow(app, workspace_manager.store, persist_automatic_updates=not (
         qa_batch_profile is not None and qa_batch_profile.saved_results_only
     ))
@@ -226,6 +240,13 @@ def create_app(
     @app.exception_handler(CaseConflictError)
     async def case_conflict(_request, _exc):
         return JSONResponse({"detail": "Case changed; reload"}, status_code=409)
+
+    @app.exception_handler(MutationFenced)
+    async def mutation_fenced(_request, _exc):
+        return JSONResponse({"detail": (
+            "Changes are paused while a model operation is being verified. "
+            "Keep your unsaved work and try again later."
+        )}, status_code=409)
 
     def previous_source_records():
         """Index persisted workspace references without changing case identity."""
@@ -252,6 +273,7 @@ def create_app(
                         previous[reference] = admission
         return previous
 
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def mark_missing_sources(scan):
         """Retain missing-source evidence without reintroducing deleted cases."""
         current_references = {
@@ -296,6 +318,7 @@ def create_app(
                 warnings.append(f"{admission.get('filename') or case.get('image_id')}: source is missing.")
         return warnings
 
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def apply_scan(scan):
         """Replace workspace-discovered records while preserving manual decisions."""
         store = app.state.store
@@ -359,6 +382,7 @@ def create_app(
         app.state.workspace_image_ids = set(scan.images)
         app.state.admission_warnings = list(scan.warnings) + missing_warnings
 
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def scan_active_workspace():
         if qa_fixed_session is not None:
             raise HTTPException(423, 'Fixed QA session excludes scans')
@@ -491,6 +515,7 @@ def create_app(
             providers[provider.model_id] = provider
         return providers
 
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def refresh_remote_state():
         if qa_fixed_session is not None:
             return None
@@ -558,6 +583,7 @@ def create_app(
         return response_payload(connection, probe=probe)
 
     @app.put('/v1/model-connection', response_model=ModelConnectionResponse)
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def save_model_connection(request: ModelConnectionInput):
         previous = getattr(app.state, 'model_connection', None)
         token = request.token
@@ -649,8 +675,9 @@ def create_app(
         if admission is None:
             # Every registry image must pass through an explicit compatibility
             # decision before it can reach either provider path.
-            admission = legacy_admission(image)
-            app.state.admissions[request.image_id] = admission
+            with writer_scope(app.state.source_mutation_gate):
+                admission = legacy_admission(image)
+                app.state.admissions[request.image_id] = admission
         if not source_allowed_for_model(admission.get('source_origin', 'UNKNOWN')):
             raise HTTPException(
                 409,
@@ -814,9 +841,12 @@ def create_app(
             raise HTTPException(503, 'AI analysis is not available.') from None
         except RemoteModelError as exc:
             raise HTTPException(502, f'Remote model error: {exc}') from None
+        except MutationFenced:
+            raise
         except (RuntimeError, ValueError, KeyError, OSError, ImportError):
             raise HTTPException(503, 'Model unavailable; inspect Models readiness and runtime configuration') from None
 
+    @guard_writes(lambda: app.state.source_mutation_gate)
     def save_result(
         request,
         task,
