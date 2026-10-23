@@ -57,7 +57,12 @@ at execution, so a bootstrap snapshot is not a permanent permission grant.
 
 Authentication still runs before body reads or dispatch. Lifespan still loads
 exactly once before actual `LOADED` readiness. Readiness proves loaded pins,
-not inference. This module starts no listener/process, discovers no credentials,
+not inference. The enabled host's authenticated capabilities require matching
+actually loaded pins and add `workspace_runtime` with `profile: HOSPITAL_M1`,
+CFP/UWF modalities, currently policy-authorized source origins,
+`native_entry_protocol` and `load_state: LOADED`. `runtime_registered` remains
+false: this metadata alone is neither client registration nor inference proof.
+The old fixed-host capabilities stay unchanged. This module starts no listener/process, discovers no credentials,
 selects no environment profile, changes no service lifetime and registers no
 factory/provider/client readiness.
 
@@ -67,7 +72,8 @@ Synthetic tests exercise the exact provider/native loop with fake model ports:
 CFP/UWF wire/origin preservation; public/synthetic/explicit hospital policy;
 denied and ungradable admission; altered bytes, pins, source hashes and replay;
 one-load/warmup/failure poisoning; fatal hook before native ROI and recoverable
-ROI fallback; bootstrap deadline bounds and auth-before-body; old host defaults.
+ROI fallback; bootstrap deadline bounds and auth-before-body; actual loaded
+capabilities versus unloaded/changed pins and revoked source policy; old host defaults.
 No Torch/CV2, network/listener, DB, ACL, SSH or GPU execution is permitted in
 these tests. Synthetic empty predictions are not clinical negative findings.
 

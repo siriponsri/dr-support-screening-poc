@@ -367,7 +367,8 @@ def test_wrapper_missing_parent_bootstrap_fails_closed(rig, monkeypatch):
 
 @pytest.mark.parametrize('headers', [[], [(b'authorization', b'Bearer invalid')],
     [(b'authorization', b'Bearer ' + b'x' * 64)] * 2])
-def test_wrapper_reuses_auth_before_body_and_model_load(rig, headers):
+@pytest.mark.parametrize('path', ['/execute', '/capabilities'])
+def test_wrapper_reuses_auth_before_body_and_model_load(rig, headers, path):
     app, host = child(rig)
     assert host.allowed_origins == frozenset({'PUBLIC', 'SYNTHETIC'}) and host.job_seconds == 120
 
@@ -380,7 +381,7 @@ def test_wrapper_reuses_auth_before_body_and_model_load(rig, headers):
         async def send(event):
             sent.append(event)
 
-        await app({'type': 'http', 'method': 'POST', 'path': BASE + '/execute', 'headers': headers}, forbidden, send)
+        await app({'type': 'http', 'method': 'POST', 'path': BASE + path, 'headers': headers}, forbidden, send)
         assert sent[0]['status'] == 401
 
     finish(run())
@@ -437,6 +438,45 @@ def test_child_lifespan_loads_once_and_readiness_is_actual_loaded_pins_only(rig,
     assert rig.calls['load'] == 1 and rig.calls['roi'] == 0
 
 
+def test_workspace_capabilities_require_actual_loaded_pins_without_forward(rig):
+    _, host = child(rig)
+    status, error = host.handle('GET', BASE + '/capabilities', {}, b'')
+    assert status == 503 and error['error'] == 'OWNED_MODEL_NOT_LOADED_WITH_PINS'
+    assert rig.calls['load'] == rig.calls['roi'] == 0
+    load(rig)
+    status, caps = host.handle('GET', BASE + '/capabilities', {}, b'')
+    assert status == 200 and caps['pins'] == rig.pins and caps['runtime_registered'] is False
+    assert caps['workspace_runtime'] == {
+        'profile': 'HOSPITAL_M1', 'modalities': ['CFP', 'UWF'],
+        'authorized_source_origins': ['PUBLIC', 'SYNTHETIC'],
+        'native_entry_protocol': caps['binding_protocol'], 'load_state': 'LOADED',
+    }
+    assert rig.calls['load'] == 1 and rig.calls['roi'] == 0
+    rig.provider._loaded_identity['config_sha256'] = 'a' * 64
+    status, error = host.handle('GET', BASE + '/capabilities', {}, b'')
+    assert status == 503 and error['error'] == 'OWNED_MODEL_NOT_LOADED_WITH_PINS'
+    assert rig.calls['load'] == 1 and rig.calls['roi'] == 0
+
+
+def test_capabilities_recheck_hospital_policy_and_do_not_expand_bootstrap_scope(rig, monkeypatch):
+    for key, value in {'MODEL_HOSPITAL_SCOPE': 'PRIVATE_PROJECT_EVALUATION',
+                       'MODEL_ALLOW_AUTHORIZED_HOSPITAL': '1',
+                       'REMOTE_MODEL_TOKEN': 'synthetic-test-token-not-a-credential'}.items():
+        monkeypatch.setenv(key, value)
+    _, host = child(rig)
+    load(rig)
+    status, caps = host.handle('GET', BASE + '/capabilities', {}, b'')
+    assert status == 200
+    assert caps['workspace_runtime']['authorized_source_origins'] == ['HOSPITAL_AUTHORIZED', 'PUBLIC', 'SYNTHETIC']
+    monkeypatch.delenv('MODEL_ALLOW_AUTHORIZED_HOSPITAL')
+    status, caps = host.handle('GET', BASE + '/capabilities', {}, b'')
+    assert status == 200 and caps['workspace_runtime']['authorized_source_origins'] == ['PUBLIC', 'SYNTHETIC']
+    host.allowed_origins = frozenset({'WORKSPACE'})
+    status, error = host.handle('GET', BASE + '/capabilities', {}, b'')
+    assert status == 503 and error['error'] == 'WORKSPACE_LOADED_PINS_OR_SOURCE_SCOPE_CHANGED'
+    assert rig.calls['roi'] == 0
+
+
 @pytest.mark.parametrize('modality', ['CFP', 'UWF'])
 def test_workspace_host_optin_accepts_ordinary_preparation_and_replay_remains_blocked(rig, modality):
     _, host = child(rig)
@@ -474,6 +514,8 @@ def test_default_child_remains_synthetic_uwf_only(rig):
     legacy = LoadedPrismExecutor(rig.provider, expected_pins=rig.pins, load_guard=fake_guard)
     _, host = child_application(legacy, token='x' * 64, issue_id=lambda: 'legacy_fixture_id', epoch='legacy_epoch')
     assert host.allowed_origins == frozenset({'SYNTHETIC'}) and host.job_seconds == 30
+    status, caps = host.handle('GET', BASE + '/capabilities', {}, b'')
+    assert status == 200 and 'workspace_runtime' not in caps
     value = {'wire_b64': base64.b64encode(rig.wire.data).decode(), 'wire_sha256': rig.wire.sha256,
              'wire_media_type': 'image/png', 'modality': 'CFP'}
     status, result = host.handle('POST', BASE + '/prepare', {'x-prism-epoch': host.epoch}, canonical(value))
