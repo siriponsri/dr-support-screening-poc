@@ -118,6 +118,29 @@ def test_invalid_selected_port_is_refused_without_echo_or_action(port, capsys):
     assert not capsys.readouterr().out
 
 
+def test_prepare_never_loads_a_token_or_model_connection(monkeypatch):
+    import uvicorn
+    import dr_support.api._factory as factory
+
+    calls = []
+    monkeypatch.setattr(launcher, 'port_free', lambda port: True)
+    monkeypatch.setattr(launcher, 'host_token', lambda **_: pytest.fail('No token in manual prepare'))
+    monkeypatch.setattr(launcher, 'owned_tunnel', lambda *_: pytest.fail('No tunnel in manual prepare'))
+
+    @contextmanager
+    def fake_environment(**kwargs):
+        assert kwargs == {'workspace_id': 'ws_m1_synthetic'}
+        calls.append('environment')
+        yield
+    monkeypatch.setattr(launcher, 'session_environment', fake_environment)
+    monkeypatch.setattr(factory, 'create_app', lambda **kwargs: calls.append(kwargs) or SimpleNamespace(
+        state=SimpleNamespace(model_connection=None)))
+    monkeypatch.setattr(uvicorn, 'run', lambda *args, **kwargs: calls.append('fake-app'))
+    assert launcher.main(['prepare', '--workspace-id', 'ws_m1_synthetic', '--app-port', '48124']) == 0
+    assert calls[0] == 'environment' and calls[1]['workspace_id'] == 'ws_m1_synthetic' and calls[2] == 'fake-app'
+    assert launcher.main(['prepare', '--workspace-id', 'other']) == 2
+
+
 def test_opted_in_serve_passes_selection_without_real_network_or_app(monkeypatch, tmp_path):
     import uvicorn
 

@@ -298,6 +298,26 @@ def compose(workspace_id, prism_pins, model_port, token):
     return app, authority, channel
 
 
+def prepare(args):
+    """Manual-mode review app on the TEST_ONLY workspace: no model, token, tunnel or GPU.
+
+    Used before the bounded GPU window to scan the private roots and confirm
+    image context, so the session spends its time on model work only.
+    """
+    import uvicorn
+    from dr_support.api._factory import create_app
+    require(isinstance(args.workspace_id, str) and args.workspace_id.startswith('ws_m1_'), 'M1_WORKSPACE_ID_REQUIRED')
+    require(port_free(args.app_port), 'FREE_APP_PORT_REQUIRED')
+    with session_environment(workspace_id=args.workspace_id):
+        app = create_app(include_samples=False, include_demo_fixtures=False, case_store_mode='postgres',
+                         workspace_id=args.workspace_id)
+        require(app.state.model_connection is None, 'MANUAL_MODE_REQUIRED')
+        print(json.dumps({'phase': 'PREPARE_MANUAL_MODE', 'url': f'http://127.0.0.1:{args.app_port}/app/',
+                          'workspace_id': args.workspace_id, 'model_connection': None}), flush=True)
+        uvicorn.run(app, host='127.0.0.1', port=args.app_port, workers=1, access_log=False)
+    return 0
+
+
 def serve(args):
     # Refuse before file/config reads, probes, SSH, tunnel or app construction.
     require_remote_token_opt_in(getattr(args, 'allow_remote_token_read', False))
@@ -428,7 +448,7 @@ def readback(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('command', choices=['diagnose', 'workspace', 'serve', 'readback'])
+    parser.add_argument('command', choices=['diagnose', 'workspace', 'prepare', 'serve', 'readback'])
     parser.add_argument('--allow-remote-token-read', action='store_true',
                         help='Only after owner approval: read the existing dr-train Model API token '
                              'over SSH into this Windows process memory. Disabled by default.')
@@ -446,6 +466,8 @@ def main(argv=None):
         if args.command == 'workspace':
             create_workspace(args.name)
             return 0
+        if args.command == 'prepare':
+            return prepare(args)
         return serve(args) if args.command == 'serve' else readback(args)
     except SessionError as error:
         print(json.dumps({'status': 'REFUSED', 'code': str(error)}), file=sys.stderr)
