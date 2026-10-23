@@ -28,6 +28,7 @@ import time
 from typing import Any
 import httpx
 from dr_support.services.source_policy import source_allowed_for_model
+from dr_support.services.deployment_profile import QA_LOCAL, resolve_deployment_profile
 from dr_support.contracts import (
     GlobalResult, LesionResult, Phase3PredictRequest, Phase3ResultEnvelope,
 )
@@ -114,6 +115,8 @@ class RemoteModelProvider:
 
     def _client(self, timeout: float) -> httpx.Client:
         kwargs = {'timeout': httpx.Timeout(timeout), 'follow_redirects': False}
+        if resolve_deployment_profile() == QA_LOCAL:
+            kwargs['trust_env'] = False
         if self._transport is not None:
             kwargs['transport'] = self._transport
         return httpx.Client(**kwargs)

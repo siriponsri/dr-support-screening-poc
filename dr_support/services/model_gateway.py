@@ -13,6 +13,7 @@ from .capability_routing import (
     capability_is_qualified,
     release_status_blocked,
 )
+from .deployment_profile import QA_LOCAL, resolve_deployment_profile, validate_model_endpoint
 
 
 EXPECTED_MODELS = EXPECTED_MODEL_TASKS
@@ -35,6 +36,9 @@ class ModelConnection:
     name: str
     url: str
     token: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "url", validate_model_endpoint(self.url))
 
 
 @dataclass(frozen=True)
@@ -158,6 +162,8 @@ def probe_model_connection(
         "timeout": httpx.Timeout(5.0),
         "follow_redirects": False,
     }
+    if resolve_deployment_profile() == QA_LOCAL:
+        client_options["trust_env"] = False
     if transport is not None:
         client_options["transport"] = transport
     try:
