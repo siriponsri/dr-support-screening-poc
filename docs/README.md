@@ -23,6 +23,10 @@ Canonical documentation for the Retinal Review Workbench:
 
 - [Hospital local QA findings and inferred minimum/maximum hardware spec (Thai, draft)](planning/HOSPITAL_LOCAL_QA_MIN_MAX_DRAFT_TH_20261023.md) — evidence-based planning; not hospital load-test, deployment, or clinical acceptance.
 
+## Handoff snapshots
+
+- [Pepo GPT Dot handoff, 23 October 2026](developer/PEPO_GPT_DOT_HANDOFF_20261023.md) — current evidence, blockers, ownership and next actions; does not replace operating guides or normative specifications.
+
 The milestone documents under `milestone/` and architecture decisions under
 `adr/` preserve historical requirements, decisions, and closeout evidence.
 They should not be used as the daily workstation runbook unless an operating
