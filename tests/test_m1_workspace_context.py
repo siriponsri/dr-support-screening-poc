@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import replace
+from datetime import datetime, timezone
 from threading import Event, RLock
 from types import SimpleNamespace
 
@@ -146,6 +147,33 @@ def test_complete_raw_case_and_catalog_use_one_read_only_statement_without_enric
     assert len(queries) == 1 and 'JOIN "dr_support".workspaces' in queries[0]
     assert 'to_jsonb(w)' in queries[0] and 'c.payload' in queries[0]
     assert rig.connection.closed
+
+
+@pytest.mark.parametrize('stamp', ['2026-10-23T00:00:00.12+00:00',
+                                  '2026-10-23T07:00:00.120000+07:00'])
+def test_jsonb_timestamp_projection_matches_actual_driver_datetime_without_rewriting_raw_row(rig, stamp):
+    fields = ('workspace_id', 'name', 'input_folder', 'output_folder', 'database_path', 'note',
+              'created_at', 'updated_at', 'last_opened')
+    timestamps = {'created_at', 'updated_at', 'last_opened'}
+    for key in timestamps:
+        rig.workspace[key] = stamp
+    # Catalog profile construction really receives aware driver datetimes.
+    instant = datetime(2026, 10, 23, microsecond=120000, tzinfo=timezone.utc)
+    rig.app.state.workspace_manager.active_workspace = PostgresWorkspaceCatalog._profile(tuple(
+        instant if key in timestamps else rig.workspace[key] for key in fields))
+    context = rig.reader(rig.image.image_id)
+    assert context['workspace'] == rig.workspace
+    assert all(context['workspace'][key] == stamp for key in timestamps)
+    assert rig.app.state.workspace_manager.active_workspace.created_at == '2026-10-23T00:00:00.120000+00:00'
+
+
+@pytest.mark.parametrize('field', ['created_at', 'updated_at', 'last_opened'])
+@pytest.mark.parametrize('stamp', ['invalid', '2026-10-23T00:00:00', 1792713600])
+def test_naive_invalid_or_non_jsonb_timestamp_is_refused(rig, field, stamp):
+    rig.workspace[field] = stamp
+    with pytest.raises(WorkspaceContextError, match='CATALOG_TIMESTAMP_INVALID'):
+        rig.reader(rig.image.image_id)
+    assert rig.workspace[field] == stamp
 
 
 def test_preflight_checks_actual_read_connection_before_any_factory_write(rig):

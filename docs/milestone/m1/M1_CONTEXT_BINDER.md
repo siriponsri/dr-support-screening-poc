@@ -88,6 +88,10 @@ complete `to_jsonb(workspaces)` catalog row and principal metadata from one
 statement snapshot in a read-only transaction. Identity/revision, loaded raw case,
 current admission and active workspace profile must agree. Raw catalog fields
 outside the profile projection remain in the returned context.
+Only the three profile-comparison timestamps are parsed as aware datetimes and
+passed through the existing catalog UTC formatting. Equivalent JSONB fractional
+seconds and timezone offsets therefore match actual driver-created profiles.
+Malformed or naive timestamps are refused; raw catalog JSON remains unchanged.
 
 The admitted source must be an exact `BridgeImage` with bounded immutable `bytes`.
 Its SHA-256 must agree with current admission and recorded case/source metadata.
