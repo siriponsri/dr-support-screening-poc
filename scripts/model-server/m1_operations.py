@@ -106,6 +106,20 @@ def operation(models, *, operation_id, purpose, window_id, **fact_arguments):
     return {**body, "job_id": digest(canonical(body))}
 
 
+def global_result_digest(value):
+    """Digest of the raw global result fields the review app persists unchanged.
+
+    Computed by the host child from the HTTP response and by the Windows
+    readback from PostgreSQL, so the readback is bound to this request's result.
+    """
+    require(type(value) is dict and type(value.get('provenance')) is dict, 'M1_GLOBAL_RESULT_REQUIRED')
+    provenance = value['provenance']
+    return digest(canonical({
+        **{key: value.get(key) for key in ('model_id', 'model_version', 'modality', 'state', 'grade', 'probabilities')},
+        'provenance': {key: provenance.get(key) for key in ('checkpoint_sha256', 'source_revision', 'image_sha256')},
+    }))
+
+
 def match_operation(jobs, observed, *, window_id, states):
     """Lowest-ID unattempted operation whose frozen facts equal the observed request."""
     require(type(observed) is dict and set(observed) == set(FACT_KEYS), "M1_EXACT_REQUEST_FACTS_REQUIRED")

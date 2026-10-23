@@ -41,13 +41,25 @@ def sha_file(path):
 
 
 def images(root):
-    files = sorted(path for path in Path(root).iterdir() if path.is_file() and path.suffix.lower() in {'.jpg', '.jpeg', '.png'})
-    return [sha_file(path) for path in files]
+    """Hashes of JPEG/PNG files in one approved private root, distinct by content."""
+    from dr_support.services.filesystem_privacy import has_reparse_component, private_hospital_root
+    root = Path(root)
+    operations.require(root.is_dir() and not has_reparse_component(root) and private_hospital_root(root),
+                       'APPROVED_PRIVATE_IMAGE_ROOT_REQUIRED')
+    files = sorted(path for path in root.iterdir() if path.is_file() and path.suffix.lower() in {'.jpg', '.jpeg', '.png'})
+    hashes = [sha_file(path) for path in files]
+    operations.require(len(set(hashes)) == len(hashes), 'DUPLICATE_IMAGE_CONTENT_REJECTED')
+    return hashes
 
 
 def plan(uwf, cfp):
     """Deterministic allocation: Server 9, Local 6 (inactive until qualified), post-fix 9."""
     require = operations.require
+    post_fix_sources = {source for _, source, _, _ in POST_FIX}
+    # Acceptance images never share a source with a post-fix verification, so an
+    # acceptance request can never consume a post-fix allocation (or vice versa).
+    uwf = [source for source in uwf if source not in post_fix_sources]
+    cfp = [source for source in cfp if source not in post_fix_sources]
     require(len(uwf) >= 5 and len(cfp) >= 5, 'FIVE_UWF_AND_FIVE_CFP_IMAGES_REQUIRED')
     rows = []
     for label, purpose, window, index in (('srv-fresh', 'server_acceptance', SERVER, 0),
@@ -62,6 +74,8 @@ def plan(uwf, cfp):
                   uwf[index] if prism_modality == 'UWF' else cfp[index], 'prism-dr-5fold', prism_modality)]
     rows += [(operation_id, 'post_fix_verification', SERVER, source, model_id, modality)
              for operation_id, source, model_id, modality in POST_FIX]
+    keys = [(window, source, model_id, modality) for _, _, window, source, model_id, modality in rows]
+    require(len(set(keys)) == len(keys), 'INDISTINGUISHABLE_OPERATIONS_REJECTED')
     return rows
 
 

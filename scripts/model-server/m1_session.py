@@ -1,4 +1,8 @@
-"""Bounded Hospital M1 QA_SERVER model session on the approved GPU host.
+"""Bounded Hospital M1 QA_SERVER acceptance runner on the approved GPU host.
+
+This finite qualification session is not an installed persistent hospital model
+service. Its lifetime, request budget and one-lease/no-renewal controls stay in
+force; persistent operation and restart/reboot recovery remain separate M1 work.
 
 Import is inert. One owned parent holds the approved continuation ledger, the
 named Server window and its single lifetime lease, and admits each real model
@@ -231,11 +235,14 @@ class ChildAdmission:
         except Exception:
             raise Refused('PRISM_FROZEN_PLAN_INVALID') from None
 
-    async def _admit(self, facts, body):
+    async def _admit(self, facts, body, correlation=None):
         self.sequence += 1
         request_sha256 = sha(body)
         request_id = f'm1_{self.sequence:04d}_{request_sha256[:16]}'
-        record = {'request_id': request_id, 'pid': os.getpid(), 'request_sha256': request_sha256, 'facts': facts}
+        # Correlation lets the trusted readback bind persisted evidence to THIS
+        # request (PRISM: its one-use plan). It is never an admission fact.
+        record = {'request_id': request_id, 'pid': os.getpid(), 'request_sha256': request_sha256, 'facts': facts,
+                  'correlation': correlation or {}}
         new_json(self.run / f'{request_id}.request.json', record)
         deadline = self.clock() + self.ack_seconds
         admitted, refused = self.run / f'{request_id}.admitted.json', self.run / f'{request_id}.refused.json'
@@ -253,9 +260,10 @@ class ChildAdmission:
         new_json(self.run / f'{request_id}.abandoned.json', {'request_id': request_id, 'pid': os.getpid()})
         raise Refused('NO_PARENT_ADMISSION_NO_DISPATCH')
 
-    def _finish(self, request_id, *, success, response_sha256):
+    def _finish(self, request_id, *, success, response_sha256, result_sha256=None):
         new_json(self.run / f'{request_id}.finished.json', {
-            'request_id': request_id, 'pid': os.getpid(), 'success': success, 'response_sha256': response_sha256})
+            'request_id': request_id, 'pid': os.getpid(), 'success': success, 'response_sha256': response_sha256,
+            'result_sha256': result_sha256})
 
     async def _dispatch(self, app, scope, send, body, *, forward=True):
         captured = {'status': 500, 'complete': False, 'body': bytearray()}
@@ -281,16 +289,22 @@ class ChildAdmission:
 
     async def _global(self, scope, send, body):
         request_id = await self._admit(self._global_facts(body), body)
-        success, response = False, sha(b'')
+        success, response, result = False, sha(b''), None
         try:
             captured, response = await self._dispatch(self.model_app, scope, send, body)
             success = captured['status'] == 200 and captured['complete']
+            if success:
+                try:
+                    result = self.operations.global_result_digest(json.loads(bytes(captured['body'])))
+                except Exception:
+                    result = None  # The readback then cannot bind and will not pass.
         finally:
-            self._finish(request_id, success=success, response_sha256=response)
+            self._finish(request_id, success=success, response_sha256=response, result_sha256=result)
 
     async def _prism(self, scope, send, body):
         try:
-            request_id = await self._admit(self._prism_facts(body), body)
+            facts = self._prism_facts(body)
+            request_id = await self._admit(facts, body, {'plan_sha256': json.loads(body)['plan_sha256']})
         except BaseException:
             self.busy = False
             raise
@@ -365,8 +379,12 @@ class ParentAdmissions:
                 continue
             value = read_json(path)
             pid = self.child.identity.pid
+            correlation = value.get('correlation')
             if (not REQUEST_ID.fullmatch(request_id) or value.get('request_id') != request_id
-                    or value.get('pid') != pid or set(value) != {'request_id', 'pid', 'request_sha256', 'facts'}):
+                    or value.get('pid') != pid
+                    or set(value) != {'request_id', 'pid', 'request_sha256', 'facts', 'correlation'}
+                    or type(correlation) is not dict or set(correlation) - {'plan_sha256'}
+                    or any(not re.fullmatch(r'[a-f0-9]{64}', str(item)) for item in correlation.values())):
                 self.stop_reason = 'REQUEST_IDENTITY_CHANGED'
                 self.requests[request_id] = {'state': 'INVALID'}
                 continue
@@ -407,6 +425,7 @@ class ParentAdmissions:
             'job_id': job['job_id'], 'operation_id': job['operation_id']})
         self.requests[request_id] = {'state': 'ADMITTED', 'admission_id': admission['admission_id'],
                                      'job_id': job['job_id'], 'operation_id': job['operation_id'],
+                                     'admitted_utc': time.time(), 'correlation': dict(value['correlation']),
                                      **{key: job[key] for key in ('source_sha256', 'model_id', 'modality')}}
 
     def _observe(self, request_id, entry):
@@ -423,13 +442,16 @@ class ParentAdmissions:
         value = read_json(finished)
         if (value.get('request_id') != request_id or value.get('pid') != self.child.identity.pid
                 or type(value.get('success')) is not bool
-                or not re.fullmatch(r'[a-f0-9]{64}', str(value.get('response_sha256')))):
+                or not re.fullmatch(r'[a-f0-9]{64}', str(value.get('response_sha256')))
+                or not (value.get('result_sha256') is None
+                        or re.fullmatch(r'[a-f0-9]{64}', str(value['result_sha256'])))):
             self.stop_reason = 'COMPLETION_IDENTITY_CHANGED'
             entry['state'] = 'INVALID_COMPLETION'
             return
         outcome = self.consumer.record_response(entry['admission_id'], response_sha256=value['response_sha256'],
                                                 success=value['success'])
         entry['outcome'] = outcome
+        entry['result_sha256'] = value.get('result_sha256')
         entry['state'] = 'RESPONSE_OBSERVED' if value['success'] else 'FAILED_NO_RETRY'
         if not value['success']:
             self.stop_reason = 'REQUEST_FAILED_NO_RETRY'

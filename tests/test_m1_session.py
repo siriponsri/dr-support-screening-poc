@@ -119,27 +119,97 @@ def test_drafted_plan_has_exact_allocations_unique_identities_and_supported_pair
     assert all((job['model_id'], job['modality']) in operations.SUPPORTED for job in jobs)
     with pytest.raises(operations.OperationError, match='FIVE_UWF_AND_FIVE_CFP'):
         proposal.plan(uwf[:4], cfp)
+    # A post-fix source among the acceptance images is excluded, never shared.
+    shared = proposal.POST_FIX[1][1]
+    rows = proposal.plan([shared, *uwf], cfp)
+    acceptance = [row for row in rows if row[1] != 'post_fix_verification']
+    assert shared not in {row[3] for row in acceptance}
 
 
-def test_trusted_readback_checks_persisted_provenance_not_http_success(monkeypatch):
+def server_app():
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    app = importlib.import_module('scripts.qa.m1_server_app')
-    models = reviewed(monkeypatch)
+    return importlib.import_module('scripts.qa.m1_server_app')
+
+
+def persisted_global(models, *, status='APPLIED', timestamp='2026-10-23T12:00:10+00:00', grade=2):
     pins = models['retfound-aptos5']['pins']
-    entry = {'model_id': 'retfound-aptos5', 'modality': 'CFP', 'source_sha256': '1' * 64}
-    persisted = {'model_id': 'retfound-aptos5', 'source_sha256': '1' * 64, 'status': 'APPLIED', 'task': 'global',
-                 'result': {'model_id': 'retfound-aptos5', 'modality': 'CFP',
-                            'provenance': {'checkpoint_sha256': pins['checkpoint_sha256'],
-                                           'source_revision': pins['source_revision']}}}
-    assert app.verify_persisted({'inference_history': [persisted]}, entry, models)[1] is True
+    return {'model_id': 'retfound-aptos5', 'source_sha256': '1' * 64, 'status': status, 'task': 'global',
+            'timestamp': timestamp,
+            'result': {'model_id': 'retfound-aptos5', 'model_version': 'v', 'modality': 'CFP', 'state': 'AI_SUGGESTION',
+                       'grade': grade, 'probabilities': [.1, .2, .7, 0, 0],
+                       'provenance': {'checkpoint_sha256': pins['checkpoint_sha256'],
+                                      'source_revision': pins['source_revision'], 'image_sha256': '1' * 64}}}
+
+
+def admitted_entry(models, result):
+    from datetime import datetime
+    return {'model_id': 'retfound-aptos5', 'modality': 'CFP', 'source_sha256': '1' * 64, 'correlation': {},
+            'admitted_utc': datetime.fromisoformat('2026-10-23T12:00:00+00:00').timestamp(),
+            'result_sha256': operations.global_result_digest(result)}
+
+
+def test_trusted_readback_is_bound_to_this_requests_persisted_result(monkeypatch):
+    app = server_app()
+    models = reviewed(monkeypatch)
+    persisted = persisted_global(models)
+    entry = admitted_entry(models, persisted['result'])
+    assert app.verify_persisted({'inference_history': [persisted]}, entry, models, operations)[1] is True
     changed = json.loads(json.dumps(persisted))
     changed['result']['provenance']['checkpoint_sha256'] = {'aptos5': '0' * 64}
-    assert app.verify_persisted({'inference_history': [changed]}, entry, models)[1] is False
+    assert app.verify_persisted({'inference_history': [changed]}, entry, models, operations)[1] is False
     with pytest.raises(app.SessionError, match='PERSISTED_INFERENCE_NOT_FOUND'):
-        app.verify_persisted({'inference_history': []}, entry, models)
-    status = {'requests': {'m1_0001_aaaaaaaaaaaaaaaa': {'state': 'RESPONSE_OBSERVED'},
-                           'm1_0002_bbbbbbbbbbbbbbbb': {'state': 'PASS_READBACK'}}}
+        app.verify_persisted({'inference_history': []}, entry, models, operations)
+
+
+@pytest.mark.parametrize('scenario', ['earlier_entry_only', 'different_result', 'stale', 'two_entries',
+                                      'ai_set_human_shape'])
+def test_readback_never_passes_on_other_or_unapplied_evidence(monkeypatch, scenario):
+    app = server_app()
+    models = reviewed(monkeypatch)
+    current = persisted_global(models)
+    entry = admitted_entry(models, current['result'])
+    case = {'inference_history': [current]}
+    if scenario == 'earlier_entry_only':
+        # This request was never persisted; only an older entry exists.
+        case['inference_history'] = [persisted_global(models, timestamp='2026-10-23T11:00:00+00:00')]
+    elif scenario == 'different_result':
+        case['inference_history'] = [persisted_global(models, grade=4)]
+    elif scenario == 'stale':
+        case['inference_history'] = [persisted_global(models, status='STALE_RESULT')]
+    elif scenario == 'two_entries':
+        case['inference_history'] = [persisted_global(models, timestamp='2026-10-23T11:00:00+00:00'), current]
+    else:
+        case['human_annotations'] = [{'id': 'x', 'score': .9}]
+    assert app.verify_persisted(case, entry, models, operations)[1] is False
+
+
+def test_prism_readback_is_bound_by_the_one_use_plan(monkeypatch):
+    app = server_app()
+    models = reviewed(monkeypatch)
+    pins = models['prism-dr-5fold']['pins']
+    entry = {'model_id': 'prism-dr-5fold', 'modality': 'UWF', 'source_sha256': '1' * 64,
+             'correlation': {'plan_sha256': '9' * 64}, 'admitted_utc': 0, 'result_sha256': None}
+    persisted = {'model_id': 'prism-dr-5fold', 'source_sha256': '1' * 64, 'status': 'APPLIED', 'task': 'lesion-roi',
+                 'timestamp': '2026-10-23T12:00:10+00:00', 'preview_binding': {'plan_sha256': '9' * 64,
+                                                                              'model_pins': pins},
+                 'result': {'model_id': 'prism-dr-5fold', 'modality': 'UWF',
+                            'provenance': {'checkpoint_sha256': pins['checkpoint_sha256'],
+                                           'source_revision': pins['source_revision']}}}
+    assert app.verify_persisted({'inference_history': [persisted]}, entry, models, operations)[1] is True
+    persisted['preview_binding']['plan_sha256'] = '8' * 64
+    assert app.verify_persisted({'inference_history': [persisted]}, entry, models, operations)[1] is False
+
+
+def test_pending_status_identifiers_are_validated_before_remote_use():
+    app = server_app()
+    good = {'state': 'RESPONSE_OBSERVED', 'admission_id': 'a' * 64, 'source_sha256': '1' * 64,
+            'correlation': {}, 'admitted_utc': 1.0}
+    status = {'requests': {'m1_0001_aaaaaaaaaaaaaaaa': good, 'm1_0002_bbbbbbbbbbbbbbbb': {'state': 'PASS_READBACK'}}}
     assert app.pending_request(status)[0] == 'm1_0001_aaaaaaaaaaaaaaaa'
+    for request_id, entry in [('m1_0001_aaaa; rm -rf x', good), ('m1_0001_aaaaaaaaaaaaaaaa',
+                                                                  {**good, 'admission_id': '../x'})]:
+        with pytest.raises(app.SessionError, match='VALID_PENDING_ADMISSION_REQUIRED'):
+            app.pending_request({'requests': {request_id: entry}})
 
 
 # ------------------------------------------------------------------- parent
@@ -169,7 +239,7 @@ def child_request(parent, job, number=1, **changes):
     facts = {key: job[key] for key in operations.FACT_KEYS}
     request_id = f'm1_{number:04d}_{"a" * 16}'
     value = {'request_id': request_id, 'pid': parent.rig.child.identity.pid, 'request_sha256': 'f' * 64,
-             'facts': facts}
+             'facts': facts, 'correlation': {}}
     value.update(changes)
     session.new_json(parent.run / f'{request_id}.request.json', value)
     return request_id

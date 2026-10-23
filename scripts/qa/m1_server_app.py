@@ -1,7 +1,11 @@
-"""Windows side of the bounded Hospital M1 QA_SERVER session.
+"""Windows tools for a bounded Hospital M1 QA_SERVER acceptance run.
+
+This is not the installed persistent hospital service or its restart manager.
 
 Commands (all fail closed; no ACL, credential, role or schema change):
 
+  diagnose                      report selected configuration without reading credentials,
+                                 using SSH, starting a service or changing data
   workspace --name NAME          create one new TEST_ONLY PostgreSQL workspace profile
   serve --workspace-id ID ...    own an SSH loopback tunnel to the host session, compose
                                  the reviewed workspace authority and serve the review app
@@ -9,9 +13,11 @@ Commands (all fail closed; no ACL, credential, role or schema change):
                                  persisted inference provenance in PostgreSQL and publish the
                                  trusted readback receipt to the host run directory
 
-Secrets are read only from the approved private directory or, for the Model API
-token, from the approved host file over the existing SSH identity into process
-memory. They are never printed, logged or written to new files.
+Model endpoint and token source are paired by this runner, not selected from the
+repository .env. The remote token transfer requires --allow-remote-token-read
+AFTER the owner authorizes that exact action. It uses the existing SSH identity
+and holds the token only in this Windows process's memory; it never prints or
+writes it. The flag records opt-in, not evidence of owner approval/authentication.
 """
 from __future__ import annotations
 
@@ -26,6 +32,7 @@ import socket
 import subprocess
 import sys
 import time
+from urllib.parse import urlsplit
 
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict
@@ -40,6 +47,8 @@ SSH = ['C:/Windows/System32/OpenSSH/ssh.exe', '-T', '-o', 'BatchMode=yes', '-o',
        '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10', '-i', SSH_KEY]
 REMOTE_PROJECT = '/home/siripon/projects/dr-model-api-qa'
 REMOTE_PORT = 7860
+HOST_TOKEN_PATH = REMOTE_PROJECT + '/config/private/model-api.env'
+HOST_TOKEN_READER_PATH = REMOTE_PROJECT + '/deployments/demo-batch-20261022-b03r8/base-q06'
 AUTHORITY_DIRECTORY = PRIVATE_DIRECTORY / 'workspace-authority'
 HOSPITAL_ROOTS = {'UWF': PRIVATE_DIRECTORY / 'hospital-roots' / 'UWF',
                   'CFP': PRIVATE_DIRECTORY / 'hospital-roots' / 'CFP'}
@@ -62,6 +71,40 @@ def canonical(value):
 
 def sha(raw):
     return hashlib.sha256(raw).hexdigest()
+
+
+def model_configuration(model_port):
+    """The same fixed selection used by diagnose, the environment and compose."""
+    require(type(model_port) is int and 1024 < model_port < 65536, 'VALID_LOCAL_MODEL_PORT_REQUIRED')
+    return {'DR_SUPPORT_DEPLOYMENT_PROFILE': 'QA_SERVER',
+            'REMOTE_MODEL_URL': f'http://127.0.0.1:{model_port}', 'REMOTE_MODEL_NAME': 'dr-train M1'}
+
+
+def require_remote_token_opt_in(allowed):
+    require(allowed is True, 'REMOTE_TOKEN_READ_REQUIRES_EXPLICIT_OPT_IN')
+
+
+def diagnose(args):
+    """Describe selection only: no private-file reads, probes or credential load."""
+    selected = model_configuration(args.model_port)
+    endpoint = urlsplit(selected['REMOTE_MODEL_URL'])
+    print(json.dumps({
+        'status': 'CONFIGURATION_SELECTED_NOT_VALIDATED',
+        'runner_kind': 'BOUNDED_QA_SERVER_ACCEPTANCE',
+        'python_executable': sys.executable,
+        'cwd': str(Path.cwd()),
+        'deployment_profile': selected['DR_SUPPORT_DEPLOYMENT_PROFILE'],
+        'app_profile': 'review', 'model_runtime': 'remote',
+        'endpoint': {'scheme': endpoint.scheme, 'host': endpoint.hostname, 'port': endpoint.port},
+        'tunnel_target': {'host': HOST, 'loopback_host': '127.0.0.1', 'port': REMOTE_PORT},
+        'token': {'source_name': 'dr-train-existing-model-api-file', 'source_path': HOST_TOKEN_PATH,
+                  'source_selected': True, 'source_presence': 'NOT_CHECKED', 'value_loaded': False,
+                  'authentication': 'NOT_CHECKED',
+                  'transfer_opt_in': getattr(args, 'allow_remote_token_read', False) is True},
+        'repository_dotenv_selected': False, 'inherited_remote_model_settings_selected': False,
+        'database_configuration': 'NOT_READ',
+    }), flush=True)
+    return 0
 
 
 def private_values(name, keys):
@@ -128,8 +171,7 @@ def session_environment(*, workspace_id=None, model_port=None, token=None):
         if workspace_id is not None:
             os.environ['DR_SUPPORT_WORKSPACE_ID'] = workspace_id
         if model_port is not None:
-            os.environ.update(DR_SUPPORT_DEPLOYMENT_PROFILE='QA_SERVER',
-                              REMOTE_MODEL_URL=f'http://127.0.0.1:{model_port}', REMOTE_MODEL_NAME='dr-train M1')
+            os.environ.update(model_configuration(model_port))
         if token is not None:
             os.environ['REMOTE_MODEL_TOKEN'] = token
         yield
@@ -144,12 +186,12 @@ def ssh(command, *, data=None, timeout=30):
     return completed.stdout
 
 
-def host_token():
-    """Owner-approved: read the existing host Model API token into memory only."""
-    raw = ssh("python3 -c \"import sys; sys.path.insert(0, '" + REMOTE_PROJECT
-              + "/deployments/demo-batch-20261022-b03r8/base-q06'); from approved_token_reader import "
-              "read_private_token; sys.stdout.write(read_private_token('" + REMOTE_PROJECT
-              + "/config/private/model-api.env'))\"")
+def host_token(*, allow_remote_token_read=False):
+    """Explicitly opted-in existing-host credential transfer into memory only."""
+    require_remote_token_opt_in(allow_remote_token_read)
+    raw = ssh("python3 -c \"import sys; sys.path.insert(0, '" + HOST_TOKEN_READER_PATH
+              + "'); from approved_token_reader import read_private_token; "
+              "sys.stdout.write(read_private_token('" + HOST_TOKEN_PATH + "'))\"")
     token = raw.decode('ascii').strip()
     require(32 <= len(token) <= 1024 and token.isascii() and ' ' not in token, 'APPROVED_HOST_TOKEN_REQUIRED')
     return token
@@ -158,6 +200,16 @@ def host_token():
 def port_free(port):
     with socket.socket() as probe:
         return probe.connect_ex(('127.0.0.1', port)) != 0
+
+
+def listener_pid(port):
+    """PID owning the single IPv4 loopback LISTEN socket on port (Windows netstat)."""
+    completed = subprocess.run(['C:/Windows/System32/NETSTAT.EXE', '-ano', '-p', 'TCP'],
+                               capture_output=True, text=True, timeout=10)
+    owners = {int(fields[4]) for fields in (line.split() for line in completed.stdout.splitlines())
+              if len(fields) == 5 and fields[0] == 'TCP' and fields[1] == f'127.0.0.1:{port}'
+              and fields[3] == 'LISTENING'}
+    return owners.pop() if len(owners) == 1 else None
 
 
 @contextmanager
@@ -169,9 +221,10 @@ def owned_tunnel(port):
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         until = time.monotonic() + 15
-        while port_free(port) and time.monotonic() < until and process.poll() is None:
+        while listener_pid(port) != process.pid and time.monotonic() < until and process.poll() is None:
             time.sleep(.1)
-        require(process.poll() is None and not port_free(port), 'OWNED_TUNNEL_NOT_ESTABLISHED')
+        # Ownership, not mere reachability: the loopback listener must be our ssh.
+        require(process.poll() is None and listener_pid(port) == process.pid, 'OWNED_TUNNEL_NOT_ESTABLISHED')
         yield process
     finally:
         process.terminate()
@@ -196,14 +249,24 @@ def create_workspace(name):
         require(not folder.exists(), 'NEW_WORKSPACE_FOLDER_REQUIRED')
         (folder / 'input').mkdir(parents=True)
         (folder / 'output').mkdir()
-        require(private_hospital_root(folder), 'PRIVATE_WORKSPACE_FOLDER_REQUIRED')
-        stamp = datetime.now(timezone.utc).isoformat()
-        profile = WorkspaceProfile(id=workspace_id, name='TEST_ONLY ' + name, input_folder=str(folder / 'input'),
-                                   output_folder=str(folder / 'output'), database_path=None,
-                                   note='TEST_ONLY Hospital M1 QA_SERVER engineering workspace; not physician data',
-                                   created_at=stamp, updated_at=stamp, last_opened=stamp)
-        with SourceMutationGate().writer():
-            PostgresWorkspaceCatalog(database).create_and_activate(profile)
+        try:
+            require(private_hospital_root(folder), 'PRIVATE_WORKSPACE_FOLDER_REQUIRED')
+            stamp = datetime.now(timezone.utc).isoformat()
+            profile = WorkspaceProfile(id=workspace_id, name='TEST_ONLY ' + name,
+                                       input_folder=str(folder / 'input'), output_folder=str(folder / 'output'),
+                                       database_path=None,
+                                       note='TEST_ONLY Hospital M1 QA_SERVER engineering workspace; not physician data',
+                                       created_at=stamp, updated_at=stamp, last_opened=stamp)
+            with SourceMutationGate().writer():
+                PostgresWorkspaceCatalog(database).create_and_activate(profile)
+        except BaseException:
+            # Remove only the empty folders this call just created; never data.
+            for path in (folder / 'input', folder / 'output', folder):
+                try:
+                    path.rmdir()
+                except OSError:
+                    pass
+            raise
     print(json.dumps({'workspace_id': workspace_id, 'name': profile.name}))
     return workspace_id
 
@@ -217,7 +280,8 @@ def compose(workspace_id, prism_pins, model_port, token):
     from dr_support.providers.prism_workspace_remote import WorkspaceRemotePRISM, WorkspaceStatusReader
     from dr_support.services.m1_workspace_context import WorkspaceContextReader
     from dr_support.services.prism_workspace_authority import WorkspaceAuthority
-    channel = ExplicitHttpChannel(f'http://127.0.0.1:{model_port}', transport=httpx.HTTPTransport(retries=0),
+    channel = ExplicitHttpChannel(model_configuration(model_port)['REMOTE_MODEL_URL'],
+                                  transport=httpx.HTTPTransport(retries=0),
                                   auth_headers=lambda *_: {'Authorization': 'Bearer ' + token})
     status_reader = WorkspaceStatusReader(channel)
     reader = WorkspaceContextReader(role_config=PLAN, database_name=DATABASE)
@@ -233,10 +297,13 @@ def compose(workspace_id, prism_pins, model_port, token):
 
 
 def serve(args):
+    # Refuse before file/config reads, probes, SSH, tunnel or app construction.
+    require_remote_token_opt_in(getattr(args, 'allow_remote_token_read', False))
+    model_configuration(args.model_port)
     import uvicorn
     prism_pins = json.loads(Path(args.prism_pins).read_bytes())
     require(port_free(args.app_port), 'FREE_APP_PORT_REQUIRED')
-    token = host_token()
+    token = host_token(allow_remote_token_read=args.allow_remote_token_read)
     with owned_tunnel(args.model_port), session_environment(workspace_id=args.workspace_id,
                                                             model_port=args.model_port, token=token):
         app, authority, channel = compose(args.workspace_id, prism_pins, args.model_port, token)
@@ -258,29 +325,67 @@ def remote_status(run):
     return json.loads(ssh(f'cat {run}/STATUS.json'))
 
 
+REQUEST_ID = re.compile(r'm1_[0-9]{4}_[a-f0-9]{16}')
+SHA256 = re.compile(r'[a-f0-9]{64}')
+CLOCK_TOLERANCE_SECONDS = 120  # Windows/host clock skew allowance for "saved after admission".
+
+
 def pending_request(status):
     pending = [(request_id, entry) for request_id, entry in status['requests'].items()
                if entry.get('state') == 'RESPONSE_OBSERVED']
     require(len(pending) == 1, 'EXACTLY_ONE_PENDING_READBACK_REQUIRED')
-    return pending[0]
+    request_id, entry = pending[0]
+    # Host STATUS is data: validate identifiers before any remote command/path use.
+    require(REQUEST_ID.fullmatch(request_id) is not None and SHA256.fullmatch(str(entry.get('admission_id')))
+            and SHA256.fullmatch(str(entry.get('source_sha256'))) and type(entry.get('correlation')) is dict
+            and type(entry.get('admitted_utc')) in (int, float), 'VALID_PENDING_ADMISSION_REQUIRED')
+    return request_id, entry
 
 
-def verify_persisted(case, entry, models):
-    """Independent PostgreSQL provenance check for one admitted operation."""
+def _saved_after(item, admitted_utc):
+    from datetime import datetime
+    try:
+        saved = datetime.fromisoformat(item['timestamp']).timestamp()
+    except (KeyError, TypeError, ValueError):
+        return False
+    return saved >= admitted_utc - CLOCK_TOLERANCE_SECONDS
+
+
+def verify_persisted(case, entry, models, operations):
+    """Independent PostgreSQL check that THIS admitted request's result was persisted.
+
+    Bound to the request: PRISM by its one-use plan hash; global grading by the
+    host-observed result digest, exactly one entry for the source/model, saved
+    after admission. Only APPLIED results pass; physician fields must not have
+    been set by AI.
+    """
     history = [item for item in case.get('inference_history', [])
                if item.get('model_id') == entry['model_id'] and item.get('source_sha256') == entry['source_sha256']]
     require(history, 'PERSISTED_INFERENCE_NOT_FOUND')
     latest = history[-1]
     pins = models[entry['model_id']]['pins']
-    provenance = (latest.get('result') or {}).get('provenance') or {}
+    result = latest.get('result') or {}
+    provenance = result.get('provenance') or {}
+    prism = entry['model_id'] == operations.PRISM
+    if prism:
+        bound = (SHA256.fullmatch(str(entry['correlation'].get('plan_sha256'))) is not None
+                 and (latest.get('preview_binding') or {}).get('plan_sha256') == entry['correlation']['plan_sha256'])
+    else:
+        bound = (len(history) == 1 and SHA256.fullmatch(str(entry.get('result_sha256'))) is not None
+                 and operations.global_result_digest(result) == entry['result_sha256'])
     checks = [
-        latest.get('status') in {'APPLIED', 'STALE_RESULT'},
-        latest.get('task') == ('lesion-roi' if entry['model_id'] == 'prism-dr-5fold' else 'global'),
-        (latest.get('result') or {}).get('model_id') == entry['model_id'],
-        (latest.get('result') or {}).get('modality') == entry['modality'],
+        bound,
+        _saved_after(latest, entry['admitted_utc']),
+        latest.get('status') == 'APPLIED',
+        latest.get('task') == ('lesion-roi' if prism else 'global'),
+        result.get('model_id') == entry['model_id'],
+        result.get('modality') == entry['modality'],
         provenance.get('checkpoint_sha256') == pins['checkpoint_sha256'],
         provenance.get('source_revision') == pins['source_revision'],
-        entry['model_id'] != 'prism-dr-5fold' or (latest.get('preview_binding') or {}).get('model_pins') == pins,
+        not prism or (latest.get('preview_binding') or {}).get('model_pins') == pins,
+        # Protected physician state: AI output never sets a final grade or human shapes.
+        case.get('reviewed_grade') is None or case.get('grade_review_source') in {'MANUAL', 'AI_ACCEPTED', 'AI_CORRECTED'},
+        all('score' not in shape for shape in case.get('human_annotations') or []),
     ]
     return latest, all(checks)
 
@@ -302,7 +407,7 @@ def readback(args):
                         sql.Identifier(database.settings.schema)),
                     (args.workspace_id, entry['source_sha256'], entry['source_sha256'])).fetchall()
     require(len(rows) == 1, 'EXACT_PERSISTED_CASE_REQUIRED')
-    persisted, matches = verify_persisted(rows[0][0], entry, models)
+    persisted, matches = verify_persisted(rows[0][0], entry, models, operations)
     value = {'request_id': request_id, 'admission_id': entry['admission_id'],
              'readback_sha256': sha(canonical(persisted)), 'matches': matches}
     # The host parent reads trusted readback only from its separate readback/ directory.
@@ -316,9 +421,12 @@ def readback(args):
     return 0 if matches else 1
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('command', choices=['workspace', 'serve', 'readback'])
+    parser.add_argument('command', choices=['diagnose', 'workspace', 'serve', 'readback'])
+    parser.add_argument('--allow-remote-token-read', action='store_true',
+                        help='Only after owner approval: read the existing dr-train Model API token '
+                             'over SSH into this Windows process memory. Disabled by default.')
     parser.add_argument('--name')
     parser.add_argument('--workspace-id')
     parser.add_argument('--prism-pins', type=Path)
@@ -326,8 +434,10 @@ def main():
     parser.add_argument('--model-port', type=int, default=47860)
     parser.add_argument('--app-port', type=int, default=8010)
     parser.add_argument('--run')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
+        if args.command == 'diagnose':
+            return diagnose(args)
         if args.command == 'workspace':
             create_workspace(args.name)
             return 0
