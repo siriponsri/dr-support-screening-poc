@@ -268,6 +268,12 @@ def validate_restored_app_environment(settings: PostgresSettings, *, expected_da
     if not dsn:
         raise RecoveryError("A restored acceptance app requires its explicit target database configuration")
     expected, actual = conninfo_to_dict(settings.dsn), conninfo_to_dict(dsn)
+    if expected.get("service") or actual.get("service") or any(
+        str(source.get(key, "")).strip() for key in (
+            "PGSERVICE", "PGSERVICEFILE", "PGHOST", "PGHOSTADDR", "PGPORT", "PGDATABASE",
+        )
+    ):
+        raise RecoveryError("Restored acceptance requires an explicit target without inherited libpq endpoint or service overrides")
     if (expected.get("dbname") != expected_database
             or "test" not in re.split(r"[^a-z0-9]+", expected_database.lower())):
         raise RecoveryError("Restored acceptance app must select the exact independently recorded test target")
@@ -464,7 +470,8 @@ def verify_bundle(bundle: str | Path, *, expected_manifest_sha256: str | None = 
 
 def _empty_target(database: PostgresDatabase, expected_name: str, source_name: str) -> None:
     actual_name = conninfo_to_dict(database.settings.dsn)["dbname"]
-    if (expected_name != actual_name or "test" not in re.split(r"[^a-z0-9]+", expected_name.lower())
+    if (not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,62}", expected_name)
+            or expected_name != actual_name or "test" not in re.split(r"[^a-z0-9]+", expected_name.lower())
             or source_name.casefold() == actual_name.casefold()):
         raise RecoveryError("Restore requires an exact, separate, visibly test-only database name")
     with database.session(autocommit=False) as connection:
@@ -534,7 +541,9 @@ def restore(database: PostgresDatabase, *, bundle: str | Path, expected_database
         shutil.copyfileobj(incoming, outgoing)
     if _file_hash(restore_dump) != manifest["dump_sha256"]:
         raise RecoveryError("The database archive changed after verification; no restore was attempted")
-    _run([pg_restore, "--no-password", "--exit-on-error", "--single-transaction",
+    # pg_restore requires --dbname to execute; PGDATABASE alone selects no
+    # connection mode. Only a restricted exact name goes in argv, never a DSN.
+    _run([pg_restore, f"--dbname={expected_database}", "--no-password", "--exit-on-error", "--single-transaction",
           "--no-owner", "--no-privileges", str(restore_dump)],
          database.settings, runner=runner)
     expected_workspaces = [dict(item) for item in manifest["workspaces"]]

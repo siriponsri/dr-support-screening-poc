@@ -440,6 +440,7 @@ def test_restore_preserves_case_history_and_bytes_and_remaps_only_target_paths(r
     assert state.workspaces[0][2] == str(args["image_destination"])
     assert state.workspaces[0][2] != rig.state.workspaces[0][2]
     assert "--single-transaction" in calls[0]
+    assert "--dbname=restore_test" in calls[0]
     assert "--exit-on-error" in calls[0]
     assert calls[0][-1] == str(args["output_destination"] / "restore-database.dump")
     assert calls[0][-1] != str(rig.bundle / "database.dump")
@@ -530,6 +531,9 @@ def test_restored_acceptance_environment_must_select_target_without_source_roots
                      {"DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS": "synthetic-source"},
                      {"DR_SUPPORT_DATABASE_URL": rig.db.settings.dsn},
                      {"DR_SUPPORT_CASE_STORE": "sqlite"},
+                     {"PGSERVICE": "unapproved_service"},
+                     {"PGHOSTADDR": "192.0.2.1"},
+                     {"DR_SUPPORT_DATABASE_URL": "dbname=restore_test service=unapproved"},
                      {"DR_SUPPORT_STATE": "synthetic-legacy-state"}):
         with pytest.raises(recovery.RecoveryError):
             recovery.validate_restored_app_environment(
