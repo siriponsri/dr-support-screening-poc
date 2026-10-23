@@ -101,6 +101,47 @@ def test_match_operation_takes_lowest_unattempted_exact_operation_only(monkeypat
     assert operations.match_operation(jobs, {**observed, 'source_sha256': '2' * 64}, window_id='W', states={}) is None
 
 
+def test_drafted_plan_has_exact_allocations_unique_identities_and_supported_pairs(monkeypatch):
+    from collections import Counter
+    proposal = importlib.import_module('m1_proposal')
+    models = reviewed(monkeypatch)
+    uwf = [f'{index + 100:064x}' for index in range(11)]
+    cfp = [f'{index + 200:064x}' for index in range(10)]
+    jobs = [operations.operation(models, operation_id=operation_id, purpose=purpose, window_id=window,
+                                 source_sha256=source, model_id=model_id, modality=modality)
+            for operation_id, purpose, window, source, model_id, modality in proposal.plan(uwf, cfp)]
+    assert len(jobs) == 24 and len({job['job_id'] for job in jobs}) == 24
+    assert len({job['operation_id'] for job in jobs}) == 24
+    assert Counter(job['purpose'] for job in jobs) == {'server_acceptance': 9, 'local_acceptance': 6,
+                                                       'post_fix_verification': 9}
+    assert all(job['window_id'] == proposal.LOCAL for job in jobs if job['purpose'] == 'local_acceptance')
+    assert all(job['window_id'] == proposal.SERVER for job in jobs if job['purpose'] != 'local_acceptance')
+    assert all((job['model_id'], job['modality']) in operations.SUPPORTED for job in jobs)
+    with pytest.raises(operations.OperationError, match='FIVE_UWF_AND_FIVE_CFP'):
+        proposal.plan(uwf[:4], cfp)
+
+
+def test_trusted_readback_checks_persisted_provenance_not_http_success(monkeypatch):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    app = importlib.import_module('scripts.qa.m1_server_app')
+    models = reviewed(monkeypatch)
+    pins = models['retfound-aptos5']['pins']
+    entry = {'model_id': 'retfound-aptos5', 'modality': 'CFP', 'source_sha256': '1' * 64}
+    persisted = {'model_id': 'retfound-aptos5', 'source_sha256': '1' * 64, 'status': 'APPLIED', 'task': 'global',
+                 'result': {'model_id': 'retfound-aptos5', 'modality': 'CFP',
+                            'provenance': {'checkpoint_sha256': pins['checkpoint_sha256'],
+                                           'source_revision': pins['source_revision']}}}
+    assert app.verify_persisted({'inference_history': [persisted]}, entry, models)[1] is True
+    changed = json.loads(json.dumps(persisted))
+    changed['result']['provenance']['checkpoint_sha256'] = {'aptos5': '0' * 64}
+    assert app.verify_persisted({'inference_history': [changed]}, entry, models)[1] is False
+    with pytest.raises(app.SessionError, match='PERSISTED_INFERENCE_NOT_FOUND'):
+        app.verify_persisted({'inference_history': []}, entry, models)
+    status = {'requests': {'m1_0001_aaaaaaaaaaaaaaaa': {'state': 'RESPONSE_OBSERVED'},
+                           'm1_0002_bbbbbbbbbbbbbbbb': {'state': 'PASS_READBACK'}}}
+    assert app.pending_request(status)[0] == 'm1_0001_aaaaaaaaaaaaaaaa'
+
+
 # ------------------------------------------------------------------- parent
 
 @pytest.fixture
