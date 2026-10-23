@@ -136,6 +136,27 @@ class BoundTransportHost:
         self.lock = RLock()
         self.id_lock = Lock()
         self.issued_ids = set()
+        self._workspace_executor = None
+
+    def enable_workspace_executor(self, executor):
+        """Trusted bootstrap only; never inferred from request JSON/headers."""
+        from .prism_workspace_executor import LoadedWorkspacePrismExecutor
+        with self.lock:
+            if (type(executor) is not LoadedWorkspacePrismExecutor or executor is not self.executor
+                    or self.demo_authorization is not None or self._workspace_executor is not None
+                    or self.tickets or self.jobs or self.consumed_tickets or self.consumed_plans
+                    or self.consumed_ids or self.issued_ids):
+                raise TransportError("FRESH_EXACT_WORKSPACE_EXECUTOR_REQUIRED", 503)
+            self._workspace_executor = executor
+
+    def _workspace_enabled(self):
+        if self._workspace_executor is None:
+            return False
+        from .prism_workspace_executor import LoadedWorkspacePrismExecutor
+        if (type(self.executor) is not LoadedWorkspacePrismExecutor
+                or self.executor is not self._workspace_executor or self.demo_authorization is not None):
+            raise TransportError("WORKSPACE_EXECUTOR_SCOPE_CHANGED", 503)
+        return True
 
     def _id(self):
         with self.id_lock:
@@ -147,6 +168,7 @@ class BoundTransportHost:
             return value
 
     def _pins(self):
+        self._workspace_enabled()
         value = self.executor.identity()
         if set(value) != {"model_id", "source_revision", "preprocessing", "config_sha256", "checkpoint_sha256"}:
             raise TransportError("IDENTITY_SCHEMA", 503)
@@ -249,12 +271,13 @@ class BoundTransportHost:
         with Image.open(io.BytesIO(wire)) as encoded:
             if {"PNG": "image/png", "JPEG": "image/jpeg"}.get(encoded.format) != value["wire_media_type"]:
                 raise TransportError("MEDIA_TYPE_MISMATCH", 422)
-        # CFP is opt-in only for the exact manifest-bound batch. Existing
-        # synthetic/case16 fixed-session paths stay UWF-only.
+        # CFP is opt-in for the exact batch or additive workspace executor.
+        # Existing synthetic/case16 fixed-session paths stay UWF-only.
         from .case16_qualification import Case16Authorization
         batch_authorized = self.demo_authorization is not None and type(self.demo_authorization) is not Case16Authorization
+        workspace_enabled = self._workspace_enabled()
         if (value["wire_sha256"] != sha(wire)
-                or value["modality"] not in ({"CFP", "UWF"} if batch_authorized else {"UWF"})):
+                or value["modality"] not in ({"CFP", "UWF"} if batch_authorized or workspace_enabled else {"UWF"})):
             raise TransportError("WIRE_CONTEXT", 422)
         if batch_authorized:
             self.demo_authorization.job_for_wire(wire, value["modality"])
@@ -270,7 +293,9 @@ class BoundTransportHost:
                     or candidate["mask_version"] != MASK_VERSION or value["modality"] != "UWF"):
                 raise TransportError("MASK_CONTEXT")
             mask_digest = sha(MASK_VERSION.encode() + struct.pack(">II", *decoded.size) + decoded.tobytes())
-        elif candidate["status"] not in ({"NOT_APPLICABLE"} if batch_authorized else {"UNCERTAIN", "UNAVAILABLE"}):
+        elif candidate["status"] not in (
+                {"NOT_APPLICABLE"} if batch_authorized or workspace_enabled and value["modality"] == "CFP"
+                else {"UNCERTAIN", "UNAVAILABLE"}):
             raise TransportError("READY_MASK_MISSING")
         if batch_authorized:
             self.demo_authorization.candidate(candidate)
