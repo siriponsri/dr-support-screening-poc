@@ -103,3 +103,18 @@ def test_attach_propagates_gate_and_rejects_conflicting_authorities(tmp_path, mo
     manager.store.source_mutation_gate = SourceMutationGate()
     with pytest.raises(ValueError, match="IDENTITY_CONFLICT"):
         manager.attach(app)
+
+
+def test_legacy_manager_cannot_absorb_an_already_guarded_store(tmp_path, monkeypatch):
+    from dr_support.store import Store
+    monkeypatch.setenv("DR_SUPPORT_WORKSPACE_CATALOG", str(tmp_path / "catalog.sqlite"))
+    protected = Store(tmp_path / "protected.sqlite")
+    protected.source_mutation_gate = SourceMutationGate()
+    with pytest.raises(ValueError, match="IDENTITY_CONFLICT"):
+        WorkspaceManager(tmp_path / "not_created", store=protected)
+    assert not (tmp_path / "catalog.sqlite").exists()
+    manager = WorkspaceManager(tmp_path, state_path=tmp_path / "legacy.sqlite")
+    original = manager.store
+    with pytest.raises(ValueError, match="IDENTITY_CONFLICT"):
+        manager._swap_store(protected, None)
+    assert manager.store is original

@@ -238,6 +238,9 @@ class WorkspaceManager:
             raise ValueError("EXPLICIT_SOURCE_MUTATION_GATE_REQUIRED")
         if source_mutation_gate is not None and source_mutation_gate.snapshot().state != "OPEN":
             raise ValueError("SOURCE_AUTHORITY_RECOVERY_REQUIRED")
+        existing_gate = getattr(store, "source_mutation_gate", None)
+        if existing_gate is not None and existing_gate is not source_mutation_gate:
+            raise ValueError("SOURCE_MUTATION_GATE_IDENTITY_CONFLICT")
         self.source_mutation_gate = source_mutation_gate
         self.root = Path(root)
         self.lock = RLock()
@@ -299,10 +302,10 @@ class WorkspaceManager:
 
     def _bind_store_gate(self):
         gate = getattr(self, "source_mutation_gate", None)
+        existing = getattr(self.store, "source_mutation_gate", None)
+        if existing is not None and existing is not gate:
+            raise ValueError("SOURCE_MUTATION_GATE_IDENTITY_CONFLICT")
         if gate is not None:
-            existing = getattr(self.store, "source_mutation_gate", None)
-            if existing is not None and existing is not gate:
-                raise ValueError("SOURCE_MUTATION_GATE_IDENTITY_CONFLICT")
             self.store.source_mutation_gate = gate
 
     def _configure_postgres_startup(self, store) -> None:
@@ -416,10 +419,11 @@ class WorkspaceManager:
             raise WorkspaceDatabaseError(
                 "Workspace switching is not available for the selected external case store"
             )
-        if getattr(self, "source_mutation_gate", None) is not None:
-            existing = getattr(store, "source_mutation_gate", None)
-            if existing is not None and existing is not self.source_mutation_gate:
-                raise ValueError("SOURCE_MUTATION_GATE_IDENTITY_CONFLICT")
+        gate = getattr(self, "source_mutation_gate", None)
+        existing = getattr(store, "source_mutation_gate", None)
+        if existing is not None and existing is not gate:
+            raise ValueError("SOURCE_MUTATION_GATE_IDENTITY_CONFLICT")
+        if gate is not None:
             store.source_mutation_gate = self.source_mutation_gate
         self.store = store
         self.active_workspace = profile
