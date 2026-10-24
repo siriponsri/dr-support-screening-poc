@@ -24,7 +24,7 @@ export function ResolverDialog({ item, onClose, onSaved }: { item: CaseRecord | 
     setLaterality(item.laterality ?? 'UNKNOWN');
     const defaultReviewer = getDefaultReviewer();
     setReviewer(defaultReviewer);
-    setUseAsDefault(Boolean(defaultReviewer));
+    setUseAsDefault(true);
     setError(null);
   }, [item]);
 
@@ -63,7 +63,7 @@ export function ResolverDialog({ item, onClose, onSaved }: { item: CaseRecord | 
         {item && hasInternalPatientKey(item) && <><Text fontSize="sm">Enter an approved pseudonymous key to replace the link. A blank replacement keeps the current link. Workspace labels are not replacement keys.</Text><Button variant="outline" onClick={() => { setPatientKey(''); setUnlinkPatient(false); setReplacePatient(false); }}>Keep current patient link</Button><Button variant="ghost" onClick={() => { setPatientKey(''); setUnlinkPatient(true); }}>Leave this image unlinked</Button>{unlinkPatient && <Text fontSize="sm" color="status.warning">This image will be left unlinked when you save.</Text>}</>}
         </>}
         <FormControl><FormLabel htmlFor="worklist-eye">Eye</FormLabel><Select id="worklist-eye" value={laterality} onChange={(event) => setLaterality(event.target.value as Laterality)}><option value="LEFT">Left</option><option value="RIGHT">Right</option><option value="UNKNOWN">Unknown</option></Select></FormControl>
-        <ReviewerField id="worklist-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
+        <ReviewerField compact id="worklist-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
       </Stack></ModalBody>
       <ModalFooter><HStack spacing={2}><Button variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button><Button variant="solid" onClick={() => void save()} isLoading={saving}>Save patient / eye</Button></HStack></ModalFooter>
       </ModalContent>

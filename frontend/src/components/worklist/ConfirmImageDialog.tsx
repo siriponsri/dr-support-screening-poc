@@ -9,6 +9,7 @@ import {
   FormControl,
   FormErrorMessage,
   FormLabel,
+  Grid,
   HStack,
   Input,
   Modal,
@@ -22,7 +23,7 @@ import {
   Stack,
   Text,
 } from '@chakra-ui/react';
-import type { CaseRecord, Laterality, RetinalModality } from '@/lib/api';
+import type { AdmissionReviewAction, CaseRecord, Laterality, RetinalModality } from '@/lib/api';
 import { admissionApi } from '@/lib/api';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 import { ReviewerField } from '@/components/common/ReviewerField';
@@ -58,6 +59,44 @@ function SummaryRow({ label, value, note, onEdit }: { label: string; value: stri
   );
 }
 
+type QualityChoice = '' | Extract<AdmissionReviewAction, 'QUALITY_ACCEPTABLE' | 'QUALITY_INADEQUATE'>;
+
+function recordedQuality(item: CaseRecord | null): QualityChoice {
+  const state = item?.admission?.quality_state;
+  return state === 'GRADABLE' ? 'QUALITY_ACCEPTABLE' : state === 'UNGRADABLE' ? 'QUALITY_INADEQUATE' : '';
+}
+
+function QualityChoiceField({ value, onChange }: { value: QualityChoice; onChange: (value: QualityChoice) => void }) {
+  const options: { value: Exclude<QualityChoice, ''>; label: string }[] = [
+    { value: 'QUALITY_ACCEPTABLE', label: 'Usable' },
+    { value: 'QUALITY_INADEQUATE', label: 'Not usable' },
+  ];
+  return (
+    <Stack spacing={1.5}>
+      <Text id="confirm-image-quality-label" fontSize="sm" color="text.secondary">Image quality (optional)</Text>
+      <HStack role="radiogroup" aria-labelledby="confirm-image-quality-label" spacing={2}>
+        {options.map((option) => {
+          const selected = value === option.value;
+          return (
+            <Button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              size="sm"
+              flex={1}
+              variant={selected ? 'solid' : 'outline'}
+              onClick={() => onChange(selected ? '' : option.value)}
+            >
+              {option.label}
+            </Button>
+          );
+        })}
+      </HStack>
+    </Stack>
+  );
+}
+
 export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecord | null; onClose: () => void; onSaved: (item: CaseRecord) => void }) {
   const [patientKey, setPatientKey] = useState('');
   const [laterality, setLaterality] = useState<Laterality>('UNKNOWN');
@@ -67,7 +106,8 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
   const [captureSequence, setCaptureSequence] = useState('');
   const [device, setDevice] = useState('');
   const [reviewer, setReviewer] = useState('');
-  const [useAsDefault, setUseAsDefault] = useState(false);
+  const [useAsDefault, setUseAsDefault] = useState(true);
+  const [quality, setQuality] = useState<QualityChoice>('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [patientError, setPatientError] = useState(false);
@@ -104,7 +144,8 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
     setCaptureSequence(item.visit_context?.capture_sequence == null ? '' : String(item.visit_context.capture_sequence));
     setDevice(item.visit_context?.device ?? '');
     setReviewer(defaultReviewer);
-    setUseAsDefault(Boolean(defaultReviewer));
+    setUseAsDefault(true);
+    setQuality(recordedQuality(item));
     setMetadataOpen(false);
     setEditImageType(false);
     setEditPatient(false);
@@ -137,7 +178,17 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
       });
       if (useAsDefault) setDefaultReviewer(reviewer);
       else setDefaultReviewer('');
-      onSaved(saved);
+      let updated = saved;
+      if (quality && quality !== recordedQuality(saved)) {
+        try {
+          updated = await admissionApi.review(saved.image_id, {
+            revision: saved.revision, reviewer: reviewer.trim(), action: quality, note: 'Image quality recorded at Confirm Image.',
+          });
+        } catch {
+          // The image is confirmed; Review still offers the quality step before PRISM.
+        }
+      }
+      onSaved(updated);
       onClose();
     } catch (saveError) {
       if (saveError instanceof Error && saveError.message === 'Patient key must be a short pseudonymous identifier') {
@@ -159,7 +210,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
         : undefined;
 
   return (
-    <Modal isOpen={Boolean(item)} onClose={onClose} isCentered scrollBehavior="inside" initialFocusRef={firstUnresolvedRef}>
+    <Modal isOpen={Boolean(item)} onClose={onClose} isCentered scrollBehavior="inside" size="4xl" initialFocusRef={firstUnresolvedRef}>
       <ModalOverlay />
       <ModalContent
         as="form"
@@ -178,7 +229,30 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
         <ModalHeader flexShrink={0}>Confirm Image</ModalHeader>
         <ModalCloseButton />
         <ModalBody minH={0} overflowY="auto">
-          <Stack spacing={4}>
+          <Grid templateColumns={{ base: '1fr', tablet: 'minmax(0, 1.1fr) minmax(0, 1fr)' }} gap={5} alignItems="start">
+          <Box
+            bg="viewer.background"
+            borderRadius="md"
+            overflow="hidden"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            minH={{ base: '220px', tablet: '360px' }}
+            position={{ tablet: 'sticky' }}
+            top={0}
+          >
+            {item?.image_url && (
+              <Box
+                as="img"
+                src={item.image_url}
+                alt={`Retinal image ${item.filename ?? item.display_name}`}
+                maxW="100%"
+                maxH={{ base: '260px', tablet: '60vh' }}
+                objectFit="contain"
+              />
+            )}
+          </Box>
+          <Stack spacing={4} minW={0}>
             <GuideHint step="confirm-image" />
             {error && <Alert status="error" bg="status.dangerSoft" color="status.danger" alignItems="flex-start"><AlertIcon /><Text fontSize="md" overflowWrap="anywhere">{error}</Text></Alert>}
             <Stack spacing={1}>
@@ -225,6 +299,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
                 {editEye && eyeResolved && <Button type="button" size="xs" variant="ghost" mt={1} onClick={() => setEditEye(false)}>Done</Button>}
               </FormControl>
             )}
+            <QualityChoiceField value={quality} onChange={setQuality} />
             <ReviewerField compact id="confirm-image-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
             <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3}>
               <Button
@@ -256,6 +331,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
               </Collapse>
             </Box>
           </Stack>
+          </Grid>
         </ModalBody>
         <ModalFooter flexShrink={0}>
           <Stack direction={{ base: 'column-reverse', tablet: 'row' }} spacing={2} w="full" align={{ base: 'stretch', tablet: 'center' }} justify="flex-end">

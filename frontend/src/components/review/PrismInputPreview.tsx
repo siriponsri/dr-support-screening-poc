@@ -33,7 +33,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
   const [open, setOpen] = useState(false);
   const qualityConfirmed = technicalBatch || prismQualityConfirmed(item);
   const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
-  const [useAsDefault, setUseAsDefault] = useState(() => Boolean(getDefaultReviewer()));
+  const [useAsDefault, setUseAsDefault] = useState(true);
   const [qualityBusy, setQualityBusy] = useState(false);
   const [qualityError, setQualityError] = useState<string | null>(null);
   const confirmQuality = async () => {

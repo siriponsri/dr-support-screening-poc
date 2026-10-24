@@ -231,13 +231,13 @@ describe('Review responsibility boundary', () => {
     await user.click(screen.getByRole('link', { name: 'Continue to clinician review' }));
     expect(await screen.findByRole('heading', { name: 'Clinician decision' })).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText('Reviewer name'), 'Review clinician');
-    await user.selectOptions(screen.getByLabelText('Final DR grade'), '2');
+    await user.click(await screen.findByRole('radio', { name: /^2 / }));
     await user.click(screen.getByRole('button', { name: 'Grade guide' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('3 - Severe NPDR');
     await user.keyboard('{Escape}');
     expect(screen.getByPlaceholderText('Reviewer name')).toHaveValue('Review clinician');
-    expect(screen.getByLabelText('Final DR grade')).toHaveValue('2');
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^2 / })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getAllByRole('radio')).toHaveLength(6);
     expect(screen.queryByRole('button', { name: 'Send for senior review' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     expect(reviewRequest).toMatchObject({ action: 'ACCEPT', grade: 2, reviewer: 'Review clinician' });
@@ -558,7 +558,7 @@ describe('Review responsibility boundary', () => {
 
     expect(await screen.findByRole('heading', { name: 'Clinician decision' })).toBeInTheDocument();
     expect(screen.getByText('Legacy senior-review record')).toBeInTheDocument();
-    expect(screen.getByLabelText('Final DR grade')).toBeInTheDocument();
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Final DR grade' })).toBeInTheDocument();
+    expect(screen.getAllByRole('radio')).toHaveLength(6);
   });
 });

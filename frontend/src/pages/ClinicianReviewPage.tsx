@@ -15,7 +15,6 @@ import {
   Grid,
   Heading,
   HStack,
-  Select,
   SimpleGrid,
   Spinner,
   Stack,
@@ -36,6 +35,7 @@ import { ReviewerField } from '@/components/common/ReviewerField';
 import { GuideHint } from '@/components/common/GuideHint';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
 import { GradeGuide } from '@/components/review/GradeGuide';
+import { GradeChoice, UNGRADABLE_CHOICE } from '@/components/review/GradeChoice';
 
 type ReviewAction = 'ACCEPT' | 'CORRECT_GRADE' | 'MARK_UNGRADABLE' | 'REQUEST_SECOND_REVIEW' | 'ADJUDICATE_GRADE';
 
@@ -74,7 +74,7 @@ function ClinicianReviewPageSession() {
   const { imageId } = useParams<{ imageId: string }>();
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
-  const [useAsDefault, setUseAsDefault] = useState(() => Boolean(getDefaultReviewer()));
+  const [useAsDefault, setUseAsDefault] = useState(true);
   const [grade, setGrade] = useState('');
   const [remark, setRemark] = useState('');
   const [editingConfirmed, setEditingConfirmed] = useState(false);
@@ -97,7 +97,7 @@ function ClinicianReviewPageSession() {
       localTiming.modality(imageId, loaded.modality);
       localTiming.event('case_ready', imageId);
       setReviewer(loaded.clinician_review?.reviewer ?? getDefaultReviewer());
-      setUseAsDefault(Boolean(getDefaultReviewer()));
+      setUseAsDefault(true);
       setRemark(loaded.clinician_review?.remark ?? '');
       setGrade(loaded.clinician_review?.final_grade == null ? '' : String(loaded.clinician_review.final_grade));
       setEditingConfirmed(false);
@@ -181,7 +181,8 @@ function ClinicianReviewPageSession() {
     setSaving(true);
     setError(null);
     try {
-      const action: ReviewAction = requestedAction ?? (
+      const ungradable = grade === UNGRADABLE_CHOICE;
+      const action: ReviewAction = requestedAction ?? (ungradable ? 'MARK_UNGRADABLE' : null) ?? (
         item.grade_status === 'NEEDS_SECOND_REVIEW'
           ? 'ADJUDICATE_GRADE'
           : item.global?.grade != null && item.global.grade === Number(grade) ? 'ACCEPT' : 'CORRECT_GRADE'
@@ -193,7 +194,7 @@ function ClinicianReviewPageSession() {
           revision: item.revision,
           action,
           reviewer: reviewer.trim(),
-          ...(grade === '' ? {} : { grade: Number(grade) }),
+          ...(grade === '' || ungradable ? {} : { grade: Number(grade) }),
           comment: remark,
         }),
       });
@@ -267,7 +268,7 @@ function ClinicianReviewPageSession() {
               </Stack>
             </Section>
           ) : (
-            <Section title="Clinician decision" description="Select the final DR grade, then confirm it.">
+            <Section title="Clinician decision" description="Choose the final DR grade, then confirm it.">
               <Stack spacing={4}>
                 <HStack spacing={2}>
                   <Text fontSize="sm" color="text.secondary">Status:</Text>
@@ -295,22 +296,20 @@ function ClinicianReviewPageSession() {
                 <ReviewerField compact id="clinician-reviewer-name" isDisabled={saving} value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
                 <Text fontSize="sm" color="text.secondary">AI suggestion: {item.global?.grade == null ? 'Not available' : (drGradeLabel(item.global.grade) ?? 'Not available')} <Text as="span" color="text.muted">(optional evidence, not pre-selected)</Text></Text>
                 <Text fontSize="sm" color="text.secondary">Referral: <Text as="span" fontWeight="semibold" color="text.primary">{referralLabel(item.referral?.status)}</Text> <Text as="span" color="text.muted">(derived only from the confirmed physician grade)</Text></Text>
-                <FormControl>
-                  <HStack justify="space-between" align="center" mb={1}>
-                    <FormLabel htmlFor="clinician-review-grade" mb={0}>Final DR grade</FormLabel>
+                <Box>
+                  <HStack justify="space-between" align="center" mb={2}>
+                    <Text id="clinician-review-grade-label" fontWeight="medium" fontSize="md">Final DR grade</Text>
                     <GradeGuide />
                   </HStack>
-                  <Select id="clinician-review-grade" isDisabled={saving} value={grade} onChange={(event) => { localTiming.event('review_edit', item.image_id); setGrade(event.target.value); }} placeholder="Choose a DR grade">
-                    {[0, 1, 2, 3, 4].map((value) => <option key={value} value={value}>{value} - {drGradeLabel(value)}</option>)}
-                  </Select>
-                </FormControl>
+                  <GradeChoice labelId="clinician-review-grade-label" value={grade} isDisabled={saving} onChange={(value) => { localTiming.event('review_edit', item.image_id); setGrade(value); }} />
+                </Box>
                 <FormControl>
                   <FormLabel htmlFor="clinician-review-remark">Remark (optional)</FormLabel>
                   <Textarea id="clinician-review-remark" isDisabled={saving} value={remark} onChange={(event) => { localTiming.event('review_edit', item.image_id); setRemark(event.target.value); }} placeholder="Add a review remark" rows={4} />
                 </FormControl>
                 {error && <Alert status="error"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
                 <Button variant="solid" onClick={() => void saveGrade()} isLoading={saving} isDisabled={grade === ''}>
-                  {item.grade_status === 'NEEDS_SECOND_REVIEW' ? 'Resolve and confirm DR grade' : 'Confirm DR grade'}
+                  {grade === UNGRADABLE_CHOICE ? 'Confirm Ungradable' : item.grade_status === 'NEEDS_SECOND_REVIEW' ? 'Resolve and confirm DR grade' : 'Confirm DR grade'}
                 </Button>
                 <Box>
                   <Button
@@ -325,9 +324,6 @@ function ClinicianReviewPageSession() {
                   </Button>
                   <Collapse in={exceptionsOpen} animateOpacity>
                     <Stack id="grade-exceptions" mt={2} spacing={2}>
-                      <Button variant="outline" onClick={() => void saveGrade('MARK_UNGRADABLE')} isLoading={saving}>
-                        Image is not gradable
-                      </Button>
                       <Button variant="outline" onClick={() => void saveGrade('REQUEST_SECOND_REVIEW')} isLoading={saving}>
                         Needs another review
                       </Button>

@@ -47,12 +47,12 @@ describe('Clinical drafts and shell navigation', () => {
     fake(); renderAppAt('/clinician-review/draft-fixture');
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Edit confirmed grade' }));
     await userEvent.setup().click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Continue editing' }));
-    fireEvent.change(screen.getByLabelText('Final DR grade'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('radio', { name: /^3 / }));
     fireEvent.change(screen.getByLabelText('Remark (optional)'), { target: { value: 'Synthetic local draft' } });
     fireEvent.click(screen.getByRole('link', { name: 'Worklist', exact: true }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.setup().click(within(dialog).getByRole('button', { name: 'Stay on this image' }));
-    expect(screen.getByLabelText('Final DR grade')).toHaveValue('3');
+    expect(screen.getByRole('radio', { name: /^3 / })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByLabelText('Remark (optional)')).toHaveValue('Synthetic local draft');
   });
 

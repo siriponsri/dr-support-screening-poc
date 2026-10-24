@@ -39,7 +39,7 @@ export function ReadinessDialog({ item, onClose, onSaved }: ReadinessDialogProps
     if (!item) return;
     const defaultReviewer = getDefaultReviewer();
     setReviewer(defaultReviewer);
-    setUseAsDefault(Boolean(defaultReviewer));
+    setUseAsDefault(true);
     setError(null);
     setSavingAction(null);
   }, [item]);
@@ -75,7 +75,7 @@ export function ReadinessDialog({ item, onClose, onSaved }: ReadinessDialogProps
           {error && <Alert status="error"><AlertIcon /><Text>{error}</Text></Alert>}
           <Stack spacing={1}><Text fontWeight="semibold">{item?.filename ?? item?.display_name}</Text><Text fontSize="sm" color="text.secondary">{item?.admission_ui?.note ?? 'Confirm whether this image can be used for analysis.'}</Text></Stack>
           {actions.length === 0 && <Text fontSize="sm" color="text.secondary">No corrective action is available for this case.</Text>}
-          <ReviewerField id="worklist-readiness-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
+          <ReviewerField compact id="worklist-readiness-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
           {actions.length > 0 && <Text fontSize="xs" color="text.secondary">The selected action is recorded in the existing admission history.</Text>}
         </Stack></ModalBody>
         <ModalFooter><HStack spacing={2} flexWrap="wrap" justify="flex-end"><Button variant="ghost" onClick={onClose} isDisabled={Boolean(savingAction)}>Cancel</Button>{actions.map((entry) => <Button key={entry.action} variant="solid" onClick={() => void save(entry.action)} isLoading={savingAction === entry.action} isDisabled={Boolean(savingAction) && savingAction !== entry.action}>{entry.label}</Button>)}</HStack></ModalFooter>

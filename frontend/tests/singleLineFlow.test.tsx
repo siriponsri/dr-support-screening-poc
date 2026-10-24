@@ -145,6 +145,18 @@ describe('Review page', () => {
 });
 
 describe('Clinician Review grade decision', () => {
+  it('records Ungradable from the grade buttons without a DR severity', async () => {
+    const user = userEvent.setup();
+    const backend = fakeBackend([baseCase('case-1', 'a.jpg')]);
+    renderAppAt('/clinician-review/case-1');
+    await user.click(await screen.findByRole('radio', { name: 'Ungradable' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm Ungradable' }));
+    await waitFor(() => expect(backend.log.find((entry) => entry.path.endsWith('/review'))).toBeTruthy());
+    const body = backend.log.find((entry) => entry.path.endsWith('/review'))?.body as Record<string, unknown>;
+    expect(body).toMatchObject({ action: 'MARK_UNGRADABLE' });
+    expect(body).not.toHaveProperty('grade');
+  });
+
   it('requires an explicit grade, has no senior-review or Not Confirm action, and continues to annotation', async () => {
     const user = userEvent.setup();
     const backend = fakeBackend([baseCase('case-1', 'a.jpg')]);
@@ -152,10 +164,10 @@ describe('Clinician Review grade decision', () => {
     expect(await screen.findByText('Not confirmed', { selector: 'span' })).toBeInTheDocument();
     expect(screen.queryByText(/senior review/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /not confirm/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Final DR grade')).toHaveValue('');
+    expect(screen.getAllByRole('radio')).toHaveLength(6);
+    expect(screen.getAllByRole('radio').filter((radio) => radio.getAttribute('aria-checked') === 'true')).toHaveLength(0);
     expect(screen.getByRole('button', { name: 'Confirm DR grade' })).toBeDisabled();
-    await user.selectOptions(screen.getByLabelText('Final DR grade'), '3');
+    await user.click(await screen.findByRole('radio', { name: /^3 / }));
     await user.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     expect(backend.log.find((entry) => entry.path.endsWith('/review'))?.body).toMatchObject({ action: 'CORRECT_GRADE', grade: 3 });
     expect((await screen.findAllByRole('heading', { name: 'Annotation Editor' })).length).toBeGreaterThan(0);
@@ -168,13 +180,13 @@ describe('Clinician Review grade decision', () => {
     fakeBackend([baseCase('case-1', 'a.jpg', { state: 'REVIEWED', clinician_review: confirmedGrade })]);
     renderAppAt('/clinician-review/case-1');
     expect(await screen.findByRole('heading', { name: 'DR grade confirmed' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('Final DR grade')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Final DR grade' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Edit confirmed grade' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveTextContent('Edit confirmed DR grade?');
     await user.click(within(dialog).getByRole('button', { name: 'Continue editing' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
-    await user.selectOptions(screen.getByLabelText('Final DR grade'), '1');
+    await user.click(await screen.findByRole('radio', { name: /^1 / }));
     await user.type(screen.getByLabelText('Remark (optional)'), 'revised');
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
@@ -188,7 +200,7 @@ describe('Clinician Review grade decision', () => {
     renderAppAt('/clinician-review/case-1');
     await user.click(await screen.findByRole('button', { name: 'Edit confirmed grade' }));
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Continue editing' }));
-    await user.selectOptions(screen.getByLabelText('Final DR grade'), selectedGrade);
+    await user.click(await screen.findByRole('radio', { name: new RegExp(`^${selectedGrade} `) }));
     await user.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     await waitFor(() => expect(backend.log.find((entry) => entry.path.endsWith('/review') && entry.body?.grade === Number(selectedGrade))?.body).toMatchObject({ action }));
   });
@@ -197,7 +209,7 @@ describe('Clinician Review grade decision', () => {
     const user = userEvent.setup();
     const backend = fakeBackend([baseCase('case-1', 'a.jpg', { global: null })]);
     renderAppAt('/clinician-review/case-1');
-    await user.selectOptions(await screen.findByLabelText('Final DR grade'), '1');
+    await user.click(await screen.findByRole('radio', { name: /^1 / }));
     await user.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     await waitFor(() => expect(backend.log.find((entry) => entry.path.endsWith('/review'))?.body).toMatchObject({ action: 'CORRECT_GRADE', grade: 1 }));
   });
@@ -208,11 +220,11 @@ describe('Clinician Review grade decision', () => {
     renderAppAt('/clinician-review/case-1');
     await user.click(await screen.findByRole('button', { name: 'Edit confirmed grade' }));
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Continue editing' }));
-    await user.selectOptions(screen.getByLabelText('Final DR grade'), '1');
+    await user.click(await screen.findByRole('radio', { name: /^1 / }));
     await user.click(screen.getByRole('button', { name: 'Back to Review' }));
     expect(await screen.findByRole('alertdialog')).toHaveTextContent('Leave this image?');
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Stay on this image' }));
-    expect(screen.getByLabelText('Final DR grade')).toHaveValue('1');
+    expect(screen.getByRole('radio', { name: /^1 / })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('loads a legacy escalated record read-only without restoring the retired action', async () => {
@@ -222,7 +234,7 @@ describe('Clinician Review grade decision', () => {
     })]);
     renderAppAt('/clinician-review/case-1');
     expect(await screen.findByText(/Legacy senior-review record\./)).toBeInTheDocument();
-    expect(screen.getByLabelText('Final DR grade')).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Final DR grade' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /senior review/i })).not.toBeInTheDocument();
   });
 });

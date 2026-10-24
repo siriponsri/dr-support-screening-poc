@@ -474,7 +474,7 @@ function AnnotationEditorPageSession() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [draftStatus, setDraftStatus] = useState<'saved' | 'unsaved' | 'saving' | 'failed'>('saved');
-  const [useAsDefault, setUseAsDefault] = useState(() => Boolean(getDefaultReviewer()));
+  const [useAsDefault, setUseAsDefault] = useState(true);
   const [editingConfirmed, setEditingConfirmed] = useState(false);
   const [roiEdit, setRoiEdit] = useState<{ detectionId: string; label: LesionLabel; rect: RoiRectangle } | null>(null);
   const [roiSaving, setRoiSaving] = useState(false);
