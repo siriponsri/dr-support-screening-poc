@@ -12,6 +12,7 @@ import { ConfirmImageDialog } from '@/components/worklist/ConfirmImageDialog';
 import { WorklistTable } from '@/components/worklist/WorklistTable';
 import { DEFAULT_FILTERS, filterCases, groupCases, matchesQuickFilter, sortCases, type FinalGradeFilter, type SortOption, type StatusFilter, type ViewMode, type WorklistFilters } from '@/components/worklist/worklistModel';
 import { WorklistQuickFilter } from '@/components/worklist/WorklistQuickFilter';
+import { QuickLookDrawer } from '@/components/worklist/QuickLookDrawer';
 import { WorklistToolbar } from '@/components/worklist/WorklistToolbar';
 import { imageContextConfirmed } from '@/lib/caseProgress';
 
@@ -33,6 +34,7 @@ export function WorklistPage() {
   const [resolverCase, setResolverCase] = useState<CaseRecord | null>(null);
   const [readinessCase, setReadinessCase] = useState<CaseRecord | null>(null);
   const [confirmImageCase, setConfirmImageCase] = useState<CaseRecord | null>(null);
+  const [quickLookCase, setQuickLookCase] = useState<CaseRecord | null>(null);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<WorklistFilters>(DEFAULT_FILTERS);
   const [sort, setSort] = useState<SortOption>('filename');
@@ -119,12 +121,13 @@ export function WorklistPage() {
             {filteredCases.length === 0 ? (
               <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Stack spacing={2}><Text fontWeight="semibold">No cases match these filters.</Text><Button size="sm" variant="outline" alignSelf="flex-start" onClick={() => { setSearch(''); setFilters(DEFAULT_FILTERS); setStatus('all'); setFinalGrade('all'); }}>Clear filters</Button></Stack></Box>
             ) : (
-            <WorklistTable cases={filteredCases} groups={patientGroups} models={models} onResolve={setResolverCase} onReadiness={setReadinessCase} onConfirmImage={setConfirmImageCase} onQueueAction={(item, action) => void updateQueue(item, action)} />
+            <WorklistTable cases={filteredCases} groups={patientGroups} models={models} onResolve={setResolverCase} onReadiness={setReadinessCase} onConfirmImage={setConfirmImageCase} onQueueAction={(item, action) => void updateQueue(item, action)} onQuickLook={setQuickLookCase} />
             )}
           </>
         )}
       </Section>
       <HStack mt={4} spacing={2} color="text.muted" fontSize="xs"><Text>AI suggestions are optional visual evidence; clinician review remains authoritative.</Text></HStack>
+      <QuickLookDrawer item={quickLookCase} onClose={() => setQuickLookCase(null)} />
       <ResolverDialog item={resolverCase} onClose={() => setResolverCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
       <ReadinessDialog item={readinessCase} onClose={() => setReadinessCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
       <ConfirmImageDialog item={confirmImageCase} onClose={() => { setConfirmImageCase(null); setCompletedNotice(null); }} onSaved={(saved) => { setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry)); navigate(`/review/${encodeURIComponent(saved.image_id)}`); }} />
