@@ -59,6 +59,7 @@ from ..imaging import (
     map_lesion_result_to_review,
 )
 from ..services.admission import (
+    ADMISSION_REVIEW_FIELDS,
     is_inference_eligible,
     legacy_admission,
     preserve_admission_timestamps,
@@ -427,6 +428,10 @@ def create_app(
                         'retinal_modality_method', 'retinal_modality_candidate',
                     ) if key in saved
                 }}
+                record = AdmissionMetadata.model_validate(record).model_dump(mode='json')
+            # Confirm Image records who reviewed the admission; a rescan never clears it.
+            if saved and any(saved.get(key) is not None for key in ADMISSION_REVIEW_FIELDS):
+                record = {**record, **{key: saved.get(key) for key in ADMISSION_REVIEW_FIELDS}}
                 record = AdmissionMetadata.model_validate(record).model_dump(mode='json')
             # A rescan (including the one at every start) keeps the first admission time.
             record = preserve_admission_timestamps(saved, record)
