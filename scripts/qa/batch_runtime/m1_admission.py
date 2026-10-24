@@ -7,7 +7,7 @@ from copy import deepcopy
 import re
 
 from batch_budget import BatchBudget
-from batch_ledger import BatchLedger, M1_BASE_USED, M1_CAP, M1_GPU0, M1_SERVER, require
+from batch_ledger import BatchLedger, M1_GPU0, require
 from scripts.qa.worker_supervisor import ChildIdentity, WorkerSupervisor
 
 
@@ -28,10 +28,10 @@ class M1AdmissionConsumer:
     """
     def __init__(self, ledger, budget, supervisor, *, child, lease_id):
         require(type(ledger) is BatchLedger and ledger.continuation is not None
-                and ledger.base_used == M1_BASE_USED and ledger.cap == M1_CAP,
+                and ledger.base_used == ledger.spec["base_used"] and ledger.cap == ledger.spec["cap"],
                 "M1_EXISTING_CONTINUATION_LEDGER_REQUIRED")
         require(type(budget) is BatchBudget and budget.ledger is ledger
-                and ledger._window_budget is budget and budget.session_id == M1_SERVER,
+                and ledger._window_budget is budget and budget.session_id == ledger.spec["server_window"],
                 "M1_EXACT_SERVER_WINDOW_BUDGET_REQUIRED")
         require(type(supervisor) is WorkerSupervisor and supervisor._child is child
                 and type(child.identity) is ChildIdentity and supervisor._identity == child.identity

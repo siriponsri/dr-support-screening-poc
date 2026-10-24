@@ -2,6 +2,9 @@
 
   draft   build PROPOSAL.json from reviewed pins, the approved private images and the
           nine historical failed jobs; print its SHA-256 for the owner
+  draft-prism  build the PRISM window continuation from a FENCED 2026-10-23 source
+          (its HANDOVER_EXPORT.json and closed Server window) and write the
+          upstream path map for the host session
   approve write APPROVAL.json for an exact proposal SHA-256, ONLY after the owner
           approved that hash in the task conversation
 
@@ -16,7 +19,10 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'qa' / 'batch_runtime'))
 import m1_operations as operations  # noqa: E402
+from batch_ledger import (M1_PRISM_DECISION, M1_PRISM_OPERATIONS, M1_PRISM_SERVER,  # noqa: E402
+                          M1_PRISM_WINDOW)
 
 SERVER, LOCAL = 'HOSPITAL_M1_QA_SERVER_20261023', 'HOSPITAL_M1_QA_LOCAL_20261023'
 ANCHORS = ('batch_ledger', 'original_budget', 'second_budget', 'demo_requests', 'demo_activation',
@@ -104,6 +110,45 @@ def draft(args):
     return 0
 
 
+def draft_prism(args):
+    """The source's unsent Server PRISM operations, unchanged except their window."""
+    source = Path(args.source_accounting).resolve()  # The host session may run from another directory.
+    files = {'handover_export': source / 'HANDOVER_EXPORT.json', 'source_proposal': source / 'PROPOSAL.json',
+             'source_approval': source / 'APPROVAL.json', 'source_journal': source / 'LEDGER.jsonl',
+             'source_journal_head': source / 'JOURNAL_HEAD.json',
+             'source_server_budget': source / 'windows' / SERVER / 'BUDGET.json',
+             'source_server_complete': source / 'windows' / SERVER / 'COMPLETE.json'}
+    export, previous = (json.loads(files[key].read_bytes()) for key in ('handover_export', 'source_proposal'))
+    operations.require(export.get('status') == 'SOURCE_FENCED_LOCAL_ADOPTION_NOT_QUALIFIED'
+                       and export.get('destination_installation_sha256') == args.installation_sha256,
+                       'FENCED_SOURCE_FOR_THIS_INSTALLATION_REQUIRED')
+    remaining = set(export['remaining_job_ids'])
+    jobs = []
+    for origin in previous['operations']:
+        if (origin['job_id'] in remaining and origin['purpose'] == 'server_acceptance'
+                and origin['window_id'] == SERVER and origin['model_id'] == 'prism-dr-5fold'):
+            body = {key: value for key, value in origin.items() if key != 'job_id'} | {'window_id': M1_PRISM_SERVER}
+            jobs.append({**body, 'job_id': hashlib.sha256(operations.canonical(body)).hexdigest()})
+    operations.require(len(jobs) == M1_PRISM_OPERATIONS, 'EXACT_UNSENT_PRISM_OPERATIONS_REQUIRED')
+    base = export['global_used']
+    proposal = {'schema': 'hospital-m1-prism-continuation.v1', 'decision_id': M1_PRISM_DECISION,
+                'base_used': base, 'cap': base + M1_PRISM_OPERATIONS, 'new_admissions_max': M1_PRISM_OPERATIONS,
+                'allocations': {'server_acceptance': M1_PRISM_OPERATIONS},
+                'windows': {M1_PRISM_SERVER: dict(M1_PRISM_WINDOW)},
+                'accounting_directory': args.accounting_directory, 'installation_sha256': args.installation_sha256,
+                'upstream': {key: sha_file(path) for key, path in files.items()}, 'operations': jobs}
+    raw = operations.canonical(proposal)
+    with Path(args.output).open('xb') as stream:
+        stream.write(raw)
+    with Path(args.upstream_output).open('xb') as stream:
+        stream.write(operations.canonical({key: str(path) for key, path in files.items()}))
+    print(json.dumps({'proposal': str(args.output), 'proposal_sha256': hashlib.sha256(raw).hexdigest(),
+                      'base_used': base, 'cap': proposal['cap'], 'window': M1_PRISM_SERVER,
+                      'operations': [{key: job[key] for key in ('operation_id', 'model_id', 'modality')}
+                                     | {'source_sha256': job['source_sha256'][:12]} for job in jobs]}, indent=1))
+    return 0
+
+
 def approve(args):
     raw = Path(args.proposal).read_bytes()
     operations.require(hashlib.sha256(raw).hexdigest() == args.proposal_sha256, 'OWNER_APPROVED_PROPOSAL_HASH_REQUIRED')
@@ -118,7 +163,9 @@ def approve(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('command', choices=['draft', 'approve'])
+    parser.add_argument('command', choices=['draft', 'draft-prism', 'approve'])
+    parser.add_argument('--source-accounting', type=Path)
+    parser.add_argument('--upstream-output', type=Path)
     parser.add_argument('--models', type=Path)
     parser.add_argument('--prism-pins', type=Path)
     parser.add_argument('--uwf-root', type=Path)
@@ -130,6 +177,8 @@ def main():
     parser.add_argument('--proposal-sha256')
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    if args.command == 'draft-prism':
+        return draft_prism(args)
     return draft(args) if args.command == 'draft' else approve(args)
 
 

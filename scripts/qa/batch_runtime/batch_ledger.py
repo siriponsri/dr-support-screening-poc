@@ -33,6 +33,20 @@ M1_GPU0 = "GPU-044a8b11-4729-458b-a07b-297e45439419"
 M1_LEGACY_DEMO_COMPLETE_SHA = "9847e4da6c7d5c4fd0703c0141ccaad7c40feda90dab85b0d5ae94fc5e9d5a06"
 M1_ANCHORS = {"batch_ledger", "original_budget", "second_budget", "demo_requests",
               "demo_activation", "demo_complete", "demo_ready"}
+M1_PRIOR_GPU_SECONDS = 17002.874
+# Owner-approved 2026-10-24 (docs/milestone/m1/M1_PRISM_WINDOW_CONTINUATION.md):
+# the unsent PRISM operations continue from the fenced 2026-10-23 decision.
+M1_PRISM_DECISION = "HOSPITAL_M1_ACCOUNTING_PRISM_20261024"
+M1_PRISM_SERVER = "HOSPITAL_M1_QA_SERVER_PRISM_20261024"
+M1_PRISM_WINDOW = {"profile": "QA_SERVER", "gpu_index": 0, "gpu_seconds_cap": 3600,
+                   "wall_seconds_cap": 7200, "refund_unused": False, "renew": False}
+M1_PRISM_OPERATIONS = 3
+M1_PRISM_ANCHORS = {"handover_export", "source_proposal", "source_approval", "source_journal",
+                    "source_journal_head", "source_server_budget", "source_server_complete"}
+M1_NEW_GPU_SECONDS_MAX = 21600  # Approved total new reservation across M1 windows (6 GPU-hours).
+M1_OPERATION_FIELDS = {"job_id", "operation_id", "purpose", "window_id", "source_sha256", "model_id",
+                       "modality", "model_pins_sha256", "parameters_sha256", "preprocessing_id"}
+M1_APPROVED_STATUS = "EXPLICIT_OWNER_APPROVED_NOT_ACTIVATED"
 TERMINAL = {"PASS_READBACK", "FAILED_NO_RETRY", "FAILED_PERSISTENCE", "SENT_OR_UNCERTAIN", "BLOCKED_PREMODEL"}
 TRANSITIONS = {
     None: {"ATTEMPT_INTENT", "BLOCKED_PREMODEL"},
@@ -217,7 +231,168 @@ def _verify_m1(directory, proposal_path, approval_path, proposal_sha256, approva
     return {"proposal": proposal, "proposal_raw": proposal_raw, "approval_raw": approval_raw,
             "proposal_sha256": proposal_sha256, "approval_sha256": approval_sha256,
             "upstream": upstream, "paths": paths, "proposal_path": _direct(proposal_path),
-            "approval_path": _direct(approval_path), "manifest": digest(canonical(jobs))}
+            "approval_path": _direct(approval_path), "manifest": digest(canonical(jobs)),
+            "spec": {"decision_id": M1_DECISION, "base_used": M1_BASE_USED, "cap": M1_CAP,
+                     "server_window": M1_SERVER, "local_window": M1_LOCAL,
+                     "windows": deepcopy(proposal["windows"]), "prior_gpu_seconds": M1_PRIOR_GPU_SECONDS}}
+
+
+def _replay_source_journal(raw, manifest, job_ids):
+    """Independently replay the fenced source journal written by BatchLedger._accept."""
+    require(raw == b"" or raw.endswith(b"\n"), "M1_PRISM_SOURCE_JOURNAL_TORN")
+    states, previous, intents = {}, "0" * 64, 0
+    for seq, line in enumerate(raw.splitlines(), 1):
+        row = json.loads(line)
+        require(isinstance(row, dict) and set(row) == {"seq", "manifest", "job_id", "state", "reason",
+                                                       "artifact_sha256", "previous", "hash"}
+                and row["seq"] == seq and row["manifest"] == manifest and row["job_id"] in job_ids
+                and row["reason"] in REASONS and row["previous"] == previous
+                and row["hash"] == digest(canonical({k: v for k, v in row.items() if k != "hash"}))
+                and row["state"] in TRANSITIONS.get(states.get(row["job_id"]), set()),
+                "M1_PRISM_SOURCE_JOURNAL_CHAIN_OR_TRANSITION")
+        artifact = row["artifact_sha256"]
+        require((artifact is None or _is_sha(artifact))
+                and (row["state"] not in {"ATTEMPT_INTENT", "RESPONSE_RETAINED", "PASS_READBACK"}
+                     or _is_sha(artifact)), "M1_PRISM_SOURCE_ARTIFACT_INVALID")
+        previous = row["hash"]
+        states[row["job_id"]] = row["state"]
+        intents += row["state"] == "ATTEMPT_INTENT"
+    return states, intents, len(raw.splitlines()), previous
+
+
+def _verify_m1_prism(directory, proposal_path, approval_path, proposal_sha256, approval_sha256,
+                     upstream_paths, installation_sha256):
+    """Verify the PRISM window decision against the fenced 2026-10-23 source."""
+    require(_is_sha(proposal_sha256) and _is_sha(approval_sha256) and _is_sha(installation_sha256),
+            "M1_EXTERNAL_AUTHORIZATION_PINS_REQUIRED")
+    proposal_raw, approval_raw = _regular(proposal_path), _regular(approval_path)
+    require(digest(proposal_raw) == proposal_sha256 and digest(approval_raw) == approval_sha256,
+            "M1_EXACT_EXTERNAL_OWNER_APPROVAL_REQUIRED")
+    proposal, approval = json.loads(proposal_raw), json.loads(approval_raw)
+    require(set(proposal) == {"schema", "decision_id", "base_used", "cap", "new_admissions_max",
+                             "allocations", "windows", "accounting_directory", "installation_sha256",
+                             "upstream", "operations"}
+            and proposal["schema"] == "hospital-m1-prism-continuation.v1"
+            and proposal["decision_id"] == M1_PRISM_DECISION
+            and type(proposal["new_admissions_max"]) is int and proposal["new_admissions_max"] == M1_PRISM_OPERATIONS
+            and proposal["allocations"] == {"server_acceptance": M1_PRISM_OPERATIONS}
+            and type(proposal["allocations"]["server_acceptance"]) is int
+            and proposal["windows"] == {M1_PRISM_SERVER: M1_PRISM_WINDOW}
+            # Equality alone accepts 3600.0 or 0 for False; require the exact JSON types.
+            and all(type(proposal["windows"][M1_PRISM_SERVER][key]) is int
+                    for key in ("gpu_index", "gpu_seconds_cap", "wall_seconds_cap"))
+            and all(type(proposal["windows"][M1_PRISM_SERVER][key]) is bool for key in ("refund_unused", "renew"))
+            and proposal["installation_sha256"] == installation_sha256
+            and approval == {"schema": "hospital-m1-owner-approval.v1", "decision_id": M1_PRISM_DECISION,
+                             "proposal_sha256": proposal_sha256, "status": M1_APPROVED_STATUS},
+            "M1_PRISM_AUTHORIZATION_SCOPE_INVALID")
+    directory = _direct(directory)
+    require(Path(proposal["accounting_directory"]).is_absolute()
+            and _direct(proposal["accounting_directory"]) == directory,
+            "M1_SINGLE_AUTHORIZED_ACCOUNTING_DIRECTORY_REQUIRED")
+    require(set(upstream_paths) == set(proposal["upstream"]) == M1_PRISM_ANCHORS
+            and all(_is_sha(value) for value in proposal["upstream"].values()), "M1_PRISM_ANCHORS_REQUIRED")
+    paths = {key: _direct(path) for key, path in upstream_paths.items()}
+    require(all(directory != path.parent and directory not in path.parents for path in paths.values()),
+            "M1_OLD_ACCOUNTING_DIRECTORY_MUST_NOT_BE_REUSED")
+    # Every anchor comes from ONE fenced source directory, as fence_handover wrote it.
+    source_dir = paths["handover_export"].parent
+    expected = {"handover_export": "HANDOVER_EXPORT.json", "source_proposal": "PROPOSAL.json",
+                "source_approval": "APPROVAL.json", "source_journal": "LEDGER.jsonl",
+                "source_journal_head": "JOURNAL_HEAD.json",
+                "source_server_budget": f"windows/{M1_SERVER}/BUDGET.json",
+                "source_server_complete": f"windows/{M1_SERVER}/COMPLETE.json"}
+    require(all(paths[key] == _direct(source_dir / name) for key, name in expected.items()),
+            "M1_PRISM_ANCHORS_FROM_ONE_SOURCE_REQUIRED")
+    upstream = {key: _regular(path) for key, path in paths.items()}
+    require(all(digest(raw) == proposal["upstream"][key] for key, raw in upstream.items()),
+            "M1_PINNED_UPSTREAM_BYTES_CHANGED")
+    lock = source_dir / "HANDOVER.lock"
+    require(lock.is_file() and _regular(lock) == upstream["handover_export"], "M1_PRISM_SOURCE_NOT_FENCED")
+    export, source, source_approval, head, saved, complete = (json.loads(upstream[key]) for key in (
+        "handover_export", "source_proposal", "source_approval", "source_journal_head",
+        "source_server_budget", "source_server_complete"))
+    require(type(export) is dict and export.get("schema") == "hospital-m1-source-handover.v1"
+            and export.get("status") == "SOURCE_FENCED_LOCAL_ADOPTION_NOT_QUALIFIED"
+            and export.get("local_activation_available") is False
+            and export.get("proposal_sha256") == digest(upstream["source_proposal"])
+            and export.get("approval_sha256") == digest(upstream["source_approval"])
+            and export.get("journal_sha256") == digest(upstream["source_journal"])
+            and export.get("journal_head_sha256") == digest(upstream["source_journal_head"])
+            and export.get("server_budget_sha256") == digest(upstream["source_server_budget"])
+            and export.get("server_activation_sha256") == digest(upstream["source_server_complete"])
+            and export.get("destination_installation_sha256") == installation_sha256,
+            "M1_PRISM_HANDOVER_ANCHOR_INVALID")
+    require(source.get("schema") == "hospital-m1-continuation.v1" and source.get("decision_id") == M1_DECISION
+            and source_approval == {"schema": "hospital-m1-owner-approval.v1", "decision_id": M1_DECISION,
+                                    "proposal_sha256": export["proposal_sha256"], "status": M1_APPROVED_STATUS}
+            and type(source.get("operations")) is list
+            and export.get("manifest") == digest(canonical(source["operations"]))
+            and export.get("upstream") == source.get("upstream"),
+            "M1_PRISM_SOURCE_DECISION_INVALID")
+    source_jobs = {job["job_id"]: job for job in source["operations"]}
+    states, intents, rows, tail = _replay_source_journal(upstream["source_journal"], export["manifest"],
+                                                         set(source_jobs))
+    require(type(export.get("seq")) is int and type(export.get("global_used")) is int
+            and rows == export["seq"] and tail == export.get("tail")
+            and not any(state in {"ATTEMPT_INTENT", "RESPONSE_RETAINED", "SENT_OR_UNCERTAIN"}
+                        for state in states.values())
+            and export.get("global_used") == M1_BASE_USED + intents
+            and type(proposal["base_used"]) is int and proposal["base_used"] == export["global_used"]
+            and type(proposal["cap"]) is int and proposal["cap"] == proposal["base_used"] + M1_PRISM_OPERATIONS
+            and proposal["cap"] <= M1_CAP
+            and head == {"manifest": export["manifest"], "proposal_sha256": export["proposal_sha256"],
+                         "journal_sha256": export["journal_sha256"], "seq": rows, "tail": tail}
+            and export.get("remaining_job_ids") == [key for key in source_jobs if key not in states],
+            "M1_PRISM_SOURCE_USAGE_INVALID")
+    body = saved.get("body") if type(saved) is dict else None
+    require(type(body) is dict and saved.get("sha256") == digest(canonical(body))
+            and body.get("manifest") == export["manifest"] and body.get("session_id") == M1_SERVER
+            and body.get("authorization_sha256") == digest(upstream["source_server_complete"])
+            and body.get("window_closed") is True and body.get("active") is None
+            and body.get("quarantined") is False
+            and type(body.get("lease_count")) is int and body["lease_count"] == 1
+            and type(body.get("charged_gpu_seconds")) in (int, float)
+            and math.isfinite(body["charged_gpu_seconds"]) and body["charged_gpu_seconds"] >= 10800
+            and body["charged_gpu_seconds"] + M1_PRISM_WINDOW["gpu_seconds_cap"] <= M1_NEW_GPU_SECONDS_MAX
+            and complete.get("window_id") == M1_SERVER and complete.get("gpu_uuid") == M1_GPU0
+            and complete.get("proposal_sha256") == export["proposal_sha256"],
+            "M1_PRISM_SOURCE_WINDOW_NOT_CLOSED_OR_OVER_BUDGET")
+    jobs = proposal["operations"]
+    candidates = {job["operation_id"]: job for key, job in source_jobs.items()
+                  if key in export["remaining_job_ids"] and job["purpose"] == "server_acceptance"
+                  and job["window_id"] == M1_SERVER and job["model_id"] == "prism-dr-5fold"}
+    require(type(jobs) is list and len(jobs) == M1_PRISM_OPERATIONS == len(candidates)
+            and {job.get("operation_id") for job in jobs} == set(candidates)
+            and len({job.get("job_id") for job in jobs}) == M1_PRISM_OPERATIONS,
+            "M1_PRISM_EXACT_UNSENT_OPERATIONS_REQUIRED")
+    for job in jobs:
+        origin = candidates[job["operation_id"]]
+        require(set(job) == M1_OPERATION_FIELDS and job["window_id"] == M1_PRISM_SERVER
+                and job["job_id"] == digest(canonical({k: v for k, v in job.items() if k != "job_id"}))
+                and job["job_id"] not in source_jobs
+                and {k: v for k, v in job.items() if k not in {"job_id", "window_id"}}
+                    == {k: v for k, v in origin.items() if k not in {"job_id", "window_id"}},
+                "M1_PRISM_OPERATION_CHANGED")
+    return {"proposal": proposal, "proposal_raw": proposal_raw, "approval_raw": approval_raw,
+            "proposal_sha256": proposal_sha256, "approval_sha256": approval_sha256,
+            "upstream": upstream, "paths": paths, "proposal_path": _direct(proposal_path),
+            "approval_path": _direct(approval_path), "manifest": digest(canonical(jobs)),
+            "spec": {"decision_id": M1_PRISM_DECISION, "base_used": proposal["base_used"],
+                     "cap": proposal["cap"], "server_window": M1_PRISM_SERVER, "local_window": None,
+                     "windows": deepcopy(proposal["windows"]),
+                     "prior_gpu_seconds": round(M1_PRIOR_GPU_SECONDS + body["charged_gpu_seconds"], 3)}}
+
+
+def _verify_decision(directory, proposal_path, approval_path, proposal_sha256, approval_sha256,
+                     upstream_paths, installation_sha256):
+    """Dispatch on the externally pinned proposal's schema; each verifier is exact."""
+    schema = json.loads(_regular(proposal_path)).get("schema")
+    verify = {"hospital-m1-continuation.v1": _verify_m1,
+              "hospital-m1-prism-continuation.v1": _verify_m1_prism}.get(schema)
+    require(verify is not None, "M1_UNKNOWN_DECISION_SCHEMA")
+    return verify(directory, proposal_path, approval_path, proposal_sha256, approval_sha256,
+                  upstream_paths, installation_sha256)
 
 
 class BatchLedger:
@@ -227,7 +402,7 @@ class BatchLedger:
         require(re.fullmatch(r"[a-f0-9]{64}", manifest_sha256) is not None, "MANIFEST_DIGEST_REQUIRED")
         if _continuation is not None:
             context = _continuation
-            _continuation = _verify_m1(directory, context["proposal_path"], context["approval_path"],
+            _continuation = _verify_decision(directory, context["proposal_path"], context["approval_path"],
                 context["proposal_sha256"], context["approval_sha256"], context["paths"],
                 context["proposal"]["installation_sha256"])
             require(jobs == _continuation["proposal"]["operations"]
@@ -237,7 +412,8 @@ class BatchLedger:
         require(len(self.jobs) == len(jobs) and 0 < len(jobs) <= 480, "UNIQUE_BOUNDED_JOBS_REQUIRED")
         self.manifest_sha256 = manifest_sha256
         self.continuation = _continuation
-        self.base_used, self.cap = (M1_BASE_USED, M1_CAP) if _continuation is not None else (BASE_USED, CAP)
+        self.base_used, self.cap = ((_continuation["spec"]["base_used"], _continuation["spec"]["cap"])
+                                    if _continuation is not None else (BASE_USED, CAP))
         self._admitting = False
         self._window_budget = None
         self.lock = RLock()
@@ -259,14 +435,20 @@ class BatchLedger:
         The caller must obtain the expected hashes from the explicit owner
         approval channel, never from an adjacent self-declared hash file.
         """
-        verified = _verify_m1(directory, proposal_path, approval_path, proposal_sha256,
-                              approval_sha256, upstream_paths, installation_sha256)
+        verified = _verify_decision(directory, proposal_path, approval_path, proposal_sha256,
+                                    approval_sha256, upstream_paths, installation_sha256)
         return cls(directory, jobs=verified["proposal"]["operations"],
                    manifest_sha256=verified["manifest"], _continuation=verified)
 
+    @property
+    def spec(self):
+        """Window/base/cap constants of the verified decision (None outside M1)."""
+        return self.continuation["spec"] if self.continuation is not None else None
+
     def _check_continuation(self):
         context = self.continuation
-        require(context is not None and self.base_used == M1_BASE_USED and self.cap == M1_CAP
+        require(context is not None and self.base_used == context["spec"]["base_used"]
+                and self.cap == context["spec"]["cap"]
                 and digest(canonical(list(self.jobs.values()))) == self.manifest_sha256 == context["manifest"]
                 and context["proposal"] == json.loads(context["proposal_raw"])
                 and _direct(self.directory) == _direct(context["proposal"]["accounting_directory"]),
@@ -279,12 +461,13 @@ class BatchLedger:
     def _origin(self):
         value = {"manifest": self.manifest_sha256, "budget_required": self.continuation is not None}
         if self.continuation is not None:
+            # Same shape for every decision; the 2026-10-23 values are unchanged.
             value["continuation"] = {"schema": "hospital-m1-accounting-origin.v1",
                 "proposal_sha256": self.continuation["proposal_sha256"],
                 "approval_sha256": self.continuation["approval_sha256"],
-                "base_used": M1_BASE_USED, "cap": M1_CAP,
+                "base_used": self.spec["base_used"], "cap": self.spec["cap"],
                 "upstream": self.continuation["proposal"]["upstream"],
-                "prior_gpu_seconds_preserved": 17002.874}
+                "prior_gpu_seconds_preserved": self.spec["prior_gpu_seconds"]}
         return value
 
     def _head(self, journal_sha, seq, tail):
@@ -504,8 +687,9 @@ class BatchLedger:
 
     def _require_closed_window(self):
         from batch_budget import continuation_window_context
-        if (self.directory / "windows" / M1_SERVER).exists():
-            _, _, body = continuation_window_context(self, M1_SERVER)
+        server = self.spec["server_window"]
+        if (self.directory / "windows" / server).exists():
+            _, _, body = continuation_window_context(self, server)
             require(body["active"] is None and body["quarantined"] is False and body["window_closed"] is True,
                     "M1_WINDOW_MUST_BE_CLOSED")
         require(not (self.directory / "windows" / M1_LOCAL).exists(), "M1_LOCAL_ADOPTION_NOT_QUALIFIED")
@@ -520,10 +704,10 @@ class BatchLedger:
             self.assert_owner()
             require(self.continuation is not None and _is_sha(destination_installation_sha256),
                     "M1_APPROVED_DESTINATION_IDENTITY_REQUIRED")
-            require((self.directory / "windows" / M1_SERVER).is_dir() and not self.uncertain(),
+            server = self.directory / "windows" / self.spec["server_window"]
+            require(server.is_dir() and not self.uncertain(),
                     "M1_CLOSED_SOURCE_WITH_NO_UNCERTAIN_INTENTS_REQUIRED")
             self._require_closed_window()
-            server = self.directory / "windows" / M1_SERVER
             value = {"schema": "hospital-m1-source-handover.v1", "status": "SOURCE_FENCED_LOCAL_ADOPTION_NOT_QUALIFIED",
                 "manifest": self.manifest_sha256, "proposal_sha256": self.continuation["proposal_sha256"],
                 "approval_sha256": self.continuation["approval_sha256"],
