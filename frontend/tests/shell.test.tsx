@@ -51,7 +51,7 @@ describe('Sidebar navigation', () => {
   it('shows the KKU institutional band and wordmark', () => {
     renderAppAt('/worklist');
     expect(screen.getAllByTestId('institutional-band').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Khon Kaen University · Faculty of Medicine/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Faculty of Medicine, Khon Kaen University/).length).toBeGreaterThan(0);
   });
 
   it('exposes a brand mark and an explicit workspace recovery state', async () => {

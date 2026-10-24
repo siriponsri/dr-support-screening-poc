@@ -118,7 +118,7 @@ describe('PRE-S3 Worklist', () => {
     withProviders(<WorklistPage />, '/worklist');
 
     const row = await screen.findByTestId(`case-row-${automatic.display_name}`);
-    expect(within(row).getByText('PAT0001 · Left')).toBeInTheDocument();
+    expect(within(row).getByText('PAT0001 / Left')).toBeInTheDocument();
     expect(within(row).getByText('Auto-linked')).toBeInTheDocument();
     await user.click(within(row).getByRole('button', { name: 'Edit patient and eye assignment' }));
     expect(screen.getByLabelText('Pseudonymous patient key')).toHaveValue('PAT0001');
@@ -131,7 +131,7 @@ describe('PRE-S3 Worklist', () => {
     await user.click(screen.getByRole('button', { name: 'Save patient / eye' }));
 
     expect(resolverBody).toMatchObject({ revision: 2, patient_action: 'SET', patient_key: 'PAT0002', laterality_action: 'SET', laterality: 'RIGHT' });
-    expect(within(await screen.findByTestId(`case-row-${automatic.display_name}`)).getByText('PAT0002 · Right')).toBeInTheDocument();
+    expect(within(await screen.findByTestId(`case-row-${automatic.display_name}`)).getByText('PAT0002 / Right')).toBeInTheDocument();
     expect(screen.getByText('Confirmed')).toBeInTheDocument();
     expect(corrected.resolution_history?.[0]).toMatchObject({ action: 'MANUAL_RESOLUTION' });
   });

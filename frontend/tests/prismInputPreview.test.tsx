@@ -110,7 +110,7 @@ describe('single Review UI preparation panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
     expect(await screen.findByAltText('Verified planned input preview')).toBeInTheDocument();
     expect(screen.getByText('Planned API submission')).toBeInTheDocument();
-    expect(screen.getByText('Planned API input — internal model crop not previewed')).toBeInTheDocument();
+    expect(screen.getByText('Planned API input: internal model crop not previewed')).toBeInTheDocument();
     expect(screen.getByText(/Native ROI may still crop internally/)).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Show conditional FOV overlay' })).toBeDisabled();
     expect(screen.getByRole('checkbox', { name: 'Show conditional FOV overlay' })).not.toBeChecked();

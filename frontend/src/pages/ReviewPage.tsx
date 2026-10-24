@@ -228,7 +228,7 @@ function admissionAllowsAnalysis(item: CaseRecord | null) {
 function patientEyeContext(item: CaseRecord) {
   const patient = hasInternalPatientKey(item) ? patientLabel(item) : item.patient_key ?? item.patient_candidate ?? item.display_name;
   const eye = item.laterality === 'LEFT' ? 'Left' : item.laterality === 'RIGHT' ? 'Right' : 'Eye not confirmed';
-  return `${patient} \u00b7 ${eye}`;
+  return `${patient} / ${eye}`;
 }
 
 function ReviewContextStatus({ item }: { item: CaseRecord }) {
@@ -672,7 +672,7 @@ function ReviewPageSession() {
       </Stack>
       {qaBatch && <Alert status="warning" mb={4} data-testid="qa-batch-context" data-context={JSON.stringify(qaBatch)}>
         <AlertIcon /><Stack spacing={2}>
-          <Text fontWeight="semibold">Automated technical batch test — no clinical use</Text>
+          <Text fontWeight="semibold">Automated technical batch test: no clinical use</Text>
           <Text fontSize="sm">This single manifest-bound job preserves quality state {qaBatch.quality_state ?? 'not recorded'}. Automation does not confirm image quality, patient context, grade, lesions or training gold. Original input; no external mask is applied. Native PRISM ROI remains internal and is not previewed.</Text>
           {qaBatch.permitted_action === 'GLOBAL_ONCE' && <Button data-testid="qa-batch-global-once" alignSelf="flex-start" onClick={() => void runQaGlobalOnce()} isDisabled={!qaModel || qaAttempt.current} isLoading={qaBusy}>Run this technical grading request once</Button>}
           {qaBusy && <Text data-testid="qa-batch-busy">Technical request in progress</Text>}
@@ -744,10 +744,10 @@ function ReviewPageSession() {
                 onChange={(event) => setLesionFilter(event.target.value as LesionLabel | 'ALL')}
               >
                 <option value="ALL">All lesion classes</option>
-                <option value="MICROANEURYSM">MA · Microaneurysm</option>
-                <option value="HEMORRHAGE">HE · Hemorrhage</option>
-                <option value="HARD_EXUDATE">EX · Hard exudate</option>
-                <option value="SOFT_EXUDATE">SE · Soft exudate</option>
+                <option value="MICROANEURYSM">MA: Microaneurysm</option>
+                <option value="HEMORRHAGE">HE: Hemorrhage</option>
+                <option value="HARD_EXUDATE">EX: Hard exudate</option>
+                <option value="SOFT_EXUDATE">SE: Soft exudate</option>
               </Select>
             )}
             {imageView === 'mask-overlay' && !maskOverlayAvailable && !maskOverlayLoadError && (
@@ -851,7 +851,7 @@ function ReviewPageSession() {
                 <>
                   <HStack flexWrap="wrap" spacing={3}>
                     <Button aria-label="Find previous exam" size="sm" variant="solid" onClick={() => void requestComparison()} isLoading={comparisonLoading}>Find previous exam</Button>
-                    <Text fontSize="xs" color="text.secondary">Current: {item.laterality} · {item.modality} · exam {item.visit_context?.capture_sequence ?? 'unverified'}</Text>
+                    <Text fontSize="xs" color="text.secondary">Current: {item.laterality} / {item.modality} / exam {item.visit_context?.capture_sequence ?? 'unverified'}</Text>
                   </HStack>
                   <HStack align="end" flexWrap="wrap" spacing={3}>
                     <Select aria-label="Comparison visit" maxW="360px" value={comparisonCaseId} onChange={(event) => selectComparison(event.target.value)}>
@@ -885,7 +885,7 @@ function ReviewPageSession() {
                           <Box key={visit.image_id} borderWidth="1px" borderColor="border.subtle" p={3}>
                             <Text fontWeight="semibold">{visit.label}</Text>
                             <Text fontSize="sm" color="text.secondary">{visit.display_name}</Text>
-                            <Text fontSize="xs" color="text.secondary">{visit.laterality ?? 'Unknown eye'} · {visit.modality ?? 'Unknown modality'} · exam {visit.visit_context?.capture_sequence ?? 'unverified'}</Text>
+                            <Text fontSize="xs" color="text.secondary">{visit.laterality ?? 'Unknown eye'} / {visit.modality ?? 'Unknown modality'} / exam {visit.visit_context?.capture_sequence ?? 'unverified'}</Text>
                             {visit.image_url ? (
                               <RetinalCanvas
                                 item={comparisonViewerItem}
@@ -899,10 +899,10 @@ function ReviewPageSession() {
                             ) : (
                               <Text mt={2} fontSize="sm" color="text.secondary">Retinal image unavailable.</Text>
                             )}
-                            <Text mt={2} fontSize="xs" color="text.secondary">Native PRISM ROI: {visit.prism_processing ? `${visit.prism_processing.native_roi_status.toLowerCase()}${nativeBbox ? ' · bounding box shown' : ''}` : 'Not recorded for this examination'}. A bounding box is not a verified retinal FOV mask.</Text>
+                            <Text mt={2} fontSize="xs" color="text.secondary">Native PRISM ROI: {visit.prism_processing ? `${visit.prism_processing.native_roi_status.toLowerCase()}${nativeBbox ? ' / bounding box shown' : ''}` : 'Not recorded for this examination'}. A bounding box is not a verified retinal FOV mask.</Text>
                             <Text mt={2} fontSize="sm">Grade: {visit.grade_status === 'CONFIRMED' && visit.grade != null ? drGradeLabel(visit.grade) : 'Not confirmed'}</Text>
                             <Text fontSize="sm">Findings: {visit.findings_reviewed ? 'Reviewed' : 'Not confirmed'}</Text>
-                            <Text fontSize="sm">PRISM processing: {visit.prism_processing ? `${visit.prism_processing.processing_mode} · native ROI ${visit.prism_processing.native_roi_status.toLowerCase()}` : 'Unavailable'}</Text>
+                            <Text fontSize="sm">PRISM processing: {visit.prism_processing ? `${visit.prism_processing.processing_mode} / native ROI ${visit.prism_processing.native_roi_status.toLowerCase()}` : 'Unavailable'}</Text>
                             <Text fontSize="sm">Lesion suggestions: {visit.lesion?.lesions.length ?? 'Unavailable'}</Text>
                           </Box>
                         );
@@ -954,7 +954,7 @@ function ReviewPageSession() {
               {item.prism_processing && <Stack spacing={1} mb={4}><Text color="text.secondary">PRISM processing mode</Text><Text>{item.prism_processing.processing_mode}</Text>{item.prism_processing.processing_mode === 'FALLBACK' && <Text fontSize="sm">Fallback processing used</Text>}{item.prism_processing.processing_mode === 'PREPARED' && <Text fontSize="sm">Trusted external field evidence was used for PRISM model input.</Text>}</Stack>}
               <SimpleGrid columns={{ base: 1, tablet: 2, laptop: 4 }} spacing={3} fontSize="sm">
                 <Stack spacing={1}><Text color="text.secondary">Source origin</Text><Text>{sourceOriginLabel(item.source_origin)}</Text></Stack>
-                <Stack spacing={1}><Text color="text.secondary">Visit / capture</Text><Text>{item.visit_context?.visit_key ?? 'Unknown'}{item.visit_context?.captured_at ? ` · ${item.visit_context.captured_at}` : ''}</Text></Stack>
+                <Stack spacing={1}><Text color="text.secondary">Visit / capture</Text><Text>{item.visit_context?.visit_key ?? 'Unknown'}{item.visit_context?.captured_at ? ` / ${item.visit_context.captured_at}` : ''}</Text></Stack>
                 <Stack spacing={1}><Text color="text.secondary">Analysis representation</Text><Text>{item.analysis_preparation?.derivative?.representation_version ?? 'Not used or not recorded'}</Text></Stack>
                 <Stack spacing={1}><Text color="text.secondary">Spatial AI display</Text><Text>{item.spatial_ai_display?.status === 'AVAILABLE' ? 'Available in original-image pixels' : item.spatial_ai_display?.status === 'BLOCKED' ? 'Blocked until provenance matches' : 'Unavailable'}</Text></Stack>
                 <Stack spacing={1}><Text color="text.secondary">Selected mask / fallback</Text><Text>{selectedMaskLabel(item)}</Text>{(processingAudit(item)?.valid_retina_mask_sha256 ?? item.analysis_preparation?.candidate_mask_sha256) && <Code fontSize="xs" whiteSpace="normal">{processingAudit(item)?.valid_retina_mask_sha256 ?? item.analysis_preparation?.candidate_mask_sha256}</Code>}{item.analysis_preparation?.candidate_mask_representation_version && <Text fontSize="xs" color="text.muted">{item.analysis_preparation.candidate_mask_representation_version}</Text>}</Stack>
@@ -963,7 +963,7 @@ function ReviewPageSession() {
                 <Stack spacing={1}><Text color="text.secondary">Model / domain warning</Text><Text>{modelDomainWarningLabel(item)}</Text></Stack>
                 <Stack spacing={1}><Text color="text.secondary">Model versions</Text>
                   {[item.global, item.lesion].filter((result): result is NonNullable<typeof result> => Boolean(result)).map((result) => (
-                    <Code key={result.model_id} fontSize="xs" whiteSpace="normal">{result.model_id} · {result.model_version}</Code>
+                    <Code key={result.model_id} fontSize="xs" whiteSpace="normal">{result.model_id} / {result.model_version}</Code>
                   ))}
                   {!item.global && !item.lesion && <Text>No model result recorded</Text>}
                 </Stack>

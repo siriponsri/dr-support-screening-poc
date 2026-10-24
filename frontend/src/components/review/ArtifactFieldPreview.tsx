@@ -57,17 +57,17 @@ export function ArtifactFieldPreview({ item }: { item: CaseRecord }) {
   if (item.modality !== 'UWF' || (state?.key === key && state.disabled)) return null;
   const current = state?.key === key ? state : null;
   return <Stack spacing={2} data-testid="artifact-field-preview" borderWidth="1px" borderColor="border.subtle" p={3}>
-    <Text fontWeight="semibold">Image-only annotation-assist field · before PRISM</Text>
+    <Text fontWeight="semibold">Image-only annotation-assist field before PRISM</Text>
     <Text fontSize="sm">This display helps locate empirical reflective-border candidates. PRISM still receives the unchanged Original image. It is not a model-input mask, anatomy segmentation, clinician confirmation or a normal/negative finding.</Text>
     {!current && <Text role="status">Preparing CPU image-only display; model readiness is not required…</Text>}
     {current?.error && <Alert status="warning"><AlertIcon /><Text>{current.error}</Text></Alert>}
     {current?.field && <>
-      <Text fontSize="sm">{current.field.status === 'RETAIN_ALL' ? 'All suggestions retained; no exclusion is asserted.' : 'Empirical core candidate — uncalibrated and not proven technical padding.'}</Text>
+      <Text fontSize="sm">{current.field.status === 'RETAIN_ALL' ? 'All suggestions retained; no exclusion is asserted.' : 'Empirical core candidate: uncalibrated and not proven technical padding.'}</Text>
       <Box as="details" fontSize="xs">
         <Box as="summary" cursor="pointer">Technical field details</Box>
-        <Text>{current.field.method_version} · {current.field.reason}</Text>
+        <Text>{current.field.method_version} / {current.field.reason}</Text>
       </Box>
-      <Text fontSize="xs"><Box as="span" color="red.500">■</Box> Red: empirical core candidate {Math.round(current.field.core_fraction * 10000) / 100}% · <Box as="span" color="orange.500">■</Box> Amber: uncertain, retained {Math.round(current.field.uncertain_fraction * 10000) / 100}% · Other pixels: retained.</Text>
+      <Text fontSize="xs"><Box as="span" color="red.500">■</Box> Red: empirical core candidate {Math.round(current.field.core_fraction * 10000) / 100}% / <Box as="span" color="orange.500">■</Box> Amber: uncertain, retained {Math.round(current.field.uncertain_fraction * 10000) / 100}% / Other pixels: retained.</Text>
       {current.image && <Image src={current.image} alt="Source-bound annotation-assist display: empirical core red and uncertain retained area amber; actual PRISM input remains Original" maxH="420px" objectFit="contain" onError={() => setState({ key, error: 'Overlay could not be decoded. Original remains unchanged; retain all suggestions.' })} />}
       <Text fontSize="xs">Raw detections and restore remain available after inference. Zero visible boxes or a hidden candidate never creates a confirmed-negative or training-gold label.</Text>
     </>}

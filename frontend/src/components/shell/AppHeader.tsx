@@ -82,7 +82,7 @@ export function AppHeader() {
 function RuntimePill({ runtime }: { runtime: ReturnType<typeof useRuntimeHealth> }) {
   const visual = RUNTIME_VISUAL[runtime.tone];
   const tooltip = runtime.detail
-    ? `${runtime.label} · ${runtime.detail}`
+    ? `${runtime.label} / ${runtime.detail}`
     : runtime.label;
 
   return (

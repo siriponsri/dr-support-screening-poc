@@ -26,9 +26,9 @@ export function ArtifactRoiControls({ item, showFiltered, showOverlay, previewPr
   const current = artifactViewCurrent(item) && !error;
   const count = current && view.status === 'READY' ? view.suppressed_ids.length : 0;
   const counts = artifactVisibilityCounts(item, showFiltered, Boolean(error), previewProposals);
-  const visibility = !current ? 'Unavailable · all review suggestions retained'
+  const visibility = !current ? 'Unavailable / all review suggestions retained'
     : view.status === 'SHADOW_ONLY'
-      ? previewProposals ? `${counts.hiddenCount} proposed ROI${counts.hiddenCount === 1 ? '' : 's'} hidden in local preview` : 'Preview only · all review suggestions shown'
+      ? previewProposals ? `${counts.hiddenCount} proposed ROI${counts.hiddenCount === 1 ? '' : 's'} hidden in local preview` : 'Preview only / all review suggestions shown'
       : counts.hiddenCount > 0 ? `${counts.hiddenCount} ROI suggestion${counts.hiddenCount === 1 ? '' : 's'} hidden`
         : counts.filteredCount > 0 ? `${counts.filteredCount} filtered ROI suggestion${counts.filteredCount === 1 ? '' : 's'} shown for inspection`
           : 'All review suggestions shown';
@@ -57,15 +57,15 @@ export function ArtifactRoiControls({ item, showFiltered, showOverlay, previewPr
     } finally { if (requestIsCurrent()) setBusy(false); }
   };
   return <Stack spacing={2} data-testid="artifact-roi-controls">
-    <Text fontSize="sm" fontWeight="semibold">ROI post-filter · {visibility}</Text>
+    <Text fontSize="sm" fontWeight="semibold">ROI post-filter: {visibility}</Text>
     <Text fontSize="xs">After inference: changes ROI visibility only. Original and model input are unchanged.</Text>
     <Text fontSize="xs">Review suggestions shown: {counts.shownCount} of {counts.reviewSuggestionCount}. Raw model ROIs retained: {counts.rawPredictionCount}.</Text>
     {view.evidence_kind && <Text fontSize="xs">{view.evidence_kind === 'PROVEN_TECHNICAL_PADDING_ONLY'
       ? 'Technical padding only' : view.evidence_kind === 'EMPIRICAL_RIM_SHADOW_NOT_CERTIFIED'
-        ? 'Empirical proposal · no automatic hiding' : view.evidence_kind === 'CACHED_OFFLINE_ARTIFACT_REPLAY_NOT_CERTIFIED'
-          ? 'Cached source-bound replay · not a validated detector or new inference'
+        ? 'Empirical proposal / no automatic hiding' : view.evidence_kind === 'CACHED_OFFLINE_ARTIFACT_REPLAY_NOT_CERTIFIED'
+          ? 'Cached source-bound replay / not a validated detector or new inference'
           : view.evidence_kind === 'GENERIC_IMAGE_ONLY_EMPIRICAL_NOT_CERTIFIED'
-            ? 'Image-only empirical candidates · uncertainty retained; quality not validated' : 'Annotation-assist test view'}</Text>}
+            ? 'Image-only empirical candidates / uncertainty retained; quality not validated' : 'Annotation-assist test view'}</Text>}
     <Text fontSize="xs">Orange shows the saved post-filter field for this decision; other areas are retained or uncertain. This is not retina segmentation or a negative label. Raw AI detections are retained.</Text>
     <HStack flexWrap="wrap">
       {view.status === 'SHADOW_ONLY' && onPreviewProposals ? <Checkbox isChecked={previewProposals && current}

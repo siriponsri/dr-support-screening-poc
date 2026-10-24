@@ -77,7 +77,7 @@ describe('RetinalCanvas navigation', () => {
     const group = document.querySelector('[data-human-shape-id="human-ma"]')!;
     const label = group.querySelector('text')!;
     const shape = group.querySelector('rect')!;
-    expect(label).toHaveTextContent('Human · MA');
+    expect(label).toHaveTextContent('Human: MA');
     expect(label).toHaveAttribute('fill', LESION_COLORS.MICROANEURYSM);
     expect(shape).toHaveAttribute('stroke', LESION_COLORS.MICROANEURYSM);
     expect(label).toHaveAttribute('stroke', 'var(--chakra-colors-viewer-background)');

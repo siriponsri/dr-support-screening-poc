@@ -73,7 +73,7 @@ function sourceOriginLabel(sourceOrigin: DatasetImageRow['source_origin']): stri
 }
 
 function exportAuthorizationLabel(authorization?: string): string {
-  if (authorization === 'ALLOWED_LOCAL_AUTHORIZED_HOSPITAL') return 'Approved hospital · local export allowed';
+  if (authorization === 'ALLOWED_LOCAL_AUTHORIZED_HOSPITAL') return 'Approved hospital / local export allowed';
   if (authorization === 'BLOCKED_SOURCE_IDENTITY_OR_AUTHORIZATION_MISMATCH') return 'Source identity or authorization mismatch';
   if (authorization === 'BLOCKED_WORKSPACE_NOT_AUTHORIZED') return 'Workspace export restricted';
   if (authorization?.startsWith('BLOCKED_')) return 'Export restricted';

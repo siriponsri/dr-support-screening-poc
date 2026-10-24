@@ -25,7 +25,7 @@ beforeEach(() => { window.localStorage.clear(); setDefaultReviewer('Synthetic op
 describe('Workspace patient presentation is separate from identity', () => {
   it('keeps opaque keys out of worklist text, titles and accessible controls', () => {
     const { container } = show(<PatientEyeCell item={record} onResolve={vi.fn()} />);
-    expect(screen.getByText('Patient 1 · Left')).toBeInTheDocument();
+    expect(screen.getByText('Patient 1 / Left')).toBeInTheDocument();
     expect(container.innerHTML).not.toContain(key);
     expect(patientLabel({ ...record, patient_display_label: undefined })).toBe('Patient linked');
   });

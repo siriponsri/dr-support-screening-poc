@@ -207,12 +207,12 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
           <Text fontSize="sm">Original remains the review source. A candidate mask or a previous run cannot establish the next input. PRISM cannot be submitted without a verified receipt.</Text>
         </Stack></Alert> : plan && <>
           <Alert status="info"><AlertIcon /><Stack spacing={1}>
-            <Text fontWeight="semibold">Planned API input — internal model crop not previewed</Text>
+            <Text fontWeight="semibold">Planned API input: internal model crop not previewed</Text>
             <Text fontSize="sm">This preview covers only the planned API submission. PRISM may subsequently crop, resize or tile internally; those final model inputs are not shown. Browser verification checks the displayed PNG bytes; wire provenance remains a server attestation.</Text>
             <Text fontSize="sm">Native ROI: NOT_RUN. {plan.mask_application === 'CONDITIONAL_ON_NATIVE_ROI_SUCCESS'
               ? 'The optical FOV is a conditional candidate, not an applied mask. It can be used only if native ROI succeeds. If native ROI fails, the baseline discards the candidate and uses full Original.'
               : 'No external mask is planned. Native ROI may still crop internally; if native ROI fails, the baseline uses full Original.'}</Text>
-            <Text fontSize="sm">External FOV: {plan.external_fov_status}{plan.external_fov_reason_code ? ` · ${plan.external_fov_reason_code}` : ''}. This is technical preparation status, not a clinical finding.</Text>
+            <Text fontSize="sm">External FOV: {plan.external_fov_status}{plan.external_fov_reason_code ? ` / ${plan.external_fov_reason_code}` : ''}. This is technical preparation status, not a clinical finding.</Text>
             {plan.input_kind === 'ORIGINAL_FALLBACK' && <Text fontSize="sm">Original wire fallback: {plan.fallback_reason}. This does not mean native ROI cropping is disabled.</Text>}
           </Stack></Alert>
           {!shown && <Text role="status">Verifying immutable preview image bytes…</Text>}
@@ -234,17 +234,17 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
                 </Box>
               </Box>)}
             </SimpleGrid>
-            <Text fontSize="xs" fontWeight="semibold">{plan.mask.kind === 'NONE' ? 'Coverage at this stage — no external mask' : 'Conditional candidate coverage — not an applied mask'}</Text>
+            <Text fontSize="xs" fontWeight="semibold">{plan.mask.kind === 'NONE' ? 'Coverage at this stage: no external mask' : 'Conditional candidate coverage: not an applied mask'}</Text>
             <HStack flexWrap="wrap" spacing={3} aria-label="Processing coverage legend">
               <Text fontSize="xs"><Box as="span" color="green.600">■</Box> Retained {Math.round(plan.retained_fraction * 100)}%</Text>
               <Text fontSize="xs"><Box as="span" color="red.600">■</Box> Excluded {Math.round(plan.excluded_fraction * 100)}%</Text>
               <Text fontSize="xs"><Box as="span" color="orange.600">■</Box> Uncertain {Math.round(plan.uncertain_fraction * 100)}%</Text>
             </HStack>
-            <Text fontSize="xs">Mask: {plan.mask.kind} · {plan.mask.version}. Overlay is processing evidence in original coordinates; retained does not mean clinically normal. Uncertain pixels are not silently excluded.</Text>
+            <Text fontSize="xs">Mask: {plan.mask.kind} / {plan.mask.version}. Overlay is processing evidence in original coordinates; retained does not mean clinically normal. Uncertain pixels are not silently excluded.</Text>
             <Box as="details" fontSize="xs" overflowWrap="anywhere"><Box as="summary" cursor="pointer">Preview provenance</Box>
-              <Text>Plan <Code>{plan.plan_id}</Code> · revision {plan.case_revision}</Text>
+              <Text>Plan <Code>{plan.plan_id}</Code> / revision {plan.case_revision}</Text>
               <Text>Source SHA256: {plan.source_sha256}</Text><Text>Mask SHA256: {plan.mask.sha256 ?? 'none'}</Text>
-              <Text>Wire SHA256: {plan.wire_sha256} · {plan.wire_media_type} · {plan.wire_byte_count} bytes</Text>
+              <Text>Wire SHA256: {plan.wire_sha256} / {plan.wire_media_type} / {plan.wire_byte_count} bytes</Text>
               <Text>Plan SHA256: {plan.plan_sha256}</Text><Text>Transform {plan.transform.version}: {plan.transform.sha256}</Text>
               <Text>Input RGB SHA256 (server attestation): {plan.input_preview.rgb_sha256}</Text>
               <Text>Model {plan.model_id} / {plan.model_version}; expires {plan.expires_at}</Text>

@@ -526,3 +526,31 @@ const themeOverride: ThemeOverride = {
 };
 
 export const theme = extendTheme(themeOverride);
+
+/**
+ * Dark navigation scope. Re-points semantic tokens inside the sidebar so the
+ * nested nav rows and workspace card keep using the same aliases.
+ */
+const sidebarTokens: Record<string, string> = {
+  'surface.panel': kkuColors.sidebarBackground,
+  'surface.subtle': kkuColors.sidebarRaised,
+  'text.primary': kkuColors.sidebarText,
+  'text.secondary': kkuColors.sidebarSecondaryText,
+  'border.subtle': kkuColors.sidebarBorder,
+  'border.default': kkuColors.sidebarBorderStrong,
+  'border.strong': kkuColors.sidebarSecondaryText,
+  'action.primary': kkuColors.sidebarActiveMark,
+  'action.primarySoft': kkuColors.sidebarActive,
+  'action.primaryHover': kkuColors.sidebarActiveText,
+  'action.primaryBorder': kkuColors.sidebarBorderStrong,
+  'accent.institutionalDark': kkuColors.sidebarInstitutional,
+};
+
+const cssMap = (theme as { __cssMap?: Record<string, { variable: string }> }).__cssMap ?? {};
+
+export const sidebarScope: Record<string, string> = Object.fromEntries(
+  Object.entries(sidebarTokens).map(([token, value]) => [
+    cssMap[`colors.${token}`]?.variable ?? `--chakra-colors-${token.replace(/\./g, '-')}`,
+    value,
+  ]),
+);

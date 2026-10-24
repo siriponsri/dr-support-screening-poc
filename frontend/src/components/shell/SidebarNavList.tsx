@@ -4,7 +4,8 @@
  *
  * In expanded mode the row shows an icon, label, and optional right-aligned
  * meta. The row gets a 3px Medicine Green left bar and a soft green
- * background when active. In collapsed mode only the icon is visible inside
+ * background when active. Inside the sidebar scope these resolve to the
+ * dark navigation palette. In collapsed mode only the icon is visible inside
  * a uniform tile; tooltips surface the label.
  */
 import { Box, HStack, StackProps, Text, Tooltip, VStack } from '@chakra-ui/react';
@@ -92,10 +93,10 @@ function SidebarNavRow({
       fontSize="md"
       fontWeight={active ? 'bold' : 'medium'}
       textDecoration="none"
-      transition="background 120ms ease, color 120ms ease, transform 120ms ease"
+      transition="background 150ms ease, color 150ms ease"
       _hover={{
         bg: active ? 'action.primarySoft' : 'surface.subtle',
-        transform: collapsed ? undefined : 'translateX(1px)',
+        color: active ? 'action.primaryHover' : 'text.primary',
       }}
       _focusVisible={{ outline: 'none', boxShadow: 'focus' }}
     >

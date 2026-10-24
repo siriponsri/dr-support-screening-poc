@@ -159,7 +159,7 @@ describe('Clinician Review grade decision', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     expect(backend.log.find((entry) => entry.path.endsWith('/review'))?.body).toMatchObject({ action: 'CORRECT_GRADE', grade: 3 });
     expect((await screen.findAllByRole('heading', { name: 'Annotation Editor' })).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('DR grade confirmed · Severe NPDR').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('DR grade confirmed: Severe NPDR').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Grading complete/).length).toBeGreaterThan(0);
   });
 
@@ -261,8 +261,8 @@ describe('Annotation Editor single-line completion', () => {
     expect(stored.lesion!.lesions[0]).toMatchObject({ canonical_label: 'HEMORRHAGE', rectangle: [300, 200, 360, 260], score: 0.55 });
     expect(stored.human_annotations[0]).toMatchObject({ label: 'HARD_EXUDATE', source_detection_id: DET_A });
     expect(stored.human_annotations[0]).not.toHaveProperty('score');
-    expect(await screen.findByText('EX · clinician corrected')).toBeInTheDocument();
-    expect(screen.queryByText('EX · 0.55')).not.toBeInTheDocument();
+    expect(await screen.findByText('EX: clinician corrected')).toBeInTheDocument();
+    expect(screen.queryByText('EX 0.55')).not.toBeInTheDocument();
     expect(await screen.findByText('Annotation confirmed')).toBeInTheDocument();
   });
 
@@ -477,7 +477,7 @@ describe('Completion navigation recovery', () => {
     options.failCaseList = true;
     await userEvent.setup().click(finish);
     expect(await screen.findByText('Image saved. The Worklist could not be loaded. Return to Worklist and retry.')).toBeInTheDocument();
-    expect(screen.queryByText('Case complete · Every Worklist image is complete')).not.toBeInTheDocument();
+    expect(screen.queryByText('Case complete: every Worklist image is complete')).not.toBeInTheDocument();
     expect(screen.getAllByRole('heading', { name: 'Annotation Editor' }).length).toBeGreaterThan(0);
   });
 });

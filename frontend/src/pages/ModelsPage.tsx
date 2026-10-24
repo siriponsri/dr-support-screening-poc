@@ -97,9 +97,9 @@ function CaseLineage({ item }: { item: CaseRecord }) {
         </Stack>
         {item.analysis_preparation && item.modality === 'UWF' && <Stack spacing={1} minW={0}>
               <Text fontSize="sm" color="text.secondary">Masked Analysis</Text>
-          <Text fontSize="sm">{item.analysis_preparation.status === 'READY' ? 'Prepared for inspection' : 'Not safely prepared'} · No UWF AI analysis</Text>
+          <Text fontSize="sm">{item.analysis_preparation.status === 'READY' ? 'Prepared for inspection' : 'Not safely prepared'} / No UWF AI analysis</Text>
           {analysisAudit?.valid_retina_mask_sha256 && <Code fontSize="xs" whiteSpace="normal" wordBreak="break-all">Mask SHA-256: {analysisAudit.valid_retina_mask_sha256}</Code>}
-          {analysisAudit?.valid_retina_fraction != null && <Text fontSize="xs">Valid area: {(analysisAudit.valid_retina_fraction * 100).toFixed(1)}% · {analysisAudit.coordinate_mapping.kind.toLowerCase()} coordinates · {analysisAudit.analysis_dimensions.width} x {analysisAudit.analysis_dimensions.height}px</Text>}
+          {analysisAudit?.valid_retina_fraction != null && <Text fontSize="xs">Valid area: {(analysisAudit.valid_retina_fraction * 100).toFixed(1)}% / {analysisAudit.coordinate_mapping.kind.toLowerCase()} coordinates / {analysisAudit.analysis_dimensions.width} x {analysisAudit.analysis_dimensions.height}px</Text>}
         </Stack>}
         {analysisAudit && <Stack spacing={1} minW={0}>
           <Text fontSize="sm" color="text.secondary">Analysis transform</Text>

@@ -95,7 +95,7 @@ describe('image admission UI', () => {
     renderAppAt('/review/ambiguous');
 
     expect(await screen.findByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
-    expect(screen.getByText('ambiguous · Eye not confirmed')).toBeInTheDocument();
+    expect(screen.getByText('ambiguous / Eye not confirmed')).toBeInTheDocument();
     expect(screen.getByText(/Image context needs confirmation\./)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
     expect(screen.getByText('Model assistance is unavailable.')).toBeInTheDocument();

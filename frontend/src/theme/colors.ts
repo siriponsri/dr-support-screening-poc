@@ -17,8 +17,20 @@ export const primitiveColors = {
   redSoilSoft: '#F5E9E5',
   redSoilBorder: '#E0B9AE',
 
+  // Sidebar primitives: deep green-black navigation surface.
+  sidebarBackground: '#16231A',
+  sidebarRaised: '#1E2F23',
+  sidebarActive: '#24382A',
+  sidebarBorder: '#2A3B2F',
+  sidebarBorderStrong: '#3E5444',
+  sidebarText: '#EEF3EF',
+  sidebarSecondaryText: '#A9BCAF',
+  sidebarActiveMark: '#6FBF73',
+  sidebarActiveText: '#FFFFFF',
+  sidebarInstitutional: '#E3A08F',
+
   // Neutral primitives
-  neutralCanvas: '#F7F9F7',
+  neutralCanvas: '#F6F7F6',
   neutralPanel: '#FFFFFF',
   neutralSubtle: '#F1F4F1',
   neutralMuted: '#E8ECE8',

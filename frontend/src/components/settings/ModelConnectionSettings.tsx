@@ -43,7 +43,7 @@ function ModelCapabilityRow({ model }: { model: ModelConnectionModel }) {
       <HStack justify="space-between" align="flex-start" spacing={3}>
         <Stack spacing={1} minW={0}>
           <Text fontFamily="mono" fontSize="sm" wordBreak="break-word">{model.model_id}</Text>
-          <Text fontSize="xs" color="text.secondary">{taskLabel(model.task)} · {modalities}</Text>
+          <Text fontSize="xs" color="text.secondary">{taskLabel(model.task)} / {modalities}</Text>
           <StatusBadge tone={release.tone}>Release: {release.label}</StatusBadge>
         </Stack>
         <StatusBadge tone={model.ready ? 'success' : 'warning'}>{model.ready ? 'Ready' : 'Unavailable'}</StatusBadge>

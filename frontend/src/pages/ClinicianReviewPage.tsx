@@ -205,7 +205,7 @@ function ClinicianReviewPageSession() {
       toast({
         id: 'dr-grade-confirmed',
         status: 'success',
-         title: action === 'MARK_UNGRADABLE' ? 'Image marked Ungradable' : action === 'REQUEST_SECOND_REVIEW' ? 'Needs Second Review recorded' : action === 'ADJUDICATE_GRADE' ? 'DR grade adjudicated' : 'DR grade confirmed · ' + (drGradeLabel(Number(grade)) ?? 'selected grade'),
+         title: action === 'MARK_UNGRADABLE' ? 'Image marked Ungradable' : action === 'REQUEST_SECOND_REVIEW' ? 'Needs Second Review recorded' : action === 'ADJUDICATE_GRADE' ? 'DR grade adjudicated' : 'DR grade confirmed: ' + (drGradeLabel(Number(grade)) ?? 'selected grade'),
         description: action === 'MARK_UNGRADABLE' ? 'Ungradable is separate from the five DR grades.' : action === 'REQUEST_SECOND_REVIEW' ? 'No final grade is treated as resolved until review is completed.' : (drGradeLabel(Number(grade)) ?? undefined),
         duration: 3500,
         position: 'top',
@@ -361,7 +361,7 @@ function ClinicianReviewPageSession() {
               <Collapse in={referralDetailsOpen} animateOpacity>
                 <Stack id="referral-details" spacing={1} mt={2} fontSize="xs" color="text.muted">
                   <Text>Derived from the current confirmed physician grade only.</Text>
-                  <Text>Rule {item.referral?.rule_id ?? 'M1_DR_GRADE_4_REFERRAL'} · version {item.referral?.rule_version ?? '1.0.0'}</Text>
+                  <Text>Rule {item.referral?.rule_id ?? 'M1_DR_GRADE_4_REFERRAL'} / version {item.referral?.rule_version ?? '1.0.0'}</Text>
                   {item.referral?.source_grade != null && <Text>Source grade: {drGradeLabel(item.referral.source_grade) ?? 'Recorded grade'}</Text>}
                   {item.referral?.reviewer && <Text>Source reviewer: {item.referral.reviewer}</Text>}
                 </Stack>

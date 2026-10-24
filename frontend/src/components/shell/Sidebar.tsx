@@ -23,6 +23,7 @@ import { ShieldCheck } from '@/lib/icons';
 import { useRuntimeHealth } from '@/hooks/useRuntimeHealth';
 import logoUrl from '@/assets/dr-support-logo.svg';
 import { BrandMark } from '@/components/common/BrandMark';
+import { sidebarScope } from '@/theme';
 import { SidebarNavList } from './SidebarNavList';
 import { WorkspaceCard } from './WorkspaceCard';
 import { PRIMARY_NAV, SECONDARY_NAV, type NavItem } from './navItems';
@@ -65,6 +66,8 @@ export function Sidebar({
       bg="surface.panel"
       borderRightWidth="1px"
       borderColor="border.subtle"
+      sx={sidebarScope}
+      data-testid="sidebar-surface"
       {...rest}
     >
       {/* KKU Red Soil: a restrained institutional band, never a clinical signal. */}

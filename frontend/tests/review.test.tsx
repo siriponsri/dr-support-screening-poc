@@ -221,7 +221,7 @@ describe('Review responsibility boundary', () => {
     ]);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByText('IMG13 · Left')).toBeInTheDocument();
+    expect(await screen.findByText('IMG13 / Left')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Analyze/ })).toBeEnabled();
     expect(screen.queryByLabelText('Pseudonymous patient key')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Image admission' })).not.toBeInTheDocument();
