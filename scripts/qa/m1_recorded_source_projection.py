@@ -13,6 +13,8 @@ Commands (all fail closed; no ACL, credential, role or schema change):
         eligible case changed since the plan; writes a private pre-image, the
         receipt and an independent readback
 
+Outputs must be new and inside the approved private directory (M1PrivateConfig).
+
 The written value always comes from the recorded admission hash. The current
 source bytes, hashed by the normal admission scanner, can only veto a case.
 """
@@ -29,8 +31,11 @@ import psycopg
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
+from dr_support.persistence import DatabaseUnavailableError
+from dr_support.services.filesystem_privacy import has_reparse_component, private_hospital_root
 from dr_support.services.source_identity import RECORDED_KEYS, admitted_source_hash
 from scripts.qa import m1_server_app as launcher
+from scripts.qa.configure_m1_test_credentials import PRIVATE_DIRECTORY
 
 PLAN_SCHEMA = 'm1-recorded-source-projection-plan.v1'
 RECEIPT_SCHEMA = 'm1-recorded-source-projection-receipt.v1'
@@ -39,6 +44,7 @@ EVENT_ACTION = 'RECORDED_SOURCE_IDENTITY_PROJECTION'
 # Owner approval 2026-10-24 (chat): this workspace only. Others need their own approval.
 APPROVED_WORKSPACES = frozenset({'ws_m1_63ed86c7d44f46d59479'})
 APP_PORTS = (8000, 8010)
+MODEL_PORTS = (47860,)  # The launcher's default model tunnel.
 CLASSES = ('ELIGIBLE', 'ALREADY_RECORDED', 'CONFLICT', 'INELIGIBLE')
 REPOSITORY = Path(__file__).resolve().parents[2]
 
@@ -116,10 +122,14 @@ def changes(plan, rows, current_hashes, plan_sha256, timestamp):
 
 
 def _private_target(path, *, directory=False):
+    """Outputs (the pre-image holds full payloads) stay in the approved private directory."""
     target = Path(path).resolve()
-    require(not target.is_relative_to(REPOSITORY), 'PRIVATE_OUTPUT_OUTSIDE_REPOSITORY_REQUIRED')
+    require(target.is_relative_to(PRIVATE_DIRECTORY.resolve()) and not target.is_relative_to(REPOSITORY),
+            'APPROVED_PRIVATE_OUTPUT_DIRECTORY_REQUIRED')
     require(not target.exists(), 'NEW_OUTPUT_PATH_REQUIRED')
     require(target.parent.is_dir(), 'EXISTING_PARENT_DIRECTORY_REQUIRED')
+    require(not has_reparse_component(target.parent) and private_hospital_root(target.parent),
+            'PRIVATE_OUTPUT_ACL_REQUIRED')
     if directory:
         target.mkdir()
     return target
@@ -148,6 +158,17 @@ def preconditions(workspace_id):
     """Checked before any private configuration or case content is read (RSI-B01/B02)."""
     require(workspace_id in APPROVED_WORKSPACES, 'OWNER_APPROVED_WORKSPACE_REQUIRED')
     require(all(launcher.port_free(port) for port in APP_PORTS), 'REVIEW_APP_MUST_BE_STOPPED')
+    require(all(launcher.port_free(port) for port in MODEL_PORTS), 'MODEL_TUNNEL_MUST_BE_CLOSED')
+
+
+def require_entry_fence(connection, schema):
+    """The m1_entry_fence trigger must guard review_cases (defence in depth)."""
+    installed = connection.execute(
+        "SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid "
+        "JOIN pg_namespace n ON n.oid = c.relnamespace WHERE t.tgname = 'm1_entry_fence' "
+        "AND c.relname = 'review_cases' AND n.nspname = %s AND NOT t.tgisinternal AND t.tgenabled <> 'D'",
+        (schema,)).fetchone()
+    require(installed, 'ENTRY_FENCE_TRIGGER_REQUIRED')
 
 
 def _database():
@@ -164,6 +185,7 @@ def plan(args):
         with database.session(autocommit=False) as connection:
             with connection.transaction():
                 connection.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
+                require_entry_fence(connection, database.settings.schema)
                 rows = _rows(connection, database.settings.schema, args.workspace_id)
     require(rows, 'WORKSPACE_CASES_REQUIRED')
     value = build_plan(args.workspace_id, rows, current, datetime.now(timezone.utc).isoformat())
@@ -184,48 +206,70 @@ def apply(args):
     require(receipt_bytes, 'BACKUP_RECEIPT_REQUIRED')
     out = _private_target(args.out, directory=True)
     timestamp = datetime.now(timezone.utc).isoformat()
+    pending = out / 'PREIMAGE.pending.json'  # Renamed only after commit.
     with launcher.session_environment(workspace_id=args.workspace_id):
         database = _database()
         schema = database.settings.schema
         current = current_source_hashes()
         with database.session(autocommit=False) as connection:
             with connection.transaction():
+                require_entry_fence(connection, schema)
                 rows = _rows(connection, schema, args.workspace_id, lock=True)
                 updates = changes(value, rows, current, plan_sha256, timestamp)
                 require(updates, 'NO_ELIGIBLE_CASES')
-                _write_new(out / 'PREIMAGE.json', [{'case_id': case_id, 'revision': revision, 'payload': before}
-                                                   for case_id, revision, before, _ in updates])
+                _write_new(pending, [{'case_id': case_id, 'revision': revision, 'payload': before}
+                                     for case_id, revision, before, _ in updates])
                 for case_id, revision, _, after in updates:
                     written = connection.execute(sql.SQL(
                         'UPDATE {}.review_cases SET revision=%s, payload=%s, updated_at=CURRENT_TIMESTAMP '
                         'WHERE workspace_id=%s AND case_id=%s AND revision=%s').format(sql.Identifier(schema)),
                         (revision + 1, Jsonb(after), args.workspace_id, case_id, revision)).rowcount
                     require(written == 1, 'CHANGED_SINCE_PLAN')
-        # Independent read-only readback of every written case (RSI-B08).
-        with database.session(autocommit=False) as connection:
-            with connection.transaction():
-                connection.execute('SET TRANSACTION READ ONLY')
-                stored = {case_id: (revision, payload) for case_id, revision, payload in
-                          _rows(connection, schema, args.workspace_id)}
-    # Committed: always record the receipt, even if the readback disagrees.
+        # Committed from here on: never report a refusal (review finding 1).
+        try:
+            stored = _readback(database, schema, args.workspace_id)
+        except Exception:
+            stored = None
+    return _finish(args, out, pending, updates, stored, plan_sha256, receipt_bytes, value, timestamp)
+
+
+def _readback(database, schema, workspace_id):
+    """Independent read-only readback of every written case (RSI-B08)."""
+    with database.session(autocommit=False) as connection:
+        with connection.transaction():
+            connection.execute('SET TRANSACTION READ ONLY')
+            return {case_id: (revision, payload) for case_id, revision, payload in
+                    _rows(connection, schema, workspace_id)}
+
+
+def _finish(args, out, pending, updates, stored, plan_sha256, receipt_bytes, value, timestamp):
     cases = []
     for case_id, revision, before, after in updates:
         expected = launcher.sha(launcher.canonical(after))
-        actual_revision, actual = stored.get(case_id, (None, None))
+        actual_revision, actual = (stored or {}).get(case_id, (None, None))
+        state = ('UNAVAILABLE' if stored is None else 'PASS' if actual_revision == revision + 1
+                 and actual is not None and launcher.sha(launcher.canonical(actual)) == expected else 'MISMATCH')
         cases.append({'case_id': case_id, 'before_revision': revision, 'after_revision': revision + 1,
                       'before_payload_sha256': launcher.sha(launcher.canonical(before)),
-                      'after_payload_sha256': expected,
-                      'readback': 'PASS' if actual_revision == revision + 1 and actual is not None
-                      and launcher.sha(launcher.canonical(actual)) == expected else 'MISMATCH'})
-    readback = 'PASS' if all(item['readback'] == 'PASS' for item in cases) else 'MISMATCH'
-    receipt = {'schema': RECEIPT_SCHEMA, 'workspace_id': args.workspace_id, 'plan_sha256': plan_sha256,
-               'backup_receipt_sha256': launcher.sha(receipt_bytes), 'applied_utc': timestamp,
-               'preimage_sha256': launcher.sha((out / 'PREIMAGE.json').read_bytes()),
-               'plan_counts': value['counts'], 'written': len(cases), 'readback': readback, 'cases': cases}
-    _write_new(out / 'RECEIPT.json', receipt)
-    print(json.dumps({'status': 'APPLIED', 'written': len(cases), 'readback': readback,
-                      'receipt_sha256': launcher.sha((out / 'RECEIPT.json').read_bytes())}))
-    return 0 if readback == 'PASS' else 1
+                      'after_payload_sha256': expected, 'readback': state})
+    readback = next((state for state in ('UNAVAILABLE', 'MISMATCH')
+                     if any(item['readback'] == state for item in cases)), 'PASS')
+    summary = {'status': 'APPLIED' if readback == 'PASS' else 'APPLIED_READBACK_' + readback,
+               'written': len(cases), 'readback': readback, 'output': str(out)}
+    try:
+        preimage = out / 'PREIMAGE.json'
+        pending.rename(preimage)
+        receipt = {'schema': RECEIPT_SCHEMA, 'workspace_id': args.workspace_id, 'plan_sha256': plan_sha256,
+                   'backup_receipt_sha256': launcher.sha(receipt_bytes), 'applied_utc': timestamp,
+                   'preimage_sha256': launcher.sha(preimage.read_bytes()), 'plan_counts': value['counts'],
+                   'written': len(cases), 'readback': readback, 'cases': cases}
+        _write_new(out / 'RECEIPT.json', receipt)
+        summary['receipt_sha256'] = launcher.sha((out / 'RECEIPT.json').read_bytes())
+    except Exception:
+        # The rows ARE written; report that, with the per-case hashes, instead of a refusal.
+        summary.update(status='APPLIED_RECEIPT_NOT_WRITTEN', cases=cases)
+    print(json.dumps(summary))
+    return 0 if summary['status'] == 'APPLIED' else 1
 
 
 def main(argv=None):
@@ -245,8 +289,12 @@ def main(argv=None):
     except (ProjectionError, launcher.SessionError) as error:
         print(json.dumps({'status': 'REFUSED', 'code': str(error)}), file=sys.stderr)
         return 2
+    except DatabaseUnavailableError:
+        print(json.dumps({'status': 'REFUSED', 'code': 'DATABASE_UNAVAILABLE'}), file=sys.stderr)
+        return 2
     except psycopg.Error as error:
-        # e.g. SOURCE_ENTRY_FENCED (55000); the transaction rolled back, nothing written.
+        # Raised only before commit (after it, apply reports APPLIED_*), e.g. SOURCE_ENTRY_FENCED
+        # (55000): the transaction rolled back and nothing was written.
         print(json.dumps({'status': 'REFUSED', 'code': f'DATABASE_REFUSED_{error.sqlstate}'}), file=sys.stderr)
         return 2
 

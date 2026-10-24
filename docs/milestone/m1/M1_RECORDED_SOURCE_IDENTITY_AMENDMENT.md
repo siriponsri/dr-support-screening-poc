@@ -67,9 +67,9 @@ Unchanged (any implementation that alters these is out of scope):
 
 | ID | Requirement |
 | --- | --- |
-| RSI-A01 | When the normal admission flow creates a **new** case document (no persisted row, or a revision-0 document with no prior `admission`) and persists its first admission projection, it sets `case.source_sha256` and `case.image_sha256` to `record.source_sha256` in the same store write. |
+| RSI-A01 | When the normal admission flow creates a **new** case document (no persisted row: the store returned exactly `new_case(image_id)`) and persists its first admission projection, it sets `case.source_sha256` and `case.image_sha256` to `record.source_sha256` in the same store write. (Tightened after review: a persisted revision-0 document without admission is not "new".) |
 | RSI-A02 | It writes only if all hold: the value is a lowercase 64-hex SHA-256; it equals the case `image_id`; the record's integrity status is `OK` or `DUPLICATE_CONTENT` with no `changed_sources`; and `record.source_metadata.source_sha256`, when present, is equal. Otherwise it writes neither key, and the case stays unavailable for PRISM. |
-| RSI-A03 | The value comes only from the admission record produced by admission inspection. It is never taken from `BridgeImage.sha256` at preview or inference time, from a client request, or from the preview/infer routes. |
+| RSI-A03 | The value comes only from the admission record produced by admission inspection (`admission_method` `AUTOMATIC` or `MANUAL`; `LEGACY_COMPAT` and `DATASET_IMPORT` records, which hash loaded bytes or imported metadata, never qualify). It is never taken from `BridgeImage.sha256` at preview or inference time, from a client request, or from the preview/infer routes. |
 | RSI-A04 | Write-once: no later code path overwrites or removes either key. Rescans, manual admission edits, modality confirmation, resolver updates, SOURCE_MISSING marking, grade/annotation edits and inference saves leave them untouched. A conflicting existing value is never "repaired"; the existing gates keep refusing (`SOURCE_HASH_MISMATCH`, "Recorded source identities disagree"). |
 | RSI-A05 | Existing cases are **never** filled by Part A, including on rescan of a case whose admission is rewritten. Only Part B may add the keys to an existing case. |
 | RSI-A06 | `apply_case_defaults` and `new_case` do not add default values for these keys; absence keeps meaning "not recorded". |
@@ -102,17 +102,30 @@ Implementation notes (`scripts/qa/m1_recorded_source_projection.py`):
 
 - The approved workspace is a constant in the command; any other ID is refused
   before private configuration is read.
-- "No app serving" is checked as no listener on loopback ports 8000/8010. "Entry
-  fence inactive" and "no model-host session" are enforced by the existing
-  `check_source_write` trigger: an active fence refuses the UPDATE
+- "No app serving" is checked as no listener on loopback ports 8000/8010, and
+  "no model-host session" as no listener on the launcher's model tunnel port
+  47860. An app started on a non-default port is not detected; its optimistic
+  writes would still fail with "Case changed; reload".
+- Plan and apply refuse unless the `m1_entry_fence` trigger is installed and
+  enabled on `review_cases`. An active fence refuses the UPDATE
   (`DATABASE_REFUSED_55000`) and the transaction rolls back.
 - Current bytes are hashed by the normal admission scanner
-  (`scan_authorized_hospital_roots`) over the launcher's approved private roots.
+  (`scan_authorized_hospital_roots`) over the launcher's approved private
+  hospital roots (all of them, not only one workspace input folder). This only
+  widens the veto set; it never supplies a value.
+- Every output must be new and inside the launcher's approved private directory
+  (`M1PrivateConfig`), whose ACL must pass `private_hospital_root`; repository
+  and other paths are refused.
 - RSI-B02's backup: apply requires `--backup-receipt` (its SHA-256 goes into
-  the receipt) and always writes a private `PREIMAGE.json` of every row it
-  changes before the UPDATE. The existing hospital backup in
-  `persistence/recovery.py` needs a separately approved source map, so which
-  backup produces the receipt is part of the apply decision.
+  the receipt) and writes a private `PREIMAGE.pending.json` of every row it
+  changes before the UPDATE, renamed to `PREIMAGE.json` only after commit. A
+  pending name therefore means the transaction did not commit. The existing
+  hospital backup in `persistence/recovery.py` needs a separately approved
+  source map, so which backup produces the receipt is part of the apply
+  decision.
+- After commit the command never reports a refusal. A failed readback gives
+  `APPLIED_READBACK_UNAVAILABLE` with a receipt saying so; a failed receipt write
+  gives `APPLIED_RECEIPT_NOT_WRITTEN` with the per-case hashes on stdout.
 
 ## 5. Limitations to state honestly
 

@@ -4,6 +4,8 @@ import re
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
 RECORDED_KEYS = ("source_sha256", "image_sha256")
 _SOUND_INTEGRITY = {"OK", "DUPLICATE_CONTENT"}
+# Only admission inspection of the source file; LEGACY_COMPAT hashes loaded bytes.
+_INSPECTED_ADMISSION = {"AUTOMATIC", "MANUAL"}
 
 
 def admitted_source_hash(case, admission):
@@ -13,6 +15,8 @@ def admitted_source_hash(case, admission):
     identity amendment). The value only ever comes from the admission record.
     """
     admission = admission or {}
+    if admission.get("admission_method") not in _INSPECTED_ADMISSION:
+        return None
     digest = admission.get("source_sha256")
     if not isinstance(digest, str) or not SHA256.fullmatch(digest) or digest != case.get("image_id"):
         return None
@@ -30,10 +34,12 @@ def admitted_source_hash(case, admission):
 def record_source_identity_on_creation(case, admission):
     """Write-once projection for a case being created; never repairs an existing case.
 
-    Call before the first admission projection is stored on the case.
+    Call before the first admission projection is stored on the case. Both
+    stores return exactly new_case() for a case with no persisted row.
     """
-    creating = case.get("revision") == 0 and case.get("admission") is None and not case.get("admission_history")
-    if not creating or any(case.get(key) is not None for key in RECORDED_KEYS):
+    from ..store import new_case
+
+    if case != new_case(case.get("image_id")):
         return False
     digest = admitted_source_hash(case, admission)
     if digest is None:

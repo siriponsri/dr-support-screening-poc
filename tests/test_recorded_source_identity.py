@@ -3,10 +3,13 @@ import hashlib
 
 import pytest
 
+from types import SimpleNamespace
+
 from dr_support.services.source_identity import (
     RECORDED_KEYS,
     admitted_source_hash,
     record_source_identity_on_creation,
+    source_identity_reason,
 )
 from dr_support.store import apply_case_defaults, new_case
 from test_admission import _workspace_client, _write_image
@@ -16,7 +19,7 @@ DIGEST = "1" * 64
 
 
 def admission(**changes):
-    record = {"image_id": DIGEST, "source_sha256": DIGEST, "integrity_status": "OK",
+    record = {"image_id": DIGEST, "source_sha256": DIGEST, "integrity_status": "OK", "admission_method": "AUTOMATIC",
               "integrity": {"status": "OK", "changed_sources": []},
               "source_metadata": {"source_sha256": DIGEST, "integrity_status": "OK"}}
     record.update(changes)
@@ -80,6 +83,10 @@ def test_creation_projection_writes_both_keys_from_the_admission_record():
     admission(integrity={"status": "OK", "changed_sources": [{"filename": "x"}]}),
     admission(source_metadata={"source_sha256": "2" * 64}),
     admission(source_metadata={"source_sha256": DIGEST, "integrity_status": "SOURCE_MISSING"}),
+    # Only admission inspection counts; LEGACY_COMPAT hashes the loaded bytes.
+    admission(admission_method="LEGACY_COMPAT"),
+    admission(admission_method="DATASET_IMPORT"),
+    admission(admission_method=None),
 ])
 def test_unsound_admission_records_write_nothing(record):
     case = new_case(DIGEST)
@@ -93,6 +100,9 @@ def test_unsound_admission_records_write_nothing(record):
     {"admission_history": [{"action": "AUTOMATIC_ADMISSION"}]},
     {"source_sha256": "2" * 64},
     {"image_sha256": DIGEST},
+    # A persisted, never-admitted document is not a case being created.
+    {"events": [{"action": "IMPORTED"}]},
+    {"queue_state": "EXCLUDED"},
 ])
 def test_only_a_case_being_created_and_never_an_existing_value(existing):
     case = {**new_case(DIGEST), **existing}
@@ -107,6 +117,25 @@ def test_duplicate_content_is_sound_and_metadata_may_be_absent():
     assert admitted_source_hash({"image_id": DIGEST}, record) == DIGEST
 
 
+def test_changed_bytes_after_recording_are_still_refused():
+    case = new_case(DIGEST)
+    assert record_source_identity_on_creation(case, admission())
+    changed = "2" * 64
+    reason = source_identity_reason(case, SimpleNamespace(sha256=changed), {"source_sha256": changed})
+    assert reason == "SOURCE_HASH_MISMATCH"
+
+
+def test_legacy_compat_demo_cases_are_not_attested_on_first_get(tmp_path):
+    from fastapi.testclient import TestClient
+    from dr_support.api import create_app
+
+    client = TestClient(create_app(tmp_path / "state.sqlite", include_samples=False))
+    assert client.get("/v1/cases/SYNTH_001").status_code == 200
+    case = client.app.state.store.get("SYNTH_001")
+    assert case["admission"]["admission_method"] == "LEGACY_COMPAT"
+    assert all(key not in case for key in RECORDED_KEYS)
+
+
 def test_defaults_never_manufacture_a_recorded_identity():
     assert all(key not in new_case(DIGEST) for key in RECORDED_KEYS)
     assert all(key not in apply_case_defaults({"image_id": DIGEST}) for key in RECORDED_KEYS)
@@ -118,6 +147,7 @@ def test_created_projection_satisfies_the_preview_attestation_gate(rig):  # noqa
     refused = rig.client.post("/v1/cases/fixture/prism-input-preview", json={"revision": 0})
     assert refused.status_code == 503 and "Recorded source attestation" in refused.json()["detail"]
     created = new_case(rig.image.sha256)
-    assert record_source_identity_on_creation(created, rig.app.state.admissions["fixture"])
+    record = {**rig.app.state.admissions["fixture"], "admission_method": "AUTOMATIC"}
+    assert record_source_identity_on_creation(created, record)
     rig.store.case.update({key: created[key] for key in RECORDED_KEYS})
     assert prepare(rig)["source_sha256"] == rig.image.sha256
