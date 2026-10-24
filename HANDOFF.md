@@ -5,6 +5,8 @@
 > Operational status: **PAUSED BY OWNER. M1 IS NOT COMPLETE.**
 > The owner subsequently requested creation of this exact `HANDOFF.md` in the repository.
 > This document is a checkpoint, not an instruction to resume automatically.
+> Read-only re-verification addendum: section 22 (23 October 2026, 10:53 UTC).
+> **Engineering resumed by the owner; progress checkpoints: sections 23 and 24.**
 
 ## 1. Read this first
 
@@ -1227,3 +1229,551 @@ integration and remaining remote-provider review before connecting live runtime.
 Do not begin by starting a batch or spending GPU requests.
 
 End state for this handoff: **READY_FOR_REVIEW; ENGINEERING PAUSED; FINAL M1 NOT DONE.**
+
+## 22. Read-only re-verification addendum, 23 October 2026 10:53 UTC
+
+Owner-requested documentation update by Claude Code. Engineering remains
+**PAUSED**. This addendum only re-reads Git state, file hashes and local listener
+ownership. No tests, builds, migrations, inference, SSH, remote probes, HTTP
+requests or database connections were made. Nothing was committed, staged,
+deleted or cleaned. Sections 1–21 are kept unchanged as the 10:10 UTC record.
+
+### Git and documents
+
+| Check | Observed |
+| --- | --- |
+| Main HEAD / `origin/main` (actual `ls-remote`) | `49ad62fdef2ddc133b1e9f14f06aa24a2d2199af` / same SHA |
+| Tracked/index changes on main | None |
+| `HANDOFF.md` SHA-256 before this addendum | `7214155e8b7267fe16925f737685cec8c62ae4e3baa7a7d876cdf8da5e66ca8f`, matches the GOAL 1.0 anchor |
+| Untracked owner paths listed in section 4 | Still present, preserved |
+| New untracked documents since section 4 | `GOAL.md` (owner-requested GOAL, Thai); `CLAUDE.md` (Claude Code guidance: imports `AGENTS.md` and names `HANDOFF.md`/`GOAL.md` as required reading) |
+
+### Candidate branches (section 4 table)
+
+Every branch head is unchanged from the pause checkpoint:
+`8329c31`, `6c0de66`, `1dfdeba`, `1408977`, `2c1c390`, `8dc56ee`, `5c9288c`.
+`git merge-base --is-ancestor` confirms none of them is in main.
+`feat/m1-native-accounting` (`8329c31`) and `feat/m1-workspace-remote`
+(`6c0de66`) exist on origin at the same SHAs. `feat/m1-app-workspace-runtime`
+still has no remote branch.
+
+WIP worktree `m1-app-workspace-runtime-worktree`: `git status` was readable from
+this session; the dubious-ownership refusal recorded in GOAL 1.0 did not occur.
+It is still at `1dfdeba` with only `dr_support/api/_factory.py` modified,
+unstaged, 92 insertions / 3 deletions. The diff content was not read or changed.
+
+Retained worktrees in the "Retained earlier worktrees" table: all their heads
+are ancestors of main.
+
+### Worktrees not listed in section 4
+
+`git worktree list` also shows these task-artifact worktrees. Their unique
+commits are patch-equivalent to commits already in main (`git cherry` reports
+`-` for each). That means the source is integrated, not that the branches are
+safe to delete. Confirm ownership before any eventual cleanup.
+
+| Worktree | Branch / head |
+| --- | --- |
+| `m1-deployment-profile-worktree` | `fix/m1-generic-mask-regression`, `974f3e9` |
+| `m1-docker-start-worktree` | `fix/m1-docker-engine-start`, `23d7827` |
+| `m1-postgres-recovery-worktree` | `feat/m1-postgres-recovery`, `57d7fa2` |
+| `m1-recovery-source-binding-worktree` | `fix/m1-recovery-source-binding`, `5569096` |
+| `interactive-model-demo-worktree` | `feat/m1-accounting-recovery-integration`, `046abe2` (ancestor of main) |
+| `model-api-worktree` | `feat/qa-model-api-audit`, `001c12e` (ancestor of main) |
+
+Other worktrees (`task-3/integration-review`, the separate clinician UI checkout and
+Orca checkouts) remain outside this handoff's cleanup scope.
+
+### Local listeners
+
+| Port | Observed |
+| --- | --- |
+| `127.0.0.1:8000` | LISTEN, PID 38564 (same as section 12) |
+| `127.0.0.1:54805` | LISTEN, PID 9520 (same as section 12) |
+| `47860`, `17860` | No listener |
+
+Listener presence only; no request was sent. Whether PID 38564 serves current
+main source remains unverified.
+
+### Status effect
+
+No label in section 21 changes. The smallest next engineering action after an
+explicit owner resume is still the one stated at the end of section 21.
+
+## 23. Owner resume and progress checkpoint, 23 October 2026
+
+### Owner decisions given in chat (the only authority for this section)
+
+- Resume engineering to close the GOAL.md PARTIAL items with real consented
+  images from `C:\Users\User\Desktop\demoImages`; ask the owner before needing
+  any other information.
+- **Claude Code is the sole application-code writer for this round.** VS Code
+  Codex must not write concurrently to the same repository/worktrees.
+- GPU window `HOSPITAL_M1_QA_SERVER_20261023` on dr-train GPU0 may be opened and
+  demoImages sent through the owned SSH tunnel, at most 9 of the 24 remaining
+  requests, no automatic retry, **only after MS-01–MS-04 pass**, with a report to
+  the owner before opening.
+- Labels: TEST_ONLY reviewer for now; physician-label items stay PARTIAL.
+- Claude may merge to main and push when the AGENTS.md gate passes; stop and ask
+  for frozen-contract or schema conflicts.
+- Real images are copied byte-identically into the approved private directory
+  (`M1PrivateConfig\hospital-roots\UWF` and `\CFP`) because the Desktop folders
+  fail the private-root ACL check; ACLs are never changed.
+- WorkspaceAuthority directory: `M1PrivateConfig\workspace-authority`.
+
+### Done (branch `feat/m1-hospital-integration`, pushed; NOT in main)
+
+Worktree: `C:\Users\User\Documents\Codex\2026-10-21\task\m1-hospital-integration-worktree`.
+
+| Commit | Content | Evidence |
+| --- | --- | --- |
+| `83b3cd8` | Merge of combined candidate `8329c31` (clean, no conflict resolution) | Full backend 1771 passed / 67 skipped, Ruff clean |
+| `949cc5e` | Merge of remote PRISM provider `6c0de66` | Independent review APPROVE (68/68 at 6c0de66); focused 274 passed / 1 skipped |
+| `2d69e0d` | Preserved WIP `_factory.py` committed as explicitly unqualified WIP on `feat/m1-app-workspace-runtime` (local only) | Content unchanged from section 5 |
+| `a648b3d` | MS-02 composition: `owned_connection` (name-only change; URL/token swap refused before probe/state change), preview bound to authority, plan registration before routes, one-use `reader.bind`, USPEC/RETFound remote grading kept beside owned PRISM; context reader accepts exact `WorkspaceRemotePRISM` with the same opaque checkpoint-name bound | Full backend 1851 passed / 67 skipped, Ruff clean |
+| `4ddb6a3` | Fixes from independent review (REQUEST_CHANGES on a648b3d): read-only status probe reports `UNVERIFIED`/not reachable instead of live CONNECTED and never enters a writer scope; existing workspace profile required (no implicit insert); one authenticated startup discovery against the owned endpoint/token, refusing unless USPEC UWF and RETFound CFP are ready (no PRISM-only session); constant-time token comparison | Focused 245 passed, Ruff clean; full suite after this commit NOT_RUN |
+
+Real images: 21 files (UWF 11, CFP 10) copied, 0 hash mismatches, both roots
+pass `private_hospital_root`. Desktop originals untouched.
+
+### Not done / blocked
+
+- **Merge into main: BLOCKED by the session's automatic permission check**
+  ("modify shared resources") when fast-forwarding main. Not worked around. The
+  owner must grant that action or merge themselves.
+- MS-02 positive composition against actual PostgreSQL: NOT_RUN (only fail-closed
+  ordering is unit-tested; no mocked full-store composition exists).
+- MS-03 (model host): no host app serves `/v1/predict/*` and `/v1/prism-bound/*`
+  on one owned port today. Needed: new `scripts/model-server/m1_session.py`
+  (parent: ledger/window/budget/lease, owned child, `M1AdmissionConsumer`,
+  watchdog; child: combined global models + `workspace_child_application` behind
+  one gateway), child admission middleware, parent ACK/response adapter, and a
+  Windows readback adapter. Bounded child lifetime is about 45 minutes inside the
+  single 10800 s lease; `supervisor.finish(success=False)` drains the child.
+- MS-04: the 24-operation proposal must name each image (`source_sha256`), model,
+  pins and parameters; its approval file hash must come from the owner. Upstream
+  anchors `demo_requests/activation/complete/ready` are on dr-train (SSH needed).
+- MS-07 analysis (no code yet): export 409 after restore is the frozen policy, not
+  a restore defect (v2 recovery accepts only WORKSPACE cases, which are always
+  `BLOCKED_WORKSPACE_NOT_AUTHORIZED`). Guard-aware recovery needs a separate owner-
+  approved recovery contract and owner/admin DB credentials; design notes: backup
+  must carry/refuse a non-NULL fence binding, restore applies `EntryFencePlan.render()`
+  and grants as owner after `pg_restore`. **Policy conflict for the owner:**
+  `services/dataset.py` allows local `HOSPITAL_AUTHORIZED` export when identity
+  checks pass, while `source_policy.py` and GOAL §6 say hospital export is not
+  authorized.
+- MS-05/06/08/09: NOT_RUN.
+
+### Next actions (superseded by the update below)
+
+1. Owner: permit main merge/push (or merge), and decide the export policy conflict.
+2. Run full suite on `4ddb6a3`, then actual MS-02 composition against the approved
+   test PostgreSQL with no model inference.
+3. Implement MS-03 host session code on a new bounded branch; draft the exact
+   24-operation proposal for owner approval (MS-04); report before any GPU use.
+
+### Update: merge, owner approvals and accounting anchor (same day)
+
+- Owner granted the main merge. Full suite on `4ddb6a3`: 1855 passed / 67 skipped,
+  Ruff clean. **`main` fast-forwarded to `4ddb6a3` and pushed**; main regression
+  after merge: 1855 passed / 67 skipped. No frontend change, so no dist rebuild.
+- Owner approvals in chat: (1) local export of `HOSPITAL_AUTHORIZED` records is
+  allowed under the existing `services/dataset.py` identity checks (no code
+  change; physician/TEST_ONLY separation and export-eligibility rules still
+  apply); (2) SSH to dr-train with the existing key for read-only inspection and
+  launcher installation; (3) the 24-operation list and hashes go to the owner
+  before any GPU use.
+- Read-only dr-train check: host `dr-train`, user `siripon`; project directory
+  is not a git repo; GPU0 (approved UUID) and GPU1 idle; Ollama untouched; no
+  owned model listener on 7860–7864/17860. A Codex app-server process is
+  connected, but no project file was written after the 23 Oct 05:59 pause.
+- **Accounting anchor conflict found and resolved with owner approval:** all
+  seven upstream anchors pass the continuation verifier except the retained
+  `demo_complete` (`9847e4da…`), which predates `listener_closed`/
+  `cleanup_components`. The executed producer (`demo_session.py` `e0721fe1…`)
+  only published it after all four cleanups returned. Owner approved accepting
+  exactly those pinned bytes. Implemented on branch `feat/m1-model-host-session`
+  (worktree `m1-model-host-session-worktree`) in `batch_ledger.py`, its tests
+  (63 passed) and `M1_ACCOUNTING_CONTINUATION.md`. **The commit was refused by
+  the session's automatic permission check; the change is uncommitted** and
+  awaits owner permission.
+- Constraint for MS-03/05 planning: the Server window allows exactly one 10800 s
+  lease and closing it closes the window; the owned child lives at most about
+  45 minutes and a failed request drains it. All nine Server requests, the app
+  restart check and readbacks must fit one session, with failure tests last.
+
+## 24. MS-03/MS-04 checkpoint, 23 October 2026 (evening)
+
+Branch `feat/m1-model-host-session` (pushed; NOT in main), worktree
+`C:\Users\User\Documents\Codex\2026-10-21\task\m1-model-host-session-worktree`.
+
+| Commit | Content |
+| --- | --- |
+| `5ec2570` | Owner-approved pinned legacy `demo_complete` anchor (committed after owner granted permission) |
+| `eac5d29` | `scripts/model-server/m1_session.py` (bounded QA_SERVER acceptance runner: owned parent with ledger/window/one lease, child serving RETFound/USPEC via new additive `grading` provider set and PRISM via the workspace bound transport on one authenticated loopback port; admission before dispatch; no retry/renewal) and `m1_operations.py` (shared operation facts) |
+| `2c37171` | `m1_proposal.py` (24-operation drafting, approval only for an exact owner-approved hash) and `scripts/qa/m1_server_app.py` (TEST_ONLY workspace, owned tunnel + composed app, trusted PostgreSQL readback) |
+| `8d809e4` | Fixes from independent review 1 (all preflights before any lease; ledger always closed; uncertain PRISM outcome; replay/owner check before charge; separate readback dir) |
+| `d260d6f` | Fixes from independent review 2 (readback bound to this request: PRISM plan hash, global result digest, single entry saved after admission, APPLIED only, physician fields; STATUS identifiers validated; tunnel listener PID ownership; proposal disjointness) **plus owner-accepted Codex handoff** (diagnose, `--allow-remote-token-read` opt-in, tests, `docs/operations/M1_LAUNCHER_FIX_HANDOFF_20261023.md`) |
+
+Validation: full backend on `8d809e4` 1898 passed / 67 skipped; focused
+session/launcher 61 passed and Ruff clean on `d260d6f`. A final focused review of
+`d260d6f` is running.
+
+**Concurrent writer event:** at about 19:04 local, Codex ("Pepo") edited this
+worktree while Claude was sole writer. Claude stopped writing; the owner
+confirmed Codex was stopped and directed the changes be kept. They are in
+`d260d6f` with explicit attribution.
+
+**Owner approvals (chat):** commit permission; the exact action of reading the
+existing host token from `/home/siripon/projects/dr-model-api-qa/config/private/model-api.env`
+over SSH into Windows launcher memory only (`serve --allow-remote-token-read`);
+copying the six post-fix source images.
+
+**Done on hosts (no GPU, no ledger/window/lease):**
+- Six post-fix images copied byte-identically into the private roots (UWF 14,
+  CFP 13 files total; 0 hash mismatches).
+- Deployment `deployments/m1-session-20261023-s01` on dr-train from `d260d6f`
+  (154 files; `git archive` from Windows wrote CRLF line endings — the reviewed
+  RETFound/USPEC provider-file pins still match exactly).
+- CPU-only identity (exit 0, GPU0/GPU1 idle before and after):
+  installation `5db459c3…`, RETFound/USPEC pins match the reviewed file
+  `ac399bfb…` exactly; PRISM workspace pins match checkpoints/revision with
+  workspace `config_sha256` `2d54380b…` (differs from the batch-bound config,
+  as expected).
+- Upstream anchors uploaded to `m1-upstream-20261023/`; proposal inputs in
+  `m1-continuation-20261023/`.
+- **Draft proposal `1faa91e792331b426f6a6c2323c159f287b9c288bfa5415a74efb9c8c6e82c45`**
+  passed the real `_verify_m1` dry run on dr-train with a temporary unsigned
+  approval (deleted; accounting directory not created). It awaits owner approval.
+
+**Superseded the same evening:** the final focused review of `d260d6f` found the
+host and readback global-result digests could differ (missing or integer
+probabilities). Fixed in `2756751` (digest normalised as the contract persists;
+round-trip test through `GlobalResult`; PRISM readback selects the entry of its
+plan; netstat listener check locale-independent). Focused 64 passed, Ruff clean.
+Redeployed as `deployments/m1-session-20261023-s02` (installation
+`93acfb89f254a03b6969993a9b3717af2364b4aa85db013dcd222c9d65d247b2`); CPU identity
+exit 0, RETFound/USPEC match the reviewed pins, PRISM workspace config
+`2d54380b…`, GPUs idle. **Proposal v2
+`5a06f23cd93aaf018ff6ac0e65567004abd798d93e882cba19e210b275da535d`** (files in
+`m1-continuation-20261023-v2/` on dr-train and
+`m1-continuation-proposal-20261023-v2/` on Windows) passed the real
+`_verify_m1` dry run; operations manifest `ccd31223…` is unchanged from v1. The
+`s01` deployment and v1 proposal `1faa91e7…` are superseded and must not be
+approved or activated.
+
+**Owner approval and preparation (same evening):**
+- Owner approved proposal v2 `5a06f23c…535d` in chat; `APPROVAL.json`
+  `fc1f32ed61c868592568e60022aa172d0a7ebd596274199a90700f7e15acf901` written only
+  for that hash and uploaded read-only to `m1-continuation-20261023-v2/`.
+- Branch merged: full suite on `a99cd68` 1925 passed / 67 skipped, Ruff clean;
+  **main fast-forwarded to `a99cd68` and pushed** (adds `prepare` command and
+  `docs/operations/M1_QA_SERVER_SESSION_RUNBOOK.md`). No frontend change.
+- TEST_ONLY workspace `ws_m1_63ed86c7d44f46d59479` created in the approved test
+  database (private folders under `M1PrivateConfig\workspaces\`).
+- Manual-mode `prepare` app (no model, token or GPU): 27 private-root images
+  admitted as `HOSPITAL_AUTHORIZED`; the six Server acceptance images
+  confirmed through the Confirm Image endpoint (reviewer `TEST_ONLY_ENGINEERING`,
+  patient unlinked, UWF eye LEFT, CFP eye UNKNOWN). UWF `analysis_preparation`
+  is `NEEDS_REVIEW` (context only, not an inference gate).
+- Note: the CFP acceptance images are IDRiD public-dataset files placed in the
+  owner's consented folder; the app records origin from the private root, so
+  they are labelled `HOSPITAL_AUTHORIZED` in this TEST_ONLY workspace.
+- Pre-GPU checklist: GPU0/GPU1 idle with no compute processes, model ports free,
+  accounting and run directories absent.
+
+**Not done:** owner go-ahead for the GPU window; the Server window, lease and any
+GPU inference; actual composition against PostgreSQL with the model session;
+E2E. (Superseded by section 25.)
+
+## 25. QA_SERVER live session, 23 October 2026 (CLOSED)
+
+Owner instruction (chat): start the QA Server GPU session per the runbook —
+window `HOSPITAL_M1_QA_SERVER_20261023`, GPU0 only, at most 9 server requests
+plus suitable post-fix, no retry.
+
+**Session:** run `runs/m1-server-20261023-01` on dr-train, deployment `s02`,
+lease `m1_server_50ca42000c8048c6`, started 12:35:21 UTC, owner-closed after
+1737 s observed (cap 2640). `COMPLETE.json`: `cleanup_confirmed: true`,
+`window_stop: CONFIRMED`, `ledger_close: CONFIRMED`, `automatic_retries: 0`,
+`supervisor_reason: OWNER_CLOSE`. GPU0 back to 1 MiB; GPU1/Ollama untouched.
+**The Server window is closed permanently.** Ledger `global_used` 525 → **531**
+of cap 549 (`usage_status: EXACT`).
+
+| Operation | Model / modality | Request | Result |
+| --- | --- | --- | --- |
+| srv-fresh-uspec | USPEC / UWF | `m1_0001_e54b08e885c8c803` | MODEL_COMPLETE, readback PASS |
+| srv-fresh-retfound | RETFound / CFP | `m1_0002_5b21d0e8110b80d5` | MODEL_COMPLETE, readback PASS |
+| srv-fresh-prism-uwf | PRISM / UWF | — | NOT SENT (preview gate, below) |
+| srv-restart-uspec | USPEC / UWF | `m1_0003_94124b799382bde4` | MODEL_COMPLETE, readback PASS |
+| srv-restart-retfound | RETFound / CFP | `m1_0004_263a9d05f49b4e69` | MODEL_COMPLETE, readback PASS |
+| srv-restart-prism-cfp | PRISM / CFP | — | NOT SENT (same gate) |
+| srv-recovery-uspec | USPEC / UWF | `m1_0005_2d267f49623e1a41` | MODEL_COMPLETE, readback PASS |
+| srv-recovery-retfound | RETFound / CFP | `m1_0006_8a423da498c37555` | MODEL_COMPLETE, readback PASS |
+| srv-recovery-prism-uwf | PRISM / UWF | — | NOT SENT (same gate) |
+| post-fix (9) | — | — | NOT RUN (no PRISM route; failure paths not genuinely exercised) |
+
+All six requests went through the ordinary review UI ("Analyze grading only")
+in the TEST_ONLY workspace `ws_m1_63ed86c7d44f46d59479`; each trusted
+PostgreSQL readback (`m1_server_app readback`, read-only transaction) matched
+the host-observed result digest before the next admission. Restart: `serve`
+stopped/started, both fresh results still shown after two restarts, new
+invocations on the restart images. Recovery: only the tunnel (ssh child) was
+dropped between requests; the case/image and "Continue to clinician review"
+stayed usable, host showed no new request/charge; `serve` restarted, then the
+recovery requests ran.
+
+**Live launcher/app defects found and fixed** (branch `fix/m1-token-reader-path`,
+merged into main `d7ca474`, pushed; full suite 1926 passed / 67 skipped on the
+branch and on main, Ruff clean, root Node smoke PASS on main; no frontend change):
+
+| Commit | Defect |
+| --- | --- |
+| `fefdbb0` | Host token reader needs a `pathlib.Path` argument |
+| `2df476b` | `/v1/model-connection` 500: cached probe did not summarise the owned PRISM descriptor |
+| `42bf5e4` | Discovery summaries dropped `authorized_source_origins`, so the UI disabled Analyze for `HOSPITAL_AUTHORIZED` images (additive optional field on `ModelConnectionModel`, filtered to known origins) |
+| `d12a62b` | Client-side transmission opt-in (`MODEL_HOSPITAL_SCOPE`/`MODEL_ALLOW_AUTHORIZED_HOSPITAL`) set only inside `serve` (refused before send; no charge) |
+| `093e281` | Readback looked for top-level `source_sha256`/`image_sha256` the case store never writes; now matches `case_id` or an `inference_history` entry with that source (verification itself unchanged) |
+
+Also: the WorkspaceAuthority directory created by an earlier run had an
+OWNER RIGHTS ACE and failed the privacy check; the empty folder (created by
+this work) was removed and recreated to inherit the parent ACL — no ACL edited.
+
+**STOP item — PRISM protected preview cannot run on workspace-admitted cases.**
+`POST /v1/cases/{id}/prism-input-preview` returns 503 "Recorded source
+attestation is unavailable" (`services/prism_preview_runtime.py`): the gate
+needs a recorded `case.source_sha256`/`case.image_sha256` (and
+`case.image_sha256` or `admission.source_metadata.source_sha256`), and forbids
+deriving them from loaded bytes. Ordinary workspace admission never records
+those projections on the case (only `case16_acquire.py` does), so every M1
+workspace case is refused before any model work. Fixing it changes admission
+semantics and the PRISM source-attestation contract (protected areas), so it
+was not patched. Proposed smallest amendment for owner decision: admission
+records the admission-time hash as `source_sha256`/`image_sha256` on new cases
+(additive JSON default), plus an owner-approved one-time projection for
+existing workspace cases from the recorded admission hash (never re-hashed
+bytes). AC-06 cannot pass on either profile until this is decided.
+
+**Other findings:** while the tunnel was down the Analysis panel still showed
+the cached "AI READY" (no fake result, Analyze not clicked to avoid an
+uncertain admission) — AC-11 wording/status freshness gap. STATUS `outcome.persistence`
+stays `PENDING` while `readback.persistence` is `PASS` (the parent records
+readback separately; COMPLETE confirms PASS).
+
+**Remaining capacity:** 18 of cap 549 (QA_LOCAL 6, post-fix 9, plus 3 unsent
+Server PRISM operations that have no open window). Any further Server work
+needs a new owner-approved window.
+
+**Cleanup state:** fix worktree
+`C:\Users\User\Documents\Codex\2026-10-21\task\m1-model-host-session-worktree`
+(branch `fix/m1-token-reader-path`, merged and pushed) is retained until the
+owner agrees to remove it and the other merged worktrees/branches.
+
+## 26. Recorded source identity amendment, 24 October 2026 (DONE for TEST_ONLY)
+
+Resolves the section 25 PRISM STOP item at the preview-attestation step. Spec:
+[M1_RECORDED_SOURCE_IDENTITY_AMENDMENT.md](docs/milestone/m1/M1_RECORDED_SOURCE_IDENTITY_AMENDMENT.md),
+owner-approved in chat (Part A and Part B, Part B for `ws_m1_63ed86c7d44f46d59479` only).
+
+- **Code:** branch `fix/m1-recorded-source-identity` (`36e8961`, `a04cc19`,
+  `b0c68da`), independent review REQUEST_CHANGES → fixed → APPROVE; merged to
+  **main `f4e943d`** and pushed. Full suite 1979 passed / 67 skipped on branch and
+  main, Ruff clean, root Node smoke PASS; no frontend change.
+- **Part A:** a new case records `source_sha256`/`image_sha256` from its
+  AUTOMATIC/MANUAL admission record, write-once; existing cases never filled.
+- **Part B run (owner approved plan `fa089a4c317c4ef9d14feb61f402c2320ecd9d16860e54ed79106205dba0ea7c`):**
+  database-only backup first (`pg_dump` custom format of
+  `dr_support_m1_interactive_test_20261023`, 27,680 bytes, SHA-256
+  `2ea14c52…37a5`, TOC verified; receipt `bbb961be…d97a`); apply wrote 27 cases
+  (revision +1, one audit event each), readback PASS, receipt
+  `1ba7b663…6c04`; a fresh plan shows 27 `ALREADY_RECORDED`. All evidence in
+  `M1PrivateConfig\evidence\recorded-source-projection-20261024\` (outside Git).
+- **Environment note:** after the overnight restart Windows had reserved TCP
+  54774–54873 (blocking PG port 54805). The owner reset WinNAT/WSL/Docker; the
+  DR PostgreSQL container was started as-is (normal WAL recovery). Docker also
+  auto-starts `sabai-db`/`sabai-web`.
+- **Still open:** an actual protected PRISM run (AC-06) needs a new
+  owner-approved GPU window; the 2026-10-23 Server window is closed.
+
+## 27. PRISM GPU window preparation, 24 October 2026 (awaiting hash confirmation)
+
+Owner approved the plan
+[HOSPITAL_M1_PRISM_GPU_WINDOW_PLAN_20261024.md](docs/planning/HOSPITAL_M1_PRISM_GPU_WINDOW_PLAN_20261024.md)
+(max 3 PRISM requests, GPU0, lease ≤ 3600 s, one case first). Spec:
+[M1_PRISM_WINDOW_CONTINUATION.md](docs/milestone/m1/M1_PRISM_WINDOW_CONTINUATION.md).
+
+- **Code:** `fix/m1-prism-window` (`92318a9`, `ff711da`), review APPROVE (lows
+  fixed); merged to **main `b4cf903`**, pushed; full suite 2007 passed /
+  67 skipped, Ruff clean, Node smoke PASS.
+- **Host (no GPU):** deployment `deployments/m1-session-20261024-s03` (154 files
+  from `b4cf903` + s02's `base/` and `EXPECTED_BATCH_MODELS.json`), installation
+  `2d85d2eb…8975`; CPU identity: PRISM and global pins identical to s02.
+- **Source fenced (irreversible, by design):** `m1-accounting-20261023` now has
+  `HANDOVER.lock`; export `ada7707e…19cb`, global_used 531, 18 unsent operations
+  recorded (3 PRISM moved on; Local 6 and post-fix 9 need a future decision).
+- **Proposal v3:** `m1-continuation-prism-20261024/PROPOSAL.json`, SHA-256
+  `38536f119991bd30de94d513055f3918c13f215da8ebb261a1472e88c78748da`; real
+  verifier dry run PASS (531 → cap 534, window
+  `HOSPITAL_M1_QA_SERVER_PRISM_20261024`, 3600 GPU s / 7200 wall s, prior
+  27802.874 s); accounting directory `m1-accounting-prism-20261024` not created.
+- **Local check:** manual-mode app, PRISM preview on CFP `092d05e8…` now passes
+  recorded attestation and stops only at "no PRISM provider" (no model contact).
+- **Next:** owner confirms the v3 hash → write APPROVAL → run the session per the
+  plan (phase 1 CFP `092d05e8…`, then UWF `8568e67e…`, `a48d90b1…`).
+
+## 28. PRISM GPU window run, 24 October 2026 (DONE, window closed)
+
+Owner confirmed proposal v3 `38536f11…48da`; APPROVAL `86529dc8…47fc`. Run
+`runs/m1-prism-20261024-01` (deployment s03), window
+`HOSPITAL_M1_QA_SERVER_PRISM_20261024`, ~1157 s observed. `COMPLETE.json`:
+cleanup/window_stop/ledger_close CONFIRMED, 0 retries, **534/534 used**. GPU0
+released; GPU1/Ollama untouched.
+
+| Phase | Operation | Image | Result |
+| --- | --- | --- | --- |
+| 1 | srv-restart-prism-cfp | CFP `092d05e8…` | PASS_READBACK; 380 raw suggestions; still shown after app restart |
+| 2 | srv-fresh-prism-uwf | UWF `8568e67e…` | PASS_READBACK; 21 raw suggestions |
+| 2 | srv-recovery-prism-uwf | UWF `a48d90b1…` | PASS_READBACK after tunnel drop (manual review usable, no charge) and app restart; 24 raw suggestions |
+
+All went through the review UI (Preview PRISM input → prepare → acknowledge →
+submit) and the one-use plan-bound trusted PostgreSQL readback.
+
+**Live findings:**
+- First two submits on the CFP case were refused by the host BEFORE admission
+  (ledger 0 rows, no charge): the host's frozen-plan gate requires admission
+  quality `GRADABLE`, while the app lets a `NOT_EVALUATED` image prepare a
+  preview. Each of the 3 images was given `QUALITY_ACCEPTABLE` by reviewer
+  `TEST_ONLY_ENGINEERING` (engineering, not clinical). **Open UI defect:** the
+  app should say "image quality confirmation required" before PRISM preparation.
+- Fixed and merged (`fix/m1-prism-execute-diagnostics`, main `d5a3102`, full
+  suite 2012 passed): the app now logs the refusal class/code (it was hidden by a
+  catch-all), and readback accepts `m1-prism-*` run names. Also noted: the host
+  child's 409 body uses `code`, the client reads `error`, so it reports the
+  generic `REMOTE_REJECTED`.
+
+**Remaining accounting:** 534 used. The 2026-10-23 export still records Local 6
+and post-fix 9 unsent; using them needs a new owner decision continuing from
+this decision's closure. GPU new-reservation total 14,400 of 21,600 s.
+
+## 29. Clinician UX revision Phase A, 24 October 2026 (DONE, merged)
+
+Owner approved `docs/planning/HOSPITAL_M1_UX_REVISION_PLAN_20261024.md` with the
+section 3 defaults, then gave full visual freedom. The owner kept the existing
+illustrated style with the "precision" palette, English workflow terms, and no
+middle dot or long dash in UI text. Merged to main `e52863d` (branch
+`fix/m1-ux-phase-a` removed). Main validation: backend 2016 passed / 67
+skipped, frontend 299 passed, typecheck, build, ruff, Node smoke and docs QA
+all pass. `frontend/dist` rebuilt on main, and the browser check on real
+TEST_ONLY data passed.
+
+Delivered:
+- Shell: dark green sidebar through `sidebarScope`, a Red Soil band, the
+  "Faculty of Medicine, Khon Kaen University" wordmark, and Clinical review /
+  Administration groups.
+- Review: technical details hidden. The PRISM quality gate (fixes the section 28
+  defect) offers "Image quality acceptable" in place. Host 409 `code` is read.
+- Grade: one-click 0-4 / Ungradable buttons, still confirmed explicitly.
+  Reviewer name remembered by default.
+- Confirm Image: the image, plus optional Usable / Not usable. A failed quality
+  save keeps the dialog open to retry.
+- Finish: names the unaccepted AI suggestion count, still `REVIEWED_NONE_FOUND`.
+- Worklist:
+  - quick filter Not started / In progress / Done with counts;
+  - Done narrows by the clinician's final grade;
+  - Result shows only "AI ready" before a grade is recorded;
+  - read-only quick look (image, ROI toggles, record).
+- Amendment: `docs/milestone/m1/M1_CLINICIAN_UX_REVISION_AMENDMENT.md`.
+
+Deferred by the owner: drag-to-reorder, refer report, image download (needs
+login and roles first). Phase B (TH/EN toggle) is not started. Worklist status
+and table terms stay English in both languages.
+
+Follow-up (main `ca5e3bd`, branch `fix/m1-sidebar-hide` removed):
+- The university and faculty name is removed from the UI (owner: sensitive).
+  The Red Soil band stays.
+- The sidebar can be expanded, collapsed or hidden from the top bar. Image
+  pages keep their own remembered mode, collapsed by default. While hidden,
+  the header shows the workspace name.
+- Image pages use a fixed 340px side panel (320px in the editor) and a 1920px
+  content cap, so the retinal image is larger.
+- Validation: frontend 301 passed, typecheck, build, and an independent review
+  with its findings fixed.
+- `check_docs.py` on the main checkout flags PDFs in untracked local folders
+  (`docs/presentation/dr-screening-demo/archive`, `local-state`). These are
+  not part of any commit.
+
+## 30. Local TEST_ONLY acceptance evidence, 24 October 2026
+
+Workspace `windows-demo-test-only` (TEST_ONLY), app on main via
+`START_DR_SCREENING`, dr-train not connected. Evidence (outside Git):
+`M1PrivateConfig\evidence\m1-local-acceptance-20261024\`. Tool:
+`scripts/qa/m1_local_acceptance.py` (main `984a920`; read-only SQL snapshot / compare /
+guarded failure-checks; identity keys never hashed).
+
+- **AC-11 fix:** Review re-reads `/v1/models` every 30 s while visible, on
+  focus, and after a failed analysis. Only the newest reply is kept (main
+  `061193a`). In the app it showed AI UNAVAILABLE with dr-train down.
+- **AC-07 PASS (TEST_ONLY):** case `07bc59b8…` (hospital-case-0002).
+  - GUI: grade 3 to 2, one HEMORRHAGE box, then Finish.
+  - Read-only SQL matched: revision 9 to 13, geometry in original pixels,
+    reviewer TEST_ONLY_ENGINEERING, recomputed annotation set hash equal,
+    inference history unchanged.
+  - The box was drawn by scripted pointer events; the embedded browser drag
+    tool does not reach the canvas.
+- **AC-08 PASS for app restart:** three app-only restarts (PID stop, then
+  `release-start.ps1`), health back in about 13 s, PostgreSQL container
+  untouched.
+  - Every clinician field and the revision were identical after each restart.
+  - The GUI reopened showing the same grade and finding.
+  - An edit after reopen (grade back to 3, revision 14) survived the next
+    restart.
+  - Machine reboot NOT_RUN (owner action).
+- **Finding (owner decision, protected admission semantics):** each app start
+  rewrites `admission.created_at/updated_at` for authorized-root images without
+  a revision bump. Clinician data is unaffected, but the original admission
+  time is lost. Not changed.
+- **AC-12 PARTIAL:** the case did not change for any of these (before/after
+  SQL):
+  - stale revision: 409;
+  - malformed body: 422;
+  - unknown case: 404;
+  - analysis while the Model API is unreachable: 503 "AI analysis is not
+    available; manual review remains available." in about 5.7 s, no
+    inference entry.
+  - Gap: the review API has no app-level request body limit.
+  - Queue, watchdog and OOM need the model host.
+- **AC-10 NOT_RUN here:** the artifact ROI post-filter is DISABLED on every
+  case. It needs per-image provider or replay decisions (MS-06). A removed AI
+  ROI is final by design (409). Restore is covered only by automated control
+  tests.
+- **Admission timestamp fix (owner-approved, main `75d41f9`):**
+  `preserve_admission_timestamps` in `apply_scan` keeps `created_at` at the
+  first admission time and moves `updated_at` only when the admission content
+  changes. No other admission field, decision or rule changed.
+  - Verified: two restarts on the fixed code gave an identical case payload.
+  - Full backend suite: 2027 passed / 67 skipped. Independent review: no
+    blockers.
+  - Notes from the review:
+    - Records written before the fix keep the `created_at` from the last old
+      start. The true first time is in the first `AUTOMATIC_ADMISSION`
+      history entry.
+    - The Worklist "Recently updated" sort now reflects real changes.
+  - **Separate older issue (not changed, needs owner OK):** after Confirm
+    Image on an automatically admitted image, the next rescan clears
+    `reviewed_by`, `reviewed_at` and `review_note` in the admission record.
+- **Confirm Image reviewer fix (owner-approved, main `9cde657`):** `apply_scan`
+  carries `reviewed_by/reviewed_at/review_note` across rescans for automatic
+  admissions. Before, every start cleared them.
+  - Side effects: export (`dataset._image_confirmation`) treated confirmed
+    automatic images as DRAFT again after each start, and `updated_at` moved
+    every start for confirmed cases. Both are now fixed.
+  - Full backend suite: 2031 passed / 67 skipped. Independent review: no
+    significant findings.
+  - Live check: hospital-case-0001 after Confirm Image kept the reviewer and
+    timestamps across two restarts.
+  - Note: a scripted click went to case-0001's menu instead of case-0016's.
+    It re-confirmed the same values (UWF, left eye, patient link, AI results
+    and grade 4 unchanged); retinal_modality_method is now MANUAL.
+  - Out of scope, API-only: a `LEAVE_UNRESOLVED` admission review also sets
+    `reviewed_by`, which export counts as confirmed.
+
