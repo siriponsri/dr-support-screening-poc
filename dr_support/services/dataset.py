@@ -18,6 +18,7 @@ from uuid import uuid4
 
 from .admission import legacy_admission
 from .source_identity import source_identity_reason
+from .source_policy import EXPORT_AUTHORIZATION, LOCAL_ONLY_EXPORTS, export_authorization, local_export_destination_reason
 from .grading_folders import GradingFolderError, plan_grading_folders
 from .filesystem_privacy import has_reparse_component
 from ..presentation import annotation_set_hash, lesion_detection_id, review_evidence_view
@@ -33,14 +34,8 @@ SNAPSHOT_ELIGIBILITY_POLICY_VERSION = "s8.2-task-specific-v2"
 NEGATIVE_POLICY_VERSION = "p4-negative-training-deferred-v1"
 SOURCE_STATE_DIGEST_VERSION = "p4-source-state-v1"
 SOURCE_ORIGINS = frozenset({"PUBLIC", "SYNTHETIC", "WORKSPACE", "HOSPITAL_AUTHORIZED", "UNKNOWN"})
-ENGINEERING_EXPORT_AUTHORIZATION = {
-    "PUBLIC": "ALLOWED_ENGINEERING_PUBLIC",
-    "SYNTHETIC": "ALLOWED_ENGINEERING_SYNTHETIC",
-    "WORKSPACE": "BLOCKED_WORKSPACE_NOT_AUTHORIZED",
-    # Owner-authorized local copies/labels. This is not a network export grant.
-    "HOSPITAL_AUTHORIZED": "ALLOWED_LOCAL_AUTHORIZED_HOSPITAL",
-    "UNKNOWN": "BLOCKED_UNKNOWN_ORIGIN",
-}
+# The single rule lives in source_policy; this name is kept for existing imports.
+ENGINEERING_EXPORT_AUTHORIZATION = EXPORT_AUTHORIZATION
 CANONICAL_LABELS = {
     "MICROANEURYSM",
     "HEMORRHAGE",
@@ -246,7 +241,7 @@ def _source_origin(case: dict, image, admission: dict | None) -> str:
 
 
 def _export_authorization(source_origin: str) -> str:
-    return ENGINEERING_EXPORT_AUTHORIZATION.get(source_origin, "BLOCKED_UNKNOWN_ORIGIN")
+    return export_authorization(source_origin)
 
 
 def _completeness_record(case: dict, group: str) -> dict:
@@ -917,6 +912,13 @@ class DatasetManifestService:
             raise DatasetManifestError("Export is blocked because one or more records lack approved engineering export authorization.")
 
     @staticmethod
+    def _assert_local_destination(images: list[dict], folder: str | Path) -> None:
+        if any(row.get("export_authorization") in LOCAL_ONLY_EXPORTS for row in images)                 and local_export_destination_reason(folder) is not None:
+            raise DatasetManifestError(
+                "Hospital records can be exported only to a local folder on this computer. "
+                "Choose a Workspace output folder that is not on a network share or synced to a cloud service.")
+
+    @staticmethod
     def _readiness_match(row: dict, readiness: str) -> bool:
         if readiness in {"all", ""}:
             return True
@@ -1211,6 +1213,7 @@ class DatasetManifestService:
             blocked = [row for row in images if str(row.get("export_authorization", "")).startswith("BLOCKED_")]
             if blocked:
                 raise DatasetManifestError("Canonical snapshot is blocked because one or more records lack approved engineering export authorization.")
+            self._assert_local_destination(images, workspace.output_folder)
             if include_grade_folders:
                 if self.app.state.store is not store_at_start or self._workspace() is not workspace:
                     raise DatasetManifestError("Workspace changed; refresh the grading-folder preview.")
@@ -1417,6 +1420,7 @@ class DatasetManifestService:
             images, annotations = self._rows(cases)
             source_state = _source_state_receipt(workspace.id, cases)
         self._assert_export_authorized(images)
+        self._assert_local_destination(images, workspace.output_folder)
         created_at = _utc_now()
         export_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid4().hex[:8]}"
         output_root = Path(workspace.output_folder)
@@ -1521,10 +1525,12 @@ class DatasetManifestService:
                 (image_id, *self._case_context(image_id, store))
                 for image_id in self._image_ids()
             ]
-        self._assert_export_authorized([
+        grouped_rows = [
             self._rows([case])[0][0]
             for _image_id, case, _image, _admission in snapshots
-        ])
+        ]
+        self._assert_export_authorized(grouped_rows)
+        self._assert_local_destination(grouped_rows, workspace.output_folder)
 
         for image_id, case, image, admission in snapshots:
             group, grade = _grade_group(case, admission)

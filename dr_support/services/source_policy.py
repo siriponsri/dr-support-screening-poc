@@ -2,7 +2,8 @@
 
 The hospital lane is deliberately opt-in and narrowly bound to one configured
 private root. It never changes an unknown/workspace upload into a hospital
-record, and it never grants dataset export authorization.
+record. Admission alone grants nothing: dataset export authorization is the
+single rule in ``EXPORT_AUTHORIZATION`` below, used by every export path.
 """
 
 from __future__ import annotations
@@ -25,6 +26,49 @@ HOSPITAL_MODALITIES = frozenset({"CFP", "UWF"})
 HOSPITAL_LINKAGE_KEY_ENV = "DR_SUPPORT_HOSPITAL_LINKAGE_KEY"
 HOSPITAL_ROOTS_ENV = "DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS"
 HOSPITAL_WINDOWS_READERS_ENV = "DR_SUPPORT_HOSPITAL_WINDOWS_READ_ONLY_SIDS"
+
+# One export rule for every dataset path (owner decision, 2026-10-24): consented
+# HOSPITAL_AUTHORIZED images and labels may be copied to a local folder the user
+# chose. The app never sends them to a cloud service; WORKSPACE and UNKNOWN
+# origins stay blocked. AI predictions and physician-confirmed labels stay in
+# separate manifest fields.
+EXPORT_AUTHORIZATION = {
+    "PUBLIC": "ALLOWED_ENGINEERING_PUBLIC",
+    "SYNTHETIC": "ALLOWED_ENGINEERING_SYNTHETIC",
+    "WORKSPACE": "BLOCKED_WORKSPACE_NOT_AUTHORIZED",
+    HOSPITAL_ORIGIN: "ALLOWED_LOCAL_AUTHORIZED_HOSPITAL",
+    "UNKNOWN": "BLOCKED_UNKNOWN_ORIGIN",
+}
+LOCAL_ONLY_EXPORTS = frozenset({"ALLOWED_LOCAL_AUTHORIZED_HOSPITAL"})
+_CLOUD_SYNC_FOLDERS = frozenset({"dropbox", "google drive", "googledrive", "my drive", "icloud drive",
+                                 "iclouddrive", "box", "box sync"})
+_CLOUD_SYNC_ENV = ("OneDrive", "OneDriveCommercial", "OneDriveConsumer")
+
+
+def export_authorization(source_origin: str) -> str:
+    """Return the export decision for a source origin (unknown values are blocked)."""
+    return EXPORT_AUTHORIZATION.get(source_origin, "BLOCKED_UNKNOWN_ORIGIN")
+
+
+def local_export_destination_reason(folder: str | Path) -> str | None:
+    """Why a folder is not a local-only export destination, or None when it is.
+
+    Network shares and folders a cloud client synchronizes would send hospital
+    records off this computer without an explicit user action.
+    """
+    text = str(folder)
+    if text.startswith(("\\\\", "//")):
+        return "NETWORK_SHARE"
+    resolved = Path(folder).resolve(strict=False)
+    for name in _CLOUD_SYNC_ENV:
+        root = os.environ.get(name)
+        if root and resolved.is_relative_to(Path(root).resolve(strict=False)):
+            return "CLOUD_SYNC_FOLDER"
+    for part in resolved.parts:
+        folded = part.casefold()
+        if folded in _CLOUD_SYNC_FOLDERS or folded.startswith("onedrive"):
+            return "CLOUD_SYNC_FOLDER"
+    return None
 
 
 def _truthy(name: str) -> bool:
