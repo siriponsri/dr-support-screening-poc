@@ -181,6 +181,17 @@ function mockReviewApi(onReview?: (request: Record<string, unknown>) => void, cu
 }
 
 describe('Review responsibility boundary', () => {
+  it('re-reads model availability so a dropped Model API link stops showing AI READY', async () => {
+    const loaded: ModelDescriptor = { model_id: 'retfound-aptos5', task: 'global', modalities: ['CFP'], status: 'LOADED', release_status: 'RESEARCH_ONLY' };
+    const models: ModelDescriptor[] = [loaded];
+    mockReviewApi(undefined, readyCase, models);
+    renderAppAt('/review/ready');
+    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('AI READY');
+    models.splice(0, 1, { ...loaded, status: 'REMOTE_UNAVAILABLE' });
+    fireEvent.focus(window);
+    await waitFor(() => expect(screen.getByLabelText('AI availability')).toHaveTextContent('AI UNAVAILABLE'));
+  });
+
   it('runs global grading separately and never silently submits PRISM without a bound preview', async () => {
     const requests = mockReviewApi(undefined, readyCase, [
       { model_id: 'retfound-aptos5', task: 'global', modalities: ['CFP'], status: 'LOADED' },
