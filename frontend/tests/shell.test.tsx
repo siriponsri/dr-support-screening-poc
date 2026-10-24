@@ -48,10 +48,10 @@ describe('Sidebar navigation', () => {
     expect(primary.getByRole('link', { name: /Worklist/i })).not.toHaveAttribute('aria-current');
   });
 
-  it('shows the KKU institutional band and wordmark', () => {
+  it('shows the institutional band without naming the university or faculty', () => {
     renderAppAt('/worklist');
     expect(screen.getAllByTestId('institutional-band').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Faculty of Medicine, Khon Kaen University/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Khon Kaen|Faculty of Medicine/i)).not.toBeInTheDocument();
   });
 
   it('exposes a brand mark and an explicit workspace recovery state', async () => {
@@ -152,6 +152,27 @@ describe('Sidebar collapse control', () => {
     // Expand again.
     await user.click(screen.getByRole('button', { name: /Expand sidebar/i }));
     expect(within(primary()).getByText('Worklist')).toBeInTheDocument();
+  });
+
+  it('hides the sidebar and shows it again from the top bar', async () => {
+    const user = userEvent.setup();
+    renderAppAt('/worklist');
+    await user.click(screen.getByRole('button', { name: 'Hide sidebar' }));
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('dr-support-screening.sidebar-mode.other.v1')).toBe('hidden');
+    await user.click(screen.getByRole('button', { name: 'Show sidebar' }));
+    expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByText('Worklist')).toBeInTheDocument();
+  });
+
+  it('starts collapsed on image pages and keeps a separate choice there', async () => {
+    const user = userEvent.setup();
+    window.localStorage.setItem('dr-support-screening.sidebar-mode.other.v1', 'expanded');
+    renderAppAt('/review');
+    const primary = () => screen.getByRole('navigation', { name: 'Primary' });
+    expect(within(primary()).queryByText('Worklist')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Hide sidebar' }));
+    expect(window.localStorage.getItem('dr-support-screening.sidebar-mode.image.v1')).toBe('hidden');
+    expect(window.localStorage.getItem('dr-support-screening.sidebar-mode.other.v1')).toBe('expanded');
   });
 
   it('starts collapsed by default on tablet to leave space for tables', () => {

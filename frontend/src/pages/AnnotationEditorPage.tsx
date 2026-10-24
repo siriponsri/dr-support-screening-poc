@@ -1374,7 +1374,7 @@ function AnnotationEditorPageSession() {
   }
 
   return (
-    <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
+    <Box as="main" maxW="1920px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader
         pathname={pathname}
         title="Annotation Editor"
