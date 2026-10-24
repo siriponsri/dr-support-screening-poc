@@ -37,6 +37,7 @@ class FakeDatabase:
         self.fail_update = None   # 1-based UPDATE number that matches no row.
         self.sessions = 0
         self.fail_session = None  # 1-based session number that cannot connect.
+        self.lose_commit = False
 
     @contextmanager
     def session(self, autocommit=True):
@@ -58,6 +59,8 @@ class FakeConnection:
         except BaseException:
             self.database.rows = snapshot  # Rollback.
             raise
+        if self.database.lose_commit:
+            raise psycopg.OperationalError('synthetic connection lost during COMMIT')
 
     def execute(self, query, params=None):
         text = repr(query)
@@ -227,6 +230,16 @@ def test_missing_entry_fence_trigger_is_refused(rig, capsys):
     assert projection.main(['plan', '--workspace-id', WORKSPACE, '--out', str(rig.out / 'plan.json')]) == 2
     assert 'ENTRY_FENCE_TRIGGER_REQUIRED' in capsys.readouterr().err
     assert not (rig.out / 'plan.json').exists()
+
+
+def test_connection_lost_during_commit_is_reported_as_unknown_not_refused(rig, capsys):
+    _, digest = run_plan(rig)
+    rig.database.lose_commit = True
+    assert run_apply(rig, digest) == 1
+    output = capsys.readouterr()
+    assert 'REFUSED' not in output.err
+    assert json.loads(output.out.strip().splitlines()[-1])['status'] == 'COMMIT_OUTCOME_UNKNOWN'
+    assert (rig.out / 'applied' / 'PREIMAGE.pending.json').exists()
 
 
 def test_readback_failure_after_commit_is_reported_as_applied(rig, capsys):

@@ -125,7 +125,10 @@ Implementation notes (`scripts/qa/m1_recorded_source_projection.py`):
   decision.
 - After commit the command never reports a refusal. A failed readback gives
   `APPLIED_READBACK_UNAVAILABLE` with a receipt saying so; a failed receipt write
-  gives `APPLIED_RECEIPT_NOT_WRITTEN` with the per-case hashes on stdout.
+  gives `APPLIED_RECEIPT_NOT_WRITTEN` with the per-case hashes on stdout. A
+  connection lost during COMMIT gives `COMMIT_OUTCOME_UNKNOWN` (rerun `plan` to
+  see which cases are recorded); only an enabled origin/always trigger counts as
+  installed.
 
 ## 5. Limitations to state honestly
 

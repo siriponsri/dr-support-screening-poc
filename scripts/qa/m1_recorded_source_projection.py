@@ -166,7 +166,7 @@ def require_entry_fence(connection, schema):
     installed = connection.execute(
         "SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid "
         "JOIN pg_namespace n ON n.oid = c.relnamespace WHERE t.tgname = 'm1_entry_fence' "
-        "AND c.relname = 'review_cases' AND n.nspname = %s AND NOT t.tgisinternal AND t.tgenabled <> 'D'",
+        "AND c.relname = 'review_cases' AND n.nspname = %s AND NOT t.tgisinternal AND t.tgenabled IN ('O', 'A')",
         (schema,)).fetchone()
     require(installed, 'ENTRY_FENCE_TRIGGER_REQUIRED')
 
@@ -211,20 +211,30 @@ def apply(args):
         database = _database()
         schema = database.settings.schema
         current = current_source_hashes()
-        with database.session(autocommit=False) as connection:
-            with connection.transaction():
-                require_entry_fence(connection, schema)
-                rows = _rows(connection, schema, args.workspace_id, lock=True)
-                updates = changes(value, rows, current, plan_sha256, timestamp)
-                require(updates, 'NO_ELIGIBLE_CASES')
-                _write_new(pending, [{'case_id': case_id, 'revision': revision, 'payload': before}
-                                     for case_id, revision, before, _ in updates])
-                for case_id, revision, _, after in updates:
-                    written = connection.execute(sql.SQL(
-                        'UPDATE {}.review_cases SET revision=%s, payload=%s, updated_at=CURRENT_TIMESTAMP '
-                        'WHERE workspace_id=%s AND case_id=%s AND revision=%s').format(sql.Identifier(schema)),
-                        (revision + 1, Jsonb(after), args.workspace_id, case_id, revision)).rowcount
-                    require(written == 1, 'CHANGED_SINCE_PLAN')
+        updated_all = False
+        try:
+            with database.session(autocommit=False) as connection:
+                with connection.transaction():
+                    require_entry_fence(connection, schema)
+                    rows = _rows(connection, schema, args.workspace_id, lock=True)
+                    updates = changes(value, rows, current, plan_sha256, timestamp)
+                    require(updates, 'NO_ELIGIBLE_CASES')
+                    _write_new(pending, [{'case_id': case_id, 'revision': revision, 'payload': before}
+                                         for case_id, revision, before, _ in updates])
+                    for case_id, revision, _, after in updates:
+                        written = connection.execute(sql.SQL(
+                            'UPDATE {}.review_cases SET revision=%s, payload=%s, updated_at=CURRENT_TIMESTAMP '
+                            'WHERE workspace_id=%s AND case_id=%s AND revision=%s').format(sql.Identifier(schema)),
+                            (revision + 1, Jsonb(after), args.workspace_id, case_id, revision)).rowcount
+                        require(written == 1, 'CHANGED_SINCE_PLAN')
+                    updated_all = True
+        except psycopg.Error:
+            if not updated_all:
+                raise
+            # Lost during COMMIT: the server may or may not have committed.
+            print(json.dumps({'status': 'COMMIT_OUTCOME_UNKNOWN', 'output': str(out),
+                              'next': 'run plan again to see which cases are recorded'}))
+            return 1
         # Committed from here on: never report a refusal (review finding 1).
         try:
             stored = _readback(database, schema, args.workspace_id)

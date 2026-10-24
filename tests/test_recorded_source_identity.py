@@ -125,14 +125,20 @@ def test_changed_bytes_after_recording_are_still_refused():
     assert reason == "SOURCE_HASH_MISMATCH"
 
 
-def test_legacy_compat_demo_cases_are_not_attested_on_first_get(tmp_path):
+def test_legacy_compat_demo_cases_are_not_attested_on_first_get(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     from dr_support.api import create_app
+    from test_demo_admission import _write_image as write_demo
 
-    client = TestClient(create_app(tmp_path / "state.sqlite", include_samples=False))
-    assert client.get("/v1/cases/SYNTH_001").status_code == 200
-    case = client.app.state.store.get("SYNTH_001")
+    # Demo images are keyed by sha256(bytes), so only the admission-method check stops the write.
+    write_demo(tmp_path / "IMG_01.jpg", "red")
+    image_id = hashlib.sha256((tmp_path / "IMG_01.jpg").read_bytes()).hexdigest()
+    monkeypatch.setenv("DR_DEMO_FOLDER", str(tmp_path))
+    client = TestClient(create_app(tmp_path / "state.sqlite"))
+    assert client.get(f"/v1/cases/{image_id}").status_code == 200
+    case = client.app.state.store.get(image_id)
     assert case["admission"]["admission_method"] == "LEGACY_COMPAT"
+    assert case["admission"]["source_sha256"] == image_id
     assert all(key not in case for key in RECORDED_KEYS)
 
 
