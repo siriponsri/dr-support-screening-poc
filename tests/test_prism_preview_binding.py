@@ -242,6 +242,18 @@ def test_concurrent_submission_forwards_at_most_once(rig):
     assert rig.provider.calls == 1
 
 
+def test_refused_execution_logs_only_its_fixed_code(rig, caplog):
+    from dr_support.services.prism_remote_transport import TransportError
+    plan = prepare(rig)
+
+    def refused(*args, **kwargs):
+        raise TransportError("REMOTE_REJECTED")
+    rig.provider.infer_bound_prism = refused
+    with caplog.at_level("WARNING"):
+        assert submit(rig, plan).status_code == 502
+    assert "PRISM execution refused: TransportError REMOTE_REJECTED" in caplog.text
+
+
 @pytest.mark.parametrize("failure", ["bad_receipt", "bad_result", "fail"])
 def test_unverified_or_failed_result_is_not_saved_or_retried(rig, failure):
     plan = prepare(rig)

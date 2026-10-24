@@ -148,6 +148,19 @@ def admitted_entry(models, result):
             'result_sha256': operations.global_result_digest(result)}
 
 
+@pytest.mark.parametrize('name, allowed', [('m1-server-20261023-01', True), ('m1-prism-20261024-01', True),
+                                           ('m1-other-1', False), ('m1-prism-x;rm', False)])
+def test_readback_accepts_only_server_and_prism_window_runs(monkeypatch, name, allowed):
+    app = server_app()
+    monkeypatch.setattr(app, 'ssh', lambda command, **_: b'{}')
+    run = app.REMOTE_PROJECT + '/runs/' + name
+    if allowed:
+        assert app.remote_status(run) == {}
+    else:
+        with pytest.raises(app.SessionError, match='APPROVED_REMOTE_RUN_REQUIRED'):
+            app.remote_status(run)
+
+
 def test_readback_finds_the_case_by_its_stored_keys():
     # The case store keys rows by image_id and records the source hash per inference entry.
     app = server_app()
