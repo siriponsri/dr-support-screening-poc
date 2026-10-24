@@ -158,4 +158,24 @@ describe('Private hospital confirmation presentation', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(item));
     expect(review).not.toHaveBeenCalled();
   });
+
+  it('keeps the dialog open when the quality save fails and retries without re-confirming', async () => {
+    const user = userEvent.setup();
+    const confirmed = { ...item, revision: 8 };
+    const confirm = vi.spyOn(admissionApi, 'confirmImage').mockResolvedValueOnce(confirmed);
+    const review = vi.spyOn(admissionApi, 'review')
+      .mockRejectedValueOnce(new Error('Case changed; reload'))
+      .mockResolvedValueOnce({ ...confirmed, revision: 9 });
+    const { onSaved } = openDialog();
+    await user.click(screen.getByRole('radio', { name: 'Usable' }));
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('radio', { name: 'Not usable' })).toHaveAttribute('aria-checked', 'true');
+    await user.click(screen.getByRole('button', { name: 'Confirm image & continue' }));
+    expect(await screen.findByText(/Image confirmed, but image quality was not saved/)).toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Save image quality' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ revision: 9 })));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(review).toHaveBeenLastCalledWith(item.image_id, expect.objectContaining({ revision: 8, action: 'QUALITY_INADEQUATE' }));
+  });
 });

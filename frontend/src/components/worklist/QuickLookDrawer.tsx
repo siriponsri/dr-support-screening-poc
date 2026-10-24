@@ -24,10 +24,11 @@ import { reviewStatus } from './ReviewStatusCell';
 
 function findingsSummary(item: CaseRecord): string {
   const state = lesionReviewState(item);
-  const count = item.human_annotations.length;
+  const count = item.human_annotations.length + (item.annotations?.length ?? 0);
   // An empty reviewed set means "reviewed", never "no lesions".
   if (state === 'reviewed-none') return 'Reviewed, none recorded';
   if (count > 0) return `${count} finding${count === 1 ? '' : 's'} recorded`;
+  if (state === 'reviewed') return 'Reviewed';
   return state === 'in-progress' ? 'Review in progress' : 'Not reviewed yet';
 }
 

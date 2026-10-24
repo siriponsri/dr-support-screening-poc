@@ -714,7 +714,7 @@ function ReviewPageSession() {
               <Button size="sm" variant={imageView === 'original' ? 'solid' : 'outline'} aria-pressed={imageView === 'original'} onClick={() => setImageView('original')}>Original</Button>
               <Button size="sm" variant={imageView === 'ai-evidence' ? 'solid' : 'outline'} aria-pressed={imageView === 'ai-evidence'} isDisabled={item.spatial_ai_display?.status !== 'AVAILABLE' || (!item.global && !item.lesion)} onClick={() => setImageView('ai-evidence')}>AI evidence</Button>
               {prismFieldAvailable && <Button size="sm" variant={imageView === 'prism-field' ? 'solid' : 'outline'} aria-pressed={imageView === 'prism-field'} onClick={() => setImageView('prism-field')}>PRISM analysis field</Button>}
-              <Button size="sm" variant="ghost" aria-expanded={moreViewsShown} aria-controls="more-viewer-modes" rightIcon={moreViewsShown ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} onClick={() => setMoreViews((open) => !open)}>More views</Button>
+              <Button size="sm" variant="ghost" aria-expanded={moreViewsShown} aria-controls="more-viewer-modes" rightIcon={moreViewsShown ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} onClick={() => { if (moreViewsShown) { setMoreViews(false); setImageView((current) => ['analysis-area', 'mask-overlay', 'explainability'].includes(current) ? 'original' : current); } else setMoreViews(true); }}>More views</Button>
             </HStack>
             {/* Processing views are progressive disclosure: technical, not routine review. */}
             {moreViewsShown && (

@@ -1,5 +1,6 @@
 import { Box, Button, SimpleGrid, Text } from '@chakra-ui/react';
 import { drGradeLabel } from '@/lib/api';
+import { handleRadioArrowKeys, radioTabIndex } from '@/components/common/radioGroupKeys';
 
 /** Selection value for Ungradable; it is a review state, not a DR severity. */
 export const UNGRADABLE_CHOICE = 'UNGRADABLE';
@@ -34,8 +35,15 @@ export function GradeChoice({ labelId, value, onChange, isDisabled = false }: Gr
     })),
     { value: UNGRADABLE_CHOICE, mark: 'U', label: 'Ungradable', name: 'Ungradable' },
   ];
+  const values = options.map((option) => option.value);
   return (
-    <SimpleGrid role="radiogroup" aria-labelledby={labelId} columns={{ base: 3, tablet: 6 }} spacing={2}>
+    <SimpleGrid
+      role="radiogroup"
+      aria-labelledby={labelId}
+      columns={{ base: 3, tablet: 6 }}
+      spacing={2}
+      onKeyDown={(event) => { if (!isDisabled) handleRadioArrowKeys(event, values, value, onChange); }}
+    >
       {options.map((option) => {
         const selected = value === option.value;
         const ungradable = option.value === UNGRADABLE_CHOICE;
@@ -44,6 +52,7 @@ export function GradeChoice({ labelId, value, onChange, isDisabled = false }: Gr
             key={option.value}
             role="radio"
             aria-checked={selected}
+            tabIndex={radioTabIndex(values, value, option.value)}
             aria-label={option.name}
             title={option.name}
             isDisabled={isDisabled}

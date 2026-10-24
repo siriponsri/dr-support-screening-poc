@@ -176,7 +176,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
       }, { model_id: model.model_id, model_version: verified.model_version });
       if (action.current === current && !current.controller.signal.aborted) await onInferenceComplete?.();
     } catch (err) {
-      if (action.current === current && !current.controller.signal.aborted) setActionError({ context, message: plainPrismError(err instanceof Error ? err.message : 'Submission failed; do not retry this receipt.') });
+      if (action.current === current && !current.controller.signal.aborted) setActionError({ context, message: (technicalBatch ? (raw: string) => raw : plainPrismError)(err instanceof Error ? err.message : 'Submission failed; do not retry this receipt.') });
     } finally {
       if (action.current === current) { action.current = null; setBusy(false); }
     }
@@ -190,9 +190,9 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
       <Text fontSize="xs" color="text.secondary">PRISM lesion suggestions use a one-time prepared input; grading and manual review stay separate.</Text>
       {open && !qualityConfirmed && (
         <Stack spacing={2} data-testid="prism-quality-gate">
-          <Text fontSize="sm">Confirm image quality before using PRISM.</Text>
+          <Text fontSize="sm">{item.admission?.quality_state === 'UNGRADABLE' ? 'This image is recorded as not usable. Change that only if the image quality is acceptable.' : 'Confirm image quality before using PRISM.'}</Text>
           <ReviewerField compact id="prism-quality-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} isDisabled={qualityBusy} />
-          <Button alignSelf="flex-start" size="sm" variant="outline" isLoading={qualityBusy} onClick={() => void confirmQuality()}>Image quality acceptable</Button>
+          <Button alignSelf="flex-start" size="sm" variant="outline" isLoading={qualityBusy} onClick={() => void confirmQuality()}>{item.admission?.quality_state === 'UNGRADABLE' ? 'Change to quality acceptable' : 'Image quality acceptable'}</Button>
           {qualityError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{qualityError}</Text></Alert>}
         </Stack>
       )}

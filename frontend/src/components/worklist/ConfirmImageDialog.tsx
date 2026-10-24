@@ -30,6 +30,7 @@ import { ReviewerField } from '@/components/common/ReviewerField';
 import { GuideHint } from '@/components/common/GuideHint';
 import { hasInternalPatientKey, patientLabel } from '@/lib/patientPresentation';
 import { ChevronDown, ChevronUp, Pencil } from '@/lib/icons';
+import { handleRadioArrowKeys, radioTabIndex } from '@/components/common/radioGroupKeys';
 
 function filenameMethod(method?: string): boolean {
   return method === 'FILENAME' || method === 'FILENAME_AND_OCR';
@@ -66,7 +67,7 @@ function recordedQuality(item: CaseRecord | null): QualityChoice {
   return state === 'GRADABLE' ? 'QUALITY_ACCEPTABLE' : state === 'UNGRADABLE' ? 'QUALITY_INADEQUATE' : '';
 }
 
-function QualityChoiceField({ value, onChange }: { value: QualityChoice; onChange: (value: QualityChoice) => void }) {
+function QualityChoiceField({ value, onChange, allowClear }: { value: QualityChoice; onChange: (value: QualityChoice) => void; allowClear: boolean }) {
   const options: { value: Exclude<QualityChoice, ''>; label: string }[] = [
     { value: 'QUALITY_ACCEPTABLE', label: 'Usable' },
     { value: 'QUALITY_INADEQUATE', label: 'Not usable' },
@@ -74,7 +75,8 @@ function QualityChoiceField({ value, onChange }: { value: QualityChoice; onChang
   return (
     <Stack spacing={1.5}>
       <Text id="confirm-image-quality-label" fontSize="sm" color="text.secondary">Image quality (optional)</Text>
-      <HStack role="radiogroup" aria-labelledby="confirm-image-quality-label" spacing={2}>
+      <HStack role="radiogroup" aria-labelledby="confirm-image-quality-label" spacing={2}
+        onKeyDown={(event) => handleRadioArrowKeys(event, options.map((option) => option.value), value, (next) => onChange(next as QualityChoice))}>
         {options.map((option) => {
           const selected = value === option.value;
           return (
@@ -83,10 +85,12 @@ function QualityChoiceField({ value, onChange }: { value: QualityChoice; onChang
               type="button"
               role="radio"
               aria-checked={selected}
+              tabIndex={radioTabIndex(options.map((entry) => entry.value), value, option.value)}
               size="sm"
               flex={1}
               variant={selected ? 'solid' : 'outline'}
-              onClick={() => onChange(selected ? '' : option.value)}
+              // A recorded quality is changed, never silently cleared.
+              onClick={() => onChange(selected && allowClear ? '' : option.value)}
             >
               {option.label}
             </Button>
@@ -108,6 +112,8 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
   const [reviewer, setReviewer] = useState('');
   const [useAsDefault, setUseAsDefault] = useState(true);
   const [quality, setQuality] = useState<QualityChoice>('');
+  // Set once Confirm Image is saved but the quality call failed; retries skip the confirm.
+  const [confirmedRecord, setConfirmedRecord] = useState<CaseRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [patientError, setPatientError] = useState(false);
@@ -146,6 +152,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
     setReviewer(defaultReviewer);
     setUseAsDefault(true);
     setQuality(recordedQuality(item));
+    setConfirmedRecord(null);
     setMetadataOpen(false);
     setEditImageType(false);
     setEditPatient(false);
@@ -159,10 +166,32 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
     if (patientError) patientInputRef.current?.focus();
   }, [patientError]);
 
+  const saveQuality = async (saved: CaseRecord) => {
+    if (!quality || quality === recordedQuality(saved)) {
+      onSaved(saved);
+      onClose();
+      return;
+    }
+    try {
+      const updated = await admissionApi.review(saved.image_id, {
+        revision: saved.revision, reviewer: reviewer.trim(), action: quality, note: 'Image quality recorded at Confirm Image.',
+      });
+      onSaved(updated);
+      onClose();
+    } catch {
+      setConfirmedRecord(saved);
+      setError('Image confirmed, but image quality was not saved. Try again, or continue without it.');
+    }
+  };
+
   const save = async () => {
     if (!item || !reviewer.trim()) { setError('Reviewer name is required.'); return; }
     setSaving(true);
     setError(null);
+    if (confirmedRecord) {
+      try { await saveQuality(confirmedRecord); } finally { setSaving(false); }
+      return;
+    }
     try {
       const saved = await admissionApi.confirmImage(item.image_id, {
         revision: item.revision,
@@ -178,18 +207,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
       });
       if (useAsDefault) setDefaultReviewer(reviewer);
       else setDefaultReviewer('');
-      let updated = saved;
-      if (quality && quality !== recordedQuality(saved)) {
-        try {
-          updated = await admissionApi.review(saved.image_id, {
-            revision: saved.revision, reviewer: reviewer.trim(), action: quality, note: 'Image quality recorded at Confirm Image.',
-          });
-        } catch {
-          // The image is confirmed; Review still offers the quality step before PRISM.
-        }
-      }
-      onSaved(updated);
-      onClose();
+      await saveQuality(saved);
     } catch (saveError) {
       if (saveError instanceof Error && saveError.message === 'Patient key must be a short pseudonymous identifier') {
         if (hasInternalPatientKey(item)) setPatientKey('');
@@ -299,7 +317,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
                 {editEye && eyeResolved && <Button type="button" size="xs" variant="ghost" mt={1} onClick={() => setEditEye(false)}>Done</Button>}
               </FormControl>
             )}
-            <QualityChoiceField value={quality} onChange={setQuality} />
+            <QualityChoiceField value={quality} onChange={setQuality} allowClear={recordedQuality(confirmedRecord ?? item) === ''} />
             <ReviewerField compact id="confirm-image-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
             <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3}>
               <Button
@@ -335,8 +353,12 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
         </ModalBody>
         <ModalFooter flexShrink={0}>
           <Stack direction={{ base: 'column-reverse', tablet: 'row' }} spacing={2} w="full" align={{ base: 'stretch', tablet: 'center' }} justify="flex-end">
-            <Button type="button" variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button>
-            <Button type="submit" variant="solid" whiteSpace="normal" h="auto" minH="36px" py={2} isLoading={saving}>Confirm image &amp; continue</Button>
+            {confirmedRecord ? (
+              <Button type="button" variant="ghost" onClick={() => { onSaved(confirmedRecord); onClose(); }} isDisabled={saving}>Continue without quality</Button>
+            ) : (
+              <Button type="button" variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button>
+            )}
+            <Button type="submit" variant="solid" whiteSpace="normal" h="auto" minH="36px" py={2} isLoading={saving}>{confirmedRecord ? 'Save image quality' : 'Confirm image & continue'}</Button>
           </Stack>
         </ModalFooter>
       </ModalContent>

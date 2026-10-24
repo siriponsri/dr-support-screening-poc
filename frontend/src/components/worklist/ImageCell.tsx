@@ -13,7 +13,9 @@ export function ImageCell({ item, onQuickLook }: { item: CaseRecord; onQuickLook
   const filename = item.filename ?? item.display_name;
   return (
     <HStack spacing={3} minW={0}>
-      {item.image_url ? (
+      {item.image_url && !onQuickLook ? (
+        <Image src={item.image_url} alt={`${filename} retinal preview`} w="64px" h="48px" flexShrink={0} objectFit="contain" bg="surface.viewer" borderRadius="sm" />
+      ) : item.image_url ? (
         <Box
           as="button"
           type="button"
@@ -24,9 +26,9 @@ export function ImageCell({ item, onQuickLook }: { item: CaseRecord; onQuickLook
           borderRadius="sm"
           borderWidth="1px"
           borderColor="transparent"
-          cursor={onQuickLook ? 'zoom-in' : 'default'}
+          cursor="zoom-in"
           transition="border-color 150ms ease"
-          _hover={{ borderColor: onQuickLook ? 'action.primary' : 'transparent' }}
+          _hover={{ borderColor: 'action.primary' }}
           _focusVisible={{ boxShadow: 'focus', outline: 'none' }}
         >
           <Image src={item.image_url} alt={`${filename} retinal preview`} w="64px" h="48px" objectFit="contain" bg="surface.viewer" borderRadius="sm" />

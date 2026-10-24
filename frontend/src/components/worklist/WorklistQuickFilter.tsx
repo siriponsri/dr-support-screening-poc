@@ -50,7 +50,7 @@ function Chip({ label, count, selected, onClick }: { label: string; count: numbe
 /** Status-first quick filter; done cases can be narrowed by the clinician's final grade. */
 export function WorklistQuickFilter({ cases, status, onStatusChange, finalGrade, onFinalGradeChange }: WorklistQuickFilterProps) {
   const active = cases.filter((item) => workStatus(item) !== 'excluded');
-  const statusCount = (value: StatusFilter) => value === 'all' ? active.length : active.filter((item) => workStatus(item) === value).length;
+  const statusCount = (value: StatusFilter) => value === 'all' ? cases.length : active.filter((item) => workStatus(item) === value).length;
   const done = active.filter((item) => workStatus(item) === 'done');
   const gradeCount = (value: FinalGradeFilter) => value === 'all' ? done.length : done.filter((item) => finalGradeKey(item) === value).length;
   return (
