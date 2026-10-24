@@ -346,7 +346,8 @@ def serve(args):
 # ---------------------------------------------------------------- readback
 
 def remote_status(run):
-    require(re.fullmatch(REMOTE_PROJECT + r'/runs/m1-server-[A-Za-z0-9_-]{1,80}', run) is not None,
+    # Server acceptance and PRISM window runs; the strict charset keeps the SSH command fixed.
+    require(re.fullmatch(REMOTE_PROJECT + r'/runs/m1-(?:server|prism)-[A-Za-z0-9_-]{1,80}', run) is not None,
             'APPROVED_REMOTE_RUN_REQUIRED')
     return json.loads(ssh(f'cat {run}/STATUS.json'))
 

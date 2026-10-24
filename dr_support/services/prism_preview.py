@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import io
 import json
+import logging
 import re
 import secrets
 import struct
@@ -335,7 +336,12 @@ class PrismPreviewService:
                                     still_valid=lambda: self.clock() < plan.deadline)
             except HTTPException:
                 raise
-            except (ValueError, KeyError, TypeError, OSError, AttributeError, RuntimeError):
+            except (ValueError, KeyError, TypeError, OSError, AttributeError, RuntimeError) as error:
+                # Log surface only: the class and fixed refusal code, never payloads.
+                code = getattr(error, "code", None)
+                logging.getLogger(__name__).warning(
+                    "PRISM execution refused: %s %s", type(error).__name__,
+                    code if isinstance(code, str) and re.fullmatch(r"[A-Z0-9_]{1,80}", code) else "")
                 raise HTTPException(502, "PRISM execution failed verification; this receipt cannot be reused.") from None
 
 
