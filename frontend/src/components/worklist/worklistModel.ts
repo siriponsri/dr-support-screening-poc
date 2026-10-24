@@ -1,6 +1,6 @@
 import { patientLabel } from '@/lib/patientPresentation';
 import type { CaseRecord, Laterality, ModelDescriptor } from '@/lib/api';
-import { annotationsConfirmed, gradeConfirmed } from '@/lib/caseProgress';
+import { annotationsConfirmed, gradeConfirmed, imageContextConfirmed } from '@/lib/caseProgress';
 import { hasCompatibleModel } from '@/lib/modelCapabilities';
 
 export type ViewMode = 'cases' | 'patients';
@@ -112,6 +112,45 @@ export function reviewStateLabel(state: ReviewState): string {
     case 'excluded': return 'Excluded';
     default: return 'Pending review';
   }
+}
+
+/** Clinician-facing progress used by the Worklist quick filter. */
+export type WorkStatus = 'not-started' | 'in-progress' | 'done' | 'excluded';
+export type StatusFilter = 'all' | Exclude<WorkStatus, 'excluded'>;
+/** Final clinician grade key for done cases: '0'-'4' or 'U' for Ungradable. */
+export type FinalGradeFilter = 'all' | '0' | '1' | '2' | '3' | '4' | 'U';
+
+export function workStatus(item: CaseRecord): WorkStatus {
+  const state = reviewState(item);
+  if (state === 'excluded') return 'excluded';
+  if (state === 'complete' || state === 'ungradable') return 'done';
+  const touched = imageContextConfirmed(item)
+    || gradeConfirmed(item)
+    || item.human_annotations.length > 0
+    || (item.grade_reviews?.length ?? 0) > 0
+    || state !== 'pending';
+  return touched ? 'in-progress' : 'not-started';
+}
+
+export function workStatusLabel(status: WorkStatus): string {
+  switch (status) {
+    case 'done': return 'Done';
+    case 'in-progress': return 'In progress';
+    case 'excluded': return 'Excluded';
+    default: return 'Not started';
+  }
+}
+
+export function finalGradeKey(item: CaseRecord): Exclude<FinalGradeFilter, 'all'> | null {
+  if (item.grade_status === 'UNGRADABLE') return 'U';
+  const grade = item.clinician_review?.final_grade;
+  return gradeConfirmed(item) && grade != null ? String(grade) as Exclude<FinalGradeFilter, 'all' | 'U'> : null;
+}
+
+export function matchesQuickFilter(item: CaseRecord, status: StatusFilter, finalGrade: FinalGradeFilter): boolean {
+  if (status === 'all') return true;
+  if (workStatus(item) !== status) return false;
+  return status !== 'done' || finalGrade === 'all' || finalGradeKey(item) === finalGrade;
 }
 
 function matchesReviewFilter(item: CaseRecord, filter: ReviewFilter): boolean {
