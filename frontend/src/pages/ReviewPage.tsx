@@ -328,6 +328,9 @@ function modelDomainWarningLabel(item: CaseRecord): string {
     : 'Unavailable - no model result recorded';
 }
 
+/** How often the open Review page re-reads model availability. */
+export const MODEL_STATUS_REFRESH_MS = 30_000;
+
 export function ReviewPage() {
   const { imageId } = useParams<{ imageId: string }>();
   return <ReviewPageSession key={imageId ?? ''} />;
@@ -419,6 +422,20 @@ function ReviewPageSession() {
     return () => { current = false; };
   }, [loadCase, loadModels]);
 
+  // The server probes the Model API on every read; re-read while the page is
+  // open so a dropped link does not keep showing a stale "AI READY".
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') void loadModels(); };
+    const timer = window.setInterval(refresh, MODEL_STATUS_REFRESH_MS);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [loadModels]);
+
   const handleMaskOverlayError = useCallback(() => {
     setMaskOverlayLoadError(true);
     setImageView((current) => current === 'mask-overlay' ? 'original' : current);
@@ -482,7 +499,7 @@ function ReviewPageSession() {
       if (!isActive()) return;
       setAnalysisError(errorText(err));
       setImageView('original');
-      await loadCase();
+      await Promise.all([loadCase(), loadModels()]);
     } finally {
       setProgress('');
       setAnalyzing(false);
