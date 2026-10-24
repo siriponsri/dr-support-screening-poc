@@ -276,6 +276,7 @@ def _verify_m1_prism(directory, proposal_path, approval_path, proposal_sha256, a
             and proposal["decision_id"] == M1_PRISM_DECISION
             and type(proposal["new_admissions_max"]) is int and proposal["new_admissions_max"] == M1_PRISM_OPERATIONS
             and proposal["allocations"] == {"server_acceptance": M1_PRISM_OPERATIONS}
+            and type(proposal["allocations"]["server_acceptance"]) is int
             and proposal["windows"] == {M1_PRISM_SERVER: M1_PRISM_WINDOW}
             # Equality alone accepts 3600.0 or 0 for False; require the exact JSON types.
             and all(type(proposal["windows"][M1_PRISM_SERVER][key]) is int
@@ -294,9 +295,20 @@ def _verify_m1_prism(directory, proposal_path, approval_path, proposal_sha256, a
     paths = {key: _direct(path) for key, path in upstream_paths.items()}
     require(all(directory != path.parent and directory not in path.parents for path in paths.values()),
             "M1_OLD_ACCOUNTING_DIRECTORY_MUST_NOT_BE_REUSED")
+    # Every anchor comes from ONE fenced source directory, as fence_handover wrote it.
+    source_dir = paths["handover_export"].parent
+    expected = {"handover_export": "HANDOVER_EXPORT.json", "source_proposal": "PROPOSAL.json",
+                "source_approval": "APPROVAL.json", "source_journal": "LEDGER.jsonl",
+                "source_journal_head": "JOURNAL_HEAD.json",
+                "source_server_budget": f"windows/{M1_SERVER}/BUDGET.json",
+                "source_server_complete": f"windows/{M1_SERVER}/COMPLETE.json"}
+    require(all(paths[key] == _direct(source_dir / name) for key, name in expected.items()),
+            "M1_PRISM_ANCHORS_FROM_ONE_SOURCE_REQUIRED")
     upstream = {key: _regular(path) for key, path in paths.items()}
     require(all(digest(raw) == proposal["upstream"][key] for key, raw in upstream.items()),
             "M1_PINNED_UPSTREAM_BYTES_CHANGED")
+    lock = source_dir / "HANDOVER.lock"
+    require(lock.is_file() and _regular(lock) == upstream["handover_export"], "M1_PRISM_SOURCE_NOT_FENCED")
     export, source, source_approval, head, saved, complete = (json.loads(upstream[key]) for key in (
         "handover_export", "source_proposal", "source_approval", "source_journal_head",
         "source_server_budget", "source_server_complete"))
@@ -321,7 +333,8 @@ def _verify_m1_prism(directory, proposal_path, approval_path, proposal_sha256, a
     source_jobs = {job["job_id"]: job for job in source["operations"]}
     states, intents, rows, tail = _replay_source_journal(upstream["source_journal"], export["manifest"],
                                                          set(source_jobs))
-    require(rows == export.get("seq") and tail == export.get("tail")
+    require(type(export.get("seq")) is int and type(export.get("global_used")) is int
+            and rows == export["seq"] and tail == export.get("tail")
             and not any(state in {"ATTEMPT_INTENT", "RESPONSE_RETAINED", "SENT_OR_UNCERTAIN"}
                         for state in states.values())
             and export.get("global_used") == M1_BASE_USED + intents
@@ -337,7 +350,8 @@ def _verify_m1_prism(directory, proposal_path, approval_path, proposal_sha256, a
             and body.get("manifest") == export["manifest"] and body.get("session_id") == M1_SERVER
             and body.get("authorization_sha256") == digest(upstream["source_server_complete"])
             and body.get("window_closed") is True and body.get("active") is None
-            and body.get("quarantined") is False and body.get("lease_count") == 1
+            and body.get("quarantined") is False
+            and type(body.get("lease_count")) is int and body["lease_count"] == 1
             and type(body.get("charged_gpu_seconds")) in (int, float)
             and math.isfinite(body["charged_gpu_seconds"]) and body["charged_gpu_seconds"] >= 10800
             and body["charged_gpu_seconds"] + M1_PRISM_WINDOW["gpu_seconds_cap"] <= M1_NEW_GPU_SECONDS_MAX

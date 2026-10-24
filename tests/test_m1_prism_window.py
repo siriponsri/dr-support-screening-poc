@@ -129,7 +129,7 @@ def test_new_window_reserves_3600_once_admits_only_its_operations_and_closes(cha
                     clock=lambda: chain.rig.now[0], utc=lambda: chain.rig.utc[0])
 
 
-@pytest.mark.parametrize("window_id, code", [(M1_SERVER, "M1_EXACT_NAMED_WINDOW_REQUIRED"),
+@pytest.mark.parametrize("window_id, code", [(M1_SERVER, "M1_EXACT_WINDOW_GPU0_AND_CLOCK_ORIGIN_REQUIRED"),
                                              (M1_LOCAL, "M1_LOCAL_ADOPTION_NOT_QUALIFIED")])
 def test_only_the_prism_window_can_be_activated(chain, window_id, code):
     ledger = opened(chain)
@@ -156,6 +156,85 @@ def test_changed_proposals_are_refused(chain, change, code):
     seal(chain)
     with pytest.raises(RuntimeError, match=code):
         opened(chain)
+
+
+EXPORT_FIELD = {"source_approval": "approval_sha256", "source_journal_head": "journal_head_sha256",
+                "source_server_budget": "server_budget_sha256"}
+
+
+def tamper(chain, key, mutate):
+    """Rewrite one source receipt, then keep export, HANDOVER.lock and pins consistent with it."""
+    paths = {name: Path(value) for name, value in json.loads(chain.upstream_path.read_bytes()).items()}
+    value = json.loads(paths[key].read_bytes())
+    mutate(value)
+    paths[key].write_bytes(canonical(value))
+    export = json.loads(paths["handover_export"].read_bytes())
+    if key in EXPORT_FIELD:
+        export[EXPORT_FIELD[key]] = digest(paths[key].read_bytes())
+    raw = canonical(export)
+    paths["handover_export"].write_bytes(raw)
+    (paths["handover_export"].parent / "HANDOVER.lock").write_bytes(raw)
+    chain.proposal["upstream"] = {name: digest(path.read_bytes()) for name, path in paths.items()}
+    seal(chain)
+
+
+def reopen(saved):
+    saved["body"]["window_closed"] = False
+    saved["sha256"] = digest(canonical(saved["body"]))
+
+
+@pytest.mark.parametrize("key, mutate, code", [
+    ("handover_export", lambda e: e.update(global_used=e["global_used"] + 1), "M1_PRISM_SOURCE_USAGE_INVALID"),
+    ("handover_export", lambda e: e["remaining_job_ids"].reverse(), "M1_PRISM_SOURCE_USAGE_INVALID"),
+    ("handover_export", lambda e: e.update(seq=float(e["seq"])), "M1_PRISM_SOURCE_USAGE_INVALID"),
+    ("source_journal_head", lambda h: h.update(seq=h["seq"] - 1), "M1_PRISM_SOURCE_USAGE_INVALID"),
+    ("source_server_budget", reopen, "M1_PRISM_SOURCE_WINDOW_NOT_CLOSED_OR_OVER_BUDGET"),
+    ("source_approval", lambda a: a.update(decision_id=M1_PRISM_DECISION), "M1_PRISM_SOURCE_DECISION_INVALID"),
+])
+def test_consistently_rewritten_source_receipts_are_refused(chain, key, mutate, code):
+    tamper(chain, key, mutate)
+    with pytest.raises(RuntimeError, match=code):
+        opened(chain)
+
+
+def test_the_source_must_still_be_fenced(chain):
+    lock = Path(json.loads(chain.upstream_path.read_bytes())["handover_export"]).parent / "HANDOVER.lock"
+    lock.unlink()
+    with pytest.raises(RuntimeError, match="M1_PRISM_SOURCE_NOT_FENCED"):
+        opened(chain)
+
+
+def test_all_anchors_come_from_one_source_directory(chain, tmp_path):
+    paths = json.loads(chain.upstream_path.read_bytes())
+    copy = tmp_path / "elsewhere" / "LEDGER.jsonl"
+    copy.parent.mkdir()
+    copy.write_bytes(Path(paths["source_journal"]).read_bytes())
+    paths["source_journal"] = str(copy)
+    chain.upstream_path.write_bytes(canonical(paths))
+    with pytest.raises(RuntimeError, match="M1_PRISM_ANCHORS_FROM_ONE_SOURCE_REQUIRED"):
+        opened(chain)
+
+
+def test_allocation_must_be_an_exact_integer(chain):
+    chain.proposal["allocations"]["server_acceptance"] = 3.0
+    seal(chain)
+    with pytest.raises(RuntimeError, match="M1_PRISM_AUTHORIZATION_SCOPE_INVALID"):
+        opened(chain)
+
+
+def test_an_operation_keeping_its_old_window_is_refused(chain):
+    origin = next(job for job in chain.rig.proposal["operations"]
+                  if job["operation_id"] == chain.proposal["operations"][0]["operation_id"])
+    chain.proposal["operations"][0] = dict(origin)
+    seal(chain)
+    with pytest.raises(RuntimeError, match="M1_PRISM_OPERATION_CHANGED"):
+        opened(chain)
+
+
+def test_wrong_window_activation_keeps_its_original_code_for_2026_10_23(rig):  # noqa: F811
+    ledger = owned(rig)
+    with pytest.raises(RuntimeError, match="M1_EXACT_WINDOW_GPU0_AND_CLOCK_ORIGIN_REQUIRED"):
+        activate_continuation_window(ledger, window_id=M1_PRISM_SERVER, clock_origin=rig.origin, gpu_uuid=M1_GPU0)
 
 
 def test_destination_installation_must_match_the_fenced_export(chain):

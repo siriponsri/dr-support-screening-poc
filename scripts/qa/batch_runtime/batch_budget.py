@@ -306,11 +306,11 @@ def recover_approved_lease(ledger, *, owner_approved_lease, observe, process_exi
     return result
 
 
-def _window_caps(ledger, window_id):
+def _window_caps(ledger, window_id, code="M1_EXACT_NAMED_WINDOW_REQUIRED"):
     """The verified decision's only Server window and its caps; Local stays fail-closed."""
     require(ledger.continuation is not None, "M1_VERIFIED_CONTINUATION_REQUIRED")
     require(window_id != M1_LOCAL, "M1_LOCAL_ADOPTION_NOT_QUALIFIED")
-    require(window_id == ledger.spec["server_window"], "M1_EXACT_NAMED_WINDOW_REQUIRED")
+    require(window_id == ledger.spec["server_window"], code)
     return ledger.spec["windows"][window_id]
 
 
@@ -389,7 +389,8 @@ def activate_continuation_window(ledger, *, window_id, clock_origin, gpu_uuid,
     """
     with ledger.lock:
         ledger.assert_owner()
-        caps = _window_caps(ledger, window_id)
+        # Activation keeps its original refusal code for a wrong window.
+        caps = _window_caps(ledger, window_id, code="M1_EXACT_WINDOW_GPU0_AND_CLOCK_ORIGIN_REQUIRED")
         require(_is_sha(clock_origin) and gpu_uuid == M1_GPU0,
                 "M1_EXACT_WINDOW_GPU0_AND_CLOCK_ORIGIN_REQUIRED")
         directory = _direct(ledger.directory / "windows" / window_id)

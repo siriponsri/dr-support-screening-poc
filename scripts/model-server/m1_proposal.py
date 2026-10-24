@@ -112,7 +112,7 @@ def draft(args):
 
 def draft_prism(args):
     """The source's unsent Server PRISM operations, unchanged except their window."""
-    source = Path(args.source_accounting)
+    source = Path(args.source_accounting).resolve()  # The host session may run from another directory.
     files = {'handover_export': source / 'HANDOVER_EXPORT.json', 'source_proposal': source / 'PROPOSAL.json',
              'source_approval': source / 'APPROVAL.json', 'source_journal': source / 'LEDGER.jsonl',
              'source_journal_head': source / 'JOURNAL_HEAD.json',

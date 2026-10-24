@@ -50,8 +50,14 @@ charged reservation is the GPU cap (3600 s); the actual session stays at most
    - checks the journal head, the remaining job IDs, and that the source Server
      window budget is closed (no active lease, not quarantined);
    - checks each new operation against its source operation.
-4. A new, separate accounting directory is used; the source directory is never
+4. The source must still carry its `HANDOVER.lock` (identical to the export),
+   and all seven anchors must come from that one source directory.
+5. A new, separate accounting directory is used; the source directory is never
    reused.
+
+Nothing is written back into the fenced source, so the software cannot stop a
+second PRISM decision over the same export; only one such proposal may ever be
+approved. This is the owner's approval control, as for 2026-10-23.
 
 The remaining Local (6) and post-fix (9) operations stay recorded in the export
 as unsent. Using them later needs another owner decision that continues from
