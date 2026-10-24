@@ -240,7 +240,7 @@ function ClinicianReviewPageSession() {
         <CaseNavigation imageId={item.image_id} guarded={guarded} confirm={confirm} />
         <GuideHint step={readOnly ? 'findings' : 'grade'} />
       </Stack>
-      <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1fr) 340px', desktop: 'minmax(0, 1fr) 380px' }} gap={5} alignItems="start" minW={0}>
+      <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1fr) 340px' }} gap={5} alignItems="start" minW={0}>
         <Section title="Retinal image" description="AI output is optional evidence; this page records the clinician's final grade.">
           <RetinalCanvas item={item} showAi={false} showHuman={true} />
           <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={4} mt={4}>

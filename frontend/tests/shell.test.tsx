@@ -160,8 +160,11 @@ describe('Sidebar collapse control', () => {
     await user.click(screen.getByRole('button', { name: 'Hide sidebar' }));
     expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument();
     expect(window.localStorage.getItem('dr-support-screening.sidebar-mode.other.v1')).toBe('hidden');
+    expect(screen.getByRole('button', { name: 'Show sidebar' })).toHaveFocus();
+    expect(await screen.findByText(/Workspace unavailable|No workspace open/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Show sidebar' }));
     expect(within(screen.getByRole('navigation', { name: 'Primary' })).getByText('Worklist')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hide sidebar' })).toHaveFocus();
   });
 
   it('starts collapsed on image pages and keeps a separate choice there', async () => {
@@ -173,6 +176,9 @@ describe('Sidebar collapse control', () => {
     await user.click(screen.getByRole('button', { name: 'Hide sidebar' }));
     expect(window.localStorage.getItem('dr-support-screening.sidebar-mode.image.v1')).toBe('hidden');
     expect(window.localStorage.getItem('dr-support-screening.sidebar-mode.other.v1')).toBe('expanded');
+    await user.click(screen.getByRole('button', { name: 'Show sidebar' }));
+    expect(within(primary()).queryByText('Worklist')).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('dr-support-screening.sidebar-mode.image.v1')).toBe('collapsed');
   });
 
   it('starts collapsed by default on tablet to leave space for tables', () => {

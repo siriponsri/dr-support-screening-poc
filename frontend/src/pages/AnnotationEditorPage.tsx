@@ -1415,7 +1415,7 @@ function AnnotationEditorPageSession() {
           onBeforeSwitch={saveBeforeLeaving}
         />
       </Stack>
-      <Grid minW={0} templateColumns={{ base: '1fr', laptop: 'minmax(0, 1fr) 320px', desktop: 'minmax(0, 1fr) 360px' }} gap={5} alignItems="start">
+      <Grid minW={0} templateColumns={{ base: '1fr', laptop: 'minmax(0, 1fr) 320px' }} gap={5} alignItems="start">
         <Stack minW={0} spacing={4}>
         <Section title="Review findings">
           {annotationControls}

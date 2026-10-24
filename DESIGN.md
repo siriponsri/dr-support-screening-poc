@@ -590,12 +590,13 @@ Use the current breakpoint intent:
 | Mobile | < 768px | Drawer navigation, single column, wrapped controls |
 | Tablet | 768-1023px | Permanent or compact sidebar, dense single-column review where needed |
 | Laptop | 1024-1279px | Two-column review when image remains primary |
-| Desktop | >= 1280px | Wider two-column review, up to 1440px content measure |
+| Desktop | >= 1280px | Wider two-column review, up to 1440px content measure (1920px on image pages) |
 
 - Review and annotation pages collapse to one column before the image becomes
   too narrow. The image column wins when space is constrained.
-- Desktop review layouts may use approximately 1.35-1.4fr for the image and
-  0.6-0.65fr for supporting content, with a 20px gap.
+- Image pages (Review, Clinician Review, Annotation Editor) give the image all
+  remaining width: the supporting panel is fixed at 340px (320px in the
+  Annotation Editor), with a 20px gap.
 - On mobile, page header actions may wrap below the title. Do not truncate the
   primary action or case identity.
 - Viewer controls wrap or horizontally scroll in a compact band. Keep the

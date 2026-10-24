@@ -23,10 +23,11 @@ import { Settings2 as SettingsIcon } from '@/lib/icons';
 import { SidebarCollapseControl } from './SidebarCollapseControl';
 import { useRuntimeHealth } from '@/hooks/useRuntimeHealth';
 import { useSidebarState } from './SidebarStateProvider';
+import { useWorkspace } from './workspace';
 import { getRouteMeta } from './routeMeta';
 
 export function AppHeader() {
-  const { showPermanent, collapsed } = useSidebarState();
+  const { showPermanent, collapsed, hidden } = useSidebarState();
   const location = useLocation();
   const meta = getRouteMeta(location.pathname);
   const isCompact = useBreakpointValue({ base: true, tablet: false, laptop: false });
@@ -72,10 +73,34 @@ export function AppHeader() {
       </Box>
       <Spacer />
       <HStack spacing={2}>
+        {showPermanent && hidden && <HiddenWorkspaceContext />}
         <RuntimePill runtime={runtime} />
         <SettingsShortcut hidden={!showPermanent || (showPermanent && collapsed)} />
       </HStack>
     </HStack>
+  );
+}
+
+/** Keeps workspace context visible while the sidebar (and its card) is hidden. */
+function HiddenWorkspaceContext() {
+  const { activeWorkspace, status } = useWorkspace();
+  const degraded = status === 'error' || status === 'degraded';
+  const label = activeWorkspace ? activeWorkspace.name : degraded ? 'Workspace unavailable' : 'No workspace open';
+  return (
+    <Box
+      as={NavLink}
+      to="/settings"
+      maxW="220px"
+      px={2}
+      fontSize="xs"
+      fontWeight="medium"
+      color={activeWorkspace ? 'text.secondary' : 'status.warning'}
+      title={activeWorkspace ? `Workspace: ${activeWorkspace.name}` : label}
+      aria-label={activeWorkspace ? `Current workspace: ${activeWorkspace.name}` : label}
+      _hover={{ color: 'text.primary' }}
+    >
+      <Text as="span" color="inherit" noOfLines={1}>{activeWorkspace ? `Workspace: ${label}` : label}</Text>
+    </Box>
   );
 }
 
