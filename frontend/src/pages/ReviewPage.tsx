@@ -74,15 +74,15 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : 'The request could not be completed.';
 }
 
-function clinicianModelStatus(status?: string | null) {
-  switch (status) {
-    case 'LOADED':
-    case 'QUALIFIED_NOT_LOADED': return 'Ready';
-    case 'REMOTE_NOT_CONFIGURED': return 'Model service unavailable';
-    case 'ASSET_REQUIRED': return 'Model setup required';
-    case 'CONFIGURED_NOT_VERIFIED': return 'Verification required';
-    default: return status ? 'Status available' : 'Status not reported';
-  }
+/** Plain clinician-facing model names; ids and versions stay in Processing details. */
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  'retfound-aptos5': 'RETFound (CFP grading)',
+  'uspec-uwf-grading': 'USPEC (UWF grading)',
+  'prism-dr-5fold': 'PRISM (lesion suggestions)',
+};
+
+function modelDisplayName(modelId: string): string {
+  return MODEL_DISPLAY_NAMES[modelId] ?? modelId;
 }
 
 function clinicianResultState(state?: string | null) {
@@ -109,32 +109,6 @@ function ResultWarnings({ item }: { item: CaseRecord }) {
   );
 }
 
-function ModelStatus({ models, error }: { models: ModelDescriptor[]; error: string | null }) {
-  const relevant = models.filter((model) => ['global', 'lesion-roi'].includes(model.task));
-  return (
-    <Section title="Model / runtime status" description="Status reported by the existing model metadata contract.">
-      {error && <Text color="status.warning" fontSize="sm">{error}</Text>}
-      {!error && relevant.length === 0 && <Text color="text.secondary">No model status returned.</Text>}
-      <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={3}>
-        {relevant.map((model) => (
-          <Box key={model.model_id} borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3}>
-            <HStack justify="space-between" align="flex-start">
-              <Stack spacing={1}>
-                <Text fontWeight="semibold">{model.model_id}</Text>
-                <Text fontSize="xs" color="text.secondary">{model.runtime ?? 'runtime not reported'}</Text>
-              </Stack>
-              <StatusBadge tone={model.status === 'LOADED' ? 'success' : 'warning'}>
-                {clinicianModelStatus(model.status)}
-              </StatusBadge>
-            </HStack>
-            {model.warnings?.length ? <Text mt={2} fontSize="xs" color="text.secondary">{model.warnings[0]}</Text> : null}
-          </Box>
-        ))}
-      </SimpleGrid>
-    </Section>
-  );
-}
-
 function Assessment({ item }: { item: CaseRecord }) {
   if (!item.global) return <Text color="text.secondary">Not analyzed</Text>;
   return (
@@ -152,7 +126,7 @@ function Assessment({ item }: { item: CaseRecord }) {
           <Text fontWeight="semibold">{(item.global.confidence * 100).toFixed(1)}%</Text>
         </HStack>
       )}
-      <Text fontSize="xs" color="text.muted">Model: {item.global.model_id} - {item.global.model_version}</Text>
+      <Text fontSize="xs" color="text.muted">AI: {modelDisplayName(item.global.model_id)}</Text>
     </Stack>
   );
 }
@@ -178,7 +152,7 @@ function LesionSuggestions({ item }: { item: CaseRecord }) {
         )) : <Text color="text.secondary">No AI regions returned. This does not establish absence of lesions.</Text>}
       </Stack>
       <Text fontSize="xs" color="text.muted">Raw AI suggestions by class. Optional visual assistance; no per-detection action is required.</Text>
-      <Text fontSize="xs" color="text.muted">Model: {item.lesion.model_id} - {item.lesion.model_version}</Text>
+      <Text fontSize="xs" color="text.muted">AI: {modelDisplayName(item.lesion.model_id)}</Text>
     </Stack>
   );
 }
@@ -380,6 +354,9 @@ function ReviewPageSession() {
     return () => { current = false; };
   }, [imageId]);
   const [imageView, setImageView] = useState<'original' | 'analysis-area' | 'mask-overlay' | 'ai-evidence' | 'explainability' | 'prism-field'>('original');
+  const [moreViews, setMoreViews] = useState(false);
+  // An active processing view keeps its controls visible.
+  const moreViewsShown = moreViews || ['analysis-area', 'mask-overlay', 'explainability'].includes(imageView);
   const [lesionFilter, setLesionFilter] = useState<LesionLabel | 'ALL'>('ALL');
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
@@ -705,17 +682,6 @@ function ReviewPageSession() {
       </Alert>}
       <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start" minW={0}>
         <Section title="Retinal preview" description={item.modality === 'UWF' ? 'Ultra-widefield image' : item.modality === 'CFP' ? 'Conventional fundus photograph' : 'Image type needs confirmation'}>
-          {item.modality === 'UWF' && (
-            <Stack spacing={2} mb={3}>
-              <HStack spacing={2} aria-label="Mask status">
-                <Text fontSize="sm" color="text.secondary">Mask status</Text>
-                <StatusBadge tone={maskStatus(item).tone}>{maskStatus(item).label}</StatusBadge>
-              </HStack>
-              <Text id="uwf-analysis-status" fontSize="xs" color="text.secondary">
-                {analysisPreparationNote(item)}
-              </Text>
-            </Stack>
-          )}
           {imageView === 'prism-field' && prismFieldAvailable && prismMaskImageUrl ? (
             <PrismAnalysisFieldOverlay
               imageUrl={item.image_url!}
@@ -746,12 +712,29 @@ function ReviewPageSession() {
           <Stack spacing={3} mt={4} minW={0}>
             <HStack spacing={1} flexWrap="wrap" aria-label="Viewer modes">
               <Button size="sm" variant={imageView === 'original' ? 'solid' : 'outline'} aria-pressed={imageView === 'original'} onClick={() => setImageView('original')}>Original</Button>
-              {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'analysis-area' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'analysis-area'} isDisabled={!analysisCandidateAvailable} onClick={() => setImageView('analysis-area')}>Analysis area</Button>}
-              {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'mask-overlay' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'mask-overlay'} onClick={() => setImageView('mask-overlay')}>Mask preview</Button>}
-              {prismFieldAvailable && <Button size="sm" variant={imageView === 'prism-field' ? 'solid' : 'outline'} aria-pressed={imageView === 'prism-field'} onClick={() => setImageView('prism-field')}>PRISM analysis field</Button>}
               <Button size="sm" variant={imageView === 'ai-evidence' ? 'solid' : 'outline'} aria-pressed={imageView === 'ai-evidence'} isDisabled={item.spatial_ai_display?.status !== 'AVAILABLE' || (!item.global && !item.lesion)} onClick={() => setImageView('ai-evidence')}>AI evidence</Button>
-              <Button size="sm" variant={imageView === 'explainability' ? 'solid' : 'outline'} aria-pressed={imageView === 'explainability'} onClick={() => setImageView('explainability')}>Explainability</Button>
+              {prismFieldAvailable && <Button size="sm" variant={imageView === 'prism-field' ? 'solid' : 'outline'} aria-pressed={imageView === 'prism-field'} onClick={() => setImageView('prism-field')}>PRISM analysis field</Button>}
+              <Button size="sm" variant="ghost" aria-expanded={moreViewsShown} aria-controls="more-viewer-modes" rightIcon={moreViewsShown ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} onClick={() => setMoreViews((open) => !open)}>More views</Button>
             </HStack>
+            {/* Processing views are progressive disclosure: technical, not routine review. */}
+            {moreViewsShown && (
+              <Stack id="more-viewer-modes" spacing={2}>
+                <HStack spacing={1} flexWrap="wrap" aria-label="More viewer modes">
+                  {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'analysis-area' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'analysis-area'} isDisabled={!analysisCandidateAvailable} onClick={() => setImageView('analysis-area')}>Analysis area</Button>}
+                  {item.modality === 'UWF' && <Button size="sm" variant={imageView === 'mask-overlay' ? 'solid' : 'outline'} aria-describedby="uwf-analysis-status" aria-pressed={imageView === 'mask-overlay'} onClick={() => setImageView('mask-overlay')}>Mask preview</Button>}
+                  <Button size="sm" variant={imageView === 'explainability' ? 'solid' : 'outline'} aria-pressed={imageView === 'explainability'} onClick={() => setImageView('explainability')}>Explainability</Button>
+                </HStack>
+                {item.modality === 'UWF' && (
+                  <Stack spacing={1}>
+                    <HStack spacing={2} aria-label="Mask status">
+                      <Text fontSize="sm" color="text.secondary">Mask status</Text>
+                      <StatusBadge tone={maskStatus(item).tone}>{maskStatus(item).label}</StatusBadge>
+                    </HStack>
+                    <Text id="uwf-analysis-status" fontSize="xs" color="text.secondary">{analysisPreparationNote(item)}</Text>
+                  </Stack>
+                )}
+              </Stack>
+            )}
             {imageView === 'ai-evidence' && (
               <Select
                 aria-label="Filter lesion overlays"
@@ -786,16 +769,16 @@ function ReviewPageSession() {
                 </Stack>
               </Alert>
             )}
-            <Text fontSize="xs" color="text.secondary">
-              {imageView === 'ai-evidence' ? `Active overlays ${displayedLesions(item).length} of ${item.lesion_review?.raw_count ?? item.lesion?.lesions.length ?? 0} raw AI suggestions` : imageView === 'mask-overlay' && maskOverlayAvailable ? 'Mask preview is processing evidence only; it is not a clinical gradability decision or approval of model input.' : 'Original image remains the review source.'}
-            </Text>
+            {(imageView === 'ai-evidence' || (imageView === 'mask-overlay' && maskOverlayAvailable)) && <Text fontSize="xs" color="text.secondary">
+              {imageView === 'ai-evidence' ? `Active overlays ${displayedLesions(item).length} of ${item.lesion_review?.raw_count ?? item.lesion?.lesions.length ?? 0} raw AI suggestions` : 'Mask preview is processing evidence only; it is not a clinical gradability decision or approval of model input.'}
+            </Text>}
             {imageView === 'mask-overlay' && <MaskLegend />}
             <LesionLegend />
           </Stack>
           <ArtifactFieldPreview item={item} />
           {qaBatch?.permitted_action === 'PRISM_PREVIEW_ONCE' && qaModel
             ? <PrismInputPreview key={qaBatch.job_id} item={item} model={qaModel} showArtifactField={false} technicalBatch onInferenceComplete={async () => { if (isActive()) await loadCase(); }} />
-            : prismNeedsPreview && lesionModel && <PrismInputPreview key={item.image_id} item={item} model={lesionModel} showArtifactField={false} onInferenceComplete={async () => { if (isActive()) await loadCase(); }} />}
+            : prismNeedsPreview && lesionModel && <PrismInputPreview key={item.image_id} item={item} model={lesionModel} showArtifactField={false} onInferenceComplete={async () => { if (isActive()) await loadCase(); }} onCaseUpdated={async () => { if (isActive()) await loadCase(); }} />}
         </Section>
         <Stack spacing={5} minW={0}>
           {manualOnly ? (
@@ -817,7 +800,7 @@ function ReviewPageSession() {
                 action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{prismNeedsPreview ? 'Analyze grading only' : item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
               >
                 <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiStatus}</StatusBadge></HStack>
-                {prismNeedsPreview && <Text fontSize="sm" mb={3}>Grading runs separately. PRISM requires a verified one-use receipt in “Preview PRISM input” beside the image. Unsupported providers remain unavailable. Existing results remain previous-run evidence.</Text>}
+                {prismNeedsPreview && <Text fontSize="sm" mb={3}>This button runs DR grading. PRISM lesion suggestions run separately from “Preview PRISM input” beside the image.</Text>}
                 {prismUwfResult && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">Experimental PRISM UWF lesion assistance; not validated for UWF. Human review remains authoritative.</Text></Alert>}
                 {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
                 {modelUnavailable && hasRecordedEvidence && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">New analysis is unavailable. Recorded model evidence remains visible with its provenance and warnings.</Text></Alert>}
@@ -850,7 +833,7 @@ function ReviewPageSession() {
           )}
           <Stack spacing={2}>
             <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid" alignSelf="flex-start">Continue to clinician review</Button>
-            <Text fontSize="xs" color="text.secondary">No clinical decision is recorded on this page. The DR grade is confirmed in Clinician Review.</Text>
+            <Text fontSize="xs" color="text.secondary">Nothing is recorded on this page; you confirm the DR grade next.</Text>
           </Stack>
         </Stack>
       </Grid>
@@ -978,6 +961,12 @@ function ReviewPageSession() {
                 <Stack spacing={1}><Text color="text.secondary">Analysis transform</Text><Text>{analysisTransformLabel(item)}</Text></Stack>
                 <Stack spacing={1}><Text color="text.secondary">Model transform</Text><Text>{modelTransformLabel(item)}</Text></Stack>
                 <Stack spacing={1}><Text color="text.secondary">Model / domain warning</Text><Text>{modelDomainWarningLabel(item)}</Text></Stack>
+                <Stack spacing={1}><Text color="text.secondary">Model versions</Text>
+                  {[item.global, item.lesion].filter((result): result is NonNullable<typeof result> => Boolean(result)).map((result) => (
+                    <Code key={result.model_id} fontSize="xs" whiteSpace="normal">{result.model_id} · {result.model_version}</Code>
+                  ))}
+                  {!item.global && !item.lesion && <Text>No model result recorded</Text>}
+                </Stack>
               </SimpleGrid>
               {item.analysis_preparation?.status === 'FAILED' && <Alert status="warning" mt={4}><AlertIcon /><Text>Masked Analysis could not be prepared. Original and manual grading remain available.</Text></Alert>}
               {item.explainability?.status !== 'AVAILABLE' && <Text mt={4} fontSize="sm" color="text.secondary">Explainability unavailable. No attention map or clinical probability is fabricated.</Text>}
@@ -985,7 +974,6 @@ function ReviewPageSession() {
           </Collapse>
         </Section>
       </Box>
-      <Box mt={5}><ModelStatus models={models} error={modelError} /></Box>
       {allWarnings.length > 0 && <ResultWarnings item={item} />}
       {confirmDialog}
     </Box>

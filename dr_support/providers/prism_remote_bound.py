@@ -45,7 +45,10 @@ class ExplicitHttpChannel:
             import json
             parsed = json.loads(data)
             if response.status_code not in {200, 202}:
-                raise TransportError(parsed.get("error", "REMOTE_REJECTED"), response.status_code)
+                # Host refusals carry `error` (transport) or `code` (M1 session admission).
+                code = parsed.get("error") or parsed.get("code")
+                raise TransportError(code if isinstance(code, str) and code else "REMOTE_REJECTED",
+                                     response.status_code)
             return parsed
 
     def close(self):

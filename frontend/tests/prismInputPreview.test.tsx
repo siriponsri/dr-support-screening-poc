@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { PrismInputPreview } from '@/components/review/PrismInputPreview';
 import { loadPreviewAsset, preparationContext, requiresPrismPreview, validatePrismPreview } from '@/lib/prismInputPreview';
 import { makePlan, model, pngBytes, pngSha, previewCase } from './fixtures/prismPreview';
+import type { CaseRecord } from '@/lib/api';
 
 beforeEach(() => {
   vi.stubGlobal('crypto', webcrypto);
@@ -75,6 +76,22 @@ describe('immutable preview bytes', () => {
 
 describe('single Review UI preparation panel', () => {
   const node = (item = previewCase) => <PrismInputPreview item={item} model={model} />;
+  // PRISM preparation needs a reviewer-confirmed gradable image.
+  const gradable = (item = previewCase) => ({ ...item, admission: { quality_state: 'GRADABLE' } as CaseRecord['admission'] });
+  it('asks for image quality confirmation before preparation', async () => {
+    const updated = vi.fn();
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    render(<ChakraProvider><PrismInputPreview item={previewCase} model={model} onCaseUpdated={updated} /></ChakraProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
+    expect(screen.getByTestId('prism-quality-gate')).toHaveTextContent('Confirm image quality before using PRISM.');
+    expect(screen.getByRole('button', { name: 'Prepare / refresh API input' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Reviewer name/), { target: { value: 'TEST_ONLY' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Image quality acceptable' }));
+    await waitFor(() => expect(updated).toHaveBeenCalled());
+    const [url, init] = vi.mocked(fetch).mock.calls.at(-1)!;
+    expect(url).toBe('/v1/cases/synthetic-preview/admission');
+    expect(JSON.parse(String(init?.body))).toMatchObject({ revision: 7, reviewer: 'TEST_ONLY', action: 'QUALITY_ACCEPTABLE' });
+  });
   it('keeps PRISM unavailable while the independent CPU field makes no model calls', async () => {
     vi.mocked(fetch).mockResolvedValue({ ok: false, status: 404 } as Response);
     render(<ChakraProvider>{node()}</ChakraProvider>);
@@ -151,7 +168,7 @@ describe('single Review UI preparation panel', () => {
     vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST'
       ? ({ ok: true, json: async () => plan } as Response)
       : ({ ok: true, arrayBuffer: async () => pngBytes.buffer.slice(0) } as Response));
-    render(<ChakraProvider>{node()}</ChakraProvider>);
+    render(<ChakraProvider>{node(gradable())}</ChakraProvider>);
     fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
     fireEvent.click(screen.getByRole('button', { name: 'Prepare / refresh API input' }));
     await screen.findByAltText('Verified planned input preview');
@@ -164,10 +181,10 @@ describe('single Review UI preparation panel', () => {
   it('ignores a deferred preparation response after a case switch and clears loading ownership', async () => {
     let resolve!: (value: unknown) => void;
     vi.mocked(fetch).mockImplementation(() => new Promise((done) => { resolve = done; }) as Promise<Response>);
-    const view = render(<ChakraProvider>{node()}</ChakraProvider>);
+    const view = render(<ChakraProvider>{node(gradable())}</ChakraProvider>);
     fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
     fireEvent.click(screen.getByRole('button', { name: 'Prepare / refresh API input' }));
-    view.rerender(<ChakraProvider>{node({ ...previewCase, image_id: 'next-case' })}</ChakraProvider>);
+    view.rerender(<ChakraProvider>{node(gradable({ ...previewCase, image_id: 'next-case' }))}</ChakraProvider>);
     await act(async () => { resolve({ ok: true, json: async () => ({ ...makePlan(), submission_binding_enforced: true }) }); });
     expect(screen.queryByAltText('Verified planned input preview')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Submit prepared input to PRISM' })).not.toBeInTheDocument();

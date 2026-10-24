@@ -269,6 +269,9 @@ describe('Review responsibility boundary', () => {
     renderAppAt('/review/ready');
 
     expect(await screen.findByText('Mask preparation failed; Original remains available; PRISM input is not established')).toBeInTheDocument();
+    // Processing views sit behind progressive disclosure.
+    expect(screen.queryByLabelText('Mask status')).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'More views' }));
     expect(screen.getByLabelText('Mask status')).toHaveTextContent('Unavailable');
     expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Mask preview' }));
@@ -295,7 +298,8 @@ describe('Review responsibility boundary', () => {
     mockReviewApi(undefined, needsReviewCase);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByText('Candidate - review only')).toBeInTheDocument();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'More views' }));
+    expect(screen.getByText('Candidate - review only')).toBeInTheDocument();
     expect(screen.getByText('A candidate mask is available in Mask preview for inspection only; it is not approved model input.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Analysis area' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
@@ -389,6 +393,7 @@ describe('Review responsibility boundary', () => {
     expect(screen.getByRole('heading', { name: 'Lesion suggestions' })).toBeInTheDocument();
     expect(screen.getByText(/Recorded model evidence remains visible/i)).toBeInTheDocument();
 
+    await userEvent.setup().click(screen.getByRole('button', { name: 'More views' }));
     await userEvent.setup().click(screen.getByRole('button', { name: 'Explainability' }));
     expect(screen.getByLabelText('Retinal image viewer stage')).toBeInTheDocument();
     expect(screen.getByText('No explainability receipt was returned for this case.')).toBeInTheDocument();
