@@ -10,7 +10,9 @@ import { ResolverDialog } from '@/components/worklist/ResolverDialog';
 import { ReadinessDialog } from '@/components/worklist/ReadinessDialog';
 import { ConfirmImageDialog } from '@/components/worklist/ConfirmImageDialog';
 import { WorklistTable } from '@/components/worklist/WorklistTable';
-import { DEFAULT_FILTERS, caseNeedsAttention, filterCases, groupCases, sortCases, type SortOption, type ViewMode, type WorklistFilters } from '@/components/worklist/worklistModel';
+import { DEFAULT_FILTERS, filterCases, groupCases, matchesQuickFilter, sortCases, type FinalGradeFilter, type SortOption, type StatusFilter, type ViewMode, type WorklistFilters } from '@/components/worklist/worklistModel';
+import { WorklistQuickFilter } from '@/components/worklist/WorklistQuickFilter';
+import { QuickLookDrawer } from '@/components/worklist/QuickLookDrawer';
 import { WorklistToolbar } from '@/components/worklist/WorklistToolbar';
 import { imageContextConfirmed } from '@/lib/caseProgress';
 
@@ -32,14 +34,17 @@ export function WorklistPage() {
   const [resolverCase, setResolverCase] = useState<CaseRecord | null>(null);
   const [readinessCase, setReadinessCase] = useState<CaseRecord | null>(null);
   const [confirmImageCase, setConfirmImageCase] = useState<CaseRecord | null>(null);
+  const [quickLookCase, setQuickLookCase] = useState<CaseRecord | null>(null);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<WorklistFilters>(DEFAULT_FILTERS);
   const [sort, setSort] = useState<SortOption>('filename');
   const [viewMode, setViewMode] = useState<ViewMode>('cases');
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [finalGrade, setFinalGrade] = useState<FinalGradeFilter>('all');
 
-  const filteredCases = useMemo(() => sortCases(filterCases(cases, search, filters, models), sort), [cases, filters, models, search, sort]);
+  const searchedCases = useMemo(() => filterCases(cases, search, filters, models), [cases, filters, models, search]);
+  const filteredCases = useMemo(() => sortCases(searchedCases.filter((item) => matchesQuickFilter(item, status, finalGrade)), sort), [searchedCases, status, finalGrade, sort]);
   const patientGroups = useMemo(() => viewMode === 'patients' ? groupCases(filteredCases) : undefined, [filteredCases, viewMode]);
-  const attentionCount = useMemo(() => filteredCases.filter((item) => item.queue_state !== 'EXCLUDED' && caseNeedsAttention(item)).length, [filteredCases]);
 
   const loadCases = async () => {
     setLoading(true);
@@ -111,16 +116,18 @@ export function WorklistPage() {
         ) : (
           <>
             <WorklistToolbar search={search} onSearchChange={setSearch} filters={filters} onFiltersChange={setFilters} sort={sort} onSortChange={setSort} viewMode={viewMode} onViewModeChange={setViewMode} />
-            <Text fontSize="sm" color="text.secondary" mb={3}>{filteredCases.length} {filteredCases.length === 1 ? 'case' : 'cases'} - {attentionCount} need attention</Text>
+            <WorklistQuickFilter cases={searchedCases} status={status} onStatusChange={setStatus} finalGrade={finalGrade} onFinalGradeChange={setFinalGrade} />
+            <Text fontSize="sm" color="text.secondary" mb={3}>{filteredCases.length} {filteredCases.length === 1 ? 'case' : 'cases'} shown</Text>
             {filteredCases.length === 0 ? (
-              <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Stack spacing={2}><Text fontWeight="semibold">No cases match these filters.</Text><Button size="sm" variant="outline" alignSelf="flex-start" onClick={() => { setSearch(''); setFilters(DEFAULT_FILTERS); }}>Clear filters</Button></Stack></Box>
+              <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Stack spacing={2}><Text fontWeight="semibold">No cases match these filters.</Text><Button size="sm" variant="outline" alignSelf="flex-start" onClick={() => { setSearch(''); setFilters(DEFAULT_FILTERS); setStatus('all'); setFinalGrade('all'); }}>Clear filters</Button></Stack></Box>
             ) : (
-            <WorklistTable cases={filteredCases} groups={patientGroups} models={models} onResolve={setResolverCase} onReadiness={setReadinessCase} onConfirmImage={setConfirmImageCase} onQueueAction={(item, action) => void updateQueue(item, action)} />
+            <WorklistTable cases={filteredCases} groups={patientGroups} models={models} onResolve={setResolverCase} onReadiness={setReadinessCase} onConfirmImage={setConfirmImageCase} onQueueAction={(item, action) => void updateQueue(item, action)} onQuickLook={setQuickLookCase} />
             )}
           </>
         )}
       </Section>
       <HStack mt={4} spacing={2} color="text.muted" fontSize="xs"><Text>AI suggestions are optional visual evidence; clinician review remains authoritative.</Text></HStack>
+      <QuickLookDrawer item={quickLookCase} onClose={() => setQuickLookCase(null)} />
       <ResolverDialog item={resolverCase} onClose={() => setResolverCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
       <ReadinessDialog item={readinessCase} onClose={() => setReadinessCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
       <ConfirmImageDialog item={confirmImageCase} onClose={() => { setConfirmImageCase(null); setCompletedNotice(null); }} onSaved={(saved) => { setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry)); navigate(`/review/${encodeURIComponent(saved.image_id)}`); }} />

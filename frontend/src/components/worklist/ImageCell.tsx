@@ -8,13 +8,31 @@ function admissionStatus(item: CaseRecord): { label: string; tone: StatusTone; n
   return item.admission_ui;
 }
 
-export function ImageCell({ item }: { item: CaseRecord }) {
+export function ImageCell({ item, onQuickLook }: { item: CaseRecord; onQuickLook?: () => void }) {
   const status = admissionStatus(item);
   const filename = item.filename ?? item.display_name;
   return (
     <HStack spacing={3} minW={0}>
-      {item.image_url ? (
+      {item.image_url && !onQuickLook ? (
         <Image src={item.image_url} alt={`${filename} retinal preview`} w="64px" h="48px" flexShrink={0} objectFit="contain" bg="surface.viewer" borderRadius="sm" />
+      ) : item.image_url ? (
+        <Box
+          as="button"
+          type="button"
+          onClick={onQuickLook}
+          aria-label={`Quick look: ${filename}`}
+          title="Quick look"
+          flexShrink={0}
+          borderRadius="sm"
+          borderWidth="1px"
+          borderColor="transparent"
+          cursor="zoom-in"
+          transition="border-color 150ms ease"
+          _hover={{ borderColor: 'action.primary' }}
+          _focusVisible={{ boxShadow: 'focus', outline: 'none' }}
+        >
+          <Image src={item.image_url} alt={`${filename} retinal preview`} w="64px" h="48px" objectFit="contain" bg="surface.viewer" borderRadius="sm" />
+        </Box>
       ) : (
         <Box aria-label="No image preview" w="64px" h="48px" flexShrink={0} bg="surface.subtle" borderRadius="sm" display="flex" alignItems="center" justifyContent="center" flexDirection="column" gap={1}>
           <FileImage size={16} aria-hidden="true" />

@@ -23,6 +23,7 @@ import { ShieldCheck } from '@/lib/icons';
 import { useRuntimeHealth } from '@/hooks/useRuntimeHealth';
 import logoUrl from '@/assets/dr-support-logo.svg';
 import { BrandMark } from '@/components/common/BrandMark';
+import { sidebarScope } from '@/theme';
 import { SidebarNavList } from './SidebarNavList';
 import { WorkspaceCard } from './WorkspaceCard';
 import { PRIMARY_NAV, SECONDARY_NAV, type NavItem } from './navItems';
@@ -65,8 +66,12 @@ export function Sidebar({
       bg="surface.panel"
       borderRightWidth="1px"
       borderColor="border.subtle"
+      sx={sidebarScope}
+      data-testid="sidebar-surface"
       {...rest}
     >
+      {/* KKU Red Soil: a restrained institutional band, never a clinical signal. */}
+      <Box h="4px" bg="accent.institutional" flexShrink={0} data-testid="institutional-band" />
       <Box px={collapsed ? 2 : 5} py={collapsed ? 2 : 5}>
         {collapsed ? (
           <CollapsedBrandMark />
@@ -91,7 +96,7 @@ export function Sidebar({
               <SidebarNavList
                 items={secondaryNav}
                 collapsed={collapsed}
-                ariaLabel="Configuration"
+                ariaLabel="Administration"
                 onNavigate={onItemNavigate}
               />
             </Box>
@@ -106,7 +111,7 @@ export function Sidebar({
               items={secondaryNav}
               collapsed={collapsed}
               heading={SECONDARY_NAV.heading}
-              ariaLabel="Configuration"
+              ariaLabel="Administration"
               onNavigate={onItemNavigate}
             />
           </Box>

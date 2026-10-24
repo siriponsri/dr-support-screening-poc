@@ -46,7 +46,7 @@ describe('AI ROI evidence presentation', () => {
 
   it('renders an untouched AI ROI with its class and model score', () => {
     withProviders(<RetinalCanvas item={{ ...item, image_url: '/case-001.jpg' }} />, '/review/CASE-001');
-    expect(screen.getByText('HE · 0.55')).toBeInTheDocument();
+    expect(screen.getByText('HE 0.55')).toBeInTheDocument();
   });
 
   it('keeps review image-first without a per-detection queue', async () => {
@@ -68,8 +68,8 @@ describe('AI ROI evidence presentation', () => {
     const [first] = displayedLesions(corrected);
     expect(first).toMatchObject({ canonical_label: 'HARD_EXUDATE', displayScore: null, reviewState: 'CLINICIAN_CORRECTED', originalLabel: 'HEMORRHAGE', originalScore: 0.55 });
     withProviders(<RetinalCanvas item={{ ...corrected, image_url: '/case-001.jpg' }} />, '/edit/CASE-001');
-    expect(screen.queryByText(/EX · 0\.55/)).not.toBeInTheDocument();
-    expect(screen.getByText('EX · clinician corrected')).toBeInTheDocument();
+    expect(screen.queryByText(/EX 0\.55/)).not.toBeInTheDocument();
+    expect(screen.getByText('EX: clinician corrected')).toBeInTheDocument();
   });
 
   it('treats a geometry-only correction as clinician corrected and keeps the raw AI box', () => {

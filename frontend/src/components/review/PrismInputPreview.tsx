@@ -1,16 +1,54 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, AlertIcon, Box, Button, Checkbox, Code, HStack, Image, SimpleGrid, Stack, Text } from '@chakra-ui/react';
-import { apiJson, type CaseRecord, type ModelDescriptor } from '@/lib/api';
+import { admissionApi, apiJson, type CaseRecord, type ModelDescriptor } from '@/lib/api';
 import { loadPreviewAsset, previewContextKey, validatePrismPreview, type PrismInputPreview as PreviewPlan } from '@/lib/prismInputPreview';
 import { localTiming, type TimingSpan } from '@/lib/localTiming';
+import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
+import { ReviewerField } from '@/components/common/ReviewerField';
 import { ArtifactFieldPreview } from './ArtifactFieldPreview';
 
-interface Props { item: CaseRecord; model: ModelDescriptor; onInferenceComplete?: () => void | Promise<void>; technicalBatch?: boolean; showArtifactField?: boolean }
+interface Props {
+  item: CaseRecord; model: ModelDescriptor; onInferenceComplete?: () => void | Promise<void>;
+  technicalBatch?: boolean; showArtifactField?: boolean;
+  /** Reload the case after a change made here (image quality confirmation). */
+  onCaseUpdated?: () => void | Promise<void>;
+}
 interface Assets { key: string; original: string; input: string; overlay: string | null }
 
+/** PRISM's frozen-plan gate requires a reviewer-confirmed gradable image. */
+export function prismQualityConfirmed(item: CaseRecord): boolean {
+  return item.admission?.quality_state === 'GRADABLE';
+}
+
+/** Server refusal details stay in the log; the reviewer gets what to do next. */
+function plainPrismError(message: string): string {
+  if (/failed verification|cannot be reused/i.test(message)) {
+    return 'PRISM could not run on this image. Prepare the input again to retry; manual review remains available.';
+  }
+  return message;
+}
+
 /** Bound preparation view; inference requires a separate explicit one-use click. */
-export function PrismInputPreview({ item, model, onInferenceComplete, technicalBatch = false, showArtifactField = true }: Props) {
+export function PrismInputPreview({ item, model, onInferenceComplete, technicalBatch = false, showArtifactField = true, onCaseUpdated }: Props) {
   const [open, setOpen] = useState(false);
+  const qualityConfirmed = technicalBatch || prismQualityConfirmed(item);
+  const [reviewer, setReviewer] = useState(() => getDefaultReviewer());
+  const [useAsDefault, setUseAsDefault] = useState(true);
+  const [qualityBusy, setQualityBusy] = useState(false);
+  const [qualityError, setQualityError] = useState<string | null>(null);
+  const confirmQuality = async () => {
+    if (!reviewer.trim()) { setQualityError('Reviewer name is required.'); return; }
+    setQualityBusy(true);
+    setQualityError(null);
+    try {
+      await admissionApi.review(item.image_id, { revision: item.revision, reviewer: reviewer.trim(), action: 'QUALITY_ACCEPTABLE',
+        note: 'Image quality confirmed from Review before PRISM.' });
+      setDefaultReviewer(useAsDefault ? reviewer : '');
+      await onCaseUpdated?.();
+    } catch {
+      setQualityError('Image quality could not be saved. Reload the case and try again.');
+    } finally { setQualityBusy(false); }
+  };
   const [assets, setAssets] = useState<Assets | null>(null);
   const [error, setError] = useState<{ key: string; message: string } | null>(null);
   const [overlay, setOverlay] = useState(true);
@@ -138,7 +176,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
       }, { model_id: model.model_id, model_version: verified.model_version });
       if (action.current === current && !current.controller.signal.aborted) await onInferenceComplete?.();
     } catch (err) {
-      if (action.current === current && !current.controller.signal.aborted) setActionError({ context, message: err instanceof Error ? err.message : 'Submission failed; do not retry this receipt.' });
+      if (action.current === current && !current.controller.signal.aborted) setActionError({ context, message: (technicalBatch ? (raw: string) => raw : plainPrismError)(err instanceof Error ? err.message : 'Submission failed; do not retry this receipt.') });
     } finally {
       if (action.current === current) { action.current = null; setBusy(false); }
     }
@@ -149,9 +187,17 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
       <Button data-testid="prism-preview-toggle" alignSelf="flex-start" size="sm" variant="outline" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         {open ? 'Hide PRISM input preview' : 'Preview PRISM input'}
       </Button>
-      <Text fontSize="xs" color="text.secondary">PRISM requires a server-verified, one-use input receipt. Providers without frozen-plan support remain unavailable. Global grading and manual review remain separate.</Text>
+      <Text fontSize="xs" color="text.secondary">PRISM lesion suggestions use a one-time prepared input; grading and manual review stay separate.</Text>
+      {open && !qualityConfirmed && (
+        <Stack spacing={2} data-testid="prism-quality-gate">
+          <Text fontSize="sm">{item.admission?.quality_state === 'UNGRADABLE' ? 'This image is recorded as not usable. Change that only if the image quality is acceptable.' : 'Confirm image quality before using PRISM.'}</Text>
+          <ReviewerField compact id="prism-quality-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} isDisabled={qualityBusy} />
+          <Button alignSelf="flex-start" size="sm" variant="outline" isLoading={qualityBusy} onClick={() => void confirmQuality()}>{item.admission?.quality_state === 'UNGRADABLE' ? 'Change to quality acceptable' : 'Image quality acceptable'}</Button>
+          {qualityError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{qualityError}</Text></Alert>}
+        </Stack>
+      )}
       {open && <>
-        <Button data-testid="prism-preview-prepare" alignSelf="flex-start" size="sm" variant="outline" isLoading={busy} isDisabled={technicalBatch && technicalPrepared.current} onClick={() => void prepare()}>Prepare / refresh API input</Button>
+        <Button data-testid="prism-preview-prepare" alignSelf="flex-start" size="sm" variant="outline" isLoading={busy} isDisabled={!qualityConfirmed || (technicalBatch && technicalPrepared.current)} onClick={() => void prepare()}>Prepare / refresh API input</Button>
         {technicalBatch && busy && <Text data-testid="qa-batch-busy">Technical PRISM operation in progress</Text>}
         {actionError?.context === context && <Alert status="error"><AlertIcon /><Text>{actionError.message} {technicalBatch ? 'This technical attempt failed or is uncertain; no retry is permitted.' : 'Prepare a new receipt before another attempt.'}</Text></Alert>}
         <Text fontSize="sm">Optical FOV is the camera field; an artifact mask excludes selected pixels; native ROI is PRISM’s internal crop. None is a lesion box or a clinical grade.</Text>
@@ -161,12 +207,12 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
           <Text fontSize="sm">Original remains the review source. A candidate mask or a previous run cannot establish the next input. PRISM cannot be submitted without a verified receipt.</Text>
         </Stack></Alert> : plan && <>
           <Alert status="info"><AlertIcon /><Stack spacing={1}>
-            <Text fontWeight="semibold">Planned API input — internal model crop not previewed</Text>
+            <Text fontWeight="semibold">Planned API input: internal model crop not previewed</Text>
             <Text fontSize="sm">This preview covers only the planned API submission. PRISM may subsequently crop, resize or tile internally; those final model inputs are not shown. Browser verification checks the displayed PNG bytes; wire provenance remains a server attestation.</Text>
             <Text fontSize="sm">Native ROI: NOT_RUN. {plan.mask_application === 'CONDITIONAL_ON_NATIVE_ROI_SUCCESS'
               ? 'The optical FOV is a conditional candidate, not an applied mask. It can be used only if native ROI succeeds. If native ROI fails, the baseline discards the candidate and uses full Original.'
               : 'No external mask is planned. Native ROI may still crop internally; if native ROI fails, the baseline uses full Original.'}</Text>
-            <Text fontSize="sm">External FOV: {plan.external_fov_status}{plan.external_fov_reason_code ? ` · ${plan.external_fov_reason_code}` : ''}. This is technical preparation status, not a clinical finding.</Text>
+            <Text fontSize="sm">External FOV: {plan.external_fov_status}{plan.external_fov_reason_code ? ` / ${plan.external_fov_reason_code}` : ''}. This is technical preparation status, not a clinical finding.</Text>
             {plan.input_kind === 'ORIGINAL_FALLBACK' && <Text fontSize="sm">Original wire fallback: {plan.fallback_reason}. This does not mean native ROI cropping is disabled.</Text>}
           </Stack></Alert>
           {!shown && <Text role="status">Verifying immutable preview image bytes…</Text>}
@@ -188,17 +234,17 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
                 </Box>
               </Box>)}
             </SimpleGrid>
-            <Text fontSize="xs" fontWeight="semibold">{plan.mask.kind === 'NONE' ? 'Coverage at this stage — no external mask' : 'Conditional candidate coverage — not an applied mask'}</Text>
+            <Text fontSize="xs" fontWeight="semibold">{plan.mask.kind === 'NONE' ? 'Coverage at this stage: no external mask' : 'Conditional candidate coverage: not an applied mask'}</Text>
             <HStack flexWrap="wrap" spacing={3} aria-label="Processing coverage legend">
               <Text fontSize="xs"><Box as="span" color="green.600">■</Box> Retained {Math.round(plan.retained_fraction * 100)}%</Text>
               <Text fontSize="xs"><Box as="span" color="red.600">■</Box> Excluded {Math.round(plan.excluded_fraction * 100)}%</Text>
               <Text fontSize="xs"><Box as="span" color="orange.600">■</Box> Uncertain {Math.round(plan.uncertain_fraction * 100)}%</Text>
             </HStack>
-            <Text fontSize="xs">Mask: {plan.mask.kind} · {plan.mask.version}. Overlay is processing evidence in original coordinates; retained does not mean clinically normal. Uncertain pixels are not silently excluded.</Text>
+            <Text fontSize="xs">Mask: {plan.mask.kind} / {plan.mask.version}. Overlay is processing evidence in original coordinates; retained does not mean clinically normal. Uncertain pixels are not silently excluded.</Text>
             <Box as="details" fontSize="xs" overflowWrap="anywhere"><Box as="summary" cursor="pointer">Preview provenance</Box>
-              <Text>Plan <Code>{plan.plan_id}</Code> · revision {plan.case_revision}</Text>
+              <Text>Plan <Code>{plan.plan_id}</Code> / revision {plan.case_revision}</Text>
               <Text>Source SHA256: {plan.source_sha256}</Text><Text>Mask SHA256: {plan.mask.sha256 ?? 'none'}</Text>
-              <Text>Wire SHA256: {plan.wire_sha256} · {plan.wire_media_type} · {plan.wire_byte_count} bytes</Text>
+              <Text>Wire SHA256: {plan.wire_sha256} / {plan.wire_media_type} / {plan.wire_byte_count} bytes</Text>
               <Text>Plan SHA256: {plan.plan_sha256}</Text><Text>Transform {plan.transform.version}: {plan.transform.sha256}</Text>
               <Text>Input RGB SHA256 (server attestation): {plan.input_preview.rgb_sha256}</Text>
               <Text>Model {plan.model_id} / {plan.model_version}; expires {plan.expires_at}</Text>

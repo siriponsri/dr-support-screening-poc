@@ -121,7 +121,8 @@ describe('UWF intake and clinical review', () => {
       return reply([]);
     });
     renderAppAt('/review/synthetic-uwf');
-    expect(await screen.findByLabelText('Mask status')).toHaveTextContent('Ready');
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'More views' }));
+    expect(screen.getByLabelText('Mask status')).toHaveTextContent('Ready');
     expect(screen.getByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
     expect(screen.getByText('No ready UWF model capability is connected.')).toBeInTheDocument();

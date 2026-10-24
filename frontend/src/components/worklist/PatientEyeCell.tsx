@@ -25,7 +25,7 @@ export function PatientEyeCell({ item, onResolve }: { item: CaseRecord; onResolv
         </>
       ) : (
         <>
-          <Text fontWeight="semibold" noOfLines={1} title={`${patient} · ${eyeLabel}`}>{patient} · {eyeLabel}</Text>
+          <Text fontWeight="semibold" noOfLines={1} title={`${patient} / ${eyeLabel}`}>{patient} / {eyeLabel}</Text>
           <Stack direction="row" spacing={1} align="center">
             <StatusBadge tone={assignmentTone}>{assignmentStatus}</StatusBadge>
             <IconButton

@@ -9,6 +9,7 @@ import {
   FormControl,
   FormErrorMessage,
   FormLabel,
+  Grid,
   HStack,
   Input,
   Modal,
@@ -22,13 +23,14 @@ import {
   Stack,
   Text,
 } from '@chakra-ui/react';
-import type { CaseRecord, Laterality, RetinalModality } from '@/lib/api';
+import type { AdmissionReviewAction, CaseRecord, Laterality, RetinalModality } from '@/lib/api';
 import { admissionApi } from '@/lib/api';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 import { ReviewerField } from '@/components/common/ReviewerField';
 import { GuideHint } from '@/components/common/GuideHint';
 import { hasInternalPatientKey, patientLabel } from '@/lib/patientPresentation';
 import { ChevronDown, ChevronUp, Pencil } from '@/lib/icons';
+import { handleRadioArrowKeys, radioTabIndex } from '@/components/common/radioGroupKeys';
 
 function filenameMethod(method?: string): boolean {
   return method === 'FILENAME' || method === 'FILENAME_AND_OCR';
@@ -58,6 +60,47 @@ function SummaryRow({ label, value, note, onEdit }: { label: string; value: stri
   );
 }
 
+type QualityChoice = '' | Extract<AdmissionReviewAction, 'QUALITY_ACCEPTABLE' | 'QUALITY_INADEQUATE'>;
+
+function recordedQuality(item: CaseRecord | null): QualityChoice {
+  const state = item?.admission?.quality_state;
+  return state === 'GRADABLE' ? 'QUALITY_ACCEPTABLE' : state === 'UNGRADABLE' ? 'QUALITY_INADEQUATE' : '';
+}
+
+function QualityChoiceField({ value, onChange, allowClear }: { value: QualityChoice; onChange: (value: QualityChoice) => void; allowClear: boolean }) {
+  const options: { value: Exclude<QualityChoice, ''>; label: string }[] = [
+    { value: 'QUALITY_ACCEPTABLE', label: 'Usable' },
+    { value: 'QUALITY_INADEQUATE', label: 'Not usable' },
+  ];
+  return (
+    <Stack spacing={1.5}>
+      <Text id="confirm-image-quality-label" fontSize="sm" color="text.secondary">Image quality (optional)</Text>
+      <HStack role="radiogroup" aria-labelledby="confirm-image-quality-label" spacing={2}
+        onKeyDown={(event) => handleRadioArrowKeys(event, options.map((option) => option.value), value, (next) => onChange(next as QualityChoice))}>
+        {options.map((option) => {
+          const selected = value === option.value;
+          return (
+            <Button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              tabIndex={radioTabIndex(options.map((entry) => entry.value), value, option.value)}
+              size="sm"
+              flex={1}
+              variant={selected ? 'solid' : 'outline'}
+              // A recorded quality is changed, never silently cleared.
+              onClick={() => onChange(selected && allowClear ? '' : option.value)}
+            >
+              {option.label}
+            </Button>
+          );
+        })}
+      </HStack>
+    </Stack>
+  );
+}
+
 export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecord | null; onClose: () => void; onSaved: (item: CaseRecord) => void }) {
   const [patientKey, setPatientKey] = useState('');
   const [laterality, setLaterality] = useState<Laterality>('UNKNOWN');
@@ -67,7 +110,10 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
   const [captureSequence, setCaptureSequence] = useState('');
   const [device, setDevice] = useState('');
   const [reviewer, setReviewer] = useState('');
-  const [useAsDefault, setUseAsDefault] = useState(false);
+  const [useAsDefault, setUseAsDefault] = useState(true);
+  const [quality, setQuality] = useState<QualityChoice>('');
+  // Set once Confirm Image is saved but the quality call failed; retries skip the confirm.
+  const [confirmedRecord, setConfirmedRecord] = useState<CaseRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [patientError, setPatientError] = useState(false);
@@ -104,7 +150,9 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
     setCaptureSequence(item.visit_context?.capture_sequence == null ? '' : String(item.visit_context.capture_sequence));
     setDevice(item.visit_context?.device ?? '');
     setReviewer(defaultReviewer);
-    setUseAsDefault(Boolean(defaultReviewer));
+    setUseAsDefault(true);
+    setQuality(recordedQuality(item));
+    setConfirmedRecord(null);
     setMetadataOpen(false);
     setEditImageType(false);
     setEditPatient(false);
@@ -118,10 +166,32 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
     if (patientError) patientInputRef.current?.focus();
   }, [patientError]);
 
+  const saveQuality = async (saved: CaseRecord) => {
+    if (!quality || quality === recordedQuality(saved)) {
+      onSaved(saved);
+      onClose();
+      return;
+    }
+    try {
+      const updated = await admissionApi.review(saved.image_id, {
+        revision: saved.revision, reviewer: reviewer.trim(), action: quality, note: 'Image quality recorded at Confirm Image.',
+      });
+      onSaved(updated);
+      onClose();
+    } catch {
+      setConfirmedRecord(saved);
+      setError('Image confirmed, but image quality was not saved. Try again, or continue without it.');
+    }
+  };
+
   const save = async () => {
     if (!item || !reviewer.trim()) { setError('Reviewer name is required.'); return; }
     setSaving(true);
     setError(null);
+    if (confirmedRecord) {
+      try { await saveQuality(confirmedRecord); } finally { setSaving(false); }
+      return;
+    }
     try {
       const saved = await admissionApi.confirmImage(item.image_id, {
         revision: item.revision,
@@ -137,8 +207,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
       });
       if (useAsDefault) setDefaultReviewer(reviewer);
       else setDefaultReviewer('');
-      onSaved(saved);
-      onClose();
+      await saveQuality(saved);
     } catch (saveError) {
       if (saveError instanceof Error && saveError.message === 'Patient key must be a short pseudonymous identifier') {
         if (hasInternalPatientKey(item)) setPatientKey('');
@@ -159,7 +228,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
         : undefined;
 
   return (
-    <Modal isOpen={Boolean(item)} onClose={onClose} isCentered scrollBehavior="inside" initialFocusRef={firstUnresolvedRef}>
+    <Modal isOpen={Boolean(item)} onClose={onClose} isCentered scrollBehavior="inside" size="4xl" initialFocusRef={firstUnresolvedRef}>
       <ModalOverlay />
       <ModalContent
         as="form"
@@ -178,7 +247,30 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
         <ModalHeader flexShrink={0}>Confirm Image</ModalHeader>
         <ModalCloseButton />
         <ModalBody minH={0} overflowY="auto">
-          <Stack spacing={4}>
+          <Grid templateColumns={{ base: '1fr', tablet: 'minmax(0, 1.1fr) minmax(0, 1fr)' }} gap={5} alignItems="start">
+          <Box
+            bg="viewer.background"
+            borderRadius="md"
+            overflow="hidden"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            minH={{ base: '220px', tablet: '360px' }}
+            position={{ tablet: 'sticky' }}
+            top={0}
+          >
+            {item?.image_url && (
+              <Box
+                as="img"
+                src={item.image_url}
+                alt={`Retinal image ${item.filename ?? item.display_name}`}
+                maxW="100%"
+                maxH={{ base: '260px', tablet: '60vh' }}
+                objectFit="contain"
+              />
+            )}
+          </Box>
+          <Stack spacing={4} minW={0}>
             <GuideHint step="confirm-image" />
             {error && <Alert status="error" bg="status.dangerSoft" color="status.danger" alignItems="flex-start"><AlertIcon /><Text fontSize="md" overflowWrap="anywhere">{error}</Text></Alert>}
             <Stack spacing={1}>
@@ -200,13 +292,13 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
               </FormControl>
             )}
             {patientResolved && !editPatient ? (
-              <SummaryRow label="Patient" value={item && hasInternalPatientKey(item) ? patientLabel(item) : patientKey} note={item && hasInternalPatientKey(item) ? 'workspace label · existing link kept' : patientSource} onEdit={() => { if (item && hasInternalPatientKey(item)) setPatientKey(''); setEditPatient(true); }} />
+              <SummaryRow label="Patient" value={item && hasInternalPatientKey(item) ? patientLabel(item) : patientKey} note={item && hasInternalPatientKey(item) ? 'workspace label / existing link kept' : patientSource} onEdit={() => { if (item && hasInternalPatientKey(item)) setPatientKey(''); setEditPatient(true); }} />
             ) : (
               <FormControl isInvalid={patientError}>
                 <FormLabel htmlFor="confirm-image-patient-key">Patient</FormLabel>
                 <Input ref={(node) => { patientInputRef.current = node; if (imageTypeResolved && (editPatient || !patientResolved)) initialFocusRef.current = node; }} id="confirm-image-patient-key" value={patientKey} onChange={(event) => { setPatientKey(event.target.value.toUpperCase()); setUnlinkPatient(false); setPatientError(false); }} placeholder="Enter a pseudonymous key or leave blank" />
                 <Text fontSize="xs" color="text.secondary" mt={1}>{item && hasInternalPatientKey(item) ? 'Enter an approved pseudonymous key to replace this link. Leaving it blank keeps the current link. Workspace labels are not replacement keys.' : item?.patient_candidate ? 'Suggested from available evidence; confirm or correct it.' : 'Unknown is allowed when no supported evidence is available.'}</Text>
-                <FormErrorMessage fontSize="sm" color="status.danger">Use a pseudonymous key with 3–32 characters, starting with a letter and including a number. Use only letters, numbers, hyphens, or underscores.</FormErrorMessage>
+                <FormErrorMessage fontSize="sm" color="status.danger">Use a pseudonymous key with 3-32 characters, starting with a letter and including a number. Use only letters, numbers, hyphens, or underscores.</FormErrorMessage>
                 {editPatient && item && hasInternalPatientKey(item) && <Button type="button" size="xs" variant="outline" onClick={() => { setPatientKey(item.patient_key ?? ''); setUnlinkPatient(false); setPatientError(false); setEditPatient(false); }}>Keep current patient link</Button>}
                 {editPatient && item && hasInternalPatientKey(item) && <><Button type="button" size="xs" variant="ghost" onClick={() => { setPatientKey(''); setUnlinkPatient(true); setPatientError(false); }}>Leave this image unlinked</Button>{unlinkPatient && <Text fontSize="sm" color="status.warning">This image will be left unlinked when you confirm.</Text>}</>}
                 {editPatient && patientResolved && item && !hasInternalPatientKey(item) && <Button type="button" size="xs" variant="ghost" mt={1} isDisabled={patientError} onClick={() => setEditPatient(false)}>Done</Button>}
@@ -225,6 +317,7 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
                 {editEye && eyeResolved && <Button type="button" size="xs" variant="ghost" mt={1} onClick={() => setEditEye(false)}>Done</Button>}
               </FormControl>
             )}
+            <QualityChoiceField value={quality} onChange={setQuality} allowClear={recordedQuality(confirmedRecord ?? item) === ''} />
             <ReviewerField compact id="confirm-image-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
             <Box borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={3}>
               <Button
@@ -256,11 +349,16 @@ export function ConfirmImageDialog({ item, onClose, onSaved }: { item: CaseRecor
               </Collapse>
             </Box>
           </Stack>
+          </Grid>
         </ModalBody>
         <ModalFooter flexShrink={0}>
           <Stack direction={{ base: 'column-reverse', tablet: 'row' }} spacing={2} w="full" align={{ base: 'stretch', tablet: 'center' }} justify="flex-end">
-            <Button type="button" variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button>
-            <Button type="submit" variant="solid" whiteSpace="normal" h="auto" minH="36px" py={2} isLoading={saving}>Confirm image &amp; continue</Button>
+            {confirmedRecord ? (
+              <Button type="button" variant="ghost" onClick={() => { onSaved(confirmedRecord); onClose(); }} isDisabled={saving}>Continue without quality</Button>
+            ) : (
+              <Button type="button" variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button>
+            )}
+            <Button type="submit" variant="solid" whiteSpace="normal" h="auto" minH="36px" py={2} isLoading={saving}>{confirmedRecord ? 'Save image quality' : 'Confirm image & continue'}</Button>
           </Stack>
         </ModalFooter>
       </ModalContent>

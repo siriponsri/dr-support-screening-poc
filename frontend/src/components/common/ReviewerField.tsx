@@ -1,5 +1,6 @@
 import { Button, Checkbox, FormControl, FormLabel, HStack, Input, Stack, Text } from '@chakra-ui/react';
 import { useState } from 'react';
+import { getDefaultReviewer } from '@/lib/reviewerPreference';
 
 interface ReviewerFieldProps {
   id: string;
@@ -25,7 +26,9 @@ export function ReviewerField({
   isDisabled = false,
 }: ReviewerFieldProps) {
   const [editing, setEditing] = useState(false);
-  if (compact && value.trim() && useAsDefault && !editing) {
+  // Summarise only a name already saved on this workstation, never one being typed.
+  const remembered = Boolean(value.trim()) && value.trim() === getDefaultReviewer();
+  if (compact && remembered && useAsDefault && !editing) {
     return (
       <Stack spacing={1}>
         <HStack spacing={3} align="center">
@@ -56,7 +59,7 @@ export function ReviewerField({
           Use as default reviewer on this workstation
         </Checkbox>
         {helpText && <Text fontSize="xs" color="text.secondary">{helpText}</Text>}
-        {compact && value.trim() && <Button type="button" isDisabled={isDisabled} size="xs" variant="ghost" alignSelf="flex-start" onClick={() => setEditing(false)}>Use this reviewer</Button>}
+        {compact && remembered && <Button type="button" isDisabled={isDisabled} size="xs" variant="ghost" alignSelf="flex-start" onClick={() => setEditing(false)}>Use this reviewer</Button>}
       </Stack>
     </FormControl>
   );

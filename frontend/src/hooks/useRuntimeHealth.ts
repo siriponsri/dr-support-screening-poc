@@ -11,7 +11,13 @@ import { useEffect, useState } from 'react';
  * without evidence.
  */
 
-export type RuntimeTone = 'idle' | 'checking' | 'online' | 'warnings' | 'offline';
+export type RuntimeTone = 'idle' | 'checking' | 'online' | 'research' | 'warnings' | 'offline';
+
+/**
+ * The standing research-use notice `/health` always returns. It is context, not
+ * a fault, so it is shown as a quiet label rather than a warning.
+ */
+export const RESEARCH_NOTICE = 'Research-only; model readiness is reported separately';
 
 export interface RuntimeHealth {
   tone: RuntimeTone;
@@ -65,12 +71,15 @@ export function useRuntimeHealth(enabled = true): RuntimeHealth {
         if (!body || !['PASS', 'PASS_WITH_WARNINGS'].includes(body.status ?? '')) {
           throw new Error('Review service readiness could not be verified.');
         }
-        const hasWarnings = body.status === 'PASS_WITH_WARNINGS' || Array.isArray(body.warnings) && body.warnings.length > 0;
+        const warnings = Array.isArray(body.warnings) ? body.warnings : [];
+        const realWarnings = warnings.filter((warning) => warning !== RESEARCH_NOTICE);
+        const researchOnly = body.status === 'PASS_WITH_WARNINGS' && warnings.length > 0 && realWarnings.length === 0;
+        const hasWarnings = !researchOnly && (body.status === 'PASS_WITH_WARNINGS' || realWarnings.length > 0);
         if (active) {
           setState({
-            tone: hasWarnings ? 'warnings' : 'online',
-            label: hasWarnings ? 'Warnings' : 'Ready',
-            detail: body.status ?? body.lane,
+            tone: researchOnly ? 'research' : hasWarnings ? 'warnings' : 'online',
+            label: researchOnly ? 'Research use' : hasWarnings ? 'Warnings' : 'Ready',
+            detail: researchOnly ? RESEARCH_NOTICE : realWarnings[0] ?? body.status ?? body.lane,
             raw: body,
           });
         }

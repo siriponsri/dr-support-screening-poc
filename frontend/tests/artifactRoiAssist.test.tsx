@@ -37,7 +37,7 @@ describe('annotation-assist visibility', () => {
     const item = fixture(); const overlay = vi.fn();
     const fetch = vi.spyOn(globalThis, 'fetch');
     render(controls(item, vi.fn(), vi.fn(), overlay));
-    expect(screen.getByText('ROI post-filter · 1 ROI suggestion hidden')).toBeInTheDocument();
+    expect(screen.getByText('ROI post-filter: 1 ROI suggestion hidden')).toBeInTheDocument();
     expect(screen.getByText(/After inference: changes ROI visibility only/)).toHaveTextContent('Original and model input are unchanged');
     expect(screen.getByText('Review suggestions shown: 1 of 2. Raw model ROIs retained: 2.')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Post-filter decision details'));
@@ -74,7 +74,7 @@ describe('annotation-assist visibility', () => {
     const mounted = render(controls(item));
     mounted.rerender(<ChakraProvider><ArtifactRoiControls item={item} showFiltered={true} showOverlay={false}
       onShowFiltered={vi.fn()} onShowOverlay={vi.fn()} onCaseChange={vi.fn()} /></ChakraProvider>);
-    expect(screen.getByText('ROI post-filter · 1 filtered ROI suggestion shown for inspection')).toBeInTheDocument();
+    expect(screen.getByText('ROI post-filter: 1 filtered ROI suggestion shown for inspection')).toBeInTheDocument();
     expect(screen.getByText('Review suggestions shown: 2 of 2. Raw model ROIs retained: 2.')).toBeInTheDocument();
     expect(JSON.stringify(item)).toBe(before);
   });
@@ -82,7 +82,7 @@ describe('annotation-assist visibility', () => {
   it('never presents a stale binding as the current saved field', () => {
     const item = fixture(); item.source_sha256 = 'e'.repeat(64);
     render(controls(item));
-    expect(screen.getByText('ROI post-filter · Unavailable · all review suggestions retained')).toBeInTheDocument();
+    expect(screen.getByText('ROI post-filter: Unavailable / all review suggestions retained')).toBeInTheDocument();
     expect(screen.getByText('Review suggestions shown: 2 of 2. Raw model ROIs retained: 2.')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Show saved post-filter field' })).toBeDisabled();
     expect(screen.queryByText(item.artifact_roi_assist!.binding_sha256!)).not.toBeInTheDocument();

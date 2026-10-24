@@ -35,4 +35,6 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  // The remembered reviewer is workstation storage; keep tests independent.
+  window.localStorage.clear();
 });

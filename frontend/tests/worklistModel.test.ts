@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CaseRecord } from '@/lib/api';
 import { hasCompatibleModel } from '@/lib/modelCapabilities';
-import { DEFAULT_FILTERS, filterCases, groupCases, identityNeedsAction, matchesSearch, sortCases } from '@/components/worklist/worklistModel';
+import { DEFAULT_FILTERS, filterCases, finalGradeKey, groupCases, identityNeedsAction, matchesQuickFilter, matchesSearch, sortCases, workStatus } from '@/components/worklist/worklistModel';
 
 function makeCase(overrides: Partial<CaseRecord> = {}): CaseRecord {
   return {
@@ -141,4 +141,30 @@ it('searches visible hospital labels without changing complete-key grouping', ()
   expect(cases.filter((c) => matchesSearch(c, 'PATIENT 2')).map((c) => c.image_id)).toEqual(['second']);
   expect(groupCases(cases).map((g) => g.key)).toEqual([firstKey, secondKey]);
   expect(first.patient_key).toBe(firstKey);
+});
+
+describe('Worklist quick filter', () => {
+  const review = (grade: number) => ({ final_grade: grade, reviewer: 'Dr. Example', timestamp: '2026-01-02', revision: 2 }) as CaseRecord['clinician_review'];
+  const confirmedImage = [{ action: 'CONFIRM_IMAGE' }] as CaseRecord['admission_history'];
+  const notStarted = makeCase({ image_id: 'not-started' });
+  const inProgress = makeCase({ image_id: 'in-progress', admission_history: confirmedImage });
+  const graded = makeCase({ image_id: 'graded', admission_history: confirmedImage, clinician_review: review(2), grade_status: 'CONFIRMED' });
+  const done = makeCase({ image_id: 'done', clinician_review: review(2), grade_status: 'CONFIRMED', annotation_confirmation_status: 'CONFIRMED' });
+  const ungradable = makeCase({ image_id: 'ungradable', grade_status: 'UNGRADABLE' });
+  const excluded = makeCase({ image_id: 'excluded', queue_state: 'EXCLUDED' });
+
+  it('derives not started, in progress, done and excluded', () => {
+    expect([notStarted, inProgress, graded, done, ungradable, excluded].map(workStatus))
+      .toEqual(['not-started', 'in-progress', 'in-progress', 'done', 'done', 'excluded']);
+  });
+
+  it('narrows done cases by the clinician final grade only', () => {
+    expect(finalGradeKey(done)).toBe('2');
+    expect(finalGradeKey(ungradable)).toBe('U');
+    expect(finalGradeKey(inProgress)).toBeNull();
+    const all = [notStarted, inProgress, graded, done, ungradable, excluded];
+    expect(all.filter((item) => matchesQuickFilter(item, 'done', '2')).map((item) => item.image_id)).toEqual(['done']);
+    expect(all.filter((item) => matchesQuickFilter(item, 'done', 'U')).map((item) => item.image_id)).toEqual(['ungradable']);
+    expect(all.filter((item) => matchesQuickFilter(item, 'not-started', 'all')).map((item) => item.image_id)).toEqual(['not-started']);
+  });
 });

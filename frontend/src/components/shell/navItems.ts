@@ -1,8 +1,9 @@
 /**
  * Canonical sidebar navigation for the Retinal Review Workbench shell.
  *
- * Five primary destinations plus Settings. Each entry maps a `to` path to an
- * icon, label, and optional one-liner used in the route header.
+ * Clinical review (Worklist, Review) first; Datasets, Models & Audit and
+ * Settings grouped under Administration. Each entry maps a `to` path to an
+ * icon and label.
  *
  * Update both this file and `routeMeta.ts` when adding a route — the two are
  * intentionally separate so the sidebar and the page header can evolve
@@ -30,20 +31,22 @@ export interface NavSection {
   items: NavItem[];
 }
 
+/** Routine clinician work: the doctor view. */
 export const PRIMARY_NAV: NavSection = {
-  heading: 'Workspace',
+  heading: 'Clinical review',
   items: [
-    { to: '/worklist', label: 'Worklist',       icon: ListChecks },
-    { to: '/datasets', label: 'Datasets',       icon: Database },
-    { to: '/review',   label: 'Review',         icon: Eye },
-    { to: '/models',   label: 'Models & Audit', icon: Activity },
+    { to: '/worklist', label: 'Worklist', icon: ListChecks },
+    { to: '/review',   label: 'Review',   icon: Eye },
   ],
 };
 
+/** Administration is kept apart from routine review (not an access control). */
 export const SECONDARY_NAV: NavSection = {
-  heading: 'Configuration',
+  heading: 'Administration',
   items: [
-    { to: '/settings', label: 'Settings', icon: Settings2 },
+    { to: '/datasets', label: 'Datasets',       icon: Database },
+    { to: '/models',   label: 'Models & Audit', icon: Activity },
+    { to: '/settings', label: 'Settings',       icon: Settings2 },
   ],
 };
 

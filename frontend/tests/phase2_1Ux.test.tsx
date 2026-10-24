@@ -104,8 +104,8 @@ describe('M1 Phase 2.1 clinician UX contracts', () => {
     });
     render(<ChakraProvider theme={theme}><ReviewStatusCell item={item} /></ChakraProvider>);
 
-    expect(screen.getByText('Complete')).toBeInTheDocument();
-    expect(screen.getByText('Grade ✓ · Findings ✓')).toBeInTheDocument();
-    expect(screen.queryByText('DR grade confirmed · Annotations confirmed')).not.toBeInTheDocument();
+    expect(screen.getByText('Done')).toBeInTheDocument();
+    expect(screen.getByLabelText('Review status: Done')).toBeInTheDocument();
+    expect(screen.queryByText('DR grade confirmed: Annotations confirmed')).not.toBeInTheDocument();
   });
 });

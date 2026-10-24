@@ -17,6 +17,9 @@ export function BrandMark({ compact = false }: BrandMarkProps) {
           <Text fontSize="xs" color="text.secondary" fontWeight="medium">
             Workbench
           </Text>
+          <Text fontSize="xxs" color="accent.institutionalDark" fontWeight="semibold" mt={1}>
+            Faculty of Medicine, Khon Kaen University
+          </Text>
         </Box>
       )}
     </HStack>

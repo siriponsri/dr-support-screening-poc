@@ -239,7 +239,7 @@ function AiShape({
         vectorEffect="non-scaling-stroke"
       />
       <text x={textPoint.x} y={textPoint.y} fill={color} fontSize={Math.max(10, Math.min(18, (x2 - x1) / 8))} fontWeight="700">
-        {lesion.artifactFiltered ? `${shortLabel} · artifact filtered (AI)` : corrected ? `${shortLabel} · clinician corrected` : `${shortLabel} · ${displayScore?.toFixed(2) ?? ''}`}
+        {lesion.artifactFiltered ? `${shortLabel}: artifact filtered (AI)` : corrected ? `${shortLabel}: clinician corrected` : `${shortLabel} ${displayScore?.toFixed(2) ?? ''}`}
       </text>
     </g>
   );
@@ -322,7 +322,7 @@ function HumanShape({
         fontWeight="700"
         pointerEvents="none"
       >
-        Human · {LESION_SHORT_LABELS[annotation.label]}
+        Human: {LESION_SHORT_LABELS[annotation.label]}
       </text>
     </g>
   );

@@ -455,7 +455,7 @@ function WorkspaceMetadata({ workspace, onCopy, managedStorage }: { workspace: W
   const metadata = [
     { label: 'Input', value: workspace.input_folder },
     { label: 'Output', value: workspace.output_folder },
-    { label: 'Storage', value: managedStorage ? 'Managed PostgreSQL storage' : `SQLite · ${workspace.database_path ?? ''}` },
+    { label: 'Storage', value: managedStorage ? 'Managed PostgreSQL storage' : `SQLite / ${workspace.database_path ?? ''}` },
   ];
 
   return (

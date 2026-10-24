@@ -134,4 +134,48 @@ describe('Private hospital confirmation presentation', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm image & continue' }));
     expect(save).toHaveBeenCalledWith(hospital.image_id, expect.objectContaining({ patient_key: 'DEMO008' }));
   });
+
+  it('shows the image and records the optional quality choice after confirmation', async () => {
+    const user = userEvent.setup();
+    const confirmed = { ...item, revision: 8, image_url: '/v1/images/synthetic-confirm-ui/display' };
+    vi.spyOn(admissionApi, 'confirmImage').mockResolvedValueOnce(confirmed);
+    const review = vi.spyOn(admissionApi, 'review').mockResolvedValueOnce({ ...confirmed, revision: 9 });
+    const { onSaved } = openDialog({ ...item, image_url: '/v1/images/synthetic-confirm-ui/display' });
+    expect(screen.getByRole('img', { name: /Retinal image/ })).toHaveAttribute('src', '/v1/images/synthetic-confirm-ui/display');
+    await user.click(screen.getByRole('radio', { name: 'Not usable' }));
+    expect(screen.getByRole('radio', { name: 'Not usable' })).toHaveAttribute('aria-checked', 'true');
+    await user.click(screen.getByRole('button', { name: 'Confirm image & continue' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ revision: 9 })));
+    expect(review).toHaveBeenCalledWith(item.image_id, expect.objectContaining({ revision: 8, action: 'QUALITY_INADEQUATE', reviewer: 'Synthetic reviewer' }));
+  });
+
+  it('skips the quality call when no quality is chosen', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(admissionApi, 'confirmImage').mockResolvedValueOnce(item);
+    const review = vi.spyOn(admissionApi, 'review');
+    const { onSaved } = openDialog();
+    await user.click(screen.getByRole('button', { name: 'Confirm image & continue' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(item));
+    expect(review).not.toHaveBeenCalled();
+  });
+
+  it('keeps the dialog open when the quality save fails and retries without re-confirming', async () => {
+    const user = userEvent.setup();
+    const confirmed = { ...item, revision: 8 };
+    const confirm = vi.spyOn(admissionApi, 'confirmImage').mockResolvedValueOnce(confirmed);
+    const review = vi.spyOn(admissionApi, 'review')
+      .mockRejectedValueOnce(new Error('Case changed; reload'))
+      .mockResolvedValueOnce({ ...confirmed, revision: 9 });
+    const { onSaved } = openDialog();
+    await user.click(screen.getByRole('radio', { name: 'Usable' }));
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('radio', { name: 'Not usable' })).toHaveAttribute('aria-checked', 'true');
+    await user.click(screen.getByRole('button', { name: 'Confirm image & continue' }));
+    expect(await screen.findByText(/Image confirmed, but image quality was not saved/)).toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Save image quality' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ revision: 9 })));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(review).toHaveBeenLastCalledWith(item.image_id, expect.objectContaining({ revision: 8, action: 'QUALITY_INADEQUATE' }));
+  });
 });

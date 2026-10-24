@@ -48,7 +48,7 @@ for (const [route, Page] of [['review', ReviewPage], ['clinician-review', Clinic
       expect(screen.queryByText(/Fixture A -/)).not.toBeInTheDocument();
       await act(async () => b.resolve(new Response(JSON.stringify({ detail: 'Fixture unavailable' }), { status: 404 })));
       expect(await screen.findByText('Fixture unavailable')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Final DR grade')).not.toBeInTheDocument();
+      expect(screen.queryByRole('radiogroup', { name: 'Final DR grade' })).not.toBeInTheDocument();
     });
     it('ignores a late result from the previous image', async () => {
       const a = deferred<Response>();
@@ -76,8 +76,8 @@ describe('Grade mutation lifetime and refresh', () => {
       return json([]);
     });
     render(<ChakraProvider theme={theme}><MemoryRouter initialEntries={['/clinician-review/A']}><Routes><Route path='/clinician-review/:imageId' element={<><Switch /><ClinicianReviewPage /></>} /><Route path='/edit/:imageId' element={<div>Unexpected old navigation</div>} /></Routes></MemoryRouter></ChakraProvider>);
-    await screen.findByLabelText('Final DR grade');
-    fireEvent.change(screen.getByLabelText('Final DR grade'), { target: { value: '2' } });
+    await screen.findByRole('radiogroup', { name: 'Final DR grade' });
+    fireEvent.click(screen.getByRole('radio', { name: /^2 / }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     fireEvent.click(screen.getByText('Test switch'));
     await screen.findByText(/Fixture B -/);
@@ -91,9 +91,9 @@ describe('Grade mutation lifetime and refresh', () => {
     const pending = deferred<Response>();
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => init?.method === 'POST' ? pending.promise : json(String(input) === '/v1/cases/A' ? gradeCase('A') : []));
     render(<ChakraProvider theme={theme}><MemoryRouter initialEntries={['/clinician-review/A']}><Routes><Route path='/clinician-review/:imageId' element={<ClinicianReviewPage />} /></Routes></MemoryRouter></ChakraProvider>);
-    await screen.findByLabelText('Final DR grade');
+    await screen.findByRole('radiogroup', { name: 'Final DR grade' });
     const clean = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(clean); expect(clean.defaultPrevented).toBe(false);
-    fireEvent.change(screen.getByLabelText('Final DR grade'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('radio', { name: /^3 / }));
     fireEvent.change(screen.getByLabelText('Remark (optional)'), { target: { value: 'Synthetic draft' } });
     const dirty = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(dirty); expect(dirty.defaultPrevented).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
@@ -108,8 +108,8 @@ describe('Grade mutation lifetime and refresh', () => {
       return json(String(input) === '/v1/cases/A' ? gradeCase('A') : []);
     });
     render(<ChakraProvider theme={theme}><MemoryRouter initialEntries={['/clinician-review/A']}><Routes><Route path='/clinician-review/:imageId' element={<ClinicianReviewPage />} /></Routes></MemoryRouter></ChakraProvider>);
-    await screen.findByLabelText('Final DR grade');
-    fireEvent.change(screen.getByLabelText('Final DR grade'), { target: { value: '2' } });
+    await screen.findByRole('radiogroup', { name: 'Final DR grade' });
+    fireEvent.click(screen.getByRole('radio', { name: /^2 / }));
     const button = screen.getByRole('button', { name: 'Confirm DR grade' });
     act(() => { fireEvent.click(button); fireEvent.click(button); });
     await waitFor(() => expect(writes).toBe(1));

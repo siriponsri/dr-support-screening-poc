@@ -93,12 +93,17 @@ from the application chrome.
 }
 ~~~
 
-### 2.3 Legacy alignment note
+### 2.3 Theme alignment
 
-The current theme assigns Red Soil to the brand role. That is a
-naming/role mismatch with this normative system. No frontend implementation is
-changed by this document; future theme work must remap the primary brand role
-and keep Red Soil available as the institutional secondary accent.
+The theme maps the primary action and navigation roles to Medicine Green and
+keeps Red Soil as `accent.institutional*`. Approved institutional placements
+(owner, 2026-10-24): a 4px Red Soil band at the top of the sidebar and the
+"Faculty of Medicine, Khon Kaen University" wordmark under the product name
+(`redSoilDark`, lightened to `sidebarInstitutional` inside the dark sidebar).
+Red Soil is not used on buttons, the retinal image area or any status.
+
+UI text punctuation (owner, 2026-10-24): do not use the middle dot or long
+dashes as separators in clinician-facing text. Use "/", ":" or a short "-".
 
 ## 3. Neutral and Semantic Colors
 
@@ -106,7 +111,7 @@ and keep Red Soil available as the institutional secondary accent.
 
 | Token | Value | Use |
 |---|---|---|
-| neutral.canvas | #F7F9F7 | Application background |
+| neutral.canvas | #F6F7F6 | Application background |
 | neutral.panel | #FFFFFF | Panels, cards, dialogs, menus |
 | neutral.subtle | #F1F4F1 | Quiet surfaces and hover backgrounds |
 | neutral.muted | #E8ECE8 | Disabled surfaces and skeleton tracks |
@@ -350,15 +355,18 @@ Worklists are decision surfaces, not dashboard decoration.
 
 ## 11. Navigation and Sidebar
 
-- The shell is a quiet persistent frame: panel surface, 1px divider, no heavy
-  shadow, and clear page context in the top bar.
+- The shell is a quiet persistent frame: a deep green-black sidebar
+  (`sidebarBackground` #16231A, owner-approved 2026-10-24), 1px divider, no heavy
+  shadow, and clear page context in the top bar. The sidebar re-points the
+  semantic tokens through `sidebarScope` (`frontend/src/theme/index.ts`) so
+  nested components keep using the same aliases.
 - Expanded sidebar widths: approximately 210px tablet, 236px laptop, 256px
   desktop. Collapsed mode is approximately 64-68px and icon-only.
 - Mobile uses a navigation drawer opened by a labeled menu control.
 - Brand mark may use Medicine Green. Institutional Red Soil may appear as a
   small secondary detail, but must not dominate the shell.
-- Active navigation uses Medicine Green text/indicator and a soft green
-  background. Do not use Red Soil as the default active state.
+- Active navigation uses a raised green background (`sidebarActive`) with a
+  light green left indicator. Do not use Red Soil as the default active state.
 - The active state needs aria-current="page"; collapsed icon-only items need
   tooltips and accessible labels.
 - Group navigation by task, not by implementation or API endpoint. Keep the

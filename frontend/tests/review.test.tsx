@@ -221,7 +221,7 @@ describe('Review responsibility boundary', () => {
     ]);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByText('IMG13 · Left')).toBeInTheDocument();
+    expect(await screen.findByText('IMG13 / Left')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Analyze/ })).toBeEnabled();
     expect(screen.queryByLabelText('Pseudonymous patient key')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Image admission' })).not.toBeInTheDocument();
@@ -231,17 +231,17 @@ describe('Review responsibility boundary', () => {
     await user.click(screen.getByRole('link', { name: 'Continue to clinician review' }));
     expect(await screen.findByRole('heading', { name: 'Clinician decision' })).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText('Reviewer name'), 'Review clinician');
-    await user.selectOptions(screen.getByLabelText('Final DR grade'), '2');
+    await user.click(await screen.findByRole('radio', { name: /^2 / }));
     await user.click(screen.getByRole('button', { name: 'Grade guide' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('3 - Severe NPDR');
     await user.keyboard('{Escape}');
     expect(screen.getByPlaceholderText('Reviewer name')).toHaveValue('Review clinician');
-    expect(screen.getByLabelText('Final DR grade')).toHaveValue('2');
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^2 / })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getAllByRole('radio')).toHaveLength(6);
     expect(screen.queryByRole('button', { name: 'Send for senior review' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     expect(reviewRequest).toMatchObject({ action: 'ACCEPT', grade: 2, reviewer: 'Review clinician' });
-    expect(await screen.findByRole('button', { name: 'Finish - reviewed none found' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Finish: no findings added (1 AI suggestion not accepted)' })).toBeInTheDocument();
   });
 
   it('shows recorded mask, transforms, and model-domain warning in Processing details', async () => {
@@ -269,6 +269,9 @@ describe('Review responsibility boundary', () => {
     renderAppAt('/review/ready');
 
     expect(await screen.findByText('Mask preparation failed; Original remains available; PRISM input is not established')).toBeInTheDocument();
+    // Processing views sit behind progressive disclosure.
+    expect(screen.queryByLabelText('Mask status')).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'More views' }));
     expect(screen.getByLabelText('Mask status')).toHaveTextContent('Unavailable');
     expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Mask preview' }));
@@ -295,7 +298,8 @@ describe('Review responsibility boundary', () => {
     mockReviewApi(undefined, needsReviewCase);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByText('Candidate - review only')).toBeInTheDocument();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'More views' }));
+    expect(screen.getByText('Candidate - review only')).toBeInTheDocument();
     expect(screen.getByText('A candidate mask is available in Mask preview for inspection only; it is not approved model input.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Analysis area' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Mask preview' })).toBeEnabled();
@@ -389,6 +393,7 @@ describe('Review responsibility boundary', () => {
     expect(screen.getByRole('heading', { name: 'Lesion suggestions' })).toBeInTheDocument();
     expect(screen.getByText(/Recorded model evidence remains visible/i)).toBeInTheDocument();
 
+    await userEvent.setup().click(screen.getByRole('button', { name: 'More views' }));
     await userEvent.setup().click(screen.getByRole('button', { name: 'Explainability' }));
     expect(screen.getByLabelText('Retinal image viewer stage')).toBeInTheDocument();
     expect(screen.getByText('No explainability receipt was returned for this case.')).toBeInTheDocument();
@@ -553,7 +558,7 @@ describe('Review responsibility boundary', () => {
 
     expect(await screen.findByRole('heading', { name: 'Clinician decision' })).toBeInTheDocument();
     expect(screen.getByText('Legacy senior-review record')).toBeInTheDocument();
-    expect(screen.getByLabelText('Final DR grade')).toBeInTheDocument();
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Final DR grade' })).toBeInTheDocument();
+    expect(screen.getAllByRole('radio')).toHaveLength(6);
   });
 });
