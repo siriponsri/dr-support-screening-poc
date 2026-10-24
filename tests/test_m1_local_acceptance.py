@@ -60,3 +60,55 @@ def test_only_database_keys_are_loaded(tmp_path, monkeypatch):
     import os
     assert os.environ['DR_SUPPORT_DATABASE_URL'] == 'postgresql://synthetic.invalid/db'
     assert 'REMOTE_MODEL_TOKEN' not in os.environ
+
+
+def test_identity_keys_are_never_hashed_per_key():
+    case = synthetic_case()
+    case['admission'].update(trusted_patient_key='HOSPITAL-SYNTHETIC', filename='synthetic.jpg')
+    case['visit_context'] = {'visit_key': 'V1'}
+    keys = tool.record_from_payload(4, case)['payload_key_sha256']
+    assert not set(keys) & tool.IDENTITY_KEYS
+    stripped = {name: value for name, value in case['admission'].items() if name not in tool.ADMISSION_IDENTITY}
+    assert keys['admission'] == tool.digest(stripped)
+
+
+def test_failure_checks_stop_before_any_request_when_revisions_differ(monkeypatch):
+    sent = []
+    monkeypatch.setattr(tool, 'read_case', lambda workspace, case: (5, synthetic_case()))
+    monkeypatch.setattr(tool, 'http_json', lambda *args, **kwargs: sent.append(args) or {})
+
+    class Reply:
+        def __init__(self, body):
+            self.body = body
+
+        def read(self):
+            return json.dumps(self.body).encode()
+
+    replies = {'/v1/cases/c1': {'revision': 6, 'modality': 'CFP'}, '/v1/models': []}
+    monkeypatch.setattr(tool.urlrequest, 'urlopen',
+                        lambda url, timeout: Reply(replies[url.removeprefix('http://synthetic.invalid')]))
+    import pytest
+    with pytest.raises(SystemExit, match='SAME_REVISION'):
+        tool.main(['failure-checks', '--workspace-id', 'w', '--case-id', 'c1', '--base-url', 'http://synthetic.invalid'])
+    replies['/v1/cases/c1']['revision'] = 5
+    replies['/v1/models'] = [{'model_id': 'retfound-aptos5', 'status': 'LOADED', 'ready': True}]
+    with pytest.raises(SystemExit, match='MODEL_API_REACHABLE'):
+        tool.main(['failure-checks', '--workspace-id', 'w', '--case-id', 'c1', '--base-url', 'http://synthetic.invalid'])
+    assert sent == []
+
+
+def test_unknown_server_detail_is_not_recorded(monkeypatch):
+    class Failure(tool.urlerror.HTTPError):
+        def __init__(self):
+            super().__init__('http://synthetic.invalid', 502, 'bad', {}, None)
+
+        def read(self):
+            return json.dumps({'detail': self.detail}).encode()
+
+    for detail in ('upstream said secret-ish text', [{'loc': ['body'], 'msg': 'invalid'}]):
+        Failure.detail = detail
+
+        def fail(request, timeout):
+            raise Failure()
+        monkeypatch.setattr(tool.urlrequest, 'urlopen', fail)
+        assert tool.http_json('GET', 'http://synthetic.invalid', None)['detail'] is None

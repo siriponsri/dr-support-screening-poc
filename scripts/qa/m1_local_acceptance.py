@@ -13,12 +13,14 @@ Commands:
       record is also written to DIR/NAME.json (DIR must already exist).
   compare BEFORE.json AFTER.json
       Print which recorded fields are equal between two snapshots.
+  Identity-bearing payload keys are never hashed per key; see IDENTITY_KEYS.
   failure-checks --workspace-id ID --case-id ID [--base-url URL] [--out DIR]
       Send rejected requests to the running local app (stale revision,
       malformed body, unknown case, analysis while the Model API is
       unreachable) and prove with before/after SQL reads that the case did not
-      change. The analysis check is a real request; run it only while the
-      Model API link is down and only on a TEST_ONLY workspace.
+      change. It stops unless the app and the SQL read show the same revision
+      and the Model API reports the model unreachable, so no real inference is
+      sent. Use only on a TEST_ONLY workspace.
 """
 from __future__ import annotations
 
@@ -33,6 +35,16 @@ from urllib import error as urlerror, request as urlrequest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DB_KEYS = ('DR_SUPPORT_DATABASE_URL', 'DR_SUPPORT_DATABASE_SCHEMA', 'DR_SUPPORT_DATABASE_CONNECT_TIMEOUT')
+# Top-level keys that carry patient identity or filenames: never hashed per key
+# (a short identifier could be recovered by guessing).
+IDENTITY_KEYS = frozenset({'patient_key', 'patient_candidate', 'patient_display_label', 'visit_context',
+                           'resolution_history', 'resolver_evidence', 'resolver_ui', 'filename', 'display_name',
+                           'image_url', 'source', 'source_reference'})
+# Admission subfields that carry identity; the rest of admission is hashed.
+ADMISSION_IDENTITY = frozenset({'trusted_patient_key', 'filename', 'source_reference', 'integrity'})
+# Only these server details are recorded verbatim; anything else is dropped.
+SAFE_DETAILS = frozenset({'Case changed; reload before reviewing', 'Image not admitted',
+                          'AI analysis is not available; manual review remains available.'})
 FIELDS = ('revision', 'grade_status', 'clinician_review', 'human_annotations', 'annotation_confirmation',
           'core_completeness', 'ai_annotation_reviews', 'inference_history', 'source_sha256', 'quality_state')
 
@@ -70,6 +82,17 @@ def read_case(workspace_id: str, case_id: str):
     return rows[0]
 
 
+def payload_key_digests(payload: dict) -> dict:
+    digests = {}
+    for key, value in sorted(payload.items()):
+        if key in IDENTITY_KEYS:
+            continue
+        if key == 'admission' and isinstance(value, dict):
+            value = {name: item for name, item in value.items() if name not in ADMISSION_IDENTITY}
+        digests[key] = digest(value)
+    return digests
+
+
 def record_from_payload(revision: int, payload: dict) -> dict:
     review = payload.get('clinician_review') or None
     annotations = [{key: shape.get(key) for key in ('shape_id', 'type', 'label', 'geometry', 'source', 'reviewer')}
@@ -96,7 +119,7 @@ def record_from_payload(revision: int, payload: dict) -> dict:
     return {'fields': fields, 'field_sha256': {key: digest(value) for key, value in fields.items()},
             'payload_sha256': digest(payload),
             # Per top-level key, so a whole-payload change can be attributed.
-            'payload_key_sha256': {key: digest(value) for key, value in sorted(payload.items())},
+            'payload_key_sha256': payload_key_digests(payload),
             # The stored confirmation hash must equal the hash of the current human set.
             'annotation_set_hash_recomputed': recomputed,
             'annotation_set_hash_matches': confirmation is not None
@@ -146,7 +169,7 @@ def http_json(method: str, url: str, body: bytes | None, timeout: float = 120):
     except (ValueError, AttributeError):
         detail = None
     return {'status': status, 'seconds': round(time.monotonic() - started, 2),
-            'detail': detail if isinstance(detail, str) else None}
+            'detail': detail if isinstance(detail, str) and detail in SAFE_DETAILS else None}
 
 
 def failure_checks(args) -> int:
@@ -161,9 +184,18 @@ def failure_checks(args) -> int:
 
     revision, before = state()
     current = json.loads(urlrequest.urlopen(f'{base}/v1/cases/{case}', timeout=30).read())
+    # The app and the SQL read must describe the same case, or the stale request could land elsewhere.
+    if current.get('revision') != revision:
+        raise SystemExit('APP_AND_DATABASE_MUST_SHOW_THE_SAME_REVISION')
+    models = json.loads(urlrequest.urlopen(f'{base}/v1/models', timeout=60).read())
+    if any(model.get('model_id') == args.model_id and (model.get('ready') or model.get('status') == 'LOADED')
+           for model in models):
+        raise SystemExit('MODEL_API_REACHABLE_NO_REAL_REQUEST_SENT')
     checks = {
+        # A revision far ahead of the current one can never be accepted.
         'stale_revision_review': http_json('POST', f'{base}/v1/cases/{case}/review', json.dumps(
-            {'revision': revision - 1, 'action': 'ACCEPT', 'reviewer': 'TEST_ONLY_ENGINEERING', 'grade': 0}).encode()),
+            {'revision': revision + 10_000, 'action': 'ACCEPT', 'reviewer': 'TEST_ONLY_ENGINEERING',
+             'grade': 0}).encode()),
         'malformed_review_body': http_json('POST', f'{base}/v1/cases/{case}/review', b'{not json'),
         'unknown_case': http_json('GET', f'{base}/v1/cases/{"0" * 64}', None),
         'analysis_while_model_api_unreachable': http_json('POST', f'{base}/v1/infer/global', json.dumps(
