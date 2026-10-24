@@ -400,11 +400,17 @@ function ReviewPageSession() {
     }
   }, [imageId]);
 
+  // Overlapping reads (focus + visibility, timer + analysis) keep only the newest reply.
+  const modelRequest = useRef(0);
   const loadModels = useCallback(async () => {
+    const request = ++modelRequest.current;
     try {
-      setModels(await apiJson<ModelDescriptor[]>('/v1/models'));
+      const loaded = await apiJson<ModelDescriptor[]>('/v1/models');
+      if (request !== modelRequest.current) return;
+      setModels(loaded);
       setModelError(null);
     } catch (err) {
+      if (request !== modelRequest.current) return;
       setModelError(errorText(err));
     }
   }, []);
@@ -553,7 +559,9 @@ function ReviewPageSession() {
     ? `data:image/png;base64,${prismField.field_mask_png_base64}`
     : undefined;
   const hasRecordedEvidence = Boolean(item?.global || item?.lesion);
-  const aiReady = analysisAllowed && !analysisError;
+  // Availability follows the latest model read; an earlier failed run keeps its
+  // own error message but does not pin the badge once the Model API is back.
+  const aiReady = analysisAllowed;
   const aiStatus = prismNeedsPreview && !globalModel ? 'PRISM PREVIEW REQUIRED' : aiReady ? 'AI READY' : 'AI UNAVAILABLE';
   const prismUwfResult = item?.modality === 'UWF' && item.lesion?.model_id === 'prism-dr-5fold';
   const comparisonIdentityResolved = Boolean(
