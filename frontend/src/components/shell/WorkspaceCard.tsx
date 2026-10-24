@@ -67,7 +67,7 @@ export function WorkspaceCard({ variant = 'full', ...rest }: WorkspaceCardProps)
       borderWidth="1px"
       borderStyle="dashed"
       borderColor={degraded ? 'status.warningBorder' : 'border.default'}
-      bg={degraded ? 'status.warningSoft' : 'surface.panel'}
+      bg={degraded ? 'surface.subtle' : 'surface.panel'}
       p={3}
       {...rest}
     >
@@ -80,7 +80,7 @@ export function WorkspaceCard({ variant = 'full', ...rest }: WorkspaceCardProps)
           h="26px"
           borderRadius="md"
           bg={degraded ? 'surface.panel' : 'surface.subtle'}
-          color={degraded ? 'status.warning' : 'text.secondary'}
+          color={degraded ? 'status.warningBorder' : 'text.secondary'}
           flexShrink={0}
         >
           {degraded ? <AlertTriangle size={14} strokeWidth={2.25} aria-hidden="true" /> : <Plus size={14} strokeWidth={2.25} aria-hidden="true" />}
