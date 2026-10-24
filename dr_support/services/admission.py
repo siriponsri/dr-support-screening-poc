@@ -948,6 +948,30 @@ def scan_input_folder(
     return AdmissionScan(images, records, warnings, len(paths))
 
 
+ADMISSION_TIMESTAMPS = ("created_at", "updated_at")
+
+
+def preserve_admission_timestamps(saved: dict | None, record: dict) -> dict:
+    """Keep the first admission time across rescans and app restarts.
+
+    ``created_at`` stays the time the source was first admitted. ``updated_at``
+    moves only when the rescanned admission content differs from the saved
+    record. No other admission field or decision is touched.
+    """
+    if not saved:
+        return record
+    unchanged = (
+        {key: value for key, value in saved.items() if key not in ADMISSION_TIMESTAMPS}
+        == {key: value for key, value in record.items() if key not in ADMISSION_TIMESTAMPS}
+    )
+    return {
+        **record,
+        "created_at": saved.get("created_at") or record.get("created_at"),
+        "updated_at": (saved.get("updated_at") if unchanged and saved.get("updated_at")
+                       else record.get("updated_at")),
+    }
+
+
 def scan_authorized_hospital_roots(
     *,
     previous_records: dict[str, dict] | None = None,
