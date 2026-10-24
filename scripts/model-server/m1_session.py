@@ -12,6 +12,10 @@ through the bound transport (``/v1/prism-bound/*``) on one authenticated
 loopback port. No retry, renewal, public listener, credential creation or
 second lease exists. Control RPCs (discovery, prepare, status, grant) are not
 charged; every execute/predict is charged once before dispatch.
+
+The window name and caps come from the verified decision (2026-10-23 or the
+PRISM continuation). ``handover`` fences a closed source ledger for the next
+approved decision; ``verify`` dry-runs a draft with a temporary approval.
 """
 from __future__ import annotations
 
@@ -542,6 +546,55 @@ def identity_command(args):
     return 0
 
 
+def handover_command(args):
+    """Permanently fence a closed source ledger for the next owner-approved decision.
+
+    The source decision is verified against its own deployment's installation;
+    the destination is THIS deployment. Keeps the source owner lock and all data.
+    """
+    bindings(args.deploy)
+    from batch_ledger import BatchLedger
+    ledger = BatchLedger.for_continuation(
+        args.accounting, proposal_path=args.proposal, approval_path=args.approval,
+        proposal_sha256=args.proposal_sha256, approval_sha256=args.approval_sha256,
+        upstream_paths=read_json(args.upstream_paths), installation_sha256=installation_digest(args.source_deploy))
+    ledger.acquire()
+    export = ledger.fence_handover(destination_installation_sha256=installation_digest(args.deploy))
+    raw = (Path(args.accounting) / 'HANDOVER_EXPORT.json').read_bytes()
+    print(json.dumps({'status': export['status'], 'handover_export_sha256': sha(raw),
+                      'global_used': export['global_used'], 'remaining': len(export['remaining_job_ids']),
+                      'destination_installation_sha256': export['destination_installation_sha256']}))
+    return 0
+
+
+def verify_command(args):
+    """Dry-run the exact verifier on an unapproved draft with a temporary approval.
+
+    Writes only that temporary file (removed afterwards); no ledger, window or GPU.
+    """
+    import tempfile
+    bindings(args.deploy)
+    from batch_ledger import _verify_decision
+    raw = Path(args.proposal).read_bytes()
+    proposal, digest_value = json.loads(raw), sha(raw)
+    with tempfile.TemporaryDirectory() as temporary:
+        approval = Path(temporary) / 'APPROVAL.dry-run.json'
+        approval.write_bytes(canonical({'schema': 'hospital-m1-owner-approval.v1',
+                                        'decision_id': proposal['decision_id'], 'proposal_sha256': digest_value,
+                                        'status': 'EXPLICIT_OWNER_APPROVED_NOT_ACTIVATED'}))
+        verified = _verify_decision(args.accounting, args.proposal, approval, digest_value,
+                                    sha(approval.read_bytes()), read_json(args.upstream_paths),
+                                    installation_digest(args.deploy))
+    spec = verified['spec']
+    print(json.dumps({'status': 'DRY_RUN_VERIFIED_NOT_APPROVED', 'proposal_sha256': digest_value,
+                      'decision_id': spec['decision_id'], 'base_used': spec['base_used'], 'cap': spec['cap'],
+                      'window': spec['server_window'], 'caps': spec['windows'][spec['server_window']],
+                      'prior_gpu_seconds': spec['prior_gpu_seconds'],
+                      'operations': [{key: job[key] for key in ('operation_id', 'model_id', 'modality')}
+                                     | {'source': job['source_sha256'][:12]} for job in proposal['operations']]}))
+    return 0
+
+
 def worker(args):
     bindings(args.deploy)
     run = Path(args.run)
@@ -627,7 +680,7 @@ def parent(args):
     bindings(args.deploy)
     import m1_operations as operations
     from batch_budget import BatchBudget, activate_continuation_window
-    from batch_ledger import M1_GPU0, M1_SERVER, BatchLedger
+    from batch_ledger import M1_GPU0, BatchLedger
     from m1_admission import M1AdmissionConsumer
     from scripts.qa.disk_monitor import ProjectDiskMonitor
     from scripts.qa.gpu_monitor import GPU0Monitor
@@ -639,7 +692,7 @@ def parent(args):
     run.mkdir(mode=0o700)
     (run / 'readback').mkdir(mode=0o700)
     new_json(run / 'STARTED_ONCE', {'started_utc': time.time(), 'session_seconds': SESSION_SECONDS})
-    result = {'window_id': M1_SERVER, 'automatic_retries': 0}
+    result = {'window_id': None, 'automatic_retries': 0}
     disk, gpu, child, supervisor = ProjectDiskMonitor(PROJECT), GPU0Monitor(GPU), None, None
     ledger = budget = lease = service = None
     started = time.monotonic()
@@ -664,26 +717,29 @@ def parent(args):
             proposal_sha256=args.proposal_sha256, approval_sha256=args.approval_sha256,
             upstream_paths=read_json(args.upstream_paths), installation_sha256=installation_digest(args.deploy))
         ledger.acquire()
+        # The verified decision names its only Server window and caps.
+        window = result['window_id'] = ledger.spec['server_window']
         clock_origin = host_clock_origin()
-        if not (Path(args.accounting) / 'windows' / M1_SERVER).exists():
-            activate_continuation_window(ledger, window_id=M1_SERVER, clock_origin=clock_origin, gpu_uuid=M1_GPU0)
-        budget = BatchBudget(ledger, session_id=M1_SERVER, clock_origin=clock_origin)
+        if not (Path(args.accounting) / 'windows' / window).exists():
+            activate_continuation_window(ledger, window_id=window, clock_origin=clock_origin, gpu_uuid=M1_GPU0)
+        budget = BatchBudget(ledger, session_id=window, clock_origin=clock_origin)
         candidate = 'm1_server_' + uuid4().hex[:16]
         budget.reserve_worker(candidate)
         lease = result['lease_id'] = candidate
         argv = [str(PROJECT / 'environments/prism-qa-torch213/bin/python'), '-I', '-B',
                 str(Path(__file__).resolve()), '--worker', '--deploy', str(args.deploy), '--run', str(run),
                 '--models', str(args.models), '--prism-pins', str(args.prism_pins)]
-        scope = 'hospital_m1_qa_server_20261023'
+        scope = window.lower()
         child = LinuxOwnedChild.spawn(argv, model_id='prism-dr-5fold', owner_scope=scope,
                                      resource_provider=LinuxResources(PROJECT, disk_monitor=disk, gpu_monitor=gpu),
                                      hard_seconds=CHILD_HARD_SECONDS, env=child_environment(run))
+        window_jobs = sum(job['window_id'] == window for job in ledger.jobs.values())
         supervisor = WorkerSupervisor(Policy('prism-dr-5fold', os.getpid(), scope, command_digest(argv), GPU,
-                                             max_jobs=18, max_seconds=SESSION_SECONDS, request_seconds=30,
+                                             max_jobs=window_jobs, max_seconds=SESSION_SECONDS, request_seconds=30,
                                              drain_seconds=20, monitor_seconds=2), child)
         consumer = M1AdmissionConsumer(ledger, budget, supervisor, child=child, lease_id=lease)
         service = ParentAdmissions(run, consumer=consumer, ledger=ledger, child=child,
-                                   window_id=M1_SERVER, operations=operations, readback_dir=run / 'readback')
+                                   window_id=window, operations=operations, readback_dir=run / 'readback')
         announced = False
         while child.inspect():
             supervisor.tick()
@@ -742,7 +798,8 @@ def parent(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['start', 'identity', 'status', 'stop'], nargs='?', default='start')
+    parser.add_argument('command', choices=['start', 'identity', 'status', 'stop', 'handover', 'verify'],
+                        nargs='?', default='start')
     parser.add_argument('--worker', action='store_true')
     parser.add_argument('--deploy', type=Path)
     parser.add_argument('--run', type=Path)
@@ -754,6 +811,7 @@ def main():
     parser.add_argument('--proposal-sha256')
     parser.add_argument('--approval-sha256')
     parser.add_argument('--upstream-paths', type=Path)
+    parser.add_argument('--source-deploy', type=Path, help='handover: the source decision\'s own deployment')
     args = parser.parse_args()
     if sys.platform != 'linux':
         parser.error('Run on the approved GPU host through the existing SSH connection')
@@ -761,6 +819,10 @@ def main():
         return worker(args)
     if args.command == 'identity':
         return identity_command(args)
+    if args.command == 'handover':
+        return handover_command(args)
+    if args.command == 'verify':
+        return verify_command(args)
     if args.command == 'status':
         print((Path(args.run) / 'STATUS.json').read_text())
         return 0
