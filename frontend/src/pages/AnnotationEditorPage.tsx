@@ -558,6 +558,13 @@ function AnnotationEditorPageSession() {
   const importedFindingCount = item?.annotations?.length ?? 0;
   const recordedFindingCount = draft.length + importedFindingCount;
   const hasRecordedFindings = recordedFindingCount > 0;
+  // With no human finding, every AI suggestion stays unaccepted; say so on Finish.
+  const unacceptedAiCount = hasRecordedFindings ? 0 : item?.lesion_review?.suggestion_count ?? 0;
+  const finishLabel = hasRecordedFindings
+    ? 'Finish image & next'
+    : unacceptedAiCount > 0
+      ? `Finish: no findings added (${unacceptedAiCount} AI suggestion${unacceptedAiCount === 1 ? '' : 's'} not accepted)`
+      : 'Finish: reviewed none found';
 
   const commit = (next: HumanAnnotation[], nextSelection: string | null = null) => {
     if (readOnly || actionBusyRef.current) return;
@@ -1390,13 +1397,13 @@ function AnnotationEditorPageSession() {
           </Stack>
         </Alert>
       )}
-      {readOnly && !completing && (
+      {annotationConfirmed && !editingConfirmed && !completing && (
         <Alert status="info" mb={4}>
           <AlertIcon />
           <Stack spacing={1}>
             <Text fontWeight="semibold">Annotations confirmed</Text>
-            <Text fontSize="sm">Reviewer: {item.annotation_confirmation?.reviewer ?? 'Not recorded'}</Text>
-            <Text fontSize="sm">Confirmed at: {formatTimestamp(item.annotation_confirmation?.timestamp)}</Text>
+            {item.annotation_confirmation?.reviewer && <Text fontSize="sm">Reviewer: {item.annotation_confirmation.reviewer}</Text>}
+            {item.annotation_confirmation?.timestamp && <Text fontSize="sm">Confirmed at: {formatTimestamp(item.annotation_confirmation.timestamp)}</Text>}
           </Stack>
         </Alert>
       )}
@@ -1484,7 +1491,7 @@ function AnnotationEditorPageSession() {
           <Section title={completedReview ? 'Review complete' : 'Complete review'} description={hasRecordedFindings ? `${recordedFindingCount} finding${recordedFindingCount === 1 ? '' : 's'} recorded.` : 'No Core findings recorded.'}>
             <Stack spacing={3}>
               {!completedReview && <GuideHint step="findings" />}
-              {!hasRecordedFindings && !annotationConfirmed && <Text fontSize="sm" color="text.secondary">Finishing confirms Core findings were reviewed and none were found.</Text>}
+              {!hasRecordedFindings && !annotationConfirmed && <Text fontSize="sm" color="text.secondary">Finishing confirms Core findings were reviewed and none were found.{unacceptedAiCount > 0 ? ' AI suggestions you did not accept are not recorded as findings.' : ''}</Text>}
               {!completedReview && <ReviewerField compact id="annotation-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />}
               {saveError && <Alert status="error" aria-live="assertive"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
               {readOnly && hasConfirmedGrade && !completing ? (
@@ -1493,7 +1500,7 @@ function AnnotationEditorPageSession() {
                   <Button variant="outline" onClick={() => void beginAnnotationEdit()}>Edit confirmed annotations</Button>
                 </HStack>
               ) : (
-                <Button variant="solid" onClick={() => void completeCase()} isLoading={completing || saving || Boolean(completenessSaving)} loadingText="Finishing" isDisabled={!hasConfirmedGrade || roiSaving}>Finish {hasRecordedFindings ? 'image & next' : '- reviewed none found'}</Button>
+                <Button variant="solid" onClick={() => void completeCase()} isLoading={completing || saving || Boolean(completenessSaving)} loadingText="Finishing" isDisabled={!hasConfirmedGrade || roiSaving} whiteSpace="normal" h="auto" minH="36px" py={2}>{finishLabel}</Button>
               )}
             </Stack>
           </Section>

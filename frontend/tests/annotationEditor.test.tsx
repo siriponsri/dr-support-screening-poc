@@ -341,7 +341,7 @@ describe('AnnotationEditorPage human movement', () => {
     });
     await waitFor(() => expect(screen.getByText('0 human annotations')).toBeInTheDocument());
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
+    await user.click(screen.getByRole('button', { name: 'Finish: reviewed none found' }));
 
     expect(requests).not.toContain('/v1/cases/CASE-001/annotations');
     expect(requests).toContain('/v1/cases/CASE-001/review');
@@ -383,7 +383,7 @@ describe('AnnotationEditorPage human movement', () => {
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText('0 human annotations')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Record partial review' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
+    await user.click(screen.getByRole('button', { name: 'Finish: reviewed none found' }));
     await waitFor(() => expect(completenessRequest).toMatchObject({
       group: 'CORE', state: 'REVIEWED_NONE_FOUND', reviewer: 'Clinician', taxonomy_version: 'core-lesions-v1',
     }));
@@ -461,13 +461,13 @@ describe('AnnotationEditorPage human movement', () => {
       return current;
     });
     const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Finish - reviewed none found' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Finish: reviewed none found' })).toBeInTheDocument());
 
-    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
+    await user.click(screen.getByRole('button', { name: 'Finish: reviewed none found' }));
     expect(await screen.findByText('Connection lost after save')).toBeInTheDocument();
     expect(screen.queryByText(/Case complete/)).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
+    await user.click(screen.getByRole('button', { name: 'Finish: reviewed none found' }));
     await waitFor(() => expect(confirmationRequest).toMatchObject({ revision: 2, action: 'CONFIRM_ANNOTATIONS', reviewer: 'Clinician' }));
     expect(completenessAttempts).toBe(1);
   });
@@ -557,10 +557,10 @@ describe('AnnotationEditorPage human movement', () => {
       return current;
     });
     const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Finish - reviewed none found' })).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Finish: reviewed none found' })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Finish: reviewed none found' }));
     await waitFor(() => expect(screen.getByText('Confirmation failed')).toBeInTheDocument());
-    await user.click(screen.getByRole('button', { name: 'Finish - reviewed none found' }));
+    await user.click(screen.getByRole('button', { name: 'Finish: reviewed none found' }));
     await waitFor(() => expect(completenessAttempts).toBe(2));
   });
 
@@ -709,7 +709,7 @@ describe('Finish concurrency and reload boundary', () => {
       if (String(input).endsWith('/annotation-completeness') && init?.method === 'PUT') { completenessWrites += 1; return pending; }
       return String(input) === '/v1/cases' ? [] : { ...item, human_annotations: [] };
     });
-    const button = await screen.findByRole('button', { name: 'Finish - reviewed none found' });
+    const button = await screen.findByRole('button', { name: 'Finish: reviewed none found' });
     act(() => { fireEvent.click(button); fireEvent.click(button); });
     await waitFor(() => expect(completenessWrites).toBe(1));
     const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event);
