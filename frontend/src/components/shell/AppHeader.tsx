@@ -120,6 +120,7 @@ const RUNTIME_VISUAL: Record<ReturnType<typeof useRuntimeHealth>['tone'], Runtim
   idle:      { bg: 'surface.subtle', border: 'border.subtle',    fg: 'text.secondary', dot: 'text.muted' },
   checking:  { bg: 'surface.subtle', border: 'border.subtle',    fg: 'text.secondary', dot: 'text.muted' },
   online:    { bg: 'status.successSoft', border: 'status.successBorder', fg: 'status.success', dot: 'status.success' },
+  research:  { bg: 'surface.subtle', border: 'border.subtle',    fg: 'text.secondary', dot: 'text.muted' },
   warnings:  { bg: 'status.warningSoft', border: 'status.warningBorder', fg: 'status.warning', dot: 'status.warning' },
   offline:   { bg: 'status.dangerSoft',  border: 'status.dangerBorder',  fg: 'status.danger',  dot: 'status.danger' },
 };

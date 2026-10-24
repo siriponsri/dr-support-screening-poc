@@ -93,12 +93,14 @@ from the application chrome.
 }
 ~~~
 
-### 2.3 Legacy alignment note
+### 2.3 Theme alignment
 
-The current theme assigns Red Soil to the brand role. That is a
-naming/role mismatch with this normative system. No frontend implementation is
-changed by this document; future theme work must remap the primary brand role
-and keep Red Soil available as the institutional secondary accent.
+The theme maps the primary action and navigation roles to Medicine Green and
+keeps Red Soil as `accent.institutional*`. Approved institutional placements
+(owner, 2026-10-24): a 4px Red Soil band at the top of the sidebar and the
+"Khon Kaen University · Faculty of Medicine" wordmark in `redSoilDark` under the
+product name. Red Soil is not used on buttons, the retinal image area or any
+status.
 
 ## 3. Neutral and Semantic Colors
 

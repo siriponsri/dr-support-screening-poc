@@ -17,36 +17,41 @@
  * Global setup (in tests/setup.ts) installs a permissive matchMedia stub
  * and a network failure mock so the shell renders without throwing.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderAppAt } from './testUtils';
 import { theme } from '@/theme';
+import { RESEARCH_NOTICE } from '@/hooks/useRuntimeHealth';
 
 describe('Sidebar navigation', () => {
-  it('renders all five primary nav destinations on desktop', () => {
+  it('keeps routine clinical review apart from administration', () => {
     renderAppAt('/worklist');
-    const primary = screen.getByRole('navigation', { name: 'Primary' });
-    const primaryScope = within(primary);
-    expect(primaryScope.getByRole('link', { name: /Worklist/i })).toBeInTheDocument();
-    expect(primaryScope.getByRole('link', { name: /Datasets/i })).toBeInTheDocument();
-    expect(primaryScope.getByRole('link', { name: /^Review$/i })).toBeInTheDocument();
-    expect(primaryScope.getByRole('link', { name: /Models.*Audit/i })).toBeInTheDocument();
+    const primary = within(screen.getByRole('navigation', { name: 'Primary' }));
+    expect(primary.getByRole('link', { name: /Worklist/i })).toBeInTheDocument();
+    expect(primary.getByRole('link', { name: /^Review$/i })).toBeInTheDocument();
+    expect(primary.queryByRole('link', { name: /Datasets/i })).not.toBeInTheDocument();
+    expect(primary.queryByRole('link', { name: /Models.*Audit/i })).not.toBeInTheDocument();
 
-    // Settings lives in a separate "Configuration" landmark.
-    const config = screen.getByRole('navigation', { name: /Configuration/i });
-    expect(within(config).getByRole('link', { name: /Settings/i })).toBeInTheDocument();
+    const admin = within(screen.getByRole('navigation', { name: /Administration/i }));
+    expect(admin.getByRole('link', { name: /Datasets/i })).toBeInTheDocument();
+    expect(admin.getByRole('link', { name: /Models.*Audit/i })).toBeInTheDocument();
+    expect(admin.getByRole('link', { name: /Settings/i })).toBeInTheDocument();
   });
 
   it('marks only the active route with aria-current=page', () => {
     renderAppAt('/datasets');
-    const primary = screen.getByRole('navigation', { name: 'Primary' });
-    const primaryScope = within(primary);
-    expect(primaryScope.getByRole('link', { name: /Datasets/i })).toHaveAttribute('aria-current', 'page');
-    expect(primaryScope.getByRole('link', { name: /Worklist/i })).not.toHaveAttribute('aria-current');
+    const admin = within(screen.getByRole('navigation', { name: /Administration/i }));
+    expect(admin.getByRole('link', { name: /Datasets/i })).toHaveAttribute('aria-current', 'page');
+    expect(admin.getByRole('link', { name: /Settings/i })).not.toHaveAttribute('aria-current');
+    const primary = within(screen.getByRole('navigation', { name: 'Primary' }));
+    expect(primary.getByRole('link', { name: /Worklist/i })).not.toHaveAttribute('aria-current');
+  });
 
-    const config = screen.getByRole('navigation', { name: /Configuration/i });
-    expect(within(config).getByRole('link', { name: /Settings/i })).not.toHaveAttribute('aria-current');
+  it('shows the KKU institutional band and wordmark', () => {
+    renderAppAt('/worklist');
+    expect(screen.getAllByTestId('institutional-band').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Khon Kaen University · Faculty of Medicine/).length).toBeGreaterThan(0);
   });
 
   it('exposes a brand mark and an explicit workspace recovery state', async () => {
@@ -97,8 +102,8 @@ describe('Route navigation', () => {
   it('clicking a nav row navigates within the router', async () => {
     const user = userEvent.setup();
     renderAppAt('/worklist');
-    const primary = screen.getByRole('navigation', { name: 'Primary' });
-    const link = within(primary).getByRole('link', { name: /Models.*Audit/i });
+    const admin = screen.getByRole('navigation', { name: /Administration/i });
+    const link = within(admin).getByRole('link', { name: /Models.*Audit/i });
     expect(link).toHaveAttribute('href', '/models');
 
     // Confirm the worklist heading is current, then click.
@@ -197,5 +202,20 @@ describe('Runtime indicator honesty', () => {
       await screen.findByText(/Offline/i, {}, { timeout: 4000 })
     ).toBeInTheDocument();
     expect(screen.queryByText(/^Ready$/)).not.toBeInTheDocument();
+  });
+
+  it('shows the standing research notice as a quiet label, not a warning', async () => {
+    const health = { status: 'PASS_WITH_WARNINGS', lane: 'PRIVATE_AUTHORIZED_RESEARCH_BRIDGE', warnings: [RESEARCH_NOTICE] };
+    const original = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => (String(input).endsWith('/health')
+      ? new Response(JSON.stringify(health), { status: 200, headers: { 'content-type': 'application/json' } })
+      : original(input))) as typeof fetch;
+    try {
+      renderAppAt('/worklist');
+      expect(await screen.findByText(/Research use/i, {}, { timeout: 4000 })).toBeInTheDocument();
+      expect(screen.queryByText(/^Warnings$/i)).not.toBeInTheDocument();
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 });

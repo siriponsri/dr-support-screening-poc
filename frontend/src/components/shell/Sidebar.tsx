@@ -67,6 +67,8 @@ export function Sidebar({
       borderColor="border.subtle"
       {...rest}
     >
+      {/* KKU Red Soil: a restrained institutional band, never a clinical signal. */}
+      <Box h="4px" bg="accent.institutional" flexShrink={0} data-testid="institutional-band" />
       <Box px={collapsed ? 2 : 5} py={collapsed ? 2 : 5}>
         {collapsed ? (
           <CollapsedBrandMark />
@@ -91,7 +93,7 @@ export function Sidebar({
               <SidebarNavList
                 items={secondaryNav}
                 collapsed={collapsed}
-                ariaLabel="Configuration"
+                ariaLabel="Administration"
                 onNavigate={onItemNavigate}
               />
             </Box>
@@ -106,7 +108,7 @@ export function Sidebar({
               items={secondaryNav}
               collapsed={collapsed}
               heading={SECONDARY_NAV.heading}
-              ariaLabel="Configuration"
+              ariaLabel="Administration"
               onNavigate={onItemNavigate}
             />
           </Box>

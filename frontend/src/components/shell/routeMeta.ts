@@ -14,7 +14,8 @@ export interface RouteMeta {
 export const ROUTE_META: Record<string, RouteMeta> = {
   '/worklist': {
     title: 'Worklist',
-    subtitle: 'Public & synthetic cases for clinician review',
+    // The data scope is stated once, in the sidebar footer, from /health.
+    subtitle: 'Retinal images for clinician review',
   },
   '/datasets': {
     title: 'Datasets',
