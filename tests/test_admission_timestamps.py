@@ -34,3 +34,63 @@ def test_rescan_through_the_app_keeps_created_at_and_revision(tmp_path, monkeypa
     assert again["admission"] == first["admission"]
     assert again["revision"] == first["revision"]
     assert again.get("admission_history") == first.get("admission_history")
+
+
+def _scan(client):
+    assert client.post("/v1/admissions/scan").status_code == 200
+
+
+def _sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_manual_image_type_and_first_admission_time_both_survive_a_rescan(tmp_path, monkeypatch):
+    client, folder = _workspace_client(tmp_path, monkeypatch)
+    _write_image(folder / "fundus.png", fundus=True)
+    _scan(client)
+    image_id = _sha(folder / "fundus.png")
+    case = client.app.state.store.get(image_id)
+    case["admission"] = {**case["admission"], "retinal_modality": "UWF", "retinal_modality_state": "RESOLVED",
+                         "retinal_modality_method": "MANUAL"}
+    client.app.state.store.put(case)
+    first = client.app.state.store.get(image_id)["admission"]
+    _scan(client)
+    again = client.app.state.store.get(image_id)["admission"]
+    assert again["retinal_modality"] == "UWF" and again["retinal_modality_method"] == "MANUAL"
+    assert again["created_at"] == first["created_at"]
+
+
+def test_missing_then_returning_source_keeps_its_first_admission_time(tmp_path, monkeypatch):
+    client, folder = _workspace_client(tmp_path, monkeypatch)
+    path = folder / "fundus.png"
+    _write_image(path, fundus=True)
+    _scan(client)
+    image_id = _sha(path)
+    created = client.app.state.store.get(image_id)["admission"]["created_at"]
+    parked = tmp_path / "parked.png"
+    path.rename(parked)
+    _scan(client)
+    assert client.app.state.store.get(image_id)["admission"]["integrity_status"] == "SOURCE_MISSING"
+    parked.rename(path)
+    _scan(client)
+    returned = client.app.state.store.get(image_id)["admission"]
+    assert returned["integrity_status"] == "OK"
+    assert returned["created_at"] == created
+
+
+def test_source_change_still_names_the_latest_version_seen_at_that_name(tmp_path, monkeypatch):
+    client, folder = _workspace_client(tmp_path, monkeypatch)
+    path = folder / "fundus.png"
+    _write_image(path, fundus=True, size=(400, 300))
+    _scan(client)
+    first = _sha(path)
+    _write_image(path, fundus=True, size=(420, 310))
+    _scan(client)
+    second = _sha(path)
+    _scan(client)  # An unchanged rescan must not reorder which version is the latest.
+    assert first != second
+    _write_image(path, fundus=True, size=(440, 320))
+    _scan(client)
+    third = client.app.state.store.get(_sha(path))["admission"]
+    assert third["integrity_status"] == "SOURCE_CHANGED"
+    assert third["integrity"]["previous_source_sha256"] == second

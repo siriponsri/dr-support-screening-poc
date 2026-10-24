@@ -323,6 +323,8 @@ def create_app(
         """Index persisted workspace references without changing case identity."""
         previous = {}
         with app.state.store.lock:
+            # The newest version at a reference has the latest updated_at: it is
+            # admitted after the older version's last admission change.
             cases = sorted(app.state.store.all_cases(), key=lambda case: (
                 ((case.get('admission') or {}).get('updated_at') or ''),
                 case.get('image_id') or '',
