@@ -97,10 +97,10 @@ from the application chrome.
 
 The theme maps the primary action and navigation roles to Medicine Green and
 keeps Red Soil as `accent.institutional*`. Approved institutional placements
-(owner, 2026-10-24): a 4px Red Soil band at the top of the sidebar and the
-"Faculty of Medicine, Khon Kaen University" wordmark under the product name
-(`redSoilDark`, lightened to `sidebarInstitutional` inside the dark sidebar).
-Red Soil is not used on buttons, the retinal image area or any status.
+(owner, 2026-10-24): a 4px Red Soil band at the top of the sidebar. The UI
+does not name the university or faculty (owner decision, 2026-10-24: the
+institutional name is sensitive). Red Soil is not used on buttons, the retinal
+image area or any status.
 
 UI text punctuation (owner, 2026-10-24): do not use the middle dot or long
 dashes as separators in clinician-facing text. Use "/", ":" or a short "-".
@@ -361,7 +361,10 @@ Worklists are decision surfaces, not dashboard decoration.
   semantic tokens through `sidebarScope` (`frontend/src/theme/index.ts`) so
   nested components keep using the same aliases.
 - Expanded sidebar widths: approximately 210px tablet, 236px laptop, 256px
-  desktop. Collapsed mode is approximately 64-68px and icon-only.
+  desktop. Collapsed mode is approximately 64-68px and icon-only. The sidebar
+  can also be hidden from the top bar. Image pages (Review, Clinician Review,
+  Annotation Editor) keep their own mode, collapsed by default, so the retinal
+  image gets the width; each choice is remembered per workstation.
 - Mobile uses a navigation drawer opened by a labeled menu control.
 - Brand mark may use Medicine Green. Institutional Red Soil may appear as a
   small secondary detail, but must not dominate the shell.
@@ -587,12 +590,13 @@ Use the current breakpoint intent:
 | Mobile | < 768px | Drawer navigation, single column, wrapped controls |
 | Tablet | 768-1023px | Permanent or compact sidebar, dense single-column review where needed |
 | Laptop | 1024-1279px | Two-column review when image remains primary |
-| Desktop | >= 1280px | Wider two-column review, up to 1440px content measure |
+| Desktop | >= 1280px | Wider two-column review, up to 1440px content measure (1920px on image pages) |
 
 - Review and annotation pages collapse to one column before the image becomes
   too narrow. The image column wins when space is constrained.
-- Desktop review layouts may use approximately 1.35-1.4fr for the image and
-  0.6-0.65fr for supporting content, with a 20px gap.
+- Image pages (Review, Clinician Review, Annotation Editor) give the image all
+  remaining width: the supporting panel is fixed at 340px (320px in the
+  Annotation Editor), with a 20px gap.
 - On mobile, page header actions may wrap below the title. Do not truncate the
   primary action or case identity.
 - Viewer controls wrap or horizontally scroll in a compact band. Keep the

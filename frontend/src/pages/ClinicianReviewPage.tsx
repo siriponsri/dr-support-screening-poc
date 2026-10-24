@@ -229,7 +229,7 @@ function ClinicianReviewPageSession() {
   if (!item) return null;
 
   return (
-    <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
+    <Box as="main" maxW="1920px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader
         pathname={pathname}
         title="Clinician Review"
@@ -240,7 +240,7 @@ function ClinicianReviewPageSession() {
         <CaseNavigation imageId={item.image_id} guarded={guarded} confirm={confirm} />
         <GuideHint step={readOnly ? 'findings' : 'grade'} />
       </Stack>
-      <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.25fr) minmax(320px, 0.75fr)' }} gap={5} alignItems="start" minW={0}>
+      <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1fr) 340px' }} gap={5} alignItems="start" minW={0}>
         <Section title="Retinal image" description="AI output is optional evidence; this page records the clinician's final grade.">
           <RetinalCanvas item={item} showAi={false} showHuman={true} />
           <SimpleGrid columns={{ base: 1, tablet: 3 }} spacing={4} mt={4}>

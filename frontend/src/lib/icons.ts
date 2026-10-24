@@ -67,6 +67,7 @@ export {
   Minus,
   MoreHorizontal,
   PanelLeftClose,
+  PanelLeftDashed,
   PanelLeftOpen,
   Pentagon,
   Pause,

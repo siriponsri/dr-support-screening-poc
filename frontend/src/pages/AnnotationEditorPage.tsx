@@ -1374,7 +1374,7 @@ function AnnotationEditorPageSession() {
   }
 
   return (
-    <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
+    <Box as="main" maxW="1920px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader
         pathname={pathname}
         title="Annotation Editor"
@@ -1415,7 +1415,7 @@ function AnnotationEditorPageSession() {
           onBeforeSwitch={saveBeforeLeaving}
         />
       </Stack>
-      <Grid minW={0} templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.4fr) minmax(300px, 0.6fr)' }} gap={5} alignItems="start">
+      <Grid minW={0} templateColumns={{ base: '1fr', laptop: 'minmax(0, 1fr) 320px' }} gap={5} alignItems="start">
         <Stack minW={0} spacing={4}>
         <Section title="Review findings">
           {annotationControls}

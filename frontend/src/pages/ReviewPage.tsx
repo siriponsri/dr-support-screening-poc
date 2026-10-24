@@ -654,7 +654,7 @@ function ReviewPageSession() {
   }
 
   return (
-    <Box as="main" maxW="1440px" minW={0} overflowX="hidden" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
+    <Box as="main" maxW="1920px" minW={0} overflowX="hidden" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <Box data-qa-identifying><PageHeader
         pathname={pathname}
         title="Review"
@@ -680,7 +680,7 @@ function ReviewPageSession() {
           {qaResultReady && <Text data-testid="qa-batch-result-ready">Returned model evidence loaded from workspace; clinical state remains unchanged.</Text>}
         </Stack>
       </Alert>}
-      <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)' }} gap={5} alignItems="start" minW={0}>
+      <Grid templateColumns={{ base: '1fr', laptop: 'minmax(0, 1fr) 340px' }} gap={5} alignItems="start" minW={0}>
         <Section title="Retinal preview" description={item.modality === 'UWF' ? 'Ultra-widefield image' : item.modality === 'CFP' ? 'Conventional fundus photograph' : 'Image type needs confirmation'}>
           {imageView === 'prism-field' && prismFieldAvailable && prismMaskImageUrl ? (
             <PrismAnalysisFieldOverlay

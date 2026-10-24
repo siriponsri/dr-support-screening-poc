@@ -40,7 +40,8 @@ export function AppShell({ forceTier }: AppShellProps = {}) {
 }
 
 function ShellLayout() {
-  const { showPermanent, collapsed } = useSidebarState();
+  const { showPermanent, collapsed, hidden } = useSidebarState();
+  const sidebarShown = showPermanent && !hidden;
   const { activeWorkspace } = useWorkspace();
   const { pathname } = useLocation();
   const caseWorkspaceKey = /^\/(review|edit|clinician-review)(\/|$)/.test(pathname)
@@ -65,11 +66,11 @@ function ShellLayout() {
       <Grid
         templateColumns={{
           base: '1fr',
-          tablet: `${sidebarWidth ?? '232px'} minmax(0, 1fr)`,
+          tablet: sidebarShown ? `${sidebarWidth ?? '232px'} minmax(0, 1fr)` : 'minmax(0, 1fr)',
         }}
         templateRows="auto 1fr auto"
         templateAreas={
-          showPermanent
+          sidebarShown
             ? {
                 tablet: '"sidebar topbar" "sidebar main" "sidebar footer"',
               }
@@ -77,7 +78,7 @@ function ShellLayout() {
         }
         minH={SHELL_MIN_H}
       >
-        {showPermanent ? (
+        {sidebarShown ? (
           <GridItem
             area="sidebar"
             borderRightWidth="1px"
@@ -90,9 +91,9 @@ function ShellLayout() {
           >
             <Sidebar collapsed={collapsed} />
           </GridItem>
-        ) : (
+        ) : !showPermanent ? (
           <SidebarDrawer />
-        )}
+        ) : null}
         <GridItem area="topbar" position="sticky" top={0} zIndex={2}>
           <AppHeader />
         </GridItem>

@@ -14,21 +14,56 @@ import { useLocation } from 'react-router-dom';
  * Sidebar state lives in a context so the header (which owns the collapse
  * control) and the sidebar body itself read the same source of truth.
  *
- * Two states are tracked:
+ * The permanent sidebar has three modes: expanded, collapsed (icon-only with
+ * tooltips) and hidden. Image pages (Review, Clinician Review, Annotation
+ * Editor) keep their own mode, collapsed by default, so the retinal image gets
+ * the width; other pages keep the tier default. Both choices are remembered on
+ * this workstation as a UI-only preference.
  *
- * - `collapsed` — desktop/laptop mode only. Visible sidebar shrinks to
- *   icon-only with tooltips.
- * - `mobileOpen` — controls the mobile navigation drawer. Distinct from
- *   collapse so semantics stay clean in tests.
+ * `mobileOpen` controls the mobile navigation drawer, distinct from the
+ * permanent modes so semantics stay clean in tests.
  */
+
+export type SidebarMode = 'expanded' | 'collapsed' | 'hidden';
+
+const MODE_KEYS = {
+  image: 'dr-support-screening.sidebar-mode.image.v1',
+  other: 'dr-support-screening.sidebar-mode.other.v1',
+} as const;
+
+const IMAGE_ROUTE = /^\/(review|clinician-review|edit)(\/|$)/;
+
+function readMode(key: string): SidebarMode | null {
+  try {
+    const value = window.localStorage.getItem(key);
+    return value === 'expanded' || value === 'collapsed' || value === 'hidden' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMode(key: string, mode: SidebarMode): void {
+  try {
+    window.localStorage.setItem(key, mode);
+  } catch {
+    // A restricted storage policy only loses the remembered layout.
+  }
+}
 
 export type ViewportTier = 'mobile' | 'tablet' | 'laptop' | 'desktop';
 
 interface SidebarStateValue {
+  /** Current permanent-sidebar mode for this route group. */
+  mode: SidebarMode;
+  setMode: (next: SidebarMode) => void;
   /** True when the permanent sidebar should render in icon-only form. */
   collapsed: boolean;
   setCollapsed: (next: boolean) => void;
   toggleCollapsed: () => void;
+  /** True when the permanent sidebar is hidden entirely. */
+  hidden: boolean;
+  /** True on image pages, where the sidebar starts collapsed. */
+  imageRoute: boolean;
   /** True when the mobile drawer should be open. */
   mobileOpen: boolean;
   openMobile: () => void;
@@ -100,40 +135,52 @@ export function SidebarStateProvider({
   // (where space is at a premium), expanded elsewhere.
   const defaultCollapsed = tier === 'tablet';
 
-  const [collapsed, setCollapsed] = useState<boolean>(
-    initialCollapsed ?? defaultCollapsed
-  );
+  const tierMode: SidebarMode = (initialCollapsed ?? defaultCollapsed) ? 'collapsed' : 'expanded';
+  const { pathname } = useLocation();
+  const imageRoute = IMAGE_ROUTE.test(pathname);
+  const group = imageRoute ? 'image' : 'other';
+  const [chosen, setChosen] = useState<Record<'image' | 'other', SidebarMode | null>>(() => ({
+    image: readMode(MODE_KEYS.image),
+    other: readMode(MODE_KEYS.other),
+  }));
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // When `initialCollapsed` is omitted, follow the viewport tier.
-  useEffect(() => {
-    if (initialCollapsed !== undefined) return;
-    setCollapsed(defaultCollapsed);
-  }, [defaultCollapsed, initialCollapsed]);
+  // Image pages start collapsed; other pages follow the viewport tier.
+  const mode: SidebarMode = chosen[group] ?? (imageRoute ? 'collapsed' : tierMode);
+  const setMode = useCallback((next: SidebarMode) => {
+    setChosen((current) => ({ ...current, [group]: next }));
+    writeMode(MODE_KEYS[group], next);
+  }, [group]);
+  const collapsed = mode === 'collapsed';
+  const hidden = mode === 'hidden';
+  const setCollapsed = useCallback((next: boolean) => setMode(next ? 'collapsed' : 'expanded'), [setMode]);
 
   // Auto-close the mobile drawer on route change so a tapped link never
   // leaves the drawer hanging on top of the destination.
-  const { pathname } = useLocation();
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
 
-  const toggleCollapsed = useCallback(() => setCollapsed((c) => !c), []);
+  const toggleCollapsed = useCallback(() => setMode(collapsed ? 'expanded' : 'collapsed'), [collapsed, setMode]);
   const openMobile = useCallback(() => setMobileOpen(true), []);
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
   const value = useMemo<SidebarStateValue>(
     () => ({
+      mode,
+      setMode,
       collapsed,
       setCollapsed,
       toggleCollapsed,
+      hidden,
+      imageRoute,
       mobileOpen,
       openMobile,
       closeMobile,
       showPermanent: !isMobile,
       tier,
     }),
-    [collapsed, toggleCollapsed, mobileOpen, openMobile, closeMobile, isMobile, tier]
+    [mode, setMode, collapsed, setCollapsed, toggleCollapsed, hidden, imageRoute, mobileOpen, openMobile, closeMobile, isMobile, tier]
   );
 
   return (
