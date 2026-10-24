@@ -949,6 +949,8 @@ def scan_input_folder(
 
 
 ADMISSION_TIMESTAMPS = ("created_at", "updated_at")
+# Written by Confirm Image on an automatic admission; carried across rescans.
+ADMISSION_REVIEW_FIELDS = ("reviewed_by", "reviewed_at", "review_note")
 
 
 def preserve_admission_timestamps(saved: dict | None, record: dict) -> dict:

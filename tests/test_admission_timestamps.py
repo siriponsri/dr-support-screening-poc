@@ -94,3 +94,25 @@ def test_source_change_still_names_the_latest_version_seen_at_that_name(tmp_path
     third = client.app.state.store.get(_sha(path))["admission"]
     assert third["integrity_status"] == "SOURCE_CHANGED"
     assert third["integrity"]["previous_source_sha256"] == second
+
+
+def test_confirm_image_reviewer_survives_rescans_without_moving_timestamps(tmp_path, monkeypatch):
+    client, folder = _workspace_client(tmp_path, monkeypatch)
+    _write_image(folder / "fundus.png", fundus=True)
+    _scan(client)
+    image_id = _sha(folder / "fundus.png")
+    case = client.app.state.store.get(image_id)
+    confirmed = client.post(f"/v1/cases/{image_id}/confirm-image", json={
+        "revision": case["revision"], "reviewer": "Synthetic reviewer", "note": "Synthetic note",
+        "laterality": "UNKNOWN", "retinal_modality": "CFP"})
+    assert confirmed.status_code == 200
+    after_confirm = client.app.state.store.get(image_id)["admission"]
+    assert after_confirm["reviewed_by"] == "Synthetic reviewer"
+    assert after_confirm["admission_method"] == "AUTOMATIC"  # The rescan path, not the MANUAL one.
+    _scan(client)
+    rescanned = client.app.state.store.get(image_id)["admission"]
+    for key in ("reviewed_by", "reviewed_at", "review_note", "created_at", "updated_at",
+                "retinal_modality", "retinal_modality_method"):
+        assert rescanned[key] == after_confirm[key], key
+    _scan(client)
+    assert client.app.state.store.get(image_id)["admission"] == rescanned
