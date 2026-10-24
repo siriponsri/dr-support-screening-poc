@@ -328,6 +328,9 @@ function modelDomainWarningLabel(item: CaseRecord): string {
     : 'Unavailable - no model result recorded';
 }
 
+/** How often the open Review page re-reads model availability. */
+export const MODEL_STATUS_REFRESH_MS = 30_000;
+
 export function ReviewPage() {
   const { imageId } = useParams<{ imageId: string }>();
   return <ReviewPageSession key={imageId ?? ''} />;
@@ -397,11 +400,17 @@ function ReviewPageSession() {
     }
   }, [imageId]);
 
+  // Overlapping reads (focus + visibility, timer + analysis) keep only the newest reply.
+  const modelRequest = useRef(0);
   const loadModels = useCallback(async () => {
+    const request = ++modelRequest.current;
     try {
-      setModels(await apiJson<ModelDescriptor[]>('/v1/models'));
+      const loaded = await apiJson<ModelDescriptor[]>('/v1/models');
+      if (request !== modelRequest.current) return;
+      setModels(loaded);
       setModelError(null);
     } catch (err) {
+      if (request !== modelRequest.current) return;
       setModelError(errorText(err));
     }
   }, []);
@@ -418,6 +427,20 @@ function ReviewPageSession() {
     setMaskOverlayLoadError(false);
     return () => { current = false; };
   }, [loadCase, loadModels]);
+
+  // The server probes the Model API on every read; re-read while the page is
+  // open so a dropped link does not keep showing a stale "AI READY".
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') void loadModels(); };
+    const timer = window.setInterval(refresh, MODEL_STATUS_REFRESH_MS);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [loadModels]);
 
   const handleMaskOverlayError = useCallback(() => {
     setMaskOverlayLoadError(true);
@@ -482,7 +505,7 @@ function ReviewPageSession() {
       if (!isActive()) return;
       setAnalysisError(errorText(err));
       setImageView('original');
-      await loadCase();
+      await Promise.all([loadCase(), loadModels()]);
     } finally {
       setProgress('');
       setAnalyzing(false);
@@ -536,7 +559,9 @@ function ReviewPageSession() {
     ? `data:image/png;base64,${prismField.field_mask_png_base64}`
     : undefined;
   const hasRecordedEvidence = Boolean(item?.global || item?.lesion);
-  const aiReady = analysisAllowed && !analysisError;
+  // Availability follows the latest model read; an earlier failed run keeps its
+  // own error message but does not pin the badge once the Model API is back.
+  const aiReady = analysisAllowed;
   const aiStatus = prismNeedsPreview && !globalModel ? 'PRISM PREVIEW REQUIRED' : aiReady ? 'AI READY' : 'AI UNAVAILABLE';
   const prismUwfResult = item?.modality === 'UWF' && item.lesion?.model_id === 'prism-dr-5fold';
   const comparisonIdentityResolved = Boolean(
