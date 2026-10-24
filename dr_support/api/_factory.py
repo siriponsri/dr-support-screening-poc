@@ -61,6 +61,7 @@ from ..imaging import (
 from ..services.admission import (
     is_inference_eligible,
     legacy_admission,
+    preserve_admission_timestamps,
     scan_authorized_hospital_roots,
     scan_input_folder,
 )
@@ -322,6 +323,8 @@ def create_app(
         """Index persisted workspace references without changing case identity."""
         previous = {}
         with app.state.store.lock:
+            # The newest version at a reference has the latest updated_at: it is
+            # admitted after the older version's last admission change.
             cases = sorted(app.state.store.all_cases(), key=lambda case: (
                 ((case.get('admission') or {}).get('updated_at') or ''),
                 case.get('image_id') or '',
@@ -425,6 +428,8 @@ def create_app(
                     ) if key in saved
                 }}
                 record = AdmissionMetadata.model_validate(record).model_dump(mode='json')
+            # A rescan (including the one at every start) keeps the first admission time.
+            record = preserve_admission_timestamps(saved, record)
             app.state.admissions[image_id] = record
             app.state.workspace_admission_ids.add(image_id)
             # Existing cases are never filled here; only a new case records it.
