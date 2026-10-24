@@ -35,7 +35,9 @@ one-use checks remain required. The independent9633c2c integrity gate remains in
 place. case_source_sha256 comes from recorded case source/image hash;
 image_recorded_sha256 comes from recorded case image or technical source metadata,
 never BridgeImage.sha256 alone. Missing recorded projections remain503 without
-writing them or manufacturing authority from current bytes. Missing recorded
+writing them or manufacturing authority from current bytes. Admission records
+them once at case creation, and existing cases only through the approved one-time
+projection ([amendment](../milestone/m1/M1_RECORDED_SOURCE_IDENTITY_AMENDMENT.md)). Missing recorded
 integrity also remains503. A validated unchanged DUPLICATE_CONTENT record can
 normalize to integrity OK after the existing identity gate; its raw status and
 all admission evidence remain bound by admission_sha256. This preserves manual

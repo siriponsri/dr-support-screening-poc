@@ -78,6 +78,7 @@ from ..services.prism_preview import PrismPreviewService, install_prism_preview_
 from ..services.prism_preview_runtime import ReviewPrismPreview
 from ..services.workspaces import WorkspaceManager
 from ..services.resolver import ResolverService
+from ..services.source_identity import record_source_identity_on_creation
 from ..services.source_mutation_gate import MutationFenced, SourceMutationGate, guard_writes, writer_scope
 from ..services.model_gateway import (
     ModelConnection,
@@ -426,6 +427,8 @@ def create_app(
                 record = AdmissionMetadata.model_validate(record).model_dump(mode='json')
             app.state.admissions[image_id] = record
             app.state.workspace_admission_ids.add(image_id)
+            # Existing cases are never filled here; only a new case records it.
+            record_source_identity_on_creation(case, record)
             case['admission'] = record
             history = case.setdefault('admission_history', [])
             if not history or history[-1].get('new') != {

@@ -13,7 +13,7 @@ from .sync import Sync, digest
 from .cvat import CVATOnline, OnlineError
 from .presentation import annotation_set_hash, lesion_review_view, review_evidence_view
 from .services.admission import clinician_view, legacy_admission
-from .services.source_identity import source_identity_reason
+from .services.source_identity import record_source_identity_on_creation, source_identity_reason
 from .services import artifact_roi_assist
 from .services.source_mutation_gate import guard_writes, writer_scope
 from .services.resolver import (
@@ -427,6 +427,7 @@ def install_workflow(app, store, *, persist_automatic_updates=True):
         case = current_store().get(image_id)
         record = admission_record(image_id)
         if persist_automatic_updates and record is not None and case.get('admission') is None:
+            record_source_identity_on_creation(case, record)
             case['admission'] = record
             case.setdefault('admission_history', []).append({
                 'action': 'AUTOMATIC_ADMISSION',
