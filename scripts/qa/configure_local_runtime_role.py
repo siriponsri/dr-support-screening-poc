@@ -7,8 +7,12 @@ Owner decision 2026-10-25. Dry-run by default; ``--apply`` makes the change once
   127.0.0.1 on its recorded port.
 * Creates ``dr_support_runtime`` (LOGIN, no SUPERUSER/CREATEDB/CREATEROLE/
   REPLICATION/BYPASSRLS) with CONNECT, USAGE on the app schema, SELECT on
-  ``schema_migrations`` and DML on the application tables. No CREATE, no
-  ownership. An existing role is never altered or overwritten.
+  ``schema_migrations`` and SELECT/INSERT/UPDATE on ``workspaces`` and
+  ``review_cases`` (the PostgreSQL path never deletes; archiving is an update).
+  Default privileges give the same access to tables later migrations add. No
+  CREATE, no ownership. An existing role is never altered or overwritten.
+* The password is sent pre-hashed (SCRAM) so it cannot reach server logs. If any
+  step fails before the end, the role is dropped and the file removed.
 * Proves the new login works and that DDL is denied, then writes the runtime
   connection to ``local-state/release/postgres-runtime.env`` (git-ignored, beside
   the existing owner file). The password is generated and never printed.
@@ -25,7 +29,8 @@ from urllib.parse import quote, urlsplit
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROLE = "dr_support_runtime"
-DML_TABLES = ("workspaces", "review_cases", "legacy_migration_receipts")
+DML_TABLES = ("workspaces", "review_cases")
+DML_PRIVILEGES = "SELECT, INSERT, UPDATE"
 READ_TABLES = ("schema_migrations",)
 
 
@@ -56,9 +61,10 @@ def owner_settings(checkout: Path) -> tuple[str, str, Path]:
     parts = urlsplit(dsn)
     require(parts.scheme in {"postgresql", "postgres"} and parts.hostname == "127.0.0.1"
             and str(parts.port) == values.get("DR_SUPPORT_POSTGRES_PORT"), "LOOPBACK_PROJECT_OWNED_DATABASE_ONLY")
-    schema = (read_env(checkout / ".env").get("DR_SUPPORT_DATABASE_SCHEMA") if (checkout / ".env").is_file()
-              else "") or os.environ.get("DR_SUPPORT_DATABASE_SCHEMA") or ""
-    require(schema, "APPLICATION_SCHEMA_REQUIRED")
+    # Same order as the launcher and PostgresSettings: process env, .env, then the default.
+    dotenv = read_env(checkout / ".env") if (checkout / ".env").is_file() else {}
+    schema = (os.environ.get("DR_SUPPORT_DATABASE_SCHEMA") or dotenv.get("DR_SUPPORT_DATABASE_SCHEMA")
+              or "dr_support").strip()
     return dsn, schema, state
 
 
@@ -81,8 +87,10 @@ def plan(connection, schema: str) -> dict:
         sql.SQL("GRANT USAGE ON SCHEMA {} TO {}").format(sql.Identifier(schema), sql.Identifier(ROLE)),
         *(sql.SQL("GRANT SELECT ON {}.{} TO {}").format(sql.Identifier(schema), sql.Identifier(table),
                                                       sql.Identifier(ROLE)) for table in READ_TABLES),
-        *(sql.SQL("GRANT SELECT, INSERT, UPDATE, DELETE ON {}.{} TO {}").format(
+        *(sql.SQL("GRANT " + DML_PRIVILEGES + " ON {}.{} TO {}").format(
             sql.Identifier(schema), sql.Identifier(table), sql.Identifier(ROLE)) for table in DML_TABLES),
+        sql.SQL("ALTER DEFAULT PRIVILEGES IN SCHEMA {} GRANT " + DML_PRIVILEGES + " ON TABLES TO {}").format(
+            sql.Identifier(schema), sql.Identifier(ROLE)),
         *(sql.SQL("GRANT USAGE, SELECT ON SEQUENCE {}.{} TO {}").format(
             sql.Identifier(schema), sql.Identifier(name), sql.Identifier(ROLE)) for name in sequences),
     ]
@@ -127,16 +135,27 @@ def main(argv=None) -> int:
             return 0
         require(not planned["role_exists"] and not runtime_file.exists(), "RUNTIME_ROLE_OR_FILE_ALREADY_EXISTS")
         password = secrets.token_urlsafe(32)
-        with connection.transaction():
-            connection.execute(sql.SQL(
-                "CREATE ROLE {} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD {}"
-            ).format(sql.Identifier(ROLE), sql.Literal(password)))
-            for statement in planned["_statements"]:
-                connection.execute(statement)
-    dsn = runtime_dsn(owner_dsn, password)
-    verified = verify_runtime(dsn, schema)
-    with runtime_file.open("x", encoding="ascii") as stream:
-        stream.write(f"DR_SUPPORT_DATABASE_URL={dsn}\nDR_SUPPORT_DATABASE_MIGRATION_MODE=verify\n")
+        dsn = runtime_dsn(owner_dsn, password)
+        # Claim the file first so a lost password can never leave an unusable role behind.
+        with runtime_file.open("x", encoding="ascii") as stream:
+            stream.write(f"DR_SUPPORT_DATABASE_URL={dsn}\nDR_SUPPORT_DATABASE_MIGRATION_MODE=verify\n")
+        hashed = connection.pgconn.encrypt_password(password.encode(), ROLE.encode(), b"scram-sha-256").decode()
+        try:
+            with connection.transaction():
+                connection.execute(sql.SQL(
+                    "CREATE ROLE {} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD {}"
+                ).format(sql.Identifier(ROLE), sql.Literal(hashed)))
+                for statement in planned["_statements"]:
+                    connection.execute(statement)
+            verified = verify_runtime(dsn, schema)
+        except Exception:
+            # Undo only what this run created.
+            with connection.transaction():
+                if connection.execute("SELECT 1 FROM pg_roles WHERE rolname=%s", (ROLE,)).fetchone():
+                    connection.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(ROLE)))
+                    connection.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(ROLE)))
+            runtime_file.unlink(missing_ok=True)
+            raise
     print(json.dumps({"mode": "APPLIED", **report, "verified": verified,
                       "runtime_file": str(runtime_file.relative_to(Path(args.checkout)))}, indent=1))
     return 0

@@ -426,9 +426,10 @@ function Use-ReleaseRuntimeRole {
     $python = Get-ReleasePythonPath
     Push-Location $script:ReleaseRepoRoot
     try {
-        & $python -c "from dr_support.persistence import PostgresDatabase, PostgresSettings, SchemaMigrator; SchemaMigrator(PostgresDatabase(PostgresSettings.from_env())).migrate()" *> $null
+        $migrationLog = Join-Path $script:ReleaseLogRoot "migration.log"
+        & $python -c "from dr_support.persistence import PostgresDatabase, PostgresSettings, SchemaMigrator; SchemaMigrator(PostgresDatabase(PostgresSettings.from_env())).migrate()" *> $migrationLog
         if ($LASTEXITCODE -ne 0) {
-            throw "Reviewed database migrations could not be applied before starting the app. Review local-state/logs; nothing was changed by the app."
+            throw "Reviewed database migrations could not be applied before starting the app. Review local-state/logs/migration.log; nothing was changed by the app."
         }
     } finally {
         Pop-Location
@@ -437,6 +438,10 @@ function Use-ReleaseRuntimeRole {
         if ($line.Trim() -match "^(DR_SUPPORT_DATABASE_URL|DR_SUPPORT_DATABASE_MIGRATION_MODE)=(.+)$") {
             [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2].Trim(), "Process")
         }
+    }
+    # The app must not inherit the owner credential; Compose reads its own env file.
+    foreach ($name in @("DR_SUPPORT_POSTGRES_PASSWORD", "DR_SUPPORT_POSTGRES_USER")) {
+        [Environment]::SetEnvironmentVariable($name, $null, "Process")
     }
     return $true
 }
