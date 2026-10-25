@@ -432,3 +432,15 @@ def test_test_only_grade_goes_to_its_own_folder_and_is_not_training_ready(rig, m
     assert item["group"] == "TEST_ONLY" and item["confirmed_grade"] is None and item["reason"] == "TEST_ONLY_LABEL"
     assert (rig.output / result["directory_name"] / item["output_path"]).parts[-2] == "TEST_ONLY"
     assert result["manifest"]["grade_label_selection_policy"].startswith("grading-folders.v3")
+
+
+def test_test_only_rows_are_left_out_of_training_label_files(rig):
+    rig.case["annotation_confirmation"] = None
+    baseline = rig.service.snapshot_preview(include_grade_folders=False)["row_counts"]
+    rig.case["clinician_review"]["reviewer"] = "TEST_ONLY_ENGINEERING"
+    rig.app.state.admissions[rig.image.image_id]["reviewed_by"] = "TEST_ONLY_ENGINEERING"
+    tagged = rig.service.snapshot_preview(include_grade_folders=False)["row_counts"]
+    assert tagged["dr_labels.csv"] == 0 and tagged["lesion_labels.csv"] == 0
+    assert baseline["dr_labels.csv"] == 1  # the same record is a training label without the tag
+    rows = rig.service._rows([rig.case])[0]
+    assert rows[0]["label_class"] == "TEST_ONLY" and rows[0]["dataset_status"] == "Test data (not for training)"

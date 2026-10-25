@@ -63,9 +63,13 @@ If the active annotations change after confirmation, the confirmation is invalid
 ## Test labels (DT-06)
 
 Owner decision, 2026-10-25: a record whose workspace id or name contains `TEST_ONLY`, or whose
-grade, annotation or image confirmation was recorded by a reviewer name starting with `TEST_ONLY`,
-has `label_class=TEST_ONLY`. Such records are never DR-ready or Lesion-ready
-(`TEST_ONLY_LABEL`), and canonical grading folders file them under `TEST_ONLY`, never `Grade0`-`Grade4`
+current grade, annotation-set confirmation, image confirmation, human shapes or latest AI-box
+decisions were recorded by a reviewer name starting with `TEST_ONLY`, has `label_class=TEST_ONLY`
+(superseded grade history and earlier AI-box decisions do not count). Such records are never
+DR-ready or Lesion-ready and have `include_in_training=false`, `eligibility_reason`,
+`grade_eligibility_reason` and `lesion_eligibility_reason` set to `TEST_ONLY_LABEL`, and
+`dataset_status="Test data (not for training)"`. The grouped-by-grade export files them under
+`test_only/`, and canonical grading folders under `TEST_ONLY`, never `Grade0`-`Grade4`
 (policy `grading-folders.v3-...-test-only-separate`). Eligibility policies are
 `s8.2-task-specific-v1.1-test-only-excluded` (manifest) and `s8.2-task-specific-v3` (snapshot `s4.dataset-snapshot.v5`).
 

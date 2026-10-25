@@ -64,7 +64,10 @@ def label_class(case: dict, admission: dict | None, workspace) -> str | None:
         (case.get("annotation_confirmation") or {}).get("reviewer"),
         (admission or {}).get("reviewed_by"),
         *((entry or {}).get("reviewer") for entry in case.get("human_annotations") or []),
-        *((entry or {}).get("reviewer") for entry in case.get("ai_annotation_reviews") or []),
+        # Only the latest decision per AI box counts; earlier decisions are superseded.
+        *(entry.get("reviewer") for entry in {
+            (entry or {}).get("detection_id"): entry or {} for entry in case.get("ai_annotation_reviews") or []
+        }.values()),
     ]
     reviewers = [str(name).strip() for name in reviewers if name and str(name).strip()]
     workspace_text = " ".join(str(getattr(workspace, key, "") or "") for key in ("id", "name")).upper()
@@ -687,7 +690,9 @@ class DatasetManifestService:
                 "include_in_training": include,
                 "label_class": labels,
                 "eligibility_reason": eligibility_reason,
-                "dataset_status": self._dataset_status(case, admission, include, image),
+                "dataset_status": ("Test data (not for training)" if labels == "TEST_ONLY"
+                                   and eligibility_reason == "TEST_ONLY_LABEL"
+                                   else self._dataset_status(case, admission, include, image)),
                 "image_confirmation_status": image_confirmation_status,
                 "image_confirmed_by": image_confirmed_by,
                 "image_confirmed_at": image_confirmed_at,
