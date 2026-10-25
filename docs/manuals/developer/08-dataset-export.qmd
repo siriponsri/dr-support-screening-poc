@@ -2,7 +2,7 @@
 
 ![Dataset readiness and provenance. Source: `docs/adr/architecture/06-dataset-provenance-flow.mmd`.](../../adr/architecture/rendered/06-dataset-provenance-flow.png){#fig-dataset width=95%}
 
-`DatasetManifestService` (`dr_support/services/dataset.py`) serves `GET /v1/dataset/manifest` (preview) and `POST /v1/dataset/export`. The schema source of truth is `docs/reference/DATASET_MANIFEST.md` (`s4.dataset-manifest.v2`, eligibility policy `s8.2-task-specific-v1`).
+`DatasetManifestService` (`dr_support/services/dataset.py`) serves `GET /v1/dataset/manifest` (preview) and `POST /v1/dataset/export`. The schema source of truth is `docs/reference/DATASET_MANIFEST.md` (`s4.dataset-manifest.v3`, eligibility policy `s8.2-task-specific-v1.1-test-only-excluded`).
 
 ## Task-specific readiness
 

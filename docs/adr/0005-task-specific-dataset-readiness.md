@@ -16,7 +16,7 @@ A case can have a final grade without reviewed annotations. A single *ready* fla
 
 ## Decision outcome
 
-`services/dataset.py` computes DR-ready and Lesion-ready independently (policy `s8.2-task-specific-v1`, schema `s4.dataset-manifest.v2`). It exports `training_group_key` from the pseudonymous patient key and states `grouping_policy: patient_key_only; no automatic train-validation-test split`.
+`services/dataset.py` computes DR-ready and Lesion-ready independently (policy `s8.2-task-specific-v1`, schema `s4.dataset-manifest.v2`). Since 2026-10-25 (DT-06) the policy is `s8.2-task-specific-v1.1-test-only-excluded` and the schema `s4.dataset-manifest.v3`: records tagged `label_class=TEST_ONLY` are never ready. It exports `training_group_key` from the pseudonymous patient key and states `grouping_policy: patient_key_only; no automatic train-validation-test split`.
 
 ### Consequences
 

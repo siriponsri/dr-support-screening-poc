@@ -24,7 +24,7 @@ from .source_policy import (
     export_authorization,
     local_export_destination_reason,
 )
-from .grading_folders import GradingFolderError, plan_grading_folders
+from .grading_folders import POLICY as GRADING_FOLDER_POLICY, GradingFolderError, plan_grading_folders
 from .filesystem_privacy import has_reparse_component
 from ..presentation import annotation_set_hash, lesion_detection_id, review_evidence_view
 from ..imaging import DerivativeError
@@ -32,10 +32,10 @@ from .resolver import normalize_patient_key
 from ..referral import current_referral
 
 
-EXPORT_SCHEMA_VERSION = "s4.dataset-manifest.v2"
-SNAPSHOT_SCHEMA_VERSION = "s4.dataset-snapshot.v4"
-LEGACY_ELIGIBILITY_POLICY_VERSION = "s8.2-task-specific-v1"
-SNAPSHOT_ELIGIBILITY_POLICY_VERSION = "s8.2-task-specific-v2"
+EXPORT_SCHEMA_VERSION = "s4.dataset-manifest.v3"
+SNAPSHOT_SCHEMA_VERSION = "s4.dataset-snapshot.v5"
+LEGACY_ELIGIBILITY_POLICY_VERSION = "s8.2-task-specific-v1.1-test-only-excluded"
+SNAPSHOT_ELIGIBILITY_POLICY_VERSION = "s8.2-task-specific-v3"
 NEGATIVE_POLICY_VERSION = "p4-negative-training-deferred-v1"
 SOURCE_STATE_DIGEST_VERSION = "p4-source-state-v1"
 SOURCE_ORIGINS = frozenset({"PUBLIC", "SYNTHETIC", "WORKSPACE", "HOSPITAL_AUTHORIZED", "UNKNOWN"})
@@ -48,6 +48,32 @@ CANONICAL_LABELS = {
     "SOFT_EXUDATE",
 }
 SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
+# DT-06 (owner decision, 2026-10-25): labels from a TEST_ONLY workspace or reviewer
+# are tagged and never count as training-ready or as physician grade folders.
+TEST_ONLY_MARKER = "TEST_ONLY"
+
+
+def label_class(case: dict, admission: dict | None, workspace) -> str | None:
+    """TEST_ONLY, CLINICIAN, or None when no human reviewer is recorded.
+
+    Uses the reviewers of the current labels (grade, annotation set, shapes, AI-box
+    decisions, image confirmation), not superseded grade history.
+    """
+    reviewers = [
+        (case.get("clinician_review") or {}).get("reviewer"),
+        (case.get("annotation_confirmation") or {}).get("reviewer"),
+        (admission or {}).get("reviewed_by"),
+        *((entry or {}).get("reviewer") for entry in case.get("human_annotations") or []),
+        # Only the latest decision per AI box counts; earlier decisions are superseded.
+        *(entry.get("reviewer") for entry in {
+            (entry or {}).get("detection_id"): entry or {} for entry in case.get("ai_annotation_reviews") or []
+        }.values()),
+    ]
+    reviewers = [str(name).strip() for name in reviewers if name and str(name).strip()]
+    workspace_text = " ".join(str(getattr(workspace, key, "") or "") for key in ("id", "name")).upper()
+    if TEST_ONLY_MARKER in workspace_text or any(name.upper().startswith(TEST_ONLY_MARKER) for name in reviewers):
+        return "TEST_ONLY"
+    return "CLINICIAN" if reviewers else None
 
 IMAGE_FIELDS = [
     "image_id",
@@ -78,6 +104,7 @@ IMAGE_FIELDS = [
     "cvat_annotation_count",
     "verification_status",
     "include_in_training",
+    "label_class",
     "eligibility_reason",
     "image_confirmation_status",
     "image_confirmed_by",
@@ -119,7 +146,7 @@ ANNOTATION_FIELDS = [
 ]
 
 SNAPSHOT_RECORD_FIELDS = [
-    "image_id", "filename", "source_sha256", "source_origin", "source_available",
+    "image_id", "filename", "source_sha256", "source_origin", "label_class", "source_available",
     "source_integrity_status", "export_authorization", "modality", "width", "height",
     "laterality", "patient_key", "training_group_key", "case_revision", "visit_key",
     "visit_evidence_state", "captured_at", "capture_sequence", "image_confirmation_status",
@@ -579,6 +606,7 @@ class DatasetManifestService:
         image_rows: list[dict] = []
         annotation_rows: list[dict] = []
         cases = self._case_records() if cases is None else cases
+        workspace = self._workspace()
         for case in cases:
             image_id = str(case.get("image_id"))
             image = getattr(self.app.state, "images", {}).get(image_id)
@@ -586,6 +614,9 @@ class DatasetManifestService:
             if admission is None and image is not None:
                 admission = legacy_admission(image)
             include, eligibility_reason = self._case_eligibility(case, image, admission)
+            labels = label_class(case, admission, workspace)
+            if labels == "TEST_ONLY" and include:
+                include, eligibility_reason = False, "TEST_ONLY_LABEL"
             grade, grade_source, review = self._final_grade(case)
             grade_confirmation_status, grade_confirmed_by, grade_confirmed_at = self._grade_confirmation(case, grade, review)
             image_confirmation_status, image_confirmed_by, image_confirmed_at = self._image_confirmation(case, admission)
@@ -593,6 +624,9 @@ class DatasetManifestService:
             annotation_confirmed, annotation_confirmation = self._annotation_confirmation(case)
             current_annotation_hash = annotation_set_hash(case)
             lesion_reason = self._task_reason(case, admission, image, image_confirmation_status == "CONFIRMED", task="lesion")
+            if labels == "TEST_ONLY":
+                grade_reason = "TEST_ONLY_LABEL" if grade_reason == "ELIGIBLE" else grade_reason
+                lesion_reason = "TEST_ONLY_LABEL" if lesion_reason == "ELIGIBLE" else lesion_reason
             grade_ready = grade_reason == "ELIGIBLE" and include
             lesion_ready = lesion_reason == "ELIGIBLE"
             global_result = case.get("global") or {}
@@ -654,8 +688,11 @@ class DatasetManifestService:
                 "cvat_annotation_count": len(imported_annotations),
                 "verification_status": self._image_verification(case, admission, include),
                 "include_in_training": include,
+                "label_class": labels,
                 "eligibility_reason": eligibility_reason,
-                "dataset_status": self._dataset_status(case, admission, include, image),
+                "dataset_status": ("Test data (not for training)" if labels == "TEST_ONLY"
+                                   and eligibility_reason == "TEST_ONLY_LABEL"
+                                   else self._dataset_status(case, admission, include, image)),
                 "image_confirmation_status": image_confirmation_status,
                 "image_confirmed_by": image_confirmed_by,
                 "image_confirmed_at": image_confirmed_at,
@@ -888,7 +925,7 @@ class DatasetManifestService:
             "annotations": annotations,
             "coordinate_system": "original_image_pixels",
             "lesion_taxonomy": sorted(CANONICAL_LABELS),
-            "eligibility_policy_version": "s8.2-task-specific-v1",
+            "eligibility_policy_version": LEGACY_ELIGIBILITY_POLICY_VERSION,
             "source_state_digest_version": SOURCE_STATE_DIGEST_VERSION,
             "source_state_digest": (source_state or {}).get("digest"),
             "source_case_count": (source_state or {}).get("case_count", len(images)),
@@ -1369,7 +1406,7 @@ class DatasetManifestService:
             details = {**folder_plan.summary(), "manifest": "grading_folders/manifest.json"}
             manifest["grading_folders"] = details
             receipt["grading_folders"] = details
-            manifest["grade_label_selection_policy"] = "grading-folders.v2: current source-bound physician folder organization; training eligibility remains independent"
+            manifest["grade_label_selection_policy"] = f"{GRADING_FOLDER_POLICY}: current source-bound physician folder organization; TEST_ONLY labels kept separate; training eligibility remains independent"
             manifest["limitations"][0] = "Optional grading_folders copies original bytes; folder membership is not clinical UAT or lesion-training readiness."
             if os.name == "nt" and any(len(str((export_dir / name).absolute())) >= 260 for name in files):
                 raise DatasetManifestError("Workspace output path is too long; choose a shorter output directory.")
@@ -1452,7 +1489,7 @@ class DatasetManifestService:
                 "lesion_ready_annotation_count": sum(bool(row["include_in_training"]) for row in annotations),
                 "coordinate_system": "original_image_pixels",
                 "lesion_taxonomy": sorted(CANONICAL_LABELS),
-                "eligibility_policy_version": "s8.2-task-specific-v1",
+                "eligibility_policy_version": LEGACY_ELIGIBILITY_POLICY_VERSION,
                 "source_state_digest_version": SOURCE_STATE_DIGEST_VERSION,
                 "source_state_digest": source_state,
                 "negative_policy_version": NEGATIVE_POLICY_VERSION,
@@ -1539,8 +1576,11 @@ class DatasetManifestService:
         self._assert_local_destination(grouped_rows, workspace.output_folder)
         manifest_dir.mkdir(parents=True, exist_ok=True)
 
+        workspace_now = self._workspace()
         for image_id, case, image, admission in snapshots:
             group, grade = _grade_group(case, admission)
+            if group.startswith("dr_grade_") and label_class(case, admission, workspace_now) == "TEST_ONLY":
+                group, grade = "test_only", None  # DT-06: never a physician grade folder.
             source_sha256 = image.sha256 if image is not None else (admission or {}).get("source_sha256")
             item = {
                 "image_id": image_id,

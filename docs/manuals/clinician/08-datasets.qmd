@@ -49,7 +49,7 @@ The manifest export sits under **Legacy export tools**, together with **Export g
 
 ![Export confirmation.](screenshots/15-export-success.png){#fig-export width=62%}
 
-**Expected result.** The package is written to the Workspace output folder: `manifest.json`, `images.csv`, and `annotations.csv` (schema `s4.dataset-manifest.v2`). Source images and case records are not changed. AI predictions and physician-confirmed labels stay in separate fields (for example `ai_grade` and `clinician_grade`). Untouched AI, human-authored, corrected, removed, and CVAT-imported states remain distinguishable in the export.
+**Expected result.** The package is written to the Workspace output folder: `manifest.json`, `images.csv`, and `annotations.csv` (schema `s4.dataset-manifest.v3`). Source images and case records are not changed. AI predictions and physician-confirmed labels stay in separate fields (for example `ai_grade` and `clinician_grade`). Untouched AI, human-authored, corrected, removed, and CVAT-imported states remain distinguishable in the export.
 
 ::: {.callout-important title="Important: local destinations only"}
 Hospital records are exported only to the Workspace output folder on this computer. Any export, snapshot, or grouped-image copy that includes hospital records is refused when that folder is on a network share or synced to a cloud service such as OneDrive, Dropbox, or Google Drive. Ask your operator to choose a local Workspace output folder in **Settings**.

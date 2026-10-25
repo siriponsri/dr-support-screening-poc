@@ -5,7 +5,7 @@ import { datasetApi, plainExportRefusal, type DatasetSnapshotPreview } from '@/l
 import { localTiming, type Outcome } from '@/lib/localTiming';
 
 interface Props { workspaceId: string | null; exportAllowed: boolean; refreshToken?: string }
-const GROUPS = ['Grade0', 'Grade1', 'Grade2', 'Grade3', 'Grade4', 'UNREVIEWED', 'UNGRADABLE', 'UNDETERMINED'];
+const GROUPS = ['Grade0', 'Grade1', 'Grade2', 'Grade3', 'Grade4', 'UNREVIEWED', 'UNGRADABLE', 'UNDETERMINED', 'TEST_ONLY'];
 
 export function GradingFolderSnapshot({ workspaceId, exportAllowed, refreshToken }: Props) {
   const context = JSON.stringify([workspaceId, exportAllowed, refreshToken]);
