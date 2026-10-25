@@ -6,6 +6,8 @@ $script:ReleaseStateRoot = Join-Path $script:ReleaseRepoRoot "local-state\releas
 $script:ReleaseLogRoot = Join-Path $script:ReleaseRepoRoot "local-state\logs"
 $script:ReleaseRunFile = Join-Path $script:ReleaseStateRoot "workstation.json"
 $script:ReleaseLocalDatabaseEnvFile = Join-Path $script:ReleaseStateRoot "postgres.env"
+# Written once by scripts/qa/configure_local_runtime_role.py (owner-approved AC-16).
+$script:ReleaseRuntimeDatabaseEnvFile = Join-Path $script:ReleaseStateRoot "postgres-runtime.env"
 $script:ReleaseComposeFile = Join-Path $script:ReleaseRepoRoot "deployment\docker-compose.local-postgres.yml"
 $script:ReleaseComposeService = "postgres"
 
@@ -413,6 +415,30 @@ print('READY')
         ManagedLocal = $source -eq "local"
         Detail = "PostgreSQL is configured but the project Python could not verify SELECT 1 connectivity."
     }
+}
+
+function Use-ReleaseRuntimeRole {
+    # AC-16: when the owner-approved runtime role exists for the project-owned
+    # database, apply reviewed migrations with the owner connection, then run the
+    # app as the least-privilege role in verify mode. Without the file nothing changes.
+    if (-not (Test-Path -LiteralPath $script:ReleaseRuntimeDatabaseEnvFile -PathType Leaf)) { return $false }
+    if ($script:ReleaseDatabaseSource -ne "local") { return $false }
+    $python = Get-ReleasePythonPath
+    Push-Location $script:ReleaseRepoRoot
+    try {
+        & $python -c "from dr_support.persistence import PostgresDatabase, PostgresSettings, SchemaMigrator; SchemaMigrator(PostgresDatabase(PostgresSettings.from_env())).migrate()" *> $null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Reviewed database migrations could not be applied before starting the app. Review local-state/logs; nothing was changed by the app."
+        }
+    } finally {
+        Pop-Location
+    }
+    foreach ($line in Get-Content -LiteralPath $script:ReleaseRuntimeDatabaseEnvFile) {
+        if ($line.Trim() -match "^(DR_SUPPORT_DATABASE_URL|DR_SUPPORT_DATABASE_MIGRATION_MODE)=(.+)$") {
+            [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2].Trim(), "Process")
+        }
+    }
+    return $true
 }
 
 function Ensure-ReleasePostgres {

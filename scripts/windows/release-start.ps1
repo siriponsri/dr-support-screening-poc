@@ -12,6 +12,11 @@ try {
     if (-not $postgresStatus.Ready) {
         throw $postgresStatus.Detail
     }
+    if (Use-ReleaseRuntimeRole) {
+        $runtimeStatus = Test-ReleasePostgres
+        if (-not $runtimeStatus.Ready) { throw $runtimeStatus.Detail }
+        Write-Host "Database: least-privilege runtime role (migration verify mode)."
+    }
     $record = Get-ReleaseRecord
     if ($record -and (Test-ReleaseManagedProcess ([int]$record.pid)) -and (Test-ReleaseHealth)) {
         Write-Host "Retinal Review Workbench is already running at $($record.url)."
