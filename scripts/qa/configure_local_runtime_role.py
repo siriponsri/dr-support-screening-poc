@@ -140,6 +140,9 @@ def main(argv=None) -> int:
         with runtime_file.open("x", encoding="ascii") as stream:
             stream.write(f"DR_SUPPORT_DATABASE_URL={dsn}\nDR_SUPPORT_DATABASE_MIGRATION_MODE=verify\n")
         hashed = connection.pgconn.encrypt_password(password.encode(), ROLE.encode(), b"scram-sha-256").decode()
+        # End the read-only planning transaction so the block below is a real
+        # top-level transaction that commits before the new login is tested.
+        connection.commit()
         try:
             with connection.transaction():
                 connection.execute(sql.SQL(
@@ -150,6 +153,7 @@ def main(argv=None) -> int:
             verified = verify_runtime(dsn, schema)
         except Exception:
             # Undo only what this run created.
+            connection.rollback()
             with connection.transaction():
                 if connection.execute("SELECT 1 FROM pg_roles WHERE rolname=%s", (ROLE,)).fetchone():
                     connection.execute(sql.SQL("DROP OWNED BY {}").format(sql.Identifier(ROLE)))
