@@ -14,7 +14,7 @@ from pathlib import Path
 import time
 
 from batch_ledger import (canonical, digest, require, M1_LOCAL,
-                          M1_GPU0, _is_sha, _direct, _regular, _new_file)
+                          M1_GPU0, _is_sha, _direct, _regular, _new_file, window_order)
 
 APPROVED_RECOVERY_LEASE = "batch_retfound_aptos5_dbf5070ece3d72f24748"
 APPROVED_RECOVERY_HASHES = {
@@ -307,11 +307,24 @@ def recover_approved_lease(ledger, *, owner_approved_lease, observe, process_exi
 
 
 def _window_caps(ledger, window_id, code="M1_EXACT_NAMED_WINDOW_REQUIRED"):
-    """The verified decision's only Server window and its caps; Local stays fail-closed."""
+    """A named window of the verified decision and its caps; Local stays fail-closed."""
     require(ledger.continuation is not None, "M1_VERIFIED_CONTINUATION_REQUIRED")
     require(window_id != M1_LOCAL, "M1_LOCAL_ADOPTION_NOT_QUALIFIED")
-    require(window_id == ledger.spec["server_window"], code)
+    require(window_id in window_order(ledger.spec), code)
     return ledger.spec["windows"][window_id]
+
+
+def _activation_order(ledger, window_id):
+    """Earlier windows must be activated and confirmed closed; later ones must not exist."""
+    order = window_order(ledger.spec)
+    index = order.index(window_id)
+    for earlier in order[:index]:
+        require((ledger.directory / "windows" / earlier).exists(), "M1_EARLIER_WINDOW_MUST_RUN_FIRST")
+        _, _, body = continuation_window_context(ledger, earlier)
+        require(body["active"] is None and body["quarantined"] is False and body["window_closed"] is True,
+                "M1_EARLIER_WINDOW_MUST_BE_CLOSED")
+    require(not any((ledger.directory / "windows" / later).exists() for later in order[index + 1:]),
+            "M1_WINDOW_ORDER_NO_RETURN")
 
 
 def _m1_lifetime(body, caps):
@@ -397,6 +410,7 @@ def activate_continuation_window(ledger, *, window_id, clock_origin, gpu_uuid,
         gate = ledger.directory / "M1_WINDOW_ACTIVATION.lock"
         require(not gate.exists() and not directory.exists() and not ledger.rows and not ledger.uncertain(),
                 "M1_WINDOW_ACTIVATION_ONCE_OR_PARTIAL_PRESERVED")
+        _activation_order(ledger, window_id)
         now, utc_now = clock(), utc()
         require(all(type(value) in (int, float) and math.isfinite(value) and value > 0 for value in (now, utc_now)),
                 "M1_WINDOW_CLOCK_INVALID")

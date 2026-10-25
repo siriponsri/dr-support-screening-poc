@@ -20,7 +20,8 @@ from typing import Callable, Protocol
 
 
 MODELS = {"uspec-uwf-grading", "retfound-aptos5", "prism-dr-5fold"}
-WORKER_ROLES = MODELS | {"qa-auth-probe"}
+# qa-watchdog-probe: MS-03 synthetic watchdog/OOM child (no model, weights or images).
+WORKER_ROLES = MODELS | {"qa-auth-probe", "qa-watchdog-probe"}
 SHA = re.compile(r"[0-9a-f]{64}\Z")
 JOB = re.compile(r"[A-Za-z0-9_-]{1,96}\Z")
 

@@ -5,6 +5,9 @@
   draft-prism  build the PRISM window continuation from a FENCED 2026-10-23 source
           (its HANDOVER_EXPORT.json and closed Server window) and write the
           upstream path map for the host session
+  draft-service  build the MS-03 service decision from the FENCED PRISM source and
+          the 2026-10-23 export it continued: six unsent post-fix operations in the
+          service window (the watchdog window has none)
   approve write APPROVAL.json for an exact proposal SHA-256, ONLY after the owner
           approved that hash in the task conversation
 
@@ -22,7 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'qa' / 'batch_runtime'))
 import m1_operations as operations  # noqa: E402
 from batch_ledger import (M1_PRISM_DECISION, M1_PRISM_OPERATIONS, M1_PRISM_SERVER,  # noqa: E402
-                          M1_PRISM_WINDOW)
+                          M1_PRISM_WINDOW, M1_SERVICE_DECISION, M1_SERVICE_OPERATIONS, M1_SERVICE_SERVER,
+                          M1_SERVICE_WINDOWS)
 
 SERVER, LOCAL = 'HOSPITAL_M1_QA_SERVER_20261023', 'HOSPITAL_M1_QA_LOCAL_20261023'
 ANCHORS = ('batch_ledger', 'original_budget', 'second_budget', 'demo_requests', 'demo_activation',
@@ -149,6 +153,54 @@ def draft_prism(args):
     return 0
 
 
+def service_selection(origin_jobs, remaining):
+    """Unsent non-PRISM post-fix operations first, then PRISM ones, each in proposal (register) order."""
+    ordered = [job for job in origin_jobs
+               if job['job_id'] in remaining and job['purpose'] == 'post_fix_verification' and job['window_id'] == SERVER]
+    chosen = [job for job in ordered if job['model_id'] != operations.PRISM][:M1_SERVICE_OPERATIONS]
+    chosen += [job for job in ordered if job['model_id'] == operations.PRISM][:M1_SERVICE_OPERATIONS - len(chosen)]
+    operations.require(len(chosen) == M1_SERVICE_OPERATIONS, 'SIX_UNSENT_POST_FIX_OPERATIONS_REQUIRED')
+    return chosen
+
+
+def draft_service(args):
+    """Six unsent 2026-10-23 post-fix operations, unchanged except their window."""
+    source = Path(args.source_accounting).resolve()  # The fenced PRISM decision.
+    origin = Path(args.origin_accounting).resolve()  # The fenced 2026-10-23 decision it continued.
+    files = {'handover_export': source / 'HANDOVER_EXPORT.json', 'source_proposal': source / 'PROPOSAL.json',
+             'source_approval': source / 'APPROVAL.json', 'source_journal': source / 'LEDGER.jsonl',
+             'source_journal_head': source / 'JOURNAL_HEAD.json', 'source_accounting': source / 'ACCOUNTING.json',
+             'source_server_budget': source / 'windows' / M1_PRISM_SERVER / 'BUDGET.json',
+             'source_server_complete': source / 'windows' / M1_PRISM_SERVER / 'COMPLETE.json',
+             'origin_export': origin / 'HANDOVER_EXPORT.json', 'origin_proposal': origin / 'PROPOSAL.json'}
+    export, origin_export, previous = (json.loads(files[key].read_bytes())
+                                       for key in ('handover_export', 'origin_export', 'origin_proposal'))
+    operations.require(export.get('status') == 'SOURCE_FENCED_LOCAL_ADOPTION_NOT_QUALIFIED'
+                       and export.get('destination_installation_sha256') == args.installation_sha256,
+                       'FENCED_SOURCE_FOR_THIS_INSTALLATION_REQUIRED')
+    jobs = []
+    for origin_job in service_selection(previous['operations'], set(origin_export['remaining_job_ids'])):
+        body = {key: value for key, value in origin_job.items() if key != 'job_id'} | {'window_id': M1_SERVICE_SERVER}
+        jobs.append({**body, 'job_id': hashlib.sha256(operations.canonical(body)).hexdigest()})
+    base = export['global_used']
+    proposal = {'schema': 'hospital-m1-service-continuation.v1', 'decision_id': M1_SERVICE_DECISION,
+                'base_used': base, 'cap': base + M1_SERVICE_OPERATIONS, 'new_admissions_max': M1_SERVICE_OPERATIONS,
+                'allocations': {'post_fix_verification': M1_SERVICE_OPERATIONS},
+                'windows': {key: dict(value) for key, value in M1_SERVICE_WINDOWS.items()},
+                'accounting_directory': args.accounting_directory, 'installation_sha256': args.installation_sha256,
+                'upstream': {key: sha_file(path) for key, path in files.items()}, 'operations': jobs}
+    raw = operations.canonical(proposal)
+    with Path(args.output).open('xb') as stream:
+        stream.write(raw)
+    with Path(args.upstream_output).open('xb') as stream:
+        stream.write(operations.canonical({key: str(path) for key, path in files.items()}))
+    print(json.dumps({'proposal': str(args.output), 'proposal_sha256': hashlib.sha256(raw).hexdigest(),
+                      'base_used': base, 'cap': proposal['cap'], 'windows': list(M1_SERVICE_WINDOWS),
+                      'operations': [{key: job[key] for key in ('operation_id', 'model_id', 'modality')}
+                                     | {'source_sha256': job['source_sha256'][:12]} for job in jobs]}, indent=1))
+    return 0
+
+
 def approve(args):
     raw = Path(args.proposal).read_bytes()
     operations.require(hashlib.sha256(raw).hexdigest() == args.proposal_sha256, 'OWNER_APPROVED_PROPOSAL_HASH_REQUIRED')
@@ -163,8 +215,9 @@ def approve(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('command', choices=['draft', 'draft-prism', 'approve'])
+    parser.add_argument('command', choices=['draft', 'draft-prism', 'draft-service', 'approve'])
     parser.add_argument('--source-accounting', type=Path)
+    parser.add_argument('--origin-accounting', type=Path, help='draft-service: the fenced 2026-10-23 decision')
     parser.add_argument('--upstream-output', type=Path)
     parser.add_argument('--models', type=Path)
     parser.add_argument('--prism-pins', type=Path)
@@ -179,6 +232,8 @@ def main():
     args = parser.parse_args()
     if args.command == 'draft-prism':
         return draft_prism(args)
+    if args.command == 'draft-service':
+        return draft_service(args)
     return draft(args) if args.command == 'draft' else approve(args)
 
 

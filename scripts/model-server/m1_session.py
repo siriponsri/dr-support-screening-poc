@@ -13,8 +13,9 @@ loopback port. No retry, renewal, public listener, credential creation or
 second lease exists. Control RPCs (discovery, prepare, status, grant) are not
 charged; every execute/predict is charged once before dispatch.
 
-The window name and caps come from the verified decision (2026-10-23 or the
-PRISM continuation). ``handover`` fences a closed source ledger for the next
+The window name and caps come from the verified decision (2026-10-23, the
+PRISM continuation, or the MS-03 service window, which activates only after its
+watchdog window is closed; see m1_watchdog.py). ``handover`` fences a closed source ledger for the next
 approved decision; ``verify`` dry-runs a draft with a temporary approval.
 """
 from __future__ import annotations
@@ -574,7 +575,7 @@ def verify_command(args):
     """
     import tempfile
     bindings(args.deploy)
-    from batch_ledger import _verify_decision
+    from batch_ledger import _verify_decision, window_order
     raw = Path(args.proposal).read_bytes()
     proposal, digest_value = json.loads(raw), sha(raw)
     with tempfile.TemporaryDirectory() as temporary:
@@ -589,6 +590,8 @@ def verify_command(args):
     print(json.dumps({'status': 'DRY_RUN_VERIFIED_NOT_APPROVED', 'proposal_sha256': digest_value,
                       'decision_id': spec['decision_id'], 'base_used': spec['base_used'], 'cap': spec['cap'],
                       'window': spec['server_window'], 'caps': spec['windows'][spec['server_window']],
+                      'window_order': window_order(spec),
+                      'all_caps': {key: spec['windows'][key] for key in window_order(spec)},
                       'prior_gpu_seconds': spec['prior_gpu_seconds'],
                       'operations': [{key: job[key] for key in ('operation_id', 'model_id', 'modality')}
                                      | {'source': job['source_sha256'][:12]} for job in proposal['operations']]}))
