@@ -1777,3 +1777,59 @@ guarded failure-checks; identity keys never hashed).
   - Out of scope, API-only: a `LEAVE_UNRESOLVED` admission review also sets
     `reviewed_by`, which export counts as confirmed.
 
+## 31. Owner-approved batch, 25 October 2026
+
+Owner approvals (chat, 2026-10-24):
+- AC-09 local-only export rule;
+- AC-13 backup plus restore into a new test DB and folder;
+- AC-08 reboot later, by the owner;
+- MS-03 continuous Model API on GPU0 with an isolated watchdog/OOM test.
+
+Done:
+- **AC-09:** one export rule, `source_policy.EXPORT_AUTHORIZATION`. It is used
+  by manifest, grouped and snapshot exports and by grading folders.
+  - Hospital records go only to a local Workspace output folder. Network
+    shares, `\\?\UNC`, mapped network drives and sync folders (OneDrive,
+    Dropbox, Google Drive, Shared drives, Box Sync) are refused before anything
+    is written.
+  - AI and physician data stay in separate fields.
+  - Tests include real export paths into a refused folder. The
+    hospital-fixture variant skips without the native-permission opt-in.
+  - Independent review findings fixed. Main full suite: 2044 passed.
+- **AC-12:** the review API caps request bodies at 8 MiB (`api/body_limit.py`),
+  returning 413 before any route reads the body.
+- **AC-02 (local workstation):** the launcher brings Docker and PostgreSQL up
+  by itself (healthy in 47 s); CHECK_SYSTEM passes with an explicit
+  MANUAL_MODE.
+- **AC-16 (partial):** private config is git-ignored and kept outside the
+  repo.
+  - **Finding:** the app connects to the project-owned PostgreSQL as the
+    container superuser, which fails DT-02 least privilege. Not changed;
+    needs owner approval for a runtime role.
+- Evidence: `M1PrivateConfig\evidence\m1-local-acceptance-20261024\ac02-ac16-local-workstation.json`.
+
+Blocked / stopped (owner decision needed):
+- **AC-13:** the local DB has no entry guard. It holds two TEST_ONLY hospital
+  workspaces (`windows-demo-test-only` and `ws_9a51…`, 21 cases each), while
+  frozen recovery v3 supports one catalogued hospital workspace.
+  - The plan wrote nothing.
+  - A plan-only source map exists under `M1PrivateConfig\recovery-authority\`
+    (sha `0a9636a1…`, digests null).
+  - `.env` writes reader-SID paths with `/` while the roots use `\`; recovery
+    compares them as exact text, so the process environment was normalized
+    for the plan. `.env` was not edited.
+- **DT-06:** TEST_ONLY reviewer labels cannot be told apart from physician
+  labels in export. Grading folders also hash the reviewer.
+- **MS-03 STOP:** a continuous service conflicts with the frozen accounting
+  rules:
+  - an exact owner-confirmed decision and proposal hash before any charged
+    request;
+  - a source_sha256-bound operation list;
+  - child ceilings of 2700/2730 s;
+  - 7,200 GPU-seconds left, and model preload counts as GPU time;
+  - the legacy `start.sh`/systemd unit bypasses the ledger and listens on
+    0.0.0.0.
+  - Research summary: OOM handling is indirect only; there are no cgroup
+    limits; the GPU monitor reads the whole device.
+- Offline mask gallery: not rebuilt. The historical measurement stands; a
+  refresh needs physician adjudication to be useful.
