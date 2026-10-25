@@ -36,3 +36,10 @@ def test_runtime_dsn_uses_the_runtime_role_and_quotes_the_password():
     assert parts.username == tool.ROLE and unquote(parts.password) == "a/b:c@d"
     assert parts.hostname == "127.0.0.1" and parts.port == 54329 and parts.path == "/dr_support"
     assert "owner" not in dsn and "secret" not in dsn
+
+
+def test_role_creation_commits_before_the_login_is_tested():
+    source = (tool.REPO_ROOT / "scripts" / "qa" / "configure_local_runtime_role.py").read_text(encoding="utf-8")
+    apply_block = source[source.index('require(not planned["role_exists"]'):]
+    assert apply_block.index("connection.commit()") < apply_block.index("with connection.transaction():")
+    assert apply_block.index("with connection.transaction():") < apply_block.index("verify_runtime(dsn, schema)")
