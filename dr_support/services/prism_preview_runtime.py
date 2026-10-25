@@ -2,7 +2,9 @@
 from copy import deepcopy
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
+import logging
 import os
+import re
 import secrets
 from weakref import WeakKeyDictionary
 
@@ -12,6 +14,7 @@ from ..contracts import InferenceRequest, LesionResult, PrismProcessingEvidence
 from .prism_preview import (
     MODEL_ID, PROTOCOL, PreviewSnapshot, PrismPreviewService, canonical, preparation_context, sha,
 )
+from .prism_remote_transport import TransportError
 from .source_identity import source_identity_reason
 
 
@@ -164,6 +167,21 @@ class ReviewPrismPreview:
                 candidate = candidate_method(wire)
             except ValueError:
                 raise HTTPException(409, "Frozen candidate is unavailable; prepare a new preview.") from None
+            except TransportError as error:
+                if refresh_only:
+                    raise  # Submit-time refresh keeps the execution refusal path unchanged.
+                # Preparation starts no model work. Log the fixed code only; show plain wording.
+                logging.getLogger(__name__).warning(
+                    "PRISM preparation refused: %s",
+                    error.code if isinstance(error.code, str) and re.fullmatch(r"[A-Z0-9_]{1,80}", error.code) else "")
+                if error.code == "PREPARE_UNAVAILABLE":
+                    raise HTTPException(503, "The model server did not answer in time. "
+                                             "No model work was started; press Prepare again.") from None
+                if error.status >= 500:
+                    raise HTTPException(503, "PRISM is not available right now. "
+                                             "No model work was started.") from None
+                raise HTTPException(409, "The model server could not prepare this input. "
+                                         "No model work was started; prepare a new preview.") from None
             width, height = image.size
             input_width, input_height = wire.size
             transform = dict(version=str(audit["transform_version"]), transform_id=audit["transform_id"],

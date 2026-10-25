@@ -28,6 +28,14 @@ function plainPrismError(message: string): string {
   return message;
 }
 
+/** Preparation starts no model work, so a failed prepare is always a plain retry. */
+function plainPrepareError(message: string): string {
+  if (!message || /^Request failed with HTTP 5\d\d$/.test(message)) {
+    return 'The model server did not answer. No model work was started; press Prepare again.';
+  }
+  return message;
+}
+
 /** Bound preparation view; inference requires a separate explicit one-use click. */
 export function PrismInputPreview({ item, model, onInferenceComplete, technicalBatch = false, showArtifactField = true, onCaseUpdated }: Props) {
   const [open, setOpen] = useState(false);
@@ -57,7 +65,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
   const [, tick] = useState(0);
   const context = previewContextKey(item, model);
   const [prepared, setPrepared] = useState<{ context: string; value: unknown } | null>(null);
-  const [actionError, setActionError] = useState<{ context: string; message: string } | null>(null);
+  const [actionError, setActionError] = useState<{ context: string; message: string; stage: 'prepare' | 'submit' } | null>(null);
   const [busy, setBusy] = useState(false);
   const [acceptedKey, setAcceptedKey] = useState<string | null>(null);
   const [submittedKey, setSubmittedKey] = useState<string | null>(null);
@@ -92,7 +100,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
       });
       if (action.current === current && !current.controller.signal.aborted) setPrepared({ context, value: result });
     } catch (err) {
-      if (action.current === current && !current.controller.signal.aborted) setActionError({ context, message: err instanceof Error ? err.message : 'Preparation failed.' });
+      if (action.current === current && !current.controller.signal.aborted) setActionError({ context, stage: 'prepare', message: plainPrepareError(err instanceof Error ? err.message : '') });
     } finally {
       if (action.current === current) { action.current = null; setBusy(false); }
     }
@@ -176,7 +184,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
       }, { model_id: model.model_id, model_version: verified.model_version });
       if (action.current === current && !current.controller.signal.aborted) await onInferenceComplete?.();
     } catch (err) {
-      if (action.current === current && !current.controller.signal.aborted) setActionError({ context, message: (technicalBatch ? (raw: string) => raw : plainPrismError)(err instanceof Error ? err.message : 'Submission failed; do not retry this receipt.') });
+      if (action.current === current && !current.controller.signal.aborted) setActionError({ context, stage: 'submit', message: (technicalBatch ? (raw: string) => raw : plainPrismError)(err instanceof Error ? err.message : 'Submission failed; do not retry this receipt.') });
     } finally {
       if (action.current === current) { action.current = null; setBusy(false); }
     }
@@ -199,7 +207,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
       {open && <>
         <Button data-testid="prism-preview-prepare" alignSelf="flex-start" size="sm" variant="outline" isLoading={busy} isDisabled={!qualityConfirmed || (technicalBatch && technicalPrepared.current)} onClick={() => void prepare()}>Prepare / refresh API input</Button>
         {technicalBatch && busy && <Text data-testid="qa-batch-busy">Technical PRISM operation in progress</Text>}
-        {actionError?.context === context && <Alert status="error"><AlertIcon /><Text>{actionError.message} {technicalBatch ? 'This technical attempt failed or is uncertain; no retry is permitted.' : 'Prepare a new receipt before another attempt.'}</Text></Alert>}
+        {actionError?.context === context && <Alert status="error"><AlertIcon /><Text>{actionError.message}{technicalBatch ? ' This technical attempt failed or is uncertain; no retry is permitted.' : actionError.stage === 'submit' ? ' Prepare a new receipt before another attempt.' : ''}</Text></Alert>}
         <Text fontSize="sm">Optical FOV is the camera field; an artifact mask excludes selected pixels; native ROI is PRISM’s internal crop. None is a lesion box or a clinical grade.</Text>
         {(unavailable || error?.key === key) ? <Alert status="warning"><AlertIcon /><Stack spacing={1}>
           <Text fontWeight="semibold">PRISM input preview unavailable</Text>

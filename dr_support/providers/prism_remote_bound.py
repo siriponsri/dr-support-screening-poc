@@ -19,6 +19,13 @@ class RemoteExecutionUncertain(TransportError):
     pass
 
 
+# Prepare uploads the wire and the host builds the frozen CPU plan; it took longer
+# than the 2 s client default right after a PRISM job (MS-03, 2026-10-25). Prepare
+# is a control call that starts no model work. The review runtime holds the case
+# store lock during this call, so the limit stays short.
+PREPARE_TIMEOUT = httpx.Timeout(10, connect=2)
+
+
 class ExplicitHttpChannel:
     """No default transport/auth/environment; tests supply MockTransport only.
 
@@ -36,7 +43,8 @@ class ExplicitHttpChannel:
         headers = dict(self.auth_headers(authority))
         if epoch:
             headers["X-Prism-Epoch"] = epoch
-        with self.client.stream(method, path, json=value, headers=headers) as response:
+        timeout = PREPARE_TIMEOUT if path == BASE + "/prepare" else httpx.USE_CLIENT_DEFAULT
+        with self.client.stream(method, path, json=value, headers=headers, timeout=timeout) as response:
             data = bytearray()
             for chunk in response.iter_bytes():
                 data.extend(chunk)
@@ -100,9 +108,13 @@ class RemoteBoundTransportCandidate:
         self.authority.authorize_prepare(wire)
         if not isinstance(wire.data, bytes):
             raise TransportError("IMMUTABLE_WIRE_REQUIRED")
-        value = self._request("POST", BASE + "/prepare", {
-            "wire_b64": base64.b64encode(wire.data).decode(), "wire_sha256": sha(wire.data),
-            "wire_media_type": wire.media_type, "modality": wire.modality})
+        try:
+            value = self._request("POST", BASE + "/prepare", {
+                "wire_b64": base64.b64encode(wire.data).decode(), "wire_sha256": sha(wire.data),
+                "wire_media_type": wire.media_type, "modality": wire.modality})
+        except httpx.TransportError:
+            # A missed answer at prepare is a plain retry: no model work starts here.
+            raise TransportError("PREPARE_UNAVAILABLE", 503) from None
         if value["pins"] != self.capabilities["pins"] or value["epoch"] != self.capabilities["epoch"]:
             raise TransportError("REMOTE_CONFIG_CHANGED")
         self.tickets[(wire.sha256, wire.modality)] = deepcopy(value)
