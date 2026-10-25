@@ -7,30 +7,35 @@
 **Steps.**
 
 1. Make any optional ROI changes. You do not need to inspect every AI ROI.
-2. Check the **Reviewer** summary in **Complete review**. The remembered
+2. Check the reviewer in **Complete review**. The remembered
    reviewer is a convenience, not authentication.
-3. Choose **Finish image & next**. If there are no Core human findings, the
-   action explicitly says **reviewed none found**.
+3. Choose the Finish button. Its label tells you what will be recorded:
+   **Finish image & next** when you recorded findings;
+   **Finish: reviewed none found** when there are no findings and no AI
+   suggestions; or **Finish: no findings added (N AI suggestions not
+   accepted)** when AI suggestions exist but you added no findings.
 
 **Expected result.** Any pending draft is saved, then Core completeness is
 recorded deliberately, the internal annotation-confirmation milestone stores
 the reviewer, timestamp, and hash of the active annotation set, and *Case
-complete · Opening next image* appears. The Worklist shows **Review complete**
-for this image, and **Confirm Image** opens for the next unfinished Worklist
-image. When every image is complete, the Worklist says so. Reviewed-none is
-review-completeness evidence only; it does not create a negative lesion
-annotation or authorize a Phase 4 negative export.
+complete: opening next image* appears. The Worklist shows **Done**
+for this image, and the next unfinished Worklist image opens (at Confirm
+Image if its context is not yet confirmed). When every image is complete,
+the message says so. Both no-findings labels store the same meaning, reviewed
+none found (`REVIEWED_NONE_FOUND`). It is review-completeness evidence only; it does not create a
+negative lesion annotation or authorize a Phase 4 negative export, and AI
+suggestions you did not accept are not recorded as findings.
 ::::
 :::: {}
 ![Finish this image.](screenshots/12-confirm-annotation.png){#fig-confirm-annotation width=100%}
 ::::
 :::::
 
-![Case complete: the next Worklist image opens at Confirm Image.](screenshots/19-case-complete.png){#fig-case-complete width=90%}
+![Case complete: the next Worklist image opens.](screenshots/19-case-complete.png){#fig-case-complete width=90%}
 
 ## Change confirmed annotations
 
-A confirmed image shows **Annotations confirmed** with the reviewer and time, and the editor is read-only. Choose **Edit confirmed annotations** (or click an AI ROI) to reopen it; one warning appears per edit session. Any later edit changes the hash, so the image needs **Finish image & next** again before it is Lesion-ready.
+When the annotations of an image are confirmed, the editor shows an **Annotations confirmed** box with the reviewer and time, and the editor is read-only. The box does not appear before that. Choose **Edit confirmed annotations** (or click an AI ROI) to reopen it; one warning, *Edit confirmed annotations?*, appears per edit session. **Open next image** moves on without changes. Any later edit changes the hash, so the image needs the Finish button again before it is Lesion-ready.
 
 ![One warning before reopening confirmed annotations.](screenshots/18-edit-annotations-warning.png){#fig-edit-annotations width=52%}
 

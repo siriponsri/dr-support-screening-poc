@@ -5,23 +5,26 @@
 | What you see | What to do |
 |:-------------|:-----------|
 | **Unsupported modality** | The DICOM is recognized but is not supported fundus input. Do not send it to the models. |
-| **AI analysis is not available** | Continue image review and human decisions. Ask the operator to check the Model API and the workstation connection. |
-| No PRISM overlays | Check **Show AI suggestions**, the lesion filter, and whether a result exists. An empty result does not prove lesion absence. |
-| **Save failed** | Stay on the page, check the reviewer name and connection, then choose **Save draft** again. |
+| **AI UNAVAILABLE** on Review | Continue image review and human decisions. The badge refreshes on its own; if it stays unavailable, ask the operator to check the Model API and the workstation connection. |
+| No PRISM overlays | Check that **AI evidence** is selected, the lesion filter, and whether a result exists. An empty result does not prove lesion absence. |
+| *Confirm image quality before using PRISM.* | Choose **Image quality acceptable** only if the image quality is acceptable; otherwise continue with manual review. |
+| **Save failed** | Stay on the page and check the reviewer name and connection. Your next edit, the Finish button, or **Save draft and leave** saves the draft again. |
 | Case is not DR-ready | Check **Confirm Image**, the final grade, the reviewer, and the timestamp. |
-| Case is not Lesion-ready | Check whether the annotation set changed after **Finish image & next**; finish it again. |
-| Wrong reviewer prefilled | Edit the field, or change **Default reviewer** in **Settings**. |
+| Case is not Lesion-ready | Check whether the annotation set changed after the Finish button; finish it again. |
+| Export could not be created | Ask the operator to check source authorization and that the Workspace output folder in **Settings** is local, not a network share or cloud-synced folder. |
+| Wrong reviewer prefilled | Choose **Change** beside the reviewer, or change **Default reviewer** in **Settings**. |
+| Sidebar is missing | Choose **Show sidebar** at the left of the top bar. |
 | CVAT is unavailable | Continue local review. Retry once the operator confirms URL, project, credentials, and network. |
 
 : {tbl-colwidths="[28,72]"}
 
 ## Safety and privacy
 
-::: {.callout-warning title="Safety -- clinical use"}
+::: {.callout-warning title="Safety: clinical use"}
 This is a research and clinical-support proof of concept. Model output is assistive evidence and human review remains authoritative. The product does not establish diagnosis, referral, treatment, or disease truth.
 :::
 
-::: {.callout-warning title="Safety -- data handling"}
+::: {.callout-warning title="Safety: data handling"}
 Use only approved public, synthetic, or authorized data. Never put PHI, private DICOM headers, tokens, passwords, CVAT credentials, model weights, or runtime databases in screenshots, examples, exports, or source control.
 :::
 
@@ -34,11 +37,12 @@ Use only approved public, synthetic, or authorized data. Never put PHI, private 
 | Term | Meaning |
 |:-----|:--------|
 | AI suggestion | A model output shown to support inspection. |
-| Confirmation milestone | One of **Confirm Image**, **Confirm DR Grade**, **Finish image & next** (the internal third milestone is annotation confirmation). |
+| Confirmation milestone | One of **Confirm Image**, **Confirm DR grade**, and the Finish button (the internal third milestone is annotation confirmation). |
 | DR-ready | The case meets the dataset rules for the DR-grade task. |
 | Lesion-ready | The case meets the dataset rules for the lesion-annotation task. |
 | Model score | A value returned by a model; not a calibrated clinical probability. |
 | Original AI evidence | Class, score, geometry, identity, model, and provenance returned by inference, kept unchanged after human edits. |
-| Reviewer default | A browser-local name used to prefill new forms; not authentication. |
+| Reviewer default | A browser-local name used to prefill new forms, shown as **Reviewer:** with **Change**; not authentication. |
+| Ungradable | A separate image-review state recorded with **Confirm Ungradable**; not a DR severity, and no DR grade is stored. |
 
 : {tbl-colwidths="[28,72]"}
