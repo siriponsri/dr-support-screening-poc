@@ -58,6 +58,7 @@ from ..imaging import (
     SourceIntegrity,
     map_lesion_result_to_review,
 )
+from .body_limit import BodyLimitMiddleware
 from ..services.admission import (
     ADMISSION_REVIEW_FIELDS,
     is_inference_eligible,
@@ -247,6 +248,8 @@ def create_app(
         if type(qa_batch_profile) is not TechnicalBatchProfile or qa_fixed_session is not None:
             raise ValueError('Explicit isolated batch profile required')
     app = FastAPI(title='Retinal Review Workbench', version='0.7.0')
+    # Bounded request bodies (AC-12); the review API takes no file uploads.
+    app.add_middleware(BodyLimitMiddleware)
     app.state.source_mutation_gate = source_mutation_gate
     app.state.workspace_authority = workspace_authority
     root = Path(__file__).resolve().parents[2]
