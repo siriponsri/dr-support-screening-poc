@@ -6,13 +6,15 @@ import hashlib
 import json
 
 from .source_identity import source_identity_reason
+from .source_policy import EXPORT_AUTHORIZATION
 
 SCHEMA = "grading-folders.v1"
 POLICY = "grading-folders.v2-authorized-local-physician-organization"
 GROUPS = ("Grade0", "Grade1", "Grade2", "Grade3", "Grade4", "UNREVIEWED", "UNGRADABLE", "UNDETERMINED")
 FORMATS = {"image/png": ".png", "image/jpeg": ".jpg", "image/tiff": ".tif", "application/dicom": ".dcm"}
-AUTHORIZATIONS = {"PUBLIC": "ALLOWED_ENGINEERING_PUBLIC", "SYNTHETIC": "ALLOWED_ENGINEERING_SYNTHETIC",
-                  "HOSPITAL_AUTHORIZED": "ALLOWED_LOCAL_AUTHORIZED_HOSPITAL"}
+# Origins the single export rule allows; blocked origins never get folders.
+AUTHORIZATIONS = {origin: decision for origin, decision in EXPORT_AUTHORIZATION.items()
+                  if not decision.startswith("BLOCKED_")}
 
 
 class GradingFolderError(ValueError):
