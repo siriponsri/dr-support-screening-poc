@@ -160,6 +160,7 @@ describe('single Review UI preparation panel', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /I inspected/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Submit prepared input to PRISM' }));
     expect(await screen.findByText(/Synthetic timeout/)).toBeInTheDocument();
+    expect(screen.getByText(/Prepare a new receipt before another attempt/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit prepared input to PRISM' })).toBeDisabled();
     expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   });
@@ -177,6 +178,23 @@ describe('single Review UI preparation panel', () => {
     expect(posts[0][0]).toBe('/v1/cases/synthetic-preview/prism-input-preview');
     expect(JSON.parse(String(posts[0][1]?.body))).toEqual({ revision: 7, model_id: model.model_id });
     expect(screen.getByRole('button', { name: 'Submit prepared input to PRISM' })).toBeDisabled();
+  });
+  it.each([
+    ['the server wording', { detail: 'The model server did not answer in time. No model work was started; press Prepare again.' }, 503,
+      'The model server did not answer in time. No model work was started; press Prepare again.'],
+    ['a plain fallback for a bare server error', {}, 500,
+      'The model server did not answer. No model work was started; press Prepare again.'],
+  ])('shows %s when preparation fails and keeps Prepare available', async (_name, body, status, text) => {
+    vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST'
+      ? ({ ok: false, status, json: async () => body } as Response)
+      : ({ ok: true, arrayBuffer: async () => pngBytes.buffer.slice(0) } as Response));
+    render(<ChakraProvider>{node(gradable())}</ChakraProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare / refresh API input' }));
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(screen.queryByText(/HTTP 500/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Prepare a new receipt/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prepare / refresh API input' })).toBeEnabled();
   });
   it('ignores a deferred preparation response after a case switch and clears loading ownership', async () => {
     let resolve!: (value: unknown) => void;

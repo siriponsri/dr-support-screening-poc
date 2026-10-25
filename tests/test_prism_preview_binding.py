@@ -534,3 +534,22 @@ def test_main_factory_wires_binding_and_blocks_legacy_prism_without_executing_fa
     assert any("prism-dr-5fold" in guard and "409" in guard for guard in early_guards)
     assert "install_prism_preview_routes(app, app.state.prism_preview)" in source
     assert "store = target_store if target_store is not None else app.state.store" in source
+
+
+@pytest.mark.parametrize("status, code, text", [
+    (503, "PREPARE_UNAVAILABLE", "did not answer in time"),
+    (409, "REMOTE_REJECTED", "could not prepare this input"),
+])
+def test_prepare_transport_failure_is_a_plain_refusal_with_no_model_work(rig, monkeypatch, status, code, text):
+    from dr_support.services.prism_remote_transport import TransportError
+
+    def refuse(wire):
+        raise TransportError(code, status)
+    monkeypatch.setattr(rig.provider, "prepare_prism_preview_candidate", refuse)
+    before = deepcopy(rig.store.case)
+    response = rig.client.post("/v1/cases/fixture/prism-input-preview", json={"revision": 0})
+    assert response.status_code == status and text in response.json()["detail"]
+    assert "No model work was started" in response.json()["detail"] and code not in response.json()["detail"]
+    assert rig.provider.calls == 0 and rig.saved == [] and rig.store.case == before
+    monkeypatch.undo()
+    assert prepare(rig)["wire_sha256"] == rig.image.sha256  # Pressing Prepare again works.
