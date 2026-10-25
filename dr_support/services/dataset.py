@@ -24,7 +24,7 @@ from .source_policy import (
     export_authorization,
     local_export_destination_reason,
 )
-from .grading_folders import GradingFolderError, plan_grading_folders
+from .grading_folders import POLICY as GRADING_FOLDER_POLICY, GradingFolderError, plan_grading_folders
 from .filesystem_privacy import has_reparse_component
 from ..presentation import annotation_set_hash, lesion_detection_id, review_evidence_view
 from ..imaging import DerivativeError
@@ -54,12 +54,17 @@ TEST_ONLY_MARKER = "TEST_ONLY"
 
 
 def label_class(case: dict, admission: dict | None, workspace) -> str | None:
-    """TEST_ONLY, CLINICIAN, or None when no human reviewer is recorded."""
+    """TEST_ONLY, CLINICIAN, or None when no human reviewer is recorded.
+
+    Uses the reviewers of the current labels (grade, annotation set, shapes, AI-box
+    decisions, image confirmation), not superseded grade history.
+    """
     reviewers = [
         (case.get("clinician_review") or {}).get("reviewer"),
         (case.get("annotation_confirmation") or {}).get("reviewer"),
         (admission or {}).get("reviewed_by"),
-        *((entry or {}).get("reviewer") for entry in case.get("grade_reviews") or []),
+        *((entry or {}).get("reviewer") for entry in case.get("human_annotations") or []),
+        *((entry or {}).get("reviewer") for entry in case.get("ai_annotation_reviews") or []),
     ]
     reviewers = [str(name).strip() for name in reviewers if name and str(name).strip()]
     workspace_text = " ".join(str(getattr(workspace, key, "") or "") for key in ("id", "name")).upper()
@@ -606,6 +611,9 @@ class DatasetManifestService:
             if admission is None and image is not None:
                 admission = legacy_admission(image)
             include, eligibility_reason = self._case_eligibility(case, image, admission)
+            labels = label_class(case, admission, workspace)
+            if labels == "TEST_ONLY" and include:
+                include, eligibility_reason = False, "TEST_ONLY_LABEL"
             grade, grade_source, review = self._final_grade(case)
             grade_confirmation_status, grade_confirmed_by, grade_confirmed_at = self._grade_confirmation(case, grade, review)
             image_confirmation_status, image_confirmed_by, image_confirmed_at = self._image_confirmation(case, admission)
@@ -613,7 +621,6 @@ class DatasetManifestService:
             annotation_confirmed, annotation_confirmation = self._annotation_confirmation(case)
             current_annotation_hash = annotation_set_hash(case)
             lesion_reason = self._task_reason(case, admission, image, image_confirmation_status == "CONFIRMED", task="lesion")
-            labels = label_class(case, admission, workspace)
             if labels == "TEST_ONLY":
                 grade_reason = "TEST_ONLY_LABEL" if grade_reason == "ELIGIBLE" else grade_reason
                 lesion_reason = "TEST_ONLY_LABEL" if lesion_reason == "ELIGIBLE" else lesion_reason
@@ -913,7 +920,7 @@ class DatasetManifestService:
             "annotations": annotations,
             "coordinate_system": "original_image_pixels",
             "lesion_taxonomy": sorted(CANONICAL_LABELS),
-            "eligibility_policy_version": "s8.2-task-specific-v1",
+            "eligibility_policy_version": LEGACY_ELIGIBILITY_POLICY_VERSION,
             "source_state_digest_version": SOURCE_STATE_DIGEST_VERSION,
             "source_state_digest": (source_state or {}).get("digest"),
             "source_case_count": (source_state or {}).get("case_count", len(images)),
@@ -1394,7 +1401,7 @@ class DatasetManifestService:
             details = {**folder_plan.summary(), "manifest": "grading_folders/manifest.json"}
             manifest["grading_folders"] = details
             receipt["grading_folders"] = details
-            manifest["grade_label_selection_policy"] = "grading-folders.v2: current source-bound physician folder organization; training eligibility remains independent"
+            manifest["grade_label_selection_policy"] = f"{GRADING_FOLDER_POLICY}: current source-bound physician folder organization; TEST_ONLY labels kept separate; training eligibility remains independent"
             manifest["limitations"][0] = "Optional grading_folders copies original bytes; folder membership is not clinical UAT or lesion-training readiness."
             if os.name == "nt" and any(len(str((export_dir / name).absolute())) >= 260 for name in files):
                 raise DatasetManifestError("Workspace output path is too long; choose a shorter output directory.")
@@ -1477,7 +1484,7 @@ class DatasetManifestService:
                 "lesion_ready_annotation_count": sum(bool(row["include_in_training"]) for row in annotations),
                 "coordinate_system": "original_image_pixels",
                 "lesion_taxonomy": sorted(CANONICAL_LABELS),
-                "eligibility_policy_version": "s8.2-task-specific-v1",
+                "eligibility_policy_version": LEGACY_ELIGIBILITY_POLICY_VERSION,
                 "source_state_digest_version": SOURCE_STATE_DIGEST_VERSION,
                 "source_state_digest": source_state,
                 "negative_policy_version": NEGATIVE_POLICY_VERSION,
@@ -1564,8 +1571,11 @@ class DatasetManifestService:
         self._assert_local_destination(grouped_rows, workspace.output_folder)
         manifest_dir.mkdir(parents=True, exist_ok=True)
 
+        workspace_now = self._workspace()
         for image_id, case, image, admission in snapshots:
             group, grade = _grade_group(case, admission)
+            if group.startswith("dr_grade_") and label_class(case, admission, workspace_now) == "TEST_ONLY":
+                group, grade = "test_only", None  # DT-06: never a physician grade folder.
             source_sha256 = image.sha256 if image is not None else (admission or {}).get("source_sha256")
             item = {
                 "image_id": image_id,

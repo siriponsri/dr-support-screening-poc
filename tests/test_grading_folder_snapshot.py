@@ -431,6 +431,4 @@ def test_test_only_grade_goes_to_its_own_folder_and_is_not_training_ready(rig, m
     item = folder_manifest(rig, result)["items"][0]
     assert item["group"] == "TEST_ONLY" and item["confirmed_grade"] is None and item["reason"] == "TEST_ONLY_LABEL"
     assert (rig.output / result["directory_name"] / item["output_path"]).parts[-2] == "TEST_ONLY"
-    record = result["manifest"]["records"][0] if "records" in result["manifest"] else None
-    if record is not None:
-        assert record["label_class"] == "TEST_ONLY" and record["dr_grade_training_ready"] is False
+    assert result["manifest"]["grade_label_selection_policy"].startswith("grading-folders.v3")

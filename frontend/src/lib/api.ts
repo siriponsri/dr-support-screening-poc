@@ -627,6 +627,7 @@ export interface DatasetImageRow {
   cvat_annotation_count: number;
   verification_status: string;
   include_in_training: boolean;
+  label_class?: 'TEST_ONLY' | 'CLINICIAN' | null;
   eligibility_reason: string;
   dataset_status: 'Ready for dataset' | 'Needs review' | 'Excluded' | 'AI only';
   image_confirmation_status?: string;

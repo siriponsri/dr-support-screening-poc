@@ -43,6 +43,32 @@ def test_test_only_grades_are_tagged_and_not_training_ready(tmp_path, monkeypatc
     assert rows[test_only]["label_class"] == "TEST_ONLY"
     assert rows[test_only]["dr_grade_training_ready"] is False
     assert rows[test_only]["grade_eligibility_reason"] == "TEST_ONLY_LABEL"
-    # The clinician row is not blocked by the test-only rule; any other reason stays its own.
-    if rows[clinician]["grade_eligibility_reason"] == "ELIGIBLE":
-        assert rows[clinician]["dr_grade_training_ready"] is True
+    assert rows[test_only]["include_in_training"] is False
+    assert rows[test_only]["eligibility_reason"] == "TEST_ONLY_LABEL"
+    assert rows[clinician]["grade_eligibility_reason"] == "ELIGIBLE"
+    assert rows[clinician]["dr_grade_training_ready"] is True and rows[clinician]["include_in_training"] is True
+    manifest = client.get("/v1/dataset/manifest").json()
+    assert manifest["training_ready_count"] == 1
+
+    # Workspace-origin records are export-blocked by design; give them an allowed decision here.
+    from dr_support.services import dataset
+    monkeypatch.setattr(dataset, "_export_authorization", lambda origin: "ALLOWED_ENGINEERING_SYNTHETIC")
+    grouped = client.post("/v1/dataset/export/grouped-by-grade", json={})
+    assert grouped.status_code == 200, grouped.text
+    root = tmp_path / "output" / "grouped_by_grade"
+    assert any((root / "dr_grade_2").iterdir())
+    assert not any(test_only[:12] in path.name for path in (root / "dr_grade_2").iterdir())
+    assert (root / "test_only").is_dir() and any((root / "test_only").iterdir())
+
+
+def test_test_only_shapes_make_the_lesion_labels_test_only():
+    clinical = SimpleNamespace(id="ws_1", name="Hospital review")
+    case = {"annotation_confirmation": {"reviewer": "Dr. Synthetic"},
+            "human_annotations": [{"reviewer": "TEST_ONLY_A", "label": "HEMORRHAGE"}]}
+    assert label_class(case, None, clinical) == "TEST_ONLY"
+    case = {"clinician_review": {"reviewer": "Dr. Synthetic"},
+            "ai_annotation_reviews": [{"reviewer": "TEST_ONLY_B", "action": "REJECT"}]}
+    assert label_class(case, None, clinical) == "TEST_ONLY"
+    # Superseded grade history does not taint the current physician grade.
+    case = {"clinician_review": {"reviewer": "Dr. Synthetic"}, "grade_reviews": [{"reviewer": "TEST_ONLY_C"}]}
+    assert label_class(case, None, clinical) == "CLINICIAN"
