@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, AlertIcon, Button, HStack, Stack, Text } from '@chakra-ui/react';
 import { Section } from '@/components/common/Section';
-import { datasetApi, type DatasetSnapshotPreview } from '@/lib/api';
+import { datasetApi, plainExportRefusal, type DatasetSnapshotPreview } from '@/lib/api';
 import { localTiming, type Outcome } from '@/lib/localTiming';
 
 interface Props { workspaceId: string | null; exportAllowed: boolean; refreshToken?: string }
@@ -59,12 +59,12 @@ export function GradingFolderSnapshot({ workspaceId, exportAllowed, refreshToken
         setPreview({ context, data: result });
         outcome = 'COMPLETED';
       }
-    } catch {
+    } catch (err) {
       if (current()) {
         setPreview(null);
-        setMessage({ context, error: true, text: create
+        setMessage({ context, error: true, text: plainExportRefusal(err) ?? (create
           ? 'Snapshot creation could not be verified. Check Workspace output, then refresh the preview before another attempt. Source changes or authorization may block it.'
-          : 'The grading-folder preview is unavailable. Refresh the Workspace and check source authorization.' });
+          : 'The grading-folder preview is unavailable. Refresh the Workspace and check source authorization.') });
       }
     } finally {
       controller.signal.removeEventListener('abort', cancelled);

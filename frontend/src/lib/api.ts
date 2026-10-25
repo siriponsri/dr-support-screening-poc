@@ -959,6 +959,15 @@ export async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit, p
   }
 }
 
+/** Server refusals that are written for clinicians and may be shown as-is. */
+const PLAIN_EXPORT_REFUSALS = ['Hospital records can be exported only to a local folder'];
+
+/** The server's plain export refusal, or null so the caller keeps its generic message. */
+export function plainExportRefusal(error: unknown): string | null {
+  const message = error instanceof Error ? error.message : '';
+  return PLAIN_EXPORT_REFUSALS.some((prefix) => message.startsWith(prefix)) ? message : null;
+}
+
 export function normalizeApiDetail(detail: unknown): string {
   if (typeof detail === 'string' && detail.trim()) return detail.trim();
   if (Array.isArray(detail)) {

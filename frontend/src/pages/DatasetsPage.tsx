@@ -41,6 +41,7 @@ import { GradingFolderSnapshot } from '@/components/dataset/GradingFolderSnapsho
 import {
   datasetApi,
   drGradeLabel,
+  plainExportRefusal,
   type DatasetImageRow,
   type DatasetManifestResponse,
   type WorkspaceDataDetail,
@@ -216,20 +217,20 @@ export function DatasetsPage() {
   const createExport = async () => {
     if (!manifest?.can_export || exporting) return;
     setExporting(true); setError(null); setNotice(null);
-    try { const result = await datasetApi.export(); setNotice(`Export created: ${result.image_count} images and ${result.annotation_count} annotations.`); } catch { setError('The dataset export could not be created.'); } finally { setExporting(false); }
+    try { const result = await datasetApi.export(); setNotice(`Export created: ${result.image_count} images and ${result.annotation_count} annotations.`); } catch (err) { setError(plainExportRefusal(err) ?? 'The dataset export could not be created.'); } finally { setExporting(false); }
   };
 
   const createSnapshot = async () => {
     if (!manifest?.can_export || snapshotting) return;
     setSnapshotting(true); setError(null); setNotice(null);
-    try { const result = await datasetApi.snapshot(); setNotice(`Canonical snapshot created: ${result.snapshot_id}.`); } catch { setError('The canonical snapshot is blocked or could not be created. Review source authorization and Workspace state.'); } finally { setSnapshotting(false); }
+    try { const result = await datasetApi.snapshot(); setNotice(`Canonical snapshot created: ${result.snapshot_id}.`); } catch (err) { setError(plainExportRefusal(err) ?? 'The canonical snapshot is blocked or could not be created. Review source authorization and Workspace state.'); } finally { setSnapshotting(false); }
   };
 
   const createGroupedExport = async () => {
     const quality = Number(jpegQuality);
     if (!manifest?.can_export || exportingGrouped || !Number.isInteger(quality) || quality < 1 || quality > 100) return;
     setExportingGrouped(true); setError(null); setNotice(null);
-    try { const result = await datasetApi.exportGrouped(groupedFormat, quality); setNotice(`Grouped export created in ${result.directory_name}: ${result.copied_count} copied, ${result.identical_existing_count} already present, ${result.skipped_count} skipped.`); } catch { setError('The grouped image export could not be created.'); } finally { setExportingGrouped(false); }
+    try { const result = await datasetApi.exportGrouped(groupedFormat, quality); setNotice(`Grouped export created in ${result.directory_name}: ${result.copied_count} copied, ${result.identical_existing_count} already present, ${result.skipped_count} skipped.`); } catch (err) { setError(plainExportRefusal(err) ?? 'The grouped image export could not be created.'); } finally { setExportingGrouped(false); }
   };
 
   const pageActions = (
