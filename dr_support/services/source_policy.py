@@ -40,9 +40,24 @@ EXPORT_AUTHORIZATION = {
     "UNKNOWN": "BLOCKED_UNKNOWN_ORIGIN",
 }
 LOCAL_ONLY_EXPORTS = frozenset({"ALLOWED_LOCAL_AUTHORIZED_HOSPITAL"})
-_CLOUD_SYNC_FOLDERS = frozenset({"dropbox", "google drive", "googledrive", "my drive", "icloud drive",
-                                 "iclouddrive", "box", "box sync"})
+# Folder names (case-insensitive prefixes) that sync clients create.
+_CLOUD_SYNC_PREFIXES = ("onedrive", "dropbox", "google drive", "googledrive", "my drive", "shared drives",
+                        "icloud drive", "iclouddrive", "box sync")
 _CLOUD_SYNC_ENV = ("OneDrive", "OneDriveCommercial", "OneDriveConsumer")
+_DRIVE_REMOTE = 4  # GetDriveTypeW: a mapped network drive.
+
+
+def _network_path(text: str) -> bool:
+    if text.startswith(("\\\\?\\", "//?/")):
+        return text[4:].upper().startswith(("UNC\\", "UNC/"))  # \\?\C:\ is local, \\?\UNC\ is not.
+    return text.startswith(("\\\\", "//"))
+
+
+def _mapped_network_drive(path: Path) -> bool:
+    if os.name != "nt" or not path.drive or _network_path(path.drive):
+        return False
+    import ctypes
+    return ctypes.windll.kernel32.GetDriveTypeW(path.drive + "\\") == _DRIVE_REMOTE
 
 
 def export_authorization(source_origin: str) -> str:
@@ -56,18 +71,17 @@ def local_export_destination_reason(folder: str | Path) -> str | None:
     Network shares and folders a cloud client synchronizes would send hospital
     records off this computer without an explicit user action.
     """
-    text = str(folder)
-    if text.startswith(("\\\\", "//")):
+    if _network_path(str(folder)):
         return "NETWORK_SHARE"
     resolved = Path(folder).resolve(strict=False)
+    if _network_path(str(resolved)) or _mapped_network_drive(resolved):
+        return "NETWORK_SHARE"
     for name in _CLOUD_SYNC_ENV:
         root = os.environ.get(name)
         if root and resolved.is_relative_to(Path(root).resolve(strict=False)):
             return "CLOUD_SYNC_FOLDER"
-    for part in resolved.parts:
-        folded = part.casefold()
-        if folded in _CLOUD_SYNC_FOLDERS or folded.startswith("onedrive"):
-            return "CLOUD_SYNC_FOLDER"
+    if any(part.casefold().startswith(_CLOUD_SYNC_PREFIXES) for part in resolved.parts):
+        return "CLOUD_SYNC_FOLDER"
     return None
 
 

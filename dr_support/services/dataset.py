@@ -18,7 +18,12 @@ from uuid import uuid4
 
 from .admission import legacy_admission
 from .source_identity import source_identity_reason
-from .source_policy import EXPORT_AUTHORIZATION, LOCAL_ONLY_EXPORTS, export_authorization, local_export_destination_reason
+from .source_policy import (
+    EXPORT_AUTHORIZATION,
+    LOCAL_ONLY_EXPORTS,
+    export_authorization,
+    local_export_destination_reason,
+)
 from .grading_folders import GradingFolderError, plan_grading_folders
 from .filesystem_privacy import has_reparse_component
 from ..presentation import annotation_set_hash, lesion_detection_id, review_evidence_view
@@ -913,10 +918,12 @@ class DatasetManifestService:
 
     @staticmethod
     def _assert_local_destination(images: list[dict], folder: str | Path) -> None:
-        if any(row.get("export_authorization") in LOCAL_ONLY_EXPORTS for row in images)                 and local_export_destination_reason(folder) is not None:
+        hospital = any(row.get("export_authorization") in LOCAL_ONLY_EXPORTS for row in images)
+        if hospital and local_export_destination_reason(folder) is not None:
             raise DatasetManifestError(
                 "Hospital records can be exported only to a local folder on this computer. "
-                "Choose a Workspace output folder that is not on a network share or synced to a cloud service.")
+                "In Settings, choose a Workspace output folder that is not on a network share "
+                "or synced to a cloud service.")
 
     @staticmethod
     def _readiness_match(row: dict, readiness: str) -> bool:
@@ -1495,7 +1502,6 @@ class DatasetManifestService:
 
         grouped_root = Path(workspace.output_folder) / "grouped_by_grade"
         manifest_dir = grouped_root / "_manifest"
-        manifest_dir.mkdir(parents=True, exist_ok=True)
         manifest_path = manifest_dir / "grouped_export_manifest.json"
         csv_path = manifest_dir / "grouped_images.csv"
 
@@ -1531,6 +1537,7 @@ class DatasetManifestService:
         ]
         self._assert_export_authorized(grouped_rows)
         self._assert_local_destination(grouped_rows, workspace.output_folder)
+        manifest_dir.mkdir(parents=True, exist_ok=True)
 
         for image_id, case, image, admission in snapshots:
             group, grade = _grade_group(case, admission)
