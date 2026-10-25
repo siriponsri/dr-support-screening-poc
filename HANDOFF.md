@@ -1833,3 +1833,47 @@ Blocked / stopped (owner decision needed):
     limits; the GPU monitor reads the whole device.
 - Offline mask gallery: not rebuilt. The historical measurement stands; a
   refresh needs physician adjudication to be useful.
+
+## 32. Owner-approved follow-ups, 25 October 2026
+
+Owner approved: AC-13 rehearsal schema; DT-06 TEST_ONLY tagging; AC-16 runtime
+role; MS-03 as a bounded session with a plan and proposal hash.
+
+- **DT-06 (merged):**
+  - `label_class` (TEST_ONLY / CLINICIAN) comes from the workspace marker or
+    the current reviewers: grade, annotation set, image confirmation, shapes and
+    the latest AI-box decisions.
+  - TEST_ONLY rows get `TEST_ONLY_LABEL`, are never training-ready, are left
+    out of training label files and counts, and show "Test data (not for
+    training)". Grouped export files them under `test_only/`; grading folders
+    under `TEST_ONLY`.
+  - Versions: export schema v3, snapshot v5, policies bumped. Two review rounds
+    fixed.
+- **AC-16 (merged, applied):** `scripts/qa/configure_local_runtime_role.py
+  --apply` created `dr_support_runtime`.
+  - The role has no superuser, CREATEDB, CREATEROLE or BYPASSRLS. It gets
+    SELECT/INSERT/UPDATE on workspaces/review_cases, SELECT on
+    schema_migrations, and default privileges; DDL is denied.
+  - The runtime connection is in git-ignored `local-state/release/postgres-runtime.env`.
+  - `release-start` migrates with the owner connection, then runs the app as
+    the runtime role in verify mode and strips the owner credential.
+  - Verified: launcher message, app healthy, and `pg_stat_activity` shows the
+    app as `dr_support_runtime`.
+  - First apply attempt failed (role not committed before the login test) and
+    rolled back cleanly; fixed.
+- **Small fixes:** Datasets shows the plain local-folder export refusal;
+  CLAUDE.md now describes the owner-confirmed `M1_DR_GRADE_4_REFERRAL` rule
+  correctly; the release-start test stubs the new step.
+- **AC-13 (in progress):** schema `dr_recovery_rehearsal`, workspace
+  `ws_test_only_recovery_rehearsal`, 21 cases from the approved roots, 2
+  TEST_ONLY grades. It was made by a separate app on port 8010, now stopped.
+  - The backup plan passed: 1 workspace, 21 images, 11 MB; nothing written.
+  - Activating source map: `M1PrivateConfig\recovery-authority\source-map-rehearsal.json`,
+    sha `54dff5b99e88a5abee8e92ed52b61a470e90894d0e1d7799128e94b4de23e03c`.
+  - Waiting for the owner to confirm it. The restore map follows after the
+    backup manifest pin.
+- **MS-03:** plan `docs/planning/HOSPITAL_M1_MS03_BOUNDED_SESSION_PLAN_20261025.md`
+  is awaiting owner approval.
+  - Phase A: synthetic watchdog/OOM, 0 requests, lease up to 900 s.
+  - Phase B: bounded session, up to 6 post-fix requests, lease up to 3600 s.
+  - No GPU used.
