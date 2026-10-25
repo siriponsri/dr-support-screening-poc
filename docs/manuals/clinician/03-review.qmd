@@ -9,9 +9,21 @@
 **Steps.**
 
 1. Review opens after **Confirm Image**. You can also open it with **Review** in a confirmed Worklist row.
-2. Use the viewer controls to zoom, fit, pan, inspect coordinates, or open the full-screen view.
-3. Check the **Patient/Eye** line above the image.
-4. Choose **Analyze grading only** when offered for global grading. **Preview PRISM input** → **Prepare / refresh API input** distinguishes planned API submission from a conditional FOV candidate; native ROI is **NOT_RUN**, so the final internal crop is not previewed. Only a server-verified receipt from a compatible provider can offer **Submit prepared input to PRISM**, after input acknowledgement. Current production adapters are not qualified for this path; if preparation is unavailable, continue with manual review. Input acknowledgement does not confirm a medical finding. Other qualified non-PRISM assistance retains **Analyze**.
+2. Check the **Patient/Eye** line above the image.
+3. Use the viewer controls to zoom, fit, pan, inspect coordinates, or open the full-screen view.
+4. Choose a viewer mode below the image: **Original**, **AI evidence**, or, when PRISM recorded one, **PRISM analysis field**. **More views** adds **Explainability** and, for an ultra-widefield image, **Analysis area** and **Mask preview**.
+5. In **Analysis**, read the **AI status** badge: **AI READY** or **AI UNAVAILABLE**. It refreshes on its own while the page is open. Choose **Analyze** (or **Analyze again**) when offered. When PRISM needs its own prepared input, the button reads **Analyze grading only** and runs DR grading alone.
+6. Choose **Continue to clinician review**. This is the only forward action on Review; nothing is recorded on this page.
+
+**Expected result.** The retinal image stays the main surface. The right column shows **Analysis**, **DR assessment**, and **Lesion suggestions**. Technical provenance (image ID, dimensions, source, transforms, mask, and model versions) is kept under **Processing details**; choose **Show details** to open it. **Previous exam comparison** opens with **Show comparison**. Annotation work is not started from Review; it follows the grade decision (@sec-annotations).
+
+## Prepare PRISM input
+
+PRISM lesion suggestions use a one-time prepared input, separate from grading. Choose **Preview PRISM input** below the image.
+
+PRISM preparation requires confirmed image quality. If quality was not recorded at Confirm Image, the panel says *Confirm image quality before using PRISM.* and offers **Image quality acceptable** below the reviewer name. For an image recorded as not usable, it says so and offers **Change to quality acceptable**; use it only if the image quality really is acceptable.
+
+**Prepare / refresh API input** distinguishes planned API submission from a conditional FOV candidate; native ROI is **NOT_RUN**, so the final internal crop is not previewed. Only a server-verified receipt from a compatible provider can offer **Submit prepared input to PRISM**, after input acknowledgement. Current production adapters are not qualified for this path; if preparation is unavailable, continue with manual review. Input acknowledgement does not confirm a medical finding.
 
 The workstation routes model assistance from the clinician-confirmed image type
 and the live capability metadata. A ready global capability must advertise
@@ -19,7 +31,6 @@ and the live capability metadata. A ready global capability must advertise
 manual-only, and PRISM is lesion assistance rather than a DR grading model.
 The Settings page shows the discovered task, modality, readiness, and release
 state. AI availability never changes the clinician's final decision path.
-5. Choose **Continue to clinician review**. This is the only forward action on Review.
 
 For an **Ultra-widefield** image, Review remains available whether or not a
 ready UWF capability is connected. The UI enables model assistance only when
@@ -35,16 +46,15 @@ FOV or native ROI preparation failure alone does not mean inference failed.
 The mask is an engineering aid, not a diagnosis or a validated lesion
 segmentation; human review remains authoritative.
 
-**Expected result.** The retinal image stays the main surface. The right column shows **Analysis**, **DR assessment**, and **Lesion suggestions**. Annotation work is not started from Review; it follows the grade decision (@sec-annotations).
-
 ## Read the model suggestions
 
-- **DR assessment** shows the RETFound grade suggestion and its model confidence. This is a model score, not a calibrated probability.
-- **Lesion suggestions** counts PRISM-DR suggestions by class. An untouched overlay is labelled with class and score, for example `EX · 0.82`.
+- **DR assessment** shows the **System-predicted DR grade** and the **Top model score**. This is a model score, not a calibrated probability.
+- **Lesion suggestions** counts PRISM-DR suggestions by class. An untouched overlay is labelled with class and score, for example `EX 0.82`.
+- Each result names its model in plain words, for example *AI: RETFound (CFP grading)*, *AI: USPEC (UWF grading)*, or *AI: PRISM (lesion suggestions)*. Model IDs and versions are under **Processing details**.
 - The lesion summary is not a task list. You do not need to inspect every AI ROI.
 
 ## Show or filter the overlays
 
-Use **Show AI suggestions** to show or hide the PRISM overlays, and the lesion filter to display **All lesion classes** or one class: **MA · Microaneurysm**, **HE · Hemorrhage**, **EX · Hard exudate**, or **SE · Soft exudate**. The counter shows how many raw AI suggestions are active.
+Choose **AI evidence** to show the PRISM overlays and **Original** to hide them. In AI evidence mode, the lesion filter displays **All lesion classes** or one class: **MA: Microaneurysm**, **HE: Hemorrhage**, **EX: Hard exudate**, or **SE: Soft exudate**. The line below reads *Active overlays N of M raw AI suggestions*.
 
 ![Overlay controls below the viewer.](screenshots/04-ai-controls.png){#fig-ai-controls width=80%}

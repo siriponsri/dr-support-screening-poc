@@ -23,18 +23,24 @@ A displayed confidence or score is a model score, not a calibrated clinical prob
 
 ## Workstation areas
 
+The sidebar has two groups. **Clinical review** holds **Worklist** and **Review**; **Administration** holds **Datasets**, **Models & Audit**, and **Settings**. Administration is kept apart from routine review; it is not an access control.
+
 | Area | What you do there |
 |:-----|:------------------|
-| **Worklist** | Find admitted cases, see their status, and start **Confirm Image**. |
+| **Worklist** | Find admitted cases, see their progress, and start **Confirm Image**. |
 | **Review** | Inspect the image and optional model assistance (read-only). |
 | **Clinician Review** | Select and record the final DR grade. |
 | **Annotation Editor** | Add human annotations or confirm, correct, or remove an AI ROI when needed. |
-| **Datasets** | Check DR-ready and Lesion-ready status and export the manifest. |
+| **Datasets** | Check DR-ready and Lesion-ready status and export. |
 | **Models & Audit** | Read model, inference, hash, and annotation provenance. |
-| **Settings** | Select a Workspace, set the default reviewer, and manage hints. |
+| **Settings** | Select a Workspace, set the default reviewer, and turn **Guide mode** on or off. |
 
 : {tbl-colwidths="[24,76]"}
 
-::: {.callout-warning title="Safety -- human authority"}
+## Sidebar controls
+
+Two buttons at the left of the top bar control the sidebar. **Collapse sidebar** shrinks it to icons (hover an icon to see its label) and **Expand sidebar** restores it. **Hide sidebar** removes it completely; **Show sidebar** brings it back; while it is hidden, the top bar shows the current Workspace. The image pages (Review, Clinician Review, and Annotation Editor) start with the sidebar collapsed so the retinal image gets the most width. Your choice is remembered on this workstation, separately for image pages and other pages. On a narrow screen a single **Open navigation** button opens the menu instead.
+
+::: {.callout-warning title="Safety: human authority"}
 Treat every model output as assistive evidence. Do not use a model score or an empty lesion result as a diagnosis, a referral decision, or proof that disease is absent.
 :::

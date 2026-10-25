@@ -17,9 +17,9 @@ For every case the workstation keeps:
 | Record | Contents |
 |:-------|:---------|
 | Source identity | Original filename, source SHA-256, admission state; the source file is never modified. |
-| Case context | Pseudonymous patient key, eye, reviewer, and timestamp from **Confirm Image**. |
+| Case context | Image type, pseudonymous patient key, eye, optional image quality, reviewer, and timestamp from **Confirm Image**. |
 | Model evidence | Model ID, revision, preprocessing, analysis SHA-256, grade suggestion, raw lesion output. |
-| Clinician decisions | Final DR grade, review action (`AI_ACCEPTED`, `AI_CORRECTED`, `MANUAL`), remark, reviewer, time. |
+| Clinician decisions | Final DR grade or Ungradable, review action (`AI_ACCEPTED`, `AI_CORRECTED`, `MANUAL`), remark, reviewer, time. |
 | Annotations | Human annotations, AI ROI corrections and removals with the original AI evidence, and the confirmation hash. |
 | Dataset state | DR-ready and Lesion-ready status and the exported manifest. |
 
