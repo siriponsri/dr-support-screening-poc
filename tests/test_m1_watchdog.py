@@ -164,8 +164,9 @@ def test_new_team_processes_are_normal_activity():
     assert watchdog.team_unchanged(before, {**before, "gpu1_compute_pids": [10, 11], "ollama_pids": [20, 21, 22]})
 
 
-def test_an_unreadable_child_receipt_keeps_the_cleanup_result(tmp_path):
-    (tmp_path / "oom-contained.child.json").write_text("{not json")
+@pytest.mark.parametrize("raw", ["{not json", "[1, 2]"])
+def test_an_unreadable_child_receipt_keeps_the_cleanup_result(tmp_path, raw):
+    (tmp_path / "oom-contained.child.json").write_text(raw)
     observed = watchdog.run_case(spec("oom-contained"), spawn=lambda _: (FakeChild(0), FakeResources()),
                                  supervise=lambda _, owned: FakeSupervisor(owned, stop_after=2, reason="WORKER_EXITED"),
                                  run=tmp_path, sleep=lambda _: None)

@@ -238,6 +238,8 @@ def run_case(spec, *, spawn, supervise, run, clock=time.monotonic, sleep=time.sl
         try:
             if receipt.is_file() and receipt.stat().st_size < 4096:
                 observed['child'] = json.loads(receipt.read_bytes())
+                if type(observed['child']) is not dict:
+                    raise ValueError('RECEIPT_NOT_AN_OBJECT')
         except (OSError, ValueError):
             observed['child'] = {'receipt': 'UNREADABLE'}
         observed['seconds'] = round(clock() - started, 3)
