@@ -1877,3 +1877,59 @@ role; MS-03 as a bounded session with a plan and proposal hash.
   - Phase A: synthetic watchdog/OOM, 0 requests, lease up to 900 s.
   - Phase B: bounded session, up to 6 post-fix requests, lease up to 3600 s.
   - No GPU used.
+
+## 33. AC-13 PASS and MS-03 ready for hash confirmation, 25 October 2026
+
+- **AC-13 (PASS, local rehearsal, TEST_ONLY):**
+  - Owner confirmed source map `54dff5b9…e03c` and restore map `aa84f370…a143`.
+  - Backup `recovery-v3-20261025-002` BACKUP_VERIFIED; bundle verify
+    MATCHED_INDEPENDENT_PIN (`76d6776a…ba61`).
+  - Restore into `dr_review_restore_test`, schema `dr_recovery_rehearsal`, new
+    folders `restore-tests/*-v3-001`: RESTORE_DATA_VERIFIED, 21 cases, 21 images.
+  - Isolated acceptance process: ENVIRONMENT_VERIFIED, APP_SELECTION_VERIFIED,
+    21 cases reopened, Original bytes match the restored roots 21/21, the 2
+    TEST_ONLY grades stay "Test data (not for training)", export refused for the
+    identity-only workspace as the runbook requires.
+  - Note: with no reader SIDs the reader-binding variable must be unset (an
+    empty JSON object denies). The real database was never touched.
+  - Receipt `M1PrivateConfig\evidence\m1-local-acceptance-20261024\ac13-restore-reopen-20261025.json`
+    (sha `241de2ce…7d25`).
+- **MS-03 code (merged, main `f2af986`, pushed; branch removed):**
+  - Spec `docs/milestone/m1/M1_SERVICE_SESSION_CONTINUATION.md`.
+  - Decision `HOSPITAL_M1_ACCOUNTING_SERVICE_20261025`: base 534, cap 540.
+    Watchdog window `HOSPITAL_M1_QA_SERVER_WATCHDOG_20261025` (900 s, 0
+    operations) must close before service window
+    `HOSPITAL_M1_QA_SERVER_SERVICE_20261025` (3600 s).
+  - Six 2026-10-23 post-fix operations: RETFound `pf-retfound-d5e8689c2d3c`
+    (CFP `05bf31a0`), USPEC `pf-uspec-4f81b1385489` (UWF `10da3b42`) and
+    `pf-uspec-b55fcbf67128` (UWF `157f3532`), PRISM `pf-prism-cca990e31bc5`
+    (UWF `00a03b50`), `pf-prism-f62327e97fc9` (CFP `02958b03`),
+    `pf-prism-b4ae1fec4374` (CFP `1024a3a1`). The plan said RETFound 2, but the
+    register has only one RETFound post-fix operation, so the mix is 2/1/3.
+    Images are in `M1PrivateConfig\hospital-roots`.
+  - `scripts/model-server/m1_watchdog.py`: synthetic cases oom-contained,
+    vram-limit, rss-limit, request-timeout, hard-alarm. Torch fraction 1 GiB,
+    supervisor VRAM 2 GiB / RAM 4 GiB / request 10 s, prlimit + nice, OOM score
+    1000 on children, 12 GiB RAM headroom, GPU1/Ollama processes must persist.
+  - Independent review REQUEST_CHANGES (prior-seconds derivation, watchdog
+    charge in later windows, host OOM risk, CUDA context headroom, tests) fixed;
+    re-review APPROVE. Full suite 2108 passed / 68 skipped on main; Ruff clean;
+    root Node smoke PASS. No frontend change.
+- **Host preparation (no GPU, GPU0/GPU1 idle before and after):**
+  - Deployment `deployments/m1-session-20261025-s04` (156 files from
+    `f2af986` + s03 `base/` and `EXPECTED_BATCH_MODELS.json`), installation
+    `b6ebb6f9f8107f207ba0ed112b2b0e337fe8039f64be7a7ab0966e00891723bf`. CPU
+    identity: PRISM and global pins identical to s03.
+  - PRISM ledger `m1-accounting-prism-20261024` fenced (irreversible, by
+    design): export `c10d9790…b0b1`, global_used 534, remaining 0.
+  - **Proposal `2ac0b6fa36ecb0931b7a56a851003c8eab09390c303d729487d74edee682666d`**
+    in `m1-continuation-service-20261025/` (copy in
+    `M1PrivateConfig\m1-continuation-service-20261025\`). Real verifier dry
+    run PASS (534 → cap 540, prior 31402.874 s); accounting directory
+    `m1-accounting-service-20261025` not created. Watchdog `verify` lists the
+    five cases.
+- **Next:** owner confirms the proposal hash → write APPROVAL → phase A
+  (`m1_watchdog.py start`, run `runs/m1-watchdog-…`) → only if PASS, phase B
+  (`m1_session.py start`, run `runs/m1-service-…`, PRISM images need
+  `QUALITY_ACCEPTABLE` by `TEST_ONLY_ENGINEERING` first). New GPU reservation
+  would reach 18,900 of 21,600 s; requests ≤ 540 of 549.
