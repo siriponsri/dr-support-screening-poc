@@ -36,7 +36,7 @@ approves the exact list through the proposal hash.
 
 1. The PRISM ledger is permanently fenced with the existing `fence_handover`
    toward the newly deployed, CPU-identity-checked installation.
-2. The proposal pins ten files: the seven PRISM-source anchors with the same
+2. The proposal pins eleven files (the last one is named in step 3): the seven PRISM-source anchors with the same
    names as the PRISM decision (`handover_export`, `source_proposal`,
    `source_approval`, `source_journal`, `source_journal_head`,
    `source_server_budget`, `source_server_complete`), plus
@@ -50,7 +50,11 @@ approves the exact list through the proposal hash.
      origin export's `global_used`;
    - the origin directory still carries `HANDOVER.lock` identical to its export;
    - `source_accounting` is the PRISM origin record (same proposal/approval,
-     base/cap and upstream) and supplies its preserved GPU seconds;
+     base/cap and upstream); its preserved GPU seconds must equal 17002.874 plus
+     the closed 2026-10-23 Server window charge (at least 10800 s), re-derived
+     from the eleventh pin `origin_server_budget` (that window's `BUDGET.json`,
+     whose hash the origin export records);
+   - no PRISM-decision operation is a post-fix operation;
    - each new operation equals an unsent origin `post_fix_verification`
      operation except its window.
 4. A new, separate accounting directory is used; neither source is reused.
@@ -61,7 +65,11 @@ Windows activate in the decision's order. Window A must be activated, run and
 confirmed closed before window B can be activated; once B exists, A can never
 be activated. Window A has no operations, so no request can be admitted in it;
 the admission consumer accepts only window B. The ledger closes or fences only
-when every activated window is closed. Starting window B after a failed phase A
+when every activated window is closed. Window B's summary counts window A's
+charge as prior use, and a fence export of this decision anchors every activated
+window's budget, activation and charge (single-window decisions keep their
+export shape). Fencing still requires window B: if the owner stops after phase
+A, a later handover needs its own amendment. Starting window B after a failed phase A
 is an operator rule (plan section 3): the accounting order alone does not judge
 the watchdog result.
 
@@ -69,13 +77,18 @@ the watchdog result.
 
 `scripts/model-server/m1_watchdog.py` holds the ledger, activates window A,
 reserves its one 900 s lease and runs synthetic cases, each in a fresh owned
-child with low supervisor ceilings. No model weights, images, credentials or
-listener are used, and no operation is admitted. Each child runs under
-`prlimit` (no core file, bounded file size and descriptors; address space only
-for the non-CUDA RAM case) and `nice`. A read-only cgroup check is recorded,
+child with low supervisor ceilings (VRAM 2 GiB, RAM 4 GiB, request 10 s). CUDA
+children use a torch memory fraction of 1 GiB (within the plan's 1.5 GiB, so the
+CUDA context also fits under the 2 GiB ceiling). No model weights, images,
+credentials or listener are used, and no operation is admitted. Each child runs
+under `prlimit` (no core file, bounded file size and descriptors; address space
+only for the non-CUDA RAM case) and `nice`, and raises its own OOM score so the
+kernel would pick it before any team process. The run refuses to start with
+less than 12 GiB of available host RAM. A read-only cgroup check is recorded,
 nothing is configured. GPU1 compute processes and the Ollama processes are
-recorded before and after and must not change. Confirmed cleanup closes window
-A.
+recorded before and after; every one seen before must still be running (new team
+processes are only reported). Confirmed cleanup closes window A; an unconfirmed
+cleanup keeps the charge, quarantines the window and keeps the ledger owned.
 
 ## Acceptance
 

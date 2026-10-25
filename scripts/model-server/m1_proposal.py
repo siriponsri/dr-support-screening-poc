@@ -172,7 +172,8 @@ def draft_service(args):
              'source_journal_head': source / 'JOURNAL_HEAD.json', 'source_accounting': source / 'ACCOUNTING.json',
              'source_server_budget': source / 'windows' / M1_PRISM_SERVER / 'BUDGET.json',
              'source_server_complete': source / 'windows' / M1_PRISM_SERVER / 'COMPLETE.json',
-             'origin_export': origin / 'HANDOVER_EXPORT.json', 'origin_proposal': origin / 'PROPOSAL.json'}
+             'origin_export': origin / 'HANDOVER_EXPORT.json', 'origin_proposal': origin / 'PROPOSAL.json',
+             'origin_server_budget': origin / 'windows' / SERVER / 'BUDGET.json'}
     export, origin_export, previous = (json.loads(files[key].read_bytes())
                                        for key in ('handover_export', 'origin_export', 'origin_proposal'))
     operations.require(export.get('status') == 'SOURCE_FENCED_LOCAL_ADOPTION_NOT_QUALIFIED'

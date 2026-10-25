@@ -7,6 +7,10 @@ import sys
 
 import pytest
 
+from test_m1_accounting_continuation import rig, upstream_seed  # noqa: F401
+from test_m1_prism_window import chain  # noqa: F401
+from test_m1_service_session import activate, budget_for, opened, service  # noqa: F401
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts/model-server"))
 watchdog = importlib.import_module("m1_watchdog")
@@ -21,11 +25,11 @@ def test_every_case_fits_the_supervisor_policy_limits():
     for item in watchdog.CASES:
         Policy(watchdog.ROLE, 1234, "hospital_m1_qa_server_watchdog-" + item["case"], "a" * 64, watchdog.GPU,
                max_jobs=1, max_seconds=item["max_seconds"], request_seconds=item["request_seconds"],
-               drain_seconds=10, monitor_seconds=2, max_vram_mib=item["max_vram_mib"],
+               drain_seconds=15, monitor_seconds=5, max_vram_mib=item["max_vram_mib"],
                max_rss_bytes=item["max_rss_bytes"])
         assert item["max_vram_mib"] <= 2048 and item["max_rss_bytes"] <= 4 * 1024**3
         assert item["request_seconds"] <= 10 and item["hard_seconds"] <= 120
-    assert watchdog.FRACTION_MIB == 1536 and watchdog.PHASE_SECONDS < 900
+    assert watchdog.FRACTION_MIB <= 1536 and watchdog.PHASE_SECONDS < 900
 
 
 def test_child_command_is_prlimit_then_nice_with_address_space_only_without_cuda():
@@ -153,3 +157,76 @@ def test_team_snapshot_comparison_ignores_memory_but_not_processes():
     assert not watchdog.team_unchanged(before, {**before, "ollama_pids": [21]})
     assert not watchdog.team_unchanged(before, {**before, "gpu1_compute_pids": []})
     assert not watchdog.team_unchanged(before, {"ok": False})
+
+
+def test_new_team_processes_are_normal_activity():
+    before = {"ok": True, "gpu1_compute_pids": [10], "ollama_pids": [20, 21]}
+    assert watchdog.team_unchanged(before, {**before, "gpu1_compute_pids": [10, 11], "ollama_pids": [20, 21, 22]})
+
+
+def test_an_unreadable_child_receipt_keeps_the_cleanup_result(tmp_path):
+    (tmp_path / "oom-contained.child.json").write_text("{not json")
+    observed = watchdog.run_case(spec("oom-contained"), spawn=lambda _: (FakeChild(0), FakeResources()),
+                                 supervise=lambda _, owned: FakeSupervisor(owned, stop_after=2, reason="WORKER_EXITED"),
+                                 run=tmp_path, sleep=lambda _: None)
+    assert observed["cleanup_confirmed"] is True and observed["child"] == {"receipt": "UNREADABLE"}
+    assert "oom_raised" in observed["problems"]
+
+
+class Monitor:
+    def __init__(self, fails=False):
+        self.fails = fails
+
+    def close(self):
+        if self.fails:
+            raise RuntimeError("MONITOR")
+
+
+def result(**changes):
+    team = {"ok": True, "gpu1_compute_pids": [], "ollama_pids": [5]}
+    value = {"cases": [{"case": "x", "passed": True, "cleanup_confirmed": True}], "gpu0_vram_after_mib": 1,
+             "team_before": team, "team_after": team}
+    value.update(changes)
+    return value
+
+
+def watchdog_window(service):  # noqa: F811
+    from batch_ledger import M1_SERVICE_WATCHDOG
+    ledger = opened(service)
+    activate(service, ledger, M1_SERVICE_WATCHDOG)
+    budget = budget_for(service, ledger, M1_SERVICE_WATCHDOG)
+    budget.reserve_worker("watchdog-lifetime")
+    return ledger, budget
+
+
+def test_confirmed_cleanup_closes_the_watchdog_window_and_the_ledger(service):  # noqa: F811
+    ledger, budget = watchdog_window(service)
+    done = watchdog.finish_phase(result(), budget=budget, lease="watchdog-lifetime", ledger=ledger,
+                                 monitors={"gpu_monitor": Monitor(), "disk_monitor": Monitor()})
+    assert done["status"] == "PASS" and done["window_stop"] == done["ledger_close"] == "CONFIRMED"
+    assert budget.body["window_closed"] is True and ledger.owned_lock is None
+
+
+def test_unconfirmed_cleanup_quarantines_the_window_and_keeps_the_ledger(service):  # noqa: F811
+    ledger, budget = watchdog_window(service)
+    done = watchdog.finish_phase(result(), budget=budget, lease="watchdog-lifetime", ledger=ledger,
+                                 monitors={"gpu_monitor": Monitor(fails=True), "disk_monitor": Monitor()})
+    assert done["status"] == "FAIL" and done["cleanup_confirmed"] is False
+    assert done["window_stop"].startswith("RETAINED_") and done["ledger_close"].startswith("RETAINED_")
+    assert budget.body["quarantined"] is True and budget.body["charged_gpu_seconds"] == 900
+    assert ledger.owned_lock is not None
+
+
+def test_an_early_error_with_no_cases_is_a_failure(service):  # noqa: F811
+    ledger, budget = watchdog_window(service)
+    done = watchdog.finish_phase(result(cases=[], error_class="RuntimeError"), budget=budget,
+                                 lease="watchdog-lifetime", ledger=ledger,
+                                 monitors={"gpu_monitor": Monitor(), "disk_monitor": Monitor()})
+    assert done["status"] == "FAIL" and done["window_stop"] == "CONFIRMED"
+
+
+def test_not_run_cases_fail_the_phase_but_need_no_cleanup():
+    done = watchdog.finish_phase(result(cases=[{"case": "x", "passed": False, "problems": ["NOT_RUN"]}]),
+                                 budget=None, lease=None, ledger=None, monitors={"gpu_monitor": Monitor()})
+    assert done["cleanup_confirmed"] is True and done["status"] == "FAIL"
+    assert done["window_stop"] == "NO_LEASE_RESERVED" and done["ledger_close"] == "NOT_OPENED"

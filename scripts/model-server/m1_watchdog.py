@@ -33,8 +33,11 @@ GPU = 'GPU-044a8b11-4729-458b-a07b-297e45439419'
 PYTHON = PROJECT / 'environments/prism-qa-torch213/bin/python'
 PRLIMIT, NICE = '/usr/bin/prlimit', '/usr/bin/nice'
 MIB, GIB = 1024**2, 1024**3
-FRACTION_MIB = 1536          # torch per-process memory fraction for CUDA cases
+# torch per-process memory fraction for CUDA cases: within the plan's 1.5 GiB, leaving room for the
+# CUDA context (not covered by the fraction) under the 2 GiB supervisor ceiling.
+FRACTION_MIB = 1024
 IDLE_VRAM_MIB = 64
+MIN_AVAILABLE_RAM = 12 * GIB  # The RAM case touches up to 5 GiB; never press the shared host.
 PHASE_SECONDS = 780          # Inside the 900 s lease with room for final cleanup.
 ROLE = 'qa-watchdog-probe'
 TERMINAL_STATES = {'STOPPED', 'UNCONFIRMED_STOP', 'UNVERIFIED'}
@@ -85,11 +88,14 @@ def _cuda():
 
 
 def child(case, run):
+    # Volunteer as the kernel OOM killer's first choice so a host-memory surprise ends this
+    # synthetic child, never a team process (raising one's own score needs no privilege).
+    Path('/proc/self/oom_score_adj').write_text('1000')
     if case == 'oom-contained':
         torch = _cuda()
         blocks, raised = [], False
         try:
-            while len(blocks) * 32 < 2 * FRACTION_MIB:  # Bounded even if the fraction were ignored.
+            while len(blocks) * 32 < FRACTION_MIB + 512:  # Bounded even if the fraction were ignored.
                 blocks.append(torch.empty(32 * MIB, dtype=torch.uint8, device='cuda'))
         except torch.cuda.OutOfMemoryError:
             raised = True
@@ -101,7 +107,8 @@ def child(case, run):
     if case == 'vram-limit':
         signal.signal(signal.SIGTERM, signal.SIG_IGN)  # Only the supervisor's forced stop can end it.
         torch = _cuda()
-        held = torch.empty(1024 * MIB, dtype=torch.uint8, device='cuda')
+        held = torch.empty(768 * MIB, dtype=torch.uint8, device='cuda')  # Within the fraction; with the
+        # CUDA context it passes this case's 768 MiB supervisor ceiling.
         held.fill_(1)
         torch.cuda.synchronize()
         time.sleep(60)
@@ -228,8 +235,11 @@ def run_case(spec, *, spawn, supervise, run, clock=time.monotonic, sleep=time.sl
         if resources is not None:
             observed['peaks'] = dict(resources.peaks)
         receipt = Path(run) / f"{spec['case']}.child.json"
-        if receipt.is_file() and receipt.stat().st_size < 4096:
-            observed['child'] = json.loads(receipt.read_bytes())
+        try:
+            if receipt.is_file() and receipt.stat().st_size < 4096:
+                observed['child'] = json.loads(receipt.read_bytes())
+        except (OSError, ValueError):
+            observed['child'] = {'receipt': 'UNREADABLE'}
         observed['seconds'] = round(clock() - started, 3)
     observed['problems'] = evaluate(spec, observed)
     observed['passed'] = not observed['problems']
@@ -237,10 +247,62 @@ def run_case(spec, *, spawn, supervise, run, clock=time.monotonic, sleep=time.sl
 
 
 def team_unchanged(before, after):
-    """GPU1 compute processes and Ollama processes are identical (memory is reported only)."""
+    """Every GPU1 compute process and Ollama process seen before is still running.
+
+    New team processes are normal activity and only reported; memory is reported only.
+    """
     return (before.get('ok') is True and after.get('ok') is True
-            and before['gpu1_compute_pids'] == after['gpu1_compute_pids']
-            and before['ollama_pids'] == after['ollama_pids'])
+            and set(before['gpu1_compute_pids']) <= set(after['gpu1_compute_pids'])
+            and set(before['ollama_pids']) <= set(after['ollama_pids']))
+
+
+def available_ram():
+    for line in Path('/proc/meminfo').read_text().splitlines():
+        if line.startswith('MemAvailable:'):
+            return int(line.split()[1]) * 1024
+    raise RuntimeError('MEMINFO_UNAVAILABLE')
+
+
+def finish_phase(result, *, budget, lease, ledger, monitors):
+    """Close monitors, then stop the lease and close the ledger only on confirmed cleanup.
+
+    An unconfirmed cleanup keeps the full charge and quarantines the window (no refund) and
+    keeps the ledger owned, exactly as the service session does.
+    """
+    closed = {}
+    for name, monitor in monitors.items():
+        try:
+            monitor.close()
+            closed[name] = True
+        except BaseException:
+            closed[name] = False
+    result['monitors_closed'] = closed
+    # A case that never ran has nothing to clean; every spawned child must be confirmed reaped.
+    result['cleanup_confirmed'] = all(closed.values()) and all(
+        case.get('problems') == ['NOT_RUN'] or case.get('cleanup_confirmed') is True for case in result['cases'])
+    actions = []
+    if lease is not None:
+        # Confirmed stop closes the watchdog window permanently (no refund, no renewal).
+        actions.append(('window_stop', lambda: budget.confirm_stop(lease, cleanup_confirmed=result['cleanup_confirmed'])))
+    if ledger is not None and ledger.owned_lock is not None:
+        actions.append(('ledger_close', lambda: ledger.close(cleanup_confirmed=result['cleanup_confirmed'])))
+    for name, action in actions:
+        try:
+            action()
+            result[name] = 'CONFIRMED'
+        except BaseException as error:
+            result[name] = 'RETAINED_' + type(error).__name__
+    result['window_stop'] = result.get('window_stop', 'NO_LEASE_RESERVED')
+    result['ledger_close'] = result.get('ledger_close', 'NOT_OPENED')
+    result['gpu0_idle_after'] = (type(result.get('gpu0_vram_after_mib')) is int
+                                 and result['gpu0_vram_after_mib'] <= IDLE_VRAM_MIB)
+    result['team_unchanged'] = team_unchanged(result.get('team_before', {}), result.get('team_after', {}))
+    result['status'] = ('PASS' if (result['cases'] and all(case['passed'] for case in result['cases'])
+                                   and result['gpu0_idle_after'] and result['team_unchanged']
+                                   and result['cleanup_confirmed'] and 'error_class' not in result
+                                   and result['window_stop'] == 'CONFIRMED'
+                                   and result['ledger_close'] == 'CONFIRMED') else 'FAIL')
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +366,9 @@ def watchdog(args):
         # Every refusable preflight happens BEFORE the window/lease exists.
         if not all(Path(item).is_file() for item in (PRLIMIT, NICE, PYTHON)):
             raise RuntimeError('PRLIMIT_NICE_AND_TORCH_PYTHON_REQUIRED')
+        result['available_ram_bytes'] = available_ram()
+        if result['available_ram_bytes'] < MIN_AVAILABLE_RAM:
+            raise RuntimeError('HOST_RAM_HEADROOM_REQUIRED')
         result['cgroup'] = cgroup_check()
         result['team_before'] = team_snapshot()
         if not result['team_before']['ok'] or result['team_before']['gpu0_compute_pids']:
@@ -343,8 +408,8 @@ def watchdog(args):
             argv = child_argv(spec, run)
             return WorkerSupervisor(Policy(ROLE, os.getpid(), owned.identity.owner_scope, command_digest(argv), GPU,
                                            max_jobs=1, max_seconds=spec['max_seconds'],
-                                           request_seconds=spec['request_seconds'], drain_seconds=10,
-                                           monitor_seconds=2, max_vram_mib=spec['max_vram_mib'],
+                                           request_seconds=spec['request_seconds'], drain_seconds=15,
+                                           monitor_seconds=5, max_vram_mib=spec['max_vram_mib'],
                                            max_rss_bytes=spec['max_rss_bytes']), owned)
 
         for spec in CASES:
@@ -359,39 +424,9 @@ def watchdog(args):
     except BaseException as error:
         result['error_class'] = type(error).__name__
     finally:
-        monitors = {}
-        for name, monitor in (('gpu_monitor', gpu), ('disk_monitor', disk)):
-            try:
-                monitor.close()
-                monitors[name] = True
-            except BaseException:
-                monitors[name] = False
-        result['monitors_closed'] = monitors
-        # A case that never ran has nothing to clean; every spawned child must be confirmed reaped.
-        result['cleanup_confirmed'] = all(monitors.values()) and all(
-            case.get('problems') == ['NOT_RUN'] or case.get('cleanup_confirmed') is True for case in result['cases'])
-        actions = []
-        if lease is not None:
-            # Confirmed stop closes the watchdog window permanently (no refund, no renewal).
-            actions.append(('window_stop', lambda: budget.confirm_stop(lease, cleanup_confirmed=result['cleanup_confirmed'])))
-        if ledger is not None and ledger.owned_lock is not None:
-            actions.append(('ledger_close', lambda: ledger.close(cleanup_confirmed=result['cleanup_confirmed'])))
-        for name, action in actions:
-            try:
-                action()
-                result[name] = 'CONFIRMED'
-            except BaseException as error:
-                result[name] = 'RETAINED_' + type(error).__name__
-        result['window_stop'] = result.get('window_stop', 'NO_LEASE_RESERVED')
-        result['ledger_close'] = result.get('ledger_close', 'NOT_OPENED')
         result['observed_seconds'] = round(time.monotonic() - started, 3)
-        result['gpu0_idle_after'] = type(result.get('gpu0_vram_after_mib')) is int and result['gpu0_vram_after_mib'] <= IDLE_VRAM_MIB
-        result['team_unchanged'] = team_unchanged(result.get('team_before', {}), result.get('team_after', {}))
-        result['status'] = ('PASS' if (result['cases'] and all(case['passed'] for case in result['cases'])
-                                       and result['gpu0_idle_after'] and result['team_unchanged']
-                                       and result['cleanup_confirmed'] and 'error_class' not in result
-                                       and result['window_stop'] == 'CONFIRMED'
-                                       and result['ledger_close'] == 'CONFIRMED') else 'FAIL')
+        finish_phase(result, budget=budget, lease=lease, ledger=ledger,
+                     monitors={'gpu_monitor': gpu, 'disk_monitor': disk})
         try:
             new_json(run / 'WATCHDOG.json', result)
         except OSError:

@@ -461,7 +461,11 @@ class BatchBudget:
                     and not self.body["window_closed"], "M1_UNCERTAIN_OR_CLOSED_WINDOW_NO_RESUME")
             self.authorization_sha = digest(_regular(self.path.parent / "COMPLETE.json"))
             self.file_sha = digest(_regular(self.path))
-            self.prior_gpu_seconds = ledger.spec["prior_gpu_seconds"]
+            # Closed earlier windows of the same decision (the MS-03 watchdog) count as prior use.
+            order = window_order(ledger.spec)
+            self.prior_gpu_seconds = round(ledger.spec["prior_gpu_seconds"] + sum(
+                continuation_window_context(ledger, earlier)[2]["charged_gpu_seconds"]
+                for earlier in order[:order.index(session_id)]), 3)
             caps = ledger.spec["windows"][session_id]
             # Whole owned lifetime (load + idle + inference) inside the window's wall horizon.
             self.GPU_SECONDS = self.LEASE_SECONDS = caps["gpu_seconds_cap"]

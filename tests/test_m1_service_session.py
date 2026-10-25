@@ -134,6 +134,7 @@ def test_windows_run_in_order_and_only_the_service_window_admits(service):
         activate(service, ledger, M1_SERVICE_WATCHDOG)
     budget = budget_for(service, ledger, M1_SERVICE_SERVER)
     assert budget.GPU_SECONDS == 3600 and budget.SESSION_SECONDS == 7200
+    assert budget.prior_gpu_seconds == 32302.874  # The closed watchdog window's 900 s counts as prior use.
     budget.reserve_worker("service-lifetime")
     receipt = ledger.admit(job["job_id"], request_sha256="d" * 64, budget=budget)
     assert receipt["window_id"] == M1_SERVICE_SERVER and receipt["global_used"] == 535
@@ -147,6 +148,8 @@ def test_windows_run_in_order_and_only_the_service_window_admits(service):
             budget_for(service, reopened, window_id)
     export = reopened.fence_handover(destination_installation_sha256="6" * 64)
     assert export["global_used"] == 535 and len(export["remaining_job_ids"]) == 5
+    assert {key: value["charged_gpu_seconds"] for key, value in export["windows"].items()} == {
+        M1_SERVICE_WATCHDOG: 900, M1_SERVICE_SERVER: 3600}
 
 
 def test_an_open_watchdog_window_keeps_the_ledger_owned(service):
@@ -270,3 +273,18 @@ def test_a_fenced_prism_source_never_admits_again(service):
 def test_earlier_decisions_keep_one_server_window(chain):  # noqa: F811
     ledger = prism_opened(chain)
     assert window_order(ledger.spec) == [M1_PRISM_SERVER] and "window_order" not in ledger.spec
+
+
+def test_earlier_single_window_exports_keep_their_shape(chain):  # noqa: F811
+    assert "windows" not in fence_prism(chain)
+
+
+def test_preserved_seconds_are_rederived_from_the_origin_window(service):
+    paths = {name: Path(value) for name, value in json.loads(service.upstream_path.read_bytes()).items()}
+    accounting = json.loads(paths["source_accounting"].read_bytes())
+    accounting["continuation"]["prior_gpu_seconds_preserved"] = 17002.874  # Would hide the 10800 s window.
+    paths["source_accounting"].write_bytes(canonical(accounting))
+    service.proposal["upstream"] = {name: digest(path.read_bytes()) for name, path in paths.items()}
+    seal(service)
+    with pytest.raises(RuntimeError, match="M1_SERVICE_PRESERVED_GPU_SECONDS_INVALID"):
+        opened(service)

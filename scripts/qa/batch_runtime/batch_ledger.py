@@ -58,7 +58,8 @@ M1_SERVICE_WINDOWS = {
 }
 M1_SERVICE_ORDER = (M1_SERVICE_WATCHDOG, M1_SERVICE_SERVER)
 M1_SERVICE_OPERATIONS = 6
-M1_SERVICE_ANCHORS = M1_PRISM_ANCHORS | {"source_accounting", "origin_export", "origin_proposal"}
+M1_SERVICE_ANCHORS = M1_PRISM_ANCHORS | {"source_accounting", "origin_export", "origin_proposal",
+                                         "origin_server_budget"}
 M1_OPERATION_FIELDS = {"job_id", "operation_id", "purpose", "window_id", "source_sha256", "model_id",
                        "modality", "model_pins_sha256", "parameters_sha256", "preprocessing_id"}
 M1_APPROVED_STATUS = "EXPLICIT_OWNER_APPROVED_NOT_ACTIVATED"
@@ -444,7 +445,8 @@ def _verify_m1_service(directory, proposal_path, approval_path, proposal_sha256,
                 "source_accounting": source_dir / "ACCOUNTING.json",
                 "source_server_budget": source_dir / "windows" / M1_PRISM_SERVER / "BUDGET.json",
                 "source_server_complete": source_dir / "windows" / M1_PRISM_SERVER / "COMPLETE.json",
-                "origin_export": origin_dir / "HANDOVER_EXPORT.json", "origin_proposal": origin_dir / "PROPOSAL.json"}
+                "origin_export": origin_dir / "HANDOVER_EXPORT.json", "origin_proposal": origin_dir / "PROPOSAL.json",
+                "origin_server_budget": origin_dir / "windows" / M1_SERVER / "BUDGET.json"}
     require(source_dir != origin_dir and all(paths[key] == _direct(path) for key, path in expected.items()),
             "M1_SERVICE_ANCHORS_FROM_TWO_SOURCES_REQUIRED")
     upstream = {key: _regular(path) for key, path in paths.items()}
@@ -453,10 +455,11 @@ def _verify_m1_service(directory, proposal_path, approval_path, proposal_sha256,
     require(all((folder / "HANDOVER.lock").is_file() and _regular(folder / "HANDOVER.lock") == upstream[key]
                 for folder, key in ((source_dir, "handover_export"), (origin_dir, "origin_export"))),
             "M1_SERVICE_SOURCE_NOT_FENCED")
-    export, source, source_approval, head, accounting, saved, complete, origin_export, origin = (
+    export, source, source_approval, head, accounting, saved, complete, origin_export, origin, origin_saved = (
         json.loads(upstream[key]) for key in (
             "handover_export", "source_proposal", "source_approval", "source_journal_head", "source_accounting",
-            "source_server_budget", "source_server_complete", "origin_export", "origin_proposal"))
+            "source_server_budget", "source_server_complete", "origin_export", "origin_proposal",
+            "origin_server_budget"))
     require(type(export) is dict and export.get("schema") == "hospital-m1-source-handover.v1"
             and export.get("status") == "SOURCE_FENCED_LOCAL_ADOPTION_NOT_QUALIFIED"
             and export.get("local_activation_available") is False
@@ -497,6 +500,18 @@ def _verify_m1_service(directory, proposal_path, approval_path, proposal_sha256,
             and type(origin_export.get("remaining_job_ids")) is list
             and type(origin_export.get("global_used")) is int,
             "M1_SERVICE_ORIGIN_INVALID")
+    # The preserved seconds are re-derived, never taken on trust: the 2026-10-23 decision's
+    # preserved aggregate plus its closed Server window's charge, exactly as the PRISM verifier did.
+    origin_body = origin_saved.get("body") if type(origin_saved) is dict else None
+    origin_charge = origin_body.get("charged_gpu_seconds") if type(origin_body) is dict else None
+    require(type(origin_body) is dict and origin_saved.get("sha256") == digest(canonical(origin_body))
+            and origin_export.get("server_budget_sha256") == digest(upstream["origin_server_budget"])
+            and origin_body.get("manifest") == origin_export["manifest"] and origin_body.get("session_id") == M1_SERVER
+            and origin_body.get("window_closed") is True and origin_body.get("active") is None
+            and origin_body.get("quarantined") is False
+            and type(origin_charge) in (int, float) and math.isfinite(origin_charge) and origin_charge >= 10800
+            and round(prior, 3) == round(M1_PRIOR_GPU_SECONDS + origin_charge, 3),
+            "M1_SERVICE_PRESERVED_GPU_SECONDS_INVALID")
     source_jobs = {job["job_id"]: job for job in source["operations"]}
     states, intents, rows, tail = _replay_source_journal(upstream["source_journal"], export["manifest"],
                                                          set(source_jobs))
@@ -534,6 +549,9 @@ def _verify_m1_service(directory, proposal_path, approval_path, proposal_sha256,
                   if key in origin_export["remaining_job_ids"] and job["purpose"] == "post_fix_verification"
                   and job["window_id"] == M1_SERVER}
     jobs = proposal["operations"]
+    # The PRISM decision carried only Server PRISM acceptance; no post-fix operation was sent there.
+    require(all(job.get("purpose") == "server_acceptance" and job.get("operation_id") not in candidates
+                for job in source["operations"]), "M1_SERVICE_SOURCE_DECISION_INVALID")
     require(type(jobs) is list and len(jobs) == M1_SERVICE_OPERATIONS
             and all(type(job) is dict and job.get("operation_id") in candidates for job in jobs)
             and len({job["operation_id"] for job in jobs}) == M1_SERVICE_OPERATIONS
@@ -902,6 +920,15 @@ class BatchLedger:
                 "owner_lock_sha256": digest(self.owned_lock),
                 "remaining_job_ids": [row["job_id"] for row in self.pending()],
                 "local_activation_available": False}
+            order = window_order(self.spec)
+            if len(order) > 1:
+                # Every activated window's charge stays anchored for the next decision (MS-03 onward).
+                value["windows"] = {
+                    window: {"budget_sha256": digest(_regular(self.directory / "windows" / window / "BUDGET.json")),
+                             "activation_sha256": digest(_regular(self.directory / "windows" / window / "COMPLETE.json")),
+                             "charged_gpu_seconds": json.loads(_regular(
+                                 self.directory / "windows" / window / "BUDGET.json"))["body"]["charged_gpu_seconds"]}
+                    for window in order if (self.directory / "windows" / window).exists()}
             try:
                 _new_file(self.directory / "HANDOVER.lock", canonical(value))
                 _new_file(self.directory / "HANDOVER_EXPORT.json", canonical(value))
