@@ -419,3 +419,18 @@ def test_lesion_labels_stay_independent_of_unreviewed_grade(rig):
     labels = list(csv.DictReader((root / "lesion_labels.csv").open(encoding="utf-8")))
     assert len(labels) == 1 and labels[0]["annotation_source"] == "HUMAN"
     assert rig.case == before
+
+
+@pytest.mark.parametrize("marker", ["reviewer", "workspace"])
+def test_test_only_grade_goes_to_its_own_folder_and_is_not_training_ready(rig, marker):
+    if marker == "reviewer":
+        rig.case["clinician_review"]["reviewer"] = "TEST_ONLY_ENGINEERING"
+    else:
+        rig.app.state.workspace_manager.active_workspace.name = "TEST_ONLY rehearsal"
+    result = preview_and_export(rig)
+    item = folder_manifest(rig, result)["items"][0]
+    assert item["group"] == "TEST_ONLY" and item["confirmed_grade"] is None and item["reason"] == "TEST_ONLY_LABEL"
+    assert (rig.output / result["directory_name"] / item["output_path"]).parts[-2] == "TEST_ONLY"
+    record = result["manifest"]["records"][0] if "records" in result["manifest"] else None
+    if record is not None:
+        assert record["label_class"] == "TEST_ONLY" and record["dr_grade_training_ready"] is False

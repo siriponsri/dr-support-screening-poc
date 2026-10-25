@@ -9,8 +9,8 @@ from .source_identity import source_identity_reason
 from .source_policy import EXPORT_AUTHORIZATION
 
 SCHEMA = "grading-folders.v1"
-POLICY = "grading-folders.v2-authorized-local-physician-organization"
-GROUPS = ("Grade0", "Grade1", "Grade2", "Grade3", "Grade4", "UNREVIEWED", "UNGRADABLE", "UNDETERMINED")
+POLICY = "grading-folders.v3-authorized-local-physician-organization-test-only-separate"
+GROUPS = ("Grade0", "Grade1", "Grade2", "Grade3", "Grade4", "UNREVIEWED", "UNGRADABLE", "UNDETERMINED", "TEST_ONLY")
 FORMATS = {"image/png": ".png", "image/jpeg": ".jpg", "image/tiff": ".tif", "application/dicom": ".dcm"}
 # Origins the single export rule allows; blocked origins never get folders.
 AUTHORIZATIONS = {origin: decision for origin, decision in EXPORT_AUTHORIZATION.items()
@@ -136,6 +136,9 @@ def plan_grading_folders(cases, rows, sources, admissions) -> GradingFolderPlan:
             item["reason"] = reason
         else:
             item["group"], item["confirmed_grade"], item["reason"] = _group(case, row, image, admission)
+            if row.get("label_class") == "TEST_ONLY" and item["group"] not in {"UNREVIEWED"}:
+                # DT-06: test labels are kept apart and never filed as physician grades.
+                item["group"], item["confirmed_grade"], item["reason"] = "TEST_ONLY", None, "TEST_ONLY_LABEL"
             item["source_sha256"] = image.sha256
             item["status"] = "PLANNED_COPY"
             payloads[item["record_key"]] = (bytes(image.data), FORMATS[image.media_type])

@@ -115,7 +115,7 @@ def test_manifest_preserves_identity_provenance_geometry_and_export_files(tmp_pa
         "modality_admission", "quality_state", "queue_state", "ai_grade", "ai_model_id",
         "ai_model_version", "ai_confidence", "clinician_grade", "grade_review_source",
         "review_status", "reviewer", "reviewed_at", "human_annotation_count", "ai_lesion_count",
-        "cvat_annotation_count", "verification_status", "include_in_training", "eligibility_reason",
+        "cvat_annotation_count", "verification_status", "include_in_training", "label_class", "eligibility_reason",
         "image_confirmation_status", "image_confirmed_by", "image_confirmed_at",
         "dr_grade_confirmation_status", "dr_grade_confirmed_by", "dr_grade_confirmed_at",
         "annotation_confirmation_status", "annotation_confirmed_by", "annotation_confirmed_at",

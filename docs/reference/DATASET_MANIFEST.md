@@ -1,4 +1,4 @@
-# Dataset manifest v2
+# Dataset manifest v3
 
 The Dataset page exports a provenance-preserving package for the active Workspace:
 
@@ -9,9 +9,9 @@ dataset-export-<timestamp>/
 └── annotations.csv
 ```
 
-The current schema identifier is `s4.dataset-manifest.v2`. The export keeps the compatibility fields from the earlier manifest and adds explicit workflow milestones and task-specific readiness. It does not rewrite historical exports.
+The current schema identifier is `s4.dataset-manifest.v3` (v3 adds `label_class`; see below). The export keeps the compatibility fields from the earlier manifest and adds explicit workflow milestones and task-specific readiness. It does not rewrite historical exports.
 
-The repository includes a sanitized package-level example generated through the real export endpoint: [`DATASET_MANIFEST_V2_EXAMPLE.json`](DATASET_MANIFEST_V2_EXAMPLE.json). It demonstrates the manifest file only; the companion CSV files are produced beside it in a real export package.
+The repository includes a sanitized package-level example generated through the real export endpoint: [`DATASET_MANIFEST_V2_EXAMPLE.json`](DATASET_MANIFEST_V2_EXAMPLE.json). It demonstrates the manifest file only; the companion CSV files are produced beside it in a real export package. The example predates v3 and therefore has no `label_class` column.
 
 ## Image fields
 
@@ -24,6 +24,7 @@ The repository includes a sanitized package-level example generated through the 
 - `clinician_grade`, `grade_review_source`, `reviewer`, and `reviewed_at`;
 - human, AI, and CVAT annotation counts;
 - compatibility `verification_status`, `include_in_training`, and `eligibility_reason`;
+- `label_class`: `TEST_ONLY`, `CLINICIAN`, or empty when no human reviewer is recorded;
 - image milestone fields: `image_confirmation_status`, `image_confirmed_by`, and `image_confirmed_at`;
 - DR-grade milestone fields: `dr_grade_confirmation_status`, `dr_grade_confirmed_by`, and `dr_grade_confirmed_at`;
 - annotation milestone fields: `annotation_confirmation_status`, `annotation_confirmed_by`, `annotation_confirmed_at`, `annotation_set_hash`, and `confirmed_annotation_hash`;
@@ -57,6 +58,16 @@ If the active annotations change after confirmation, the confirmation is invalid
 | Annotation set confirmed; no final grade | No | Yes | Suitable for lesion work only |
 | Both milestones confirmed and current | Yes | Yes | Both task outputs meet the current policy |
 | AI output only, or excluded/ungradable image | No | No | Needs review or is excluded |
+| Any label from a TEST_ONLY workspace or reviewer | No | No | Reason `TEST_ONLY_LABEL`; engineering test data, never physician gold |
+
+## Test labels (DT-06)
+
+Owner decision, 2026-10-25: a record whose workspace id or name contains `TEST_ONLY`, or whose
+grade, annotation or image confirmation was recorded by a reviewer name starting with `TEST_ONLY`,
+has `label_class=TEST_ONLY`. Such records are never DR-ready or Lesion-ready
+(`TEST_ONLY_LABEL`), and canonical grading folders file them under `TEST_ONLY`, never `Grade0`-`Grade4`
+(policy `grading-folders.v3-...-test-only-separate`). Eligibility policies are
+`s8.2-task-specific-v1.1-test-only-excluded` (manifest) and `s8.2-task-specific-v3` (snapshot `s4.dataset-snapshot.v5`).
 
 ## Compatibility and leakage control
 
