@@ -44,6 +44,22 @@ M1_PRISM_OPERATIONS = 3
 M1_PRISM_ANCHORS = {"handover_export", "source_proposal", "source_approval", "source_journal",
                     "source_journal_head", "source_server_budget", "source_server_complete"}
 M1_NEW_GPU_SECONDS_MAX = 21600  # Approved total new reservation across M1 windows (6 GPU-hours).
+# Owner-approved 2026-10-25 (docs/milestone/m1/M1_SERVICE_SESSION_CONTINUATION.md):
+# a synthetic watchdog window, then a bounded service session using six of the
+# 2026-10-23 export's unsent post-fix operations, continuing from the fenced PRISM decision.
+M1_SERVICE_DECISION = "HOSPITAL_M1_ACCOUNTING_SERVICE_20261025"
+M1_SERVICE_WATCHDOG = "HOSPITAL_M1_QA_SERVER_WATCHDOG_20261025"
+M1_SERVICE_SERVER = "HOSPITAL_M1_QA_SERVER_SERVICE_20261025"
+M1_SERVICE_WINDOWS = {
+    M1_SERVICE_WATCHDOG: {"profile": "QA_SERVER", "gpu_index": 0, "gpu_seconds_cap": 900,
+                          "wall_seconds_cap": 1800, "refund_unused": False, "renew": False},
+    M1_SERVICE_SERVER: {"profile": "QA_SERVER", "gpu_index": 0, "gpu_seconds_cap": 3600,
+                        "wall_seconds_cap": 7200, "refund_unused": False, "renew": False},
+}
+M1_SERVICE_ORDER = (M1_SERVICE_WATCHDOG, M1_SERVICE_SERVER)
+M1_SERVICE_OPERATIONS = 6
+M1_SERVICE_ANCHORS = M1_PRISM_ANCHORS | {"source_accounting", "origin_export", "origin_proposal",
+                                         "origin_server_budget"}
 M1_OPERATION_FIELDS = {"job_id", "operation_id", "purpose", "window_id", "source_sha256", "model_id",
                        "modality", "model_pins_sha256", "parameters_sha256", "preprocessing_id"}
 M1_APPROVED_STATUS = "EXPLICIT_OWNER_APPROVED_NOT_ACTIVATED"
@@ -384,12 +400,193 @@ def _verify_m1_prism(directory, proposal_path, approval_path, proposal_sha256, a
                      "prior_gpu_seconds": round(M1_PRIOR_GPU_SECONDS + body["charged_gpu_seconds"], 3)}}
 
 
+def _verify_m1_service(directory, proposal_path, approval_path, proposal_sha256, approval_sha256,
+                       upstream_paths, installation_sha256):
+    """Verify the MS-03 service decision against the fenced PRISM source and its 2026-10-23 origin."""
+    require(_is_sha(proposal_sha256) and _is_sha(approval_sha256) and _is_sha(installation_sha256),
+            "M1_EXTERNAL_AUTHORIZATION_PINS_REQUIRED")
+    proposal_raw, approval_raw = _regular(proposal_path), _regular(approval_path)
+    require(digest(proposal_raw) == proposal_sha256 and digest(approval_raw) == approval_sha256,
+            "M1_EXACT_EXTERNAL_OWNER_APPROVAL_REQUIRED")
+    proposal, approval = json.loads(proposal_raw), json.loads(approval_raw)
+    windows = proposal.get("windows")
+    require(set(proposal) == {"schema", "decision_id", "base_used", "cap", "new_admissions_max",
+                             "allocations", "windows", "accounting_directory", "installation_sha256",
+                             "upstream", "operations"}
+            and proposal["schema"] == "hospital-m1-service-continuation.v1"
+            and proposal["decision_id"] == M1_SERVICE_DECISION
+            and type(proposal["new_admissions_max"]) is int
+            and proposal["new_admissions_max"] == M1_SERVICE_OPERATIONS
+            and proposal["allocations"] == {"post_fix_verification": M1_SERVICE_OPERATIONS}
+            and type(proposal["allocations"]["post_fix_verification"]) is int
+            and windows == M1_SERVICE_WINDOWS
+            # Equality alone accepts 900.0 or 0 for False; require the exact JSON types.
+            and all(type(windows[key][field]) is int for key in windows
+                    for field in ("gpu_index", "gpu_seconds_cap", "wall_seconds_cap"))
+            and all(type(windows[key][field]) is bool for key in windows for field in ("refund_unused", "renew"))
+            and proposal["installation_sha256"] == installation_sha256
+            and approval == {"schema": "hospital-m1-owner-approval.v1", "decision_id": M1_SERVICE_DECISION,
+                             "proposal_sha256": proposal_sha256, "status": M1_APPROVED_STATUS},
+            "M1_SERVICE_AUTHORIZATION_SCOPE_INVALID")
+    directory = _direct(directory)
+    require(Path(proposal["accounting_directory"]).is_absolute()
+            and _direct(proposal["accounting_directory"]) == directory,
+            "M1_SINGLE_AUTHORIZED_ACCOUNTING_DIRECTORY_REQUIRED")
+    require(set(upstream_paths) == set(proposal["upstream"]) == M1_SERVICE_ANCHORS
+            and all(_is_sha(value) for value in proposal["upstream"].values()), "M1_SERVICE_ANCHORS_REQUIRED")
+    paths = {key: _direct(path) for key, path in upstream_paths.items()}
+    require(all(directory != path.parent and directory not in path.parents for path in paths.values()),
+            "M1_OLD_ACCOUNTING_DIRECTORY_MUST_NOT_BE_REUSED")
+    # PRISM anchors come from ONE fenced source; the two origin files from the 2026-10-23 source.
+    source_dir, origin_dir = paths["handover_export"].parent, paths["origin_export"].parent
+    expected = {"handover_export": source_dir / "HANDOVER_EXPORT.json", "source_proposal": source_dir / "PROPOSAL.json",
+                "source_approval": source_dir / "APPROVAL.json", "source_journal": source_dir / "LEDGER.jsonl",
+                "source_journal_head": source_dir / "JOURNAL_HEAD.json",
+                "source_accounting": source_dir / "ACCOUNTING.json",
+                "source_server_budget": source_dir / "windows" / M1_PRISM_SERVER / "BUDGET.json",
+                "source_server_complete": source_dir / "windows" / M1_PRISM_SERVER / "COMPLETE.json",
+                "origin_export": origin_dir / "HANDOVER_EXPORT.json", "origin_proposal": origin_dir / "PROPOSAL.json",
+                "origin_server_budget": origin_dir / "windows" / M1_SERVER / "BUDGET.json"}
+    require(source_dir != origin_dir and all(paths[key] == _direct(path) for key, path in expected.items()),
+            "M1_SERVICE_ANCHORS_FROM_TWO_SOURCES_REQUIRED")
+    upstream = {key: _regular(path) for key, path in paths.items()}
+    require(all(digest(raw) == proposal["upstream"][key] for key, raw in upstream.items()),
+            "M1_PINNED_UPSTREAM_BYTES_CHANGED")
+    require(all((folder / "HANDOVER.lock").is_file() and _regular(folder / "HANDOVER.lock") == upstream[key]
+                for folder, key in ((source_dir, "handover_export"), (origin_dir, "origin_export"))),
+            "M1_SERVICE_SOURCE_NOT_FENCED")
+    export, source, source_approval, head, accounting, saved, complete, origin_export, origin, origin_saved = (
+        json.loads(upstream[key]) for key in (
+            "handover_export", "source_proposal", "source_approval", "source_journal_head", "source_accounting",
+            "source_server_budget", "source_server_complete", "origin_export", "origin_proposal",
+            "origin_server_budget"))
+    require(type(export) is dict and export.get("schema") == "hospital-m1-source-handover.v1"
+            and export.get("status") == "SOURCE_FENCED_LOCAL_ADOPTION_NOT_QUALIFIED"
+            and export.get("local_activation_available") is False
+            and export.get("proposal_sha256") == digest(upstream["source_proposal"])
+            and export.get("approval_sha256") == digest(upstream["source_approval"])
+            and export.get("journal_sha256") == digest(upstream["source_journal"])
+            and export.get("journal_head_sha256") == digest(upstream["source_journal_head"])
+            and export.get("server_budget_sha256") == digest(upstream["source_server_budget"])
+            and export.get("server_activation_sha256") == digest(upstream["source_server_complete"])
+            and export.get("destination_installation_sha256") == installation_sha256,
+            "M1_SERVICE_HANDOVER_ANCHOR_INVALID")
+    continuation = accounting.get("continuation") if type(accounting) is dict else None
+    prior = continuation.get("prior_gpu_seconds_preserved") if type(continuation) is dict else None
+    require(type(source) is dict and source.get("schema") == "hospital-m1-prism-continuation.v1"
+            and source.get("decision_id") == M1_PRISM_DECISION
+            and source_approval == {"schema": "hospital-m1-owner-approval.v1", "decision_id": M1_PRISM_DECISION,
+                                    "proposal_sha256": export["proposal_sha256"], "status": M1_APPROVED_STATUS}
+            and type(source.get("operations")) is list
+            and export.get("manifest") == digest(canonical(source["operations"]))
+            and export.get("upstream") == source.get("upstream")
+            # The PRISM decision itself pinned exactly these 2026-10-23 origin bytes.
+            and type(source["upstream"]) is dict
+            and source["upstream"].get("handover_export") == digest(upstream["origin_export"])
+            and source["upstream"].get("source_proposal") == digest(upstream["origin_proposal"])
+            and accounting == {"manifest": export["manifest"], "budget_required": True, "continuation": {
+                "schema": "hospital-m1-accounting-origin.v1", "proposal_sha256": export["proposal_sha256"],
+                "approval_sha256": export["approval_sha256"], "base_used": source.get("base_used"),
+                "cap": source.get("cap"), "upstream": source["upstream"], "prior_gpu_seconds_preserved": prior}}
+            and type(prior) in (int, float) and math.isfinite(prior) and prior >= M1_PRIOR_GPU_SECONDS,
+            "M1_SERVICE_SOURCE_DECISION_INVALID")
+    require(type(origin_export) is dict and origin_export.get("schema") == "hospital-m1-source-handover.v1"
+            and origin_export.get("status") == "SOURCE_FENCED_LOCAL_ADOPTION_NOT_QUALIFIED"
+            and origin_export.get("local_activation_available") is False
+            and origin_export.get("proposal_sha256") == digest(upstream["origin_proposal"])
+            and type(origin) is dict and origin.get("schema") == "hospital-m1-continuation.v1"
+            and origin.get("decision_id") == M1_DECISION and type(origin.get("operations")) is list
+            and origin_export.get("manifest") == digest(canonical(origin["operations"]))
+            and type(origin_export.get("remaining_job_ids")) is list
+            and type(origin_export.get("global_used")) is int,
+            "M1_SERVICE_ORIGIN_INVALID")
+    # The preserved seconds are re-derived, never taken on trust: the 2026-10-23 decision's
+    # preserved aggregate plus its closed Server window's charge, exactly as the PRISM verifier did.
+    origin_body = origin_saved.get("body") if type(origin_saved) is dict else None
+    origin_charge = origin_body.get("charged_gpu_seconds") if type(origin_body) is dict else None
+    require(type(origin_body) is dict and origin_saved.get("sha256") == digest(canonical(origin_body))
+            and origin_export.get("server_budget_sha256") == digest(upstream["origin_server_budget"])
+            and origin_body.get("manifest") == origin_export["manifest"] and origin_body.get("session_id") == M1_SERVER
+            and origin_body.get("window_closed") is True and origin_body.get("active") is None
+            and origin_body.get("quarantined") is False
+            and type(origin_charge) in (int, float) and math.isfinite(origin_charge) and origin_charge >= 10800
+            and round(prior, 3) == round(M1_PRIOR_GPU_SECONDS + origin_charge, 3),
+            "M1_SERVICE_PRESERVED_GPU_SECONDS_INVALID")
+    source_jobs = {job["job_id"]: job for job in source["operations"]}
+    states, intents, rows, tail = _replay_source_journal(upstream["source_journal"], export["manifest"],
+                                                         set(source_jobs))
+    require(type(export.get("seq")) is int and type(export.get("global_used")) is int
+            and rows == export["seq"] and tail == export.get("tail")
+            and not any(state in {"ATTEMPT_INTENT", "RESPONSE_RETAINED", "SENT_OR_UNCERTAIN"}
+                        for state in states.values())
+            and type(source.get("base_used")) is int and source["base_used"] == origin_export["global_used"]
+            and export["global_used"] == source["base_used"] + intents
+            and type(proposal["base_used"]) is int and proposal["base_used"] == export["global_used"]
+            and type(proposal["cap"]) is int and proposal["cap"] == proposal["base_used"] + M1_SERVICE_OPERATIONS
+            and proposal["cap"] <= M1_CAP
+            and head == {"manifest": export["manifest"], "proposal_sha256": export["proposal_sha256"],
+                         "journal_sha256": export["journal_sha256"], "seq": rows, "tail": tail}
+            and export.get("remaining_job_ids") == [key for key in source_jobs if key not in states],
+            "M1_SERVICE_SOURCE_USAGE_INVALID")
+    body = saved.get("body") if type(saved) is dict else None
+    charge = body.get("charged_gpu_seconds") if type(body) is dict else None
+    new_caps = sum(window["gpu_seconds_cap"] for window in M1_SERVICE_WINDOWS.values())
+    require(type(body) is dict and saved.get("sha256") == digest(canonical(body))
+            and body.get("manifest") == export["manifest"] and body.get("session_id") == M1_PRISM_SERVER
+            and body.get("authorization_sha256") == digest(upstream["source_server_complete"])
+            and body.get("window_closed") is True and body.get("active") is None
+            and body.get("quarantined") is False
+            and type(body.get("lease_count")) is int and body["lease_count"] == 1
+            and type(charge) in (int, float) and math.isfinite(charge)
+            and charge >= M1_PRISM_WINDOW["gpu_seconds_cap"]
+            # Float sums of millisecond charges are compared at their recorded precision.
+            and round(prior + charge - M1_PRIOR_GPU_SECONDS + new_caps, 3) <= M1_NEW_GPU_SECONDS_MAX
+            and complete.get("window_id") == M1_PRISM_SERVER and complete.get("gpu_uuid") == M1_GPU0
+            and complete.get("proposal_sha256") == export["proposal_sha256"],
+            "M1_SERVICE_SOURCE_WINDOW_NOT_CLOSED_OR_OVER_BUDGET")
+    origin_jobs = {job["job_id"]: job for job in origin["operations"]}
+    candidates = {job["operation_id"]: job for key, job in origin_jobs.items()
+                  if key in origin_export["remaining_job_ids"] and job["purpose"] == "post_fix_verification"
+                  and job["window_id"] == M1_SERVER}
+    jobs = proposal["operations"]
+    # The PRISM decision carried only Server PRISM acceptance; no post-fix operation was sent there.
+    require(all(job.get("purpose") == "server_acceptance" and job.get("operation_id") not in candidates
+                for job in source["operations"]), "M1_SERVICE_SOURCE_DECISION_INVALID")
+    require(type(jobs) is list and len(jobs) == M1_SERVICE_OPERATIONS
+            and all(type(job) is dict and job.get("operation_id") in candidates for job in jobs)
+            and len({job["operation_id"] for job in jobs}) == M1_SERVICE_OPERATIONS
+            and len({job.get("job_id") for job in jobs}) == M1_SERVICE_OPERATIONS,
+            "M1_SERVICE_EXACT_POST_FIX_OPERATIONS_REQUIRED")
+    for job in jobs:
+        origin_job = candidates[job["operation_id"]]
+        require(set(job) == M1_OPERATION_FIELDS and job["window_id"] == M1_SERVICE_SERVER
+                and job["job_id"] == digest(canonical({k: v for k, v in job.items() if k != "job_id"}))
+                and job["job_id"] not in source_jobs and job["job_id"] not in origin_jobs
+                and {k: v for k, v in job.items() if k not in {"job_id", "window_id"}}
+                    == {k: v for k, v in origin_job.items() if k not in {"job_id", "window_id"}},
+                "M1_SERVICE_OPERATION_CHANGED")
+    return {"proposal": proposal, "proposal_raw": proposal_raw, "approval_raw": approval_raw,
+            "proposal_sha256": proposal_sha256, "approval_sha256": approval_sha256,
+            "upstream": upstream, "paths": paths, "proposal_path": _direct(proposal_path),
+            "approval_path": _direct(approval_path), "manifest": digest(canonical(jobs)),
+            "spec": {"decision_id": M1_SERVICE_DECISION, "base_used": proposal["base_used"],
+                     "cap": proposal["cap"], "server_window": M1_SERVICE_SERVER, "local_window": None,
+                     "window_order": list(M1_SERVICE_ORDER), "windows": deepcopy(proposal["windows"]),
+                     "prior_gpu_seconds": round(prior + charge, 3)}}
+
+
+def window_order(spec):
+    """Activation order of a verified decision; earlier decisions have one Server window."""
+    return list(spec.get("window_order") or [spec["server_window"]])
+
+
 def _verify_decision(directory, proposal_path, approval_path, proposal_sha256, approval_sha256,
                      upstream_paths, installation_sha256):
     """Dispatch on the externally pinned proposal's schema; each verifier is exact."""
     schema = json.loads(_regular(proposal_path)).get("schema")
     verify = {"hospital-m1-continuation.v1": _verify_m1,
-              "hospital-m1-prism-continuation.v1": _verify_m1_prism}.get(schema)
+              "hospital-m1-prism-continuation.v1": _verify_m1_prism,
+              "hospital-m1-service-continuation.v1": _verify_m1_service}.get(schema)
     require(verify is not None, "M1_UNKNOWN_DECISION_SCHEMA")
     return verify(directory, proposal_path, approval_path, proposal_sha256, approval_sha256,
                   upstream_paths, installation_sha256)
@@ -687,11 +884,12 @@ class BatchLedger:
 
     def _require_closed_window(self):
         from batch_budget import continuation_window_context
-        server = self.spec["server_window"]
-        if (self.directory / "windows" / server).exists():
-            _, _, body = continuation_window_context(self, server)
-            require(body["active"] is None and body["quarantined"] is False and body["window_closed"] is True,
-                    "M1_WINDOW_MUST_BE_CLOSED")
+        # Every activated window of the decision, in order (one Server window before 2026-10-25).
+        for window in window_order(self.spec):
+            if (self.directory / "windows" / window).exists():
+                _, _, body = continuation_window_context(self, window)
+                require(body["active"] is None and body["quarantined"] is False and body["window_closed"] is True,
+                        "M1_WINDOW_MUST_BE_CLOSED")
         require(not (self.directory / "windows" / M1_LOCAL).exists(), "M1_LOCAL_ADOPTION_NOT_QUALIFIED")
 
     def fence_handover(self, *, destination_installation_sha256):
@@ -722,6 +920,15 @@ class BatchLedger:
                 "owner_lock_sha256": digest(self.owned_lock),
                 "remaining_job_ids": [row["job_id"] for row in self.pending()],
                 "local_activation_available": False}
+            order = window_order(self.spec)
+            if len(order) > 1:
+                # Every activated window's charge stays anchored for the next decision (MS-03 onward).
+                value["windows"] = {
+                    window: {"budget_sha256": digest(_regular(self.directory / "windows" / window / "BUDGET.json")),
+                             "activation_sha256": digest(_regular(self.directory / "windows" / window / "COMPLETE.json")),
+                             "charged_gpu_seconds": json.loads(_regular(
+                                 self.directory / "windows" / window / "BUDGET.json"))["body"]["charged_gpu_seconds"]}
+                    for window in order if (self.directory / "windows" / window).exists()}
             try:
                 _new_file(self.directory / "HANDOVER.lock", canonical(value))
                 _new_file(self.directory / "HANDOVER_EXPORT.json", canonical(value))

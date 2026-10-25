@@ -148,7 +148,7 @@ def admitted_entry(models, result):
             'result_sha256': operations.global_result_digest(result)}
 
 
-@pytest.mark.parametrize('name, allowed', [('m1-server-20261023-01', True), ('m1-prism-20261024-01', True),
+@pytest.mark.parametrize('name, allowed', [('m1-server-20261023-01', True), ('m1-prism-20261024-01', True), ('m1-service-20261025-01', True),
                                            ('m1-other-1', False), ('m1-prism-x;rm', False)])
 def test_readback_accepts_only_server_and_prism_window_runs(monkeypatch, name, allowed):
     app = server_app()
