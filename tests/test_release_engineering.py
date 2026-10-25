@@ -500,6 +500,7 @@ function Ensure-ReleaseDirectories {{}}
 function Test-ReleaseFrontend {{}}
 function Ensure-ReleasePostgres {{ return [pscustomobject]@{{Ready=$true}} }}
 function Test-ReleasePostgres {{ return [pscustomobject]@{{Ready=$true}} }}
+function Use-ReleaseRuntimeRole {{ return $false }}
 function Get-ReleaseRecord {{ return {record} }}
 function Test-ReleaseManagedProcess {{ param($Id) return $true }}
 function Test-ReleaseHealth {{ return $true }}
