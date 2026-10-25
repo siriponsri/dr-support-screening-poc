@@ -1969,7 +1969,7 @@ Owner confirmed proposal `2ac0b6fa…666d`; APPROVAL `e0331c7a…b7d3`.
   - Evidence in `M1PrivateConfig\evidence\ms03-watchdog-20261025-01\` and
     `ms03-service-20261025-01\` (COMPLETE sha `78273064…ba57`).
 - **Live findings (open, not fixed):**
-  - The first "Prepare / refresh API input" after a completed PRISM job timed out
+  - (Fixed in section 35.) The first "Prepare / refresh API input" after a completed PRISM job timed out
     (app HTTP 500 from an httpx ReadTimeout in `prism_remote_bound.py`); an
     immediate retry worked. Control call only, nothing charged. The app should
     show a plain retry message instead of HTTP 500, and the prepare timeout
@@ -1982,3 +1982,35 @@ Owner confirmed proposal `2ac0b6fa…666d`; APPROVAL `e0331c7a…b7d3`.
   the 2026-10-23 export, unsent); new GPU reservation 18,900 of 21,600 s. Any
   further GPU work needs a new owner decision continuing from the service
   decision's closure (its fence export will anchor both windows).
+
+## 35. PRISM Prepare timeout fix, 25 October 2026 (DONE, merged)
+
+Owner asked for a plain retry message instead of HTTP 500 and a review of the
+prepare timeout, without GPU use.
+
+- Cause: `ExplicitHttpChannel` used a 2 s httpx timeout for every route; the
+  host's `/v1/prism-bound/prepare` (control call: wire upload plus frozen CPU
+  plan, never charged) took longer right after a PRISM job, and the unhandled
+  `httpx.ReadTimeout` became HTTP 500.
+- Fix (branch `fix/m1-prism-prepare-timeout`, merged main `b96268c`, pushed,
+  branch removed):
+  - Prepare only: `httpx.Timeout(10, connect=2)`. Execute, status, grant,
+    cancel and capabilities keep 2 s. 10 s, not more, because the review
+    runtime holds the case store lock during prepare.
+  - A transport failure at prepare becomes `PREPARE_UNAVAILABLE` (503): "The
+    model server did not answer in time. No model work was started; press
+    Prepare again." Other server failures: "PRISM is not available right now.
+    No model work was started." Host refusals (409): "could not prepare this
+    input". Fixed codes are logged only.
+  - The submit-time refresh path is unchanged (still the 502 "cannot be reused"
+    refusal).
+  - Screen: a prepare failure shows the message alone; submit failures keep the
+    "Prepare a new receipt" hint.
+- Independent review REQUEST_CHANGES (submit path, lock-holding timeout,
+  wording, tests) fixed; re-review APPROVE.
+- Validation on main: backend 2115 passed / 68 skipped, Ruff clean, frontend
+  305 passed, typecheck clean, `frontend/dist` rebuilt (served by the running
+  app), root Node smoke PASS. No GPU, model or network use.
+- Known limit (accepted): a client timeout can leave an unused host ticket for
+  up to 300 s; it cannot be executed or charged. Not yet tested live against
+  the host (needs a future session).
