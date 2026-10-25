@@ -168,13 +168,18 @@ class ReviewPrismPreview:
             except ValueError:
                 raise HTTPException(409, "Frozen candidate is unavailable; prepare a new preview.") from None
             except TransportError as error:
+                if refresh_only:
+                    raise  # Submit-time refresh keeps the execution refusal path unchanged.
                 # Preparation starts no model work. Log the fixed code only; show plain wording.
                 logging.getLogger(__name__).warning(
                     "PRISM preparation refused: %s",
                     error.code if isinstance(error.code, str) and re.fullmatch(r"[A-Z0-9_]{1,80}", error.code) else "")
-                if error.status >= 500:
+                if error.code == "PREPARE_UNAVAILABLE":
                     raise HTTPException(503, "The model server did not answer in time. "
                                              "No model work was started; press Prepare again.") from None
+                if error.status >= 500:
+                    raise HTTPException(503, "PRISM is not available right now. "
+                                             "No model work was started.") from None
                 raise HTTPException(409, "The model server could not prepare this input. "
                                          "No model work was started; prepare a new preview.") from None
             width, height = image.size

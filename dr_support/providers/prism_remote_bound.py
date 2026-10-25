@@ -21,8 +21,9 @@ class RemoteExecutionUncertain(TransportError):
 
 # Prepare uploads the wire and the host builds the frozen CPU plan; it took longer
 # than the 2 s client default right after a PRISM job (MS-03, 2026-10-25). Prepare
-# is a control call that starts no model work, so a longer read is safe.
-PREPARE_TIMEOUT = httpx.Timeout(20, connect=2)
+# is a control call that starts no model work. The review runtime holds the case
+# store lock during this call, so the limit stays short.
+PREPARE_TIMEOUT = httpx.Timeout(10, connect=2)
 
 
 class ExplicitHttpChannel:

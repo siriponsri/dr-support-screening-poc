@@ -38,9 +38,12 @@ def test_only_prepare_gets_the_longer_read_timeout():
     channel.request("POST", "/v1/prism-bound/prepare", {})
     channel.request("POST", "/v1/prism-bound/execute", {})
     channel.request("GET", "/v1/prism-bound/capabilities")
+    for path in ("/v1/prism-bound/jobs/synthetic_job_1", "/v1/prism-bound/jobs/synthetic_job_1/grant",
+                 "/v1/prism-bound/jobs/synthetic_job_1/cancel"):
+        channel.request("POST" if path.endswith(("grant", "cancel")) else "GET", path, {})
     timeouts = {path: value for path, value in seen}
-    assert timeouts["/v1/prism-bound/prepare"]["read"] == 20 and timeouts["/v1/prism-bound/prepare"]["connect"] == 2
-    assert timeouts["/v1/prism-bound/execute"]["read"] == 2 and timeouts["/v1/prism-bound/capabilities"]["read"] == 2
+    assert timeouts.pop("/v1/prism-bound/prepare") == {"connect": 2, "read": 10, "write": 10, "pool": 10}
+    assert len(timeouts) == 5 and all(value["read"] == 2 for value in timeouts.values())
 
 
 def test_a_prepare_timeout_becomes_a_plain_retryable_refusal():
