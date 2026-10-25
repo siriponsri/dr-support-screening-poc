@@ -1933,3 +1933,52 @@ role; MS-03 as a bounded session with a plan and proposal hash.
   (`m1_session.py start`, run `runs/m1-service-…`, PRISM images need
   `QUALITY_ACCEPTABLE` by `TEST_ONLY_ENGINEERING` first). New GPU reservation
   would reach 18,900 of 21,600 s; requests ≤ 540 of 549.
+
+## 34. MS-03 bounded session run, 25 October 2026 (DONE, both windows closed)
+
+Owner confirmed proposal `2ac0b6fa…666d`; APPROVAL `e0331c7a…b7d3`.
+
+- **Phase A, watchdog** (run `runs/m1-watchdog-20261025-01`, window
+  `HOSPITAL_M1_QA_SERVER_WATCHDOG_20261025`, lease `m1_watchdog_9d36859d78b14fef`,
+  55 s observed, 0 inference requests):
+  - vram-limit (VRAM_LIMIT, forced stop -9), rss-limit (RSS_LIMIT, -15),
+    request-timeout (REQUEST_TIMEOUT, -15), hard-alarm (WORKER_EXITED, -14):
+    as expected.
+  - oom-contained: the child hit torch OOM at exactly 1024 MiB, freed memory and
+    exited 0, but the supervisor recorded `UNVERIFIED` /
+    `CHILD_OBSERVATION_UNAVAILABLE` (most likely the resource sample raced the
+    child's own exit; the adapter detail was not recorded). Status FAIL by the
+    pre-declared expectation; fail-closed, not unsafe.
+  - Cleanup confirmed, window_stop and ledger_close CONFIRMED, GPU0 idle after,
+    GPU1/Ollama processes unchanged, cgroup v2 memory delegated (not used).
+  - **Owner accepted phase A as safe in chat** and approved phase B.
+  - Follow-up (open): record supervisor/adapter `observation_failure` in the
+    watchdog observation, and treat a self-exit race as a terminal observation.
+- **Phase B, service session** (run `runs/m1-service-20261025-01`, window
+  `HOSPITAL_M1_QA_SERVER_SERVICE_20261025`, 705 s observed, owner close):
+  - Before GPU: the six images confirmed in `ws_m1_63ed86c7d44f46d59479` by
+    `TEST_ONLY_ENGINEERING` (manual prepare app); PRISM images also
+    `QUALITY_ACCEPTABLE` (engineering, not clinical).
+  - All through the review UI with trusted PostgreSQL readback after each:
+    RETFound `pf-retfound-d5e8689c2d3c`, USPEC `pf-uspec-4f81b1385489`,
+    `pf-uspec-b55fcbf67128`, PRISM `pf-prism-f62327e97fc9` (CFP),
+    `pf-prism-b4ae1fec4374` (CFP), `pf-prism-cca990e31bc5` (UWF):
+    **6/6 PASS_READBACK**.
+  - `COMPLETE.json`: cleanup/window_stop/ledger_close CONFIRMED, 0 retries,
+    global_used **540/540** (EXACT). GPU0 back to 1 MiB; GPU1/Ollama untouched.
+  - Evidence in `M1PrivateConfig\evidence\ms03-watchdog-20261025-01\` and
+    `ms03-service-20261025-01\` (COMPLETE sha `78273064…ba57`).
+- **Live findings (open, not fixed):**
+  - The first "Prepare / refresh API input" after a completed PRISM job timed out
+    (app HTTP 500 from an httpx ReadTimeout in `prism_remote_bound.py`); an
+    immediate retry worked. Control call only, nothing charged. The app should
+    show a plain retry message instead of HTTP 500, and the prepare timeout
+    should be reviewed.
+  - Operator note: run `m1_server_app readback` from PowerShell or with
+    `MSYS_NO_PATHCONV=1` in Git Bash, otherwise the remote run path is rewritten
+    and refused (`APPROVED_REMOTE_RUN_REQUIRED`).
+  - Some UWF images carry burned-in identity text; no screenshot was kept.
+- **Accounting now:** requests 540 of 549 (QA_LOCAL 6 and post-fix 3 remain in
+  the 2026-10-23 export, unsent); new GPU reservation 18,900 of 21,600 s. Any
+  further GPU work needs a new owner decision continuing from the service
+  decision's closure (its fence export will anchor both windows).
