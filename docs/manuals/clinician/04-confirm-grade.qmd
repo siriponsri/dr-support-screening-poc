@@ -20,7 +20,7 @@ If you are not ready to decide, do not confirm; the grade simply stays *Not conf
 ::: {layout="[52,48]" layout-valign="top"}
 ![Clinician decision before confirming.](screenshots/05-confirm-dr-grade.png){#fig-grade}
 
-![A confirmed grade is read-only.](screenshots/06-dr-grade-recorded.png){#fig-grade-recorded}
+![After confirming, the Annotation Editor opens with Grading complete.](screenshots/06-dr-grade-recorded.png){#fig-grade-recorded}
 :::
 
 ## Change a confirmed grade
