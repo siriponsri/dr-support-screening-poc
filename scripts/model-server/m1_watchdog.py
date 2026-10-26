@@ -200,19 +200,29 @@ def stop_child(child, supervisor, *, clock=time.monotonic, sleep=time.sleep):
     return outcomes
 
 
-DETAIL_TEXT = re.compile(r'[A-Za-z0-9_]{1,64}')
+DETAIL_CODE = re.compile(r'[A-Z][A-Z0-9_]{0,63}')  # Fixed upper-case stage/reason codes only.
+CLASS_NAME = re.compile(r'[A-Za-z]{1,40}')
 FIXED_CODE = re.compile(r'[A-Z0-9_]{3,80}')
 
 
 def failure_detail(value):
     """Allowlisted scalar cause only (stage, class, reason, errno); never messages, paths or payloads."""
-    if not isinstance(value, dict):
+    if type(value) is not dict:
         return None
-    kept = {key: value[key] for key in ('stage', 'exception_class', 'reason')
-            if type(value.get(key)) is str and DETAIL_TEXT.fullmatch(value[key])}
+    patterns = {'stage': DETAIL_CODE, 'reason': DETAIL_CODE, 'exception_class': CLASS_NAME}
+    kept = {key: value[key] for key, pattern in patterns.items()
+            if type(value.get(key)) is str and pattern.fullmatch(value[key])}
     if type(value.get('errno')) is int and 0 <= value['errno'] <= 4095:
         kept['errno'] = value['errno']
     return kept or None
+
+
+def safe_detail(owner, attribute):
+    """Never lets cause capture raise: it runs before cleanup and accounting."""
+    try:
+        return failure_detail(getattr(owner, attribute, None))
+    except Exception:
+        return None
 
 
 def error_code(error):
@@ -245,7 +255,7 @@ def run_case(spec, *, spawn, supervise, run, clock=time.monotonic, sleep=time.sl
         for key, owner, attribute in (('supervisor_failure', supervisor, 'observation_failure'),
                                       ('adapter_failure', child, 'observation_failure'),
                                       ('resource_failure', resources, 'last_failure')):
-            detail = failure_detail(getattr(owner, attribute, None))
+            detail = safe_detail(owner, attribute)
             if detail is not None:
                 observed[key] = detail
         if child is not None:
@@ -308,7 +318,7 @@ def finish_phase(result, *, budget, lease, ledger, monitors):
         except BaseException:
             closed[name] = False
     result['monitors_closed'] = closed
-    failures = {name: failure_detail(getattr(monitor, 'failure_detail', None)) for name, monitor in monitors.items()}
+    failures = {name: safe_detail(monitor, 'failure_detail') for name, monitor in monitors.items()}
     if any(failures.values()):
         result['monitor_failures'] = {name: detail for name, detail in failures.items() if detail}
     # A case that never ran has nothing to clean; every spawned child must be confirmed reaped.

@@ -304,3 +304,32 @@ def test_limits_quota_and_stop_rules_are_unchanged():
         ("hard-alarm", 2048, 4 * 1024**3, 10, 90, 15, "WORKER_EXITED")]
     source = (ROOT / "scripts/model-server/m1_watchdog.py").read_text(encoding="utf-8")
     assert "drain_seconds=15" in source and "monitor_seconds=5" in source and "max_jobs=1" in source
+
+
+class Exploding:
+    @property
+    def observation_failure(self):
+        raise KeyError("boom")
+
+    failure_detail = observation_failure
+    last_failure = observation_failure
+
+
+def test_cause_capture_never_blocks_cleanup_or_accounting(tmp_path):
+    child = FakeChild(0)
+
+    class ExplodingResources(FakeResources):
+        last_failure = Exploding.observation_failure
+    observed = watchdog.run_case(spec("hard-alarm"), spawn=lambda _: (child, ExplodingResources()),
+                                 supervise=lambda _, owned: FakeSupervisor(owned, stop_after=1, reason="WORKER_EXITED"),
+                                 run=tmp_path, sleep=lambda _: None)
+    assert child.closed and observed["cleanup_confirmed"] is True and "resource_failure" not in observed
+    done = watchdog.finish_phase(result(), budget=None, lease=None, ledger=None, monitors={"gpu_monitor": Exploding()})
+    assert "monitor_failures" not in done and done["window_stop"] == "NO_LEASE_RESERVED"
+
+
+def test_lower_case_or_subclassed_detail_is_dropped():
+    class Sneaky(dict):
+        pass
+    assert watchdog.failure_detail(Sneaky(stage="PIDFD_POLL")) is None
+    assert watchdog.failure_detail({"stage": "deadbeefcafe0123", "reason": "token_abc"}) is None
