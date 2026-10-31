@@ -1,0 +1,29 @@
+# Package 2: hospital local server. Used together with ../dual-mode/compose.yml and its hospital profile:
+#   docker compose -f ../dual-mode/compose.yml -f compose.override.yml --profile hospital-3090 --env-file <private env> up -d
+# (bin/start.sh does this). Adds sign-in, image and output folders, and an HTTPS front for the hospital network.
+# Model services, gateway and PostgreSQL come unchanged from the qualified dual-mode definitions.
+services:
+  review:
+    environment:
+      DR_SUPPORT_AUTH_FILE: /data/config/pilot-users.json
+    volumes:
+      - ${DR_DATA_DIR:?host data folder}/config:/data/config
+      - ${DR_DATA_DIR:?host data folder}/state:/data/state
+      - ${DR_DATA_DIR:?host data folder}/output:/data/output
+      - ${DR_IMAGES_DIR:?host image folder (read-only in the app)}:/data/input:ro
+
+  https:
+    profiles: [lightning-t4, ceo-p40, hospital-3090]
+    image: caddy:2.8-alpine
+    command: ["caddy", "reverse-proxy", "--from", "${DR_SITE_ADDRESS:?address users type}", "--to", "review:8000", "--internal-certs"]
+    ports:
+      - "${DR_HTTPS_BIND:-0.0.0.0}:443:443"
+    volumes:
+      - hospital_caddy_data:/data
+    depends_on:
+      review: {condition: service_started}
+    restart: unless-stopped
+
+volumes:
+  hospital_caddy_data:
+    name: ${DR_CADDY_VOLUME:-dr_screening_hospital_caddy}

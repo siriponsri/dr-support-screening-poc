@@ -8,3 +8,6 @@ dr_support/services/artifact_generic_v01/generic_uwf.py text eol=lf
 scripts/qa/batch_runtime/*.py text eol=lf
 docs/milestone/regular/owner-*/** -text -whitespace
 docs/milestone/regular/REDACTION_MANIFEST.json -text
+
+# Shell scripts run on Linux hosts or are piped there over SSH: always LF.
+*.sh text eol=lf

@@ -1,0 +1,70 @@
+# Package 1: DR Screening web app (review app + PostgreSQL + HTTPS front).
+# The AI model server is reached by URL (the hospital model server, or the team server through an approved route).
+# Start with bin/start.sh (Linux) or start-webapp.bat (Windows, Docker Desktop). Secrets come from a private env file.
+name: dr-screening-webapp
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DR_SUPPORT_POSTGRES_DB:?set in the private env file}
+      POSTGRES_USER: ${DR_SUPPORT_POSTGRES_USER:?set in the private env file}
+      POSTGRES_PASSWORD: ${DR_SUPPORT_POSTGRES_PASSWORD:?set in the private env file}
+    volumes:
+      - webapp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  review:
+    build:
+      context: ../..
+      dockerfile: deployment/dual-mode/Dockerfile.review
+      args:
+        SOURCE_COMMIT: ${DR_SCREENING_SOURCE_COMMIT:?exact 40-character Git SHA of the build}
+    image: dr-screening/review:${DR_SCREENING_IMAGE_TAG:-local}
+    environment:
+      APP_PROFILE: review
+      MODEL_RUNTIME: remote
+      HOST: 0.0.0.0
+      PORT: 8000
+      WORKERS: 1
+      REMOTE_MODEL_URL: ${REMOTE_MODEL_URL:?model server URL}
+      REMOTE_MODEL_TOKEN: ${REMOTE_MODEL_TOKEN:?set in the private env file}
+      DR_SUPPORT_CASE_STORE: postgres
+      DR_SUPPORT_DATABASE_URL: postgresql://${DR_SUPPORT_POSTGRES_USER}:${DR_SUPPORT_POSTGRES_PASSWORD}@postgres:5432/${DR_SUPPORT_POSTGRES_DB}
+      DR_SUPPORT_DATABASE_SCHEMA: ${DR_SUPPORT_DATABASE_SCHEMA:-dr_support}
+      DR_SUPPORT_WORKSPACE_ID: ${DR_SUPPORT_WORKSPACE_ID:-hospital-workspace}
+      # Sign-in is required: hashed accounts in a file on the host (create the first admin with bin/create-admin.sh).
+      DR_SUPPORT_AUTH_FILE: /data/config/pilot-users.json
+    volumes:
+      - ${DR_DATA_DIR:-./data}/config:/data/config
+      - ${DR_DATA_DIR:-./data}/state:/data/state
+      - ${DR_DATA_DIR:-./data}/output:/data/output
+      # Image folders are read-only inside the app: originals are never changed.
+      - ${DR_IMAGES_DIR:-./images}:/data/input:ro
+    ports:
+      - "127.0.0.1:${REVIEW_PORT:-8000}:8000"
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: unless-stopped
+
+  https:
+    image: caddy:2.8-alpine
+    command: ["caddy", "reverse-proxy", "--from", "${DR_SITE_ADDRESS:-localhost}", "--to", "review:8000", "--internal-certs"]
+    ports:
+      - "${DR_HTTPS_BIND:-127.0.0.1}:443:443"
+    volumes:
+      - webapp_caddy_data:/data
+    depends_on:
+      review: {condition: service_started}
+    restart: unless-stopped
+
+volumes:
+  webapp_postgres_data:
+    name: ${DR_POSTGRES_VOLUME:-dr_screening_webapp_postgres}
+  webapp_caddy_data:
+    name: ${DR_CADDY_VOLUME:-dr_screening_webapp_caddy}
