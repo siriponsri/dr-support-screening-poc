@@ -90,8 +90,13 @@ class FakeChild:
         if method == "GET":
             return 200, b"application/json", json.dumps(self.docs[path]).encode()
         payload = json.loads(body)
-        facts = ops.facts(MODELS, source_sha256=payload["image_sha256"], model_id=payload["model_id"],
-                          modality=payload["modality"])
+        if path == rs.PRISM_EXECUTE:
+            binding = payload["binding"]
+            facts = ops.facts(MODELS, source_sha256=binding["source_sha256"], model_id=binding["model_id"],
+                              modality=binding["modality"])
+        else:
+            facts = ops.facts(MODELS, source_sha256=payload["image_sha256"], model_id=payload["model_id"],
+                              modality=payload["modality"])
         self.sequence += 1
         request_id = f"m1_{self.sequence:04d}_{sha(body)[:16]}"
         rs.new_json(self.run / f"{request_id}.request.json", {"request_id": request_id, "pid": self.pid,
@@ -111,6 +116,14 @@ class FakeChild:
             rs.new_json(self.run / f"{request_id}.uncertain.json", {"request_id": request_id, "pid": self.pid})
             return 504, b"application/json", b'{"detail":"timeout"}'
         success = self.mode != "fail"
+        if path == rs.PRISM_EXECUTE:
+            async def terminal():  # PRISM finishes at its job's terminal state, after the 202.
+                await asyncio.sleep(.05)
+                rs.new_json(self.run / f"{request_id}.finished.json", {
+                    "request_id": request_id, "pid": self.pid, "success": True, "response_sha256": "e" * 64,
+                    "result_sha256": None})
+            self.task = asyncio.get_running_loop().create_task(terminal())
+            return 202, b"application/json", b'{"job_id":"job_12345678"}'
         rs.new_json(self.run / f"{request_id}.finished.json", {"request_id": request_id, "pid": self.pid,
                                                                "success": success, "response_sha256": "e" * 64,
                                                                "result_sha256": None})
@@ -334,3 +347,25 @@ def test_the_gateway_never_reads_credentials_from_requests_or_logs_bodies():
     source = (ROOT / "scripts/model-server/regular_service.py").read_text(encoding="utf-8")
     assert "print(body" not in source and "logging" not in source
     assert "REMOTE_MODEL_TOKEN" not in source
+
+
+def test_a_prism_execute_is_charged_on_the_image_pair_hold_and_finishes_at_its_terminal_state(rig):
+    _, authority, child, service = rig
+
+    async def scenario():
+        async with await client_for(service) as client:
+            grader = await scheduled_ticket(service, client, key="g1")
+            await client.post("/v1/predict/dr", json=predict_body(), headers=headers(ticket=grader))
+            prism = (await client.post("/v1/regular/tickets", headers=headers(), json=ticket_body(
+                "p1", model="prism-dr-5fold", modality="CFP", kind="prism"))).json()["ticket_id"]
+            service.step()
+            body = {"ticket_id": "host", "plan_sha256": "f" * 64,
+                    "binding": {"model_id": "prism-dr-5fold", "modality": "CFP", "source_sha256": IMAGE_SHA}}
+            reply = await client.post("/v1/prism-bound/execute", json=body, headers=headers(ticket=prism))
+            assert reply.status_code == 202
+            assert authority.get(prism, principal=rs.PRINCIPAL)["state"] == "DONE"
+            assert authority.get(prism, principal=rs.PRINCIPAL)["hold_id"] ==                 authority.get(grader, principal=rs.PRINCIPAL)["hold_id"]
+            assert authority.capacity()["invocations_used"] == 2 and authority.capacity()["invocations_held"] == 0
+            wrong = await client.post("/v1/predict/dr", json=predict_body(), headers=headers(ticket=prism))
+            assert wrong.status_code == 409
+    run(scenario())
