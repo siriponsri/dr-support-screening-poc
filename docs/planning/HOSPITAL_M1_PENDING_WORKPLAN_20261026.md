@@ -38,7 +38,7 @@
 | Watchdog | บันทึกสาเหตุ error แบบ allowlist + tests | ยังไม่ deploy ไปเครื่อง GPU (deploy ใหม่ต้องผูกกับ decision ใหม่) |
 | AC-09 | `scripts/qa/check_export_folder.py` + tests บน synthetic export | export จริงรอปลายทางที่อนุมัติ |
 | AC-11 | `tests/test_m1_fault_injection.py` + gap analysis | การแก้ข้อความ G1–G5 รออนุมัติ |
-| AC-01 / AC-17 / MS-09 | installation candidate + ภาพหน้าจอ synthetic | ทดสอบติดตั้งบนเครื่องสะอาด, PDF |
+| AC-01 / AC-17 / MS-09 | ภาพหน้าจอจากข้อมูล synthetic/public 10 ภาพ | installation candidate (ยังไม่สร้าง), ทดสอบติดตั้งบนเครื่องสะอาด, PDF |
 
 ## 3. AC-08: checklist ก่อนและหลัง reboot (owner เป็นผู้ reboot เอง)
 

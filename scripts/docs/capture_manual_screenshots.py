@@ -13,10 +13,10 @@ are copied into docs/manuals/clinician/screenshots/.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
 import socket
 import subprocess
 import sys
@@ -26,6 +26,8 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLES = ROOT / "local-state" / "bridge" / "samples"
+# Exact approved membership: the ten public HRF samples pinned by dr_support.fetch_samples.
+SAMPLE_MANIFEST = ROOT / "docs" / "reference" / "SAMPLE_SOURCE_MANIFEST.json"
 REVIEWER = "Synthetic reviewer"
 CLEAR = ("DR_SUPPORT_", "MODEL_", "REMOTE_MODEL", "PRISM_", "RETFOUND_", "USPEC_", "CVAT_", "PG", "APP_PROFILE")
 
@@ -45,7 +47,8 @@ def start_app(state: Path, port: int, app_root: Path) -> subprocess.Popen:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", port))
     env = {key: value for key, value in os.environ.items() if not key.startswith(CLEAR)}
-    env.update(DR_SUPPORT_CASE_STORE="sqlite", DR_SUPPORT_STATE=str(state / "review.sqlite"),
+    # Remote runtime with no URL: no local model can load and no model server is contacted.
+    env.update(APP_PROFILE="review", MODEL_RUNTIME="remote", DR_SUPPORT_CASE_STORE="sqlite", DR_SUPPORT_STATE=str(state / "review.sqlite"),
                DR_SUPPORT_WORKSPACE_CATALOG=str(state / "workspaces.sqlite"), PYTHONPATH=str(app_root))
     code = ("import uvicorn; from dr_support.api import create_app; "
             f"uvicorn.run(create_app(include_samples=False, include_demo_fixtures=False), host='127.0.0.1', port={port}, "
@@ -63,14 +66,32 @@ def start_app(state: Path, port: int, app_root: Path) -> subprocess.Popen:
     raise SystemExit("SYNTHETIC_APP_NOT_READY")
 
 
-def open_workspace(base: str, state: Path, samples: Path) -> None:
-    images = sorted(samples.glob("*.jpg"))
-    if len(images) != 10:
+def approved_samples(samples: Path) -> dict[str, bytes]:
+    """The folder must hold exactly the pinned public files, byte for byte; anything else stops."""
+    pinned = {row["filename"]: row["sha256"] for row in json.loads(SAMPLE_MANIFEST.read_text(encoding="utf-8"))
+              if row.get("source_type") == "PUBLIC"}
+    if len(pinned) != 10 or not samples.is_dir() or samples.is_symlink():
         raise SystemExit("PUBLIC_SAMPLES_REQUIRED: run python -m dr_support.fetch_samples")
+    entries = {path.name: path for path in samples.iterdir() if path.suffix.lower() in {".jpg", ".jpeg", ".png"}}
+    if set(entries) != set(pinned):
+        raise SystemExit("UNAPPROVED_OR_MISSING_SAMPLE: only the ten pinned public samples are captured")
+    approved = {}
+    for name, path in entries.items():
+        # No symlink, junction/reparse point or non-regular file; then the exact pinned bytes.
+        if path.is_symlink() or not path.is_file() or getattr(path.lstat(), "st_file_attributes", 0) & 0x400:
+            raise SystemExit("UNAPPROVED_OR_MISSING_SAMPLE: only regular pinned files are captured")
+        data = path.read_bytes()
+        if hashlib.sha256(data).hexdigest() != pinned[name]:
+            raise SystemExit("CHANGED_SAMPLE: a sample's bytes differ from the pinned public file")
+        approved[name] = data
+    return approved
+
+
+def open_workspace(base: str, state: Path, approved: dict[str, bytes]) -> None:
     (state / "input").mkdir()
     (state / "output").mkdir()
-    for image in images:
-        shutil.copy2(image, state / "input" / image.name)
+    for name, data in approved.items():
+        (state / "input" / name).write_bytes(data)  # The verified bytes, not a second read.
     created = call(base, "POST", "/v1/workspaces", {
         "name": "Synthetic walkthrough", "input_folder": str(state / "input"),
         "output_folder": str(state / "output"), "database_path": str(state / "workspace.sqlite")})
@@ -98,7 +119,7 @@ def capture(base: str, out: Path) -> dict:
                 (target or page).screenshot(path=str(out / f"{name}.png"))
                 done.append(name)
             except Exception as error:  # Keep going; the report lists what was not captured.
-                failed[name] = f"{type(error).__name__}: {str(error).splitlines()[0][:160]}"
+                failed[name] = type(error).__name__  # Class only: messages can carry local paths.
 
         dialog = page.get_by_role("dialog")
 
@@ -153,7 +174,7 @@ def capture(base: str, out: Path) -> dict:
         def reviewer_preferences():
             # Only the preference block: the Workspace card above it shows local folder paths.
             page.goto(base + "/app/#/settings")
-            top = page.get_by_text("Default reviewer", exact=True)
+            top = page.get_by_text("Review preferences", exact=True)
             bottom = page.get_by_text("Brief step hints only.")
             bottom.scroll_into_view_if_needed()
             first, last = top.bounding_box(), bottom.bounding_box()
@@ -176,11 +197,12 @@ def main() -> int:
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     base = f"http://127.0.0.1:{args.port}"
+    approved = approved_samples(args.samples)  # Before any copy or server start.
     with tempfile.TemporaryDirectory(prefix="dr-manual-", ignore_cleanup_errors=True) as temporary:
         state = Path(temporary)
         process = start_app(state, args.port, args.app_root)
         try:
-            open_workspace(base, state, args.samples)
+            open_workspace(base, state, approved)
             report = capture(base, args.out)
             print(json.dumps(report, indent=1), flush=True)
         finally:
