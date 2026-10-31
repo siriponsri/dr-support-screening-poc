@@ -149,6 +149,7 @@ class BoundLocalPRISM(PRISM):
         files = {"adapter": Path(__file__), "provider": Path(__file__).with_name("prism.py"),
                  "loader": Path(__file__).with_name("prism_safe_loader.py"), "lock": lock_path,
                  "FOV": package / "imaging/uwf_white_rim_fov.py",
+                 "rim_mask": package / "imaging/uwf_rubber_rim_mask.py",
                  "engine": source / "evaluation/src/image_level_evaluation.py",
                  "config": source / "evaluation/src/config.py", "yaml": source / "evaluation/configs/inference.yaml"}
         if self._batch_authorization is not None:
