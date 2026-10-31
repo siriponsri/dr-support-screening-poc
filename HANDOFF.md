@@ -2116,3 +2116,86 @@ packet copies. Two independent reviews; all findings fixed with tests.
   not a final release (gaps in the operations note).
 - The host gateway and the commissioning state stay running/kept; stop with the
   rollback steps when not needed.
+
+## 38. Pilot sign-in, Today page, admin policy, mask A and the first live PRISM runs, 31 October 2026 (TEST_ONLY; SINGLE-USER)
+
+**Merged on main and pushed**
+- `79429f4` (`feat/pilot-ux-design`, includes `fix/pilot-login-colours`): two-panel
+  sign-in in the app theme, page fades (reduced motion respected), Admin page
+  (accounts, sign-in policy, read-only database view), Today page as the start
+  page, plainer review wording, and mask A for PRISM UWF input
+  (`dr_support/imaging/uwf_rubber_rim_mask.py`, version
+  `uwf_rubber_rim_colour_a_v1`, owner-approved; all three receipt pins import
+  the same version; the PRISM config identity covers the detector file).
+- `9dda4f7` (`fix/regular-prism-epoch`): found only by the live run.
+  (1) PRISM preparation through the regular gateway sent the gateway's
+  child-start epoch (`rs_...`) instead of the child's own PRISM session epoch
+  (`m1_epoch_...`), so every prepare was refused (`SESSION_RESTARTED_OR_EXPIRED`).
+  The app now renegotiates once per child start and sends the session epoch.
+  (2) Mask A left `boundary_confidence` empty, which the PRISM evidence
+  contract rejects after model work (`EXECUTOR_FAILED_NO_RETRY`). It now
+  reports an engineering boundary score (share of the kept outline next to
+  the removed rim or the frame), not a clinical probability; mask pixels are
+  unchanged. A new test runs a mask A field through that contract.
+
+**Validation**
+- Backend full suite on `feat/pilot-ux-design`: 2269 passed, 69 skipped,
+  0 failed (before the one-line identity commit; its PRISM tests 194 passed).
+  On `fix/regular-prism-epoch`: 2272 passed, 69 skipped, 0 xfail, 0 error,
+  0 failed. Main tree identical to the tested branches; Ruff clean; focused
+  tests on main passed; root smoke PASS.
+- Frontend (2 workers): two full runs failed different slow tests each time
+  (first run: case isolation, a real wording miss that was fixed, plus the
+  UWF intake 30 s timeout; second run: review, workspace and worklist
+  timeouts). Every failing test passes alone, and the UWF intake test also
+  times out on unchanged main. Recorded as timing-flaky, not loosened.
+  Typecheck 0; `frontend/dist` rebuilt on main.
+- Browser on the main build (synthetic and public data only): sign-in,
+  Today, Admin accounts and policy, Database view render.
+
+**Host (dr-train, GPU0 only; GPU1, Ollama, V100 and Podi not touched)**
+- New folders only: `deployments/regular-20261031-r02` (mask A) and then
+  `regular-20261031-r03` (the fixes), each with a CPU-only identity check
+  (`regular/r0N-identity.json`): RETFound/USPEC pins and PRISM checkpoints
+  and revision unchanged; only the PRISM config hash changed
+  (`2d54380b...` -> `f91d96d0...` -> `06c661be...`). New pins in
+  `regular/r03-inputs/PRISM_WORKSPACE_PINS.json` (sha256 `8270523d...`), the
+  same file in the workstation private folder `regular-20261031-r03/`.
+- Gateway now runs from r03 (`regular/r03-service.pid`) on the same daily
+  authority `regular/r01/` (it checks only its config digest on reopen, so
+  today's counters were kept, not reset). r01 and r02 folders, pins and logs
+  are kept. Rollback: stop r03, start the r01 command from the operations
+  note; nothing old was changed.
+- Day totals after this work: 19 of 1,500 calls admitted (16 done, 3 failed,
+  none resent), 3 PRISM tickets refused before admission (not charged),
+  4,200 of 43,200 GPU-seconds, no quarantine, no overrun.
+
+**Live PRISM with mask A (hospital workspace `ws_m1_63ed86c7...`, physician-allowed
+images, TEST_ONLY; hash prefixes only)**
+- Three UWF images marked gradable were rerun by hand (one submit each, no
+  resend). The earlier results came from the old white-rim detector, which was
+  UNCERTAIN on these images, so those runs had no mask. Clinician grade and
+  annotations unchanged on all three.
+- Visual check (private side-by-side files in the workstation private folder
+  `evidence/mask-a-live-20261031/`, not in Git): `8568e67e` and `a48d90b1`
+  had a box on the bright rim before and none after. `00a03b50` still has one
+  SE box on the dim outer band of the rim (about R57 G74 B1), which mask A
+  keeps because it is below the brightness rule (green > 100). So mask A
+  removes the bright rim but not always the dim outer band. A rule-based count
+  (4 of 115 boxes on the rim before, 0 of 116 after) uses the same colour rule
+  as the mask and is not independent evidence.
+- Boxes on eyelids and eyelashes remain; they are outside the phase 1 mask goal.
+
+**Not done or open**
+- Batch PRISM on images whose quality is NOT_EVALUATED is refused by the host
+  (it requires GRADABLE); the app still offers them. Known defect (HANDOFF §28
+  note), not changed here; quality stays a clinician decision.
+- Mask A misses the dim outer rim band on some images. A refinement (for
+  example, also removing dim green-dominant pixels connected to the detected
+  rim) would be a new mask version and needs the owner's visual approval on
+  the hard cases first.
+- Multi-user: local sign-in and admin accounts exist; the Model API still has
+  only the shared backend token, so this remains single-user commissioning.
+- Worktrees `m1-login-colours-worktree`, `m1-pilot-ux-worktree`,
+  `m1-prism-epoch-worktree`, `m1-handoff-38-worktree` are left for the owner
+  to remove (the cleanup command was blocked in this session).
