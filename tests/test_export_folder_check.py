@@ -124,3 +124,50 @@ def test_an_unreadable_folder_fails_without_printing_its_path(tmp_path, monkeypa
     assert main([str(folder)]) == 1
     printed = capsys.readouterr().out
     assert '"readable": false' in printed and str(tmp_path) not in printed
+
+
+@pytest.mark.parametrize("leak", [r"\Users\User\img.jpg", "C:file.jpg", "see /home/someone/a.png"])
+def test_rooted_and_drive_relative_windows_paths_fail(exported, leak):  # Review 2026-10-31 counterexamples
+    set_manifest_note(exported, leak)
+    assert check(exported)["checks"]["no_absolute_paths"] is False
+
+
+def test_plain_lesion_text_with_a_slash_is_not_a_path(exported):
+    set_manifest_note(exported, "MA /HE")
+    assert check(exported)["checks"]["no_absolute_paths"] is True
+
+
+def rewrite(path, change):
+    import csv
+    import io
+    rows = list(csv.reader(io.StringIO(path.read_text(encoding="utf-8"), newline="")))
+    change(rows)
+    buffer = io.StringIO()
+    csv.writer(buffer, lineterminator="\r\n").writerows(rows)
+    path.write_text(buffer.getvalue(), encoding="utf-8", newline="")
+
+
+def test_a_training_ready_finding_on_a_test_only_image_fails(exported):
+    def test_only(rows):
+        rows[1][rows[0].index("label_class")] = "TEST_ONLY"
+
+    def ready(rows):
+        rows[1][rows[0].index("include_in_training")] = "True"
+    rewrite(exported / "images.csv", test_only)
+    rewrite(exported / "annotations.csv", ready)
+    report = check(exported)
+    assert report["checks"]["ready_annotations_on_ready_images"] is False and report["status"] == "FAIL"
+
+
+def test_another_boolean_spelling_cannot_hide_a_training_ready_row(exported):
+    def spell(rows):
+        rows[1][rows[0].index("include_in_training")] = "true"
+    rewrite(exported / "images.csv", spell)
+    assert check(exported)["checks"]["boolean_cells"] is False
+
+
+def test_the_lesion_ready_annotation_count_must_match(exported):
+    manifest = json.loads((exported / "manifest.json").read_text(encoding="utf-8"))
+    manifest["lesion_ready_annotation_count"] = manifest["lesion_ready_annotation_count"] + 1
+    (exported / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    assert check(exported)["checks"]["ready_counts_match"] is False
