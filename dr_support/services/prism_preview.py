@@ -350,7 +350,7 @@ class PrismPreviewService:
                 if isinstance(error, RemoteExecutionUncertain):
                     # Possibly started: never call it failed or invite a resend.
                     raise HTTPException(502, "The PRISM result could not be confirmed and nothing was saved. "
-                                             "Do not resend this image; the run is kept for the operator to check. "
+                                             "Do not resend this image; the operator can check what happened. "
                                              "Manual review remains available.") from None
                 raise HTTPException(502, "PRISM execution failed verification; this receipt cannot be reused.") from None
 
