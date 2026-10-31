@@ -216,15 +216,34 @@ def test_a_prism_precondition_failure_is_shown_with_its_reason_and_is_not_comple
     assert row["prism_detail"] == "Source/admission is not eligible for PRISM." and row["prism_label"] == "PRISM not run"
 
 
+LOADING = "PRISM is not available right now. No model work was started."
+
+
 def test_prism_preparation_while_the_server_loads_waits_without_sending(tmp_path):
     app = FakeApp()
-    app.prism_fail["img1"] = PrismPrepareRefused(503, "PRISM is not available right now. Try again shortly.")
-    runner = runner_for(tmp_path, app)
+    app.prism_fail["img1"] = PrismPrepareRefused(503, LOADING)
+    clock = [0.0]
+    runner = BatchRunner(BatchStore(tmp_path), workspace_id="ws_1", stage_for=app.stages.get,
+                         has_result=app.has_result, run_grader=app.run_grader, run_prism=app.run_prism,
+                         queue_open=lambda: True, deferred_details={LOADING}, clock=lambda: clock[0])
     runner.create(["img1"])
     drain(runner)
     assert runner.list()[0]["items"][0]["prism"] == "PENDING"
+    clock[0] += 31
     drain(runner)
     assert runner.list()[0]["items"][0]["prism"] == "SAVED"
+
+
+def test_a_missing_recorded_source_attestation_is_a_prism_precondition_not_a_wait(tmp_path):
+    app = FakeApp()
+    detail = "Recorded source attestation is unavailable; no model work is permitted."
+    app.prism_fail["img1"] = PrismPrepareRefused(503, detail)
+    runner = runner_for(tmp_path, app)
+    runner.create(["img1", "img2"])
+    drain(runner)
+    rows = {row["image_id"]: row for row in runner.list()[0]["items"]}
+    assert rows["img1"]["prism"] == "NOT_ELIGIBLE" and rows["img1"]["prism_detail"] == detail
+    assert rows["img1"]["complete"] is False and rows["img2"]["complete"] is True
 
 
 def test_an_unknown_prism_outcome_needs_action_and_is_never_resent(tmp_path):
@@ -240,21 +259,25 @@ def test_an_unknown_prism_outcome_needs_action_and_is_never_resent(tmp_path):
     assert [call for call in app.calls if call[0] == "prism"] == [("prism", "img1")]
 
 
-def test_a_refusal_before_sending_waits_but_any_other_failure_needs_action_without_resend(tmp_path):
+def test_a_refusal_before_sending_waits_without_blocking_others_and_failures_are_never_resent(tmp_path):
     app = FakeApp()
-    runner = runner_for(tmp_path, app)
+    clock = [0.0]
+    runner = BatchRunner(BatchStore(tmp_path), workspace_id="ws_1", stage_for=app.stages.get,
+                         has_result=app.has_result, run_grader=app.run_grader, run_prism=app.run_prism,
+                         queue_open=lambda: True, deferred_details=set(WORDING.values()), clock=lambda: clock[0])
     runner.create(["img1", "img2"])
-    app.fail["img1"] = (503, WORDING["OUTSIDE_AI_HOURS"])
-    with pytest.raises(BatchDeferred):
-        runner.step()
-    assert runner.list()[0]["counts"]["grader"]["PENDING"] == 2
+    app.fail["img1"] = (503, WORDING["QUEUE_BUSY_NOT_SENT"])
+    drain(runner)
+    rows = {row["image_id"]: row for row in runner.list()[0]["items"]}
+    assert rows["img1"]["grader"] == "PENDING" and rows["img2"]["complete"] is True  # img2 was not held up.
     app.fail["img1"] = (504, "The model server did not reply in time.")
+    clock[0] += 31
     drain(runner)
     rows = {row["image_id"]: row for row in runner.list()[0]["items"]}
     assert rows["img1"]["grader"] == "NEEDS_ACTION" and rows["img1"]["prism"] == "SAVED"
-    assert rows["img2"]["complete"] is True
-    assert [call for call in app.calls if call[0] == "grader" and call[1] == "img1"] == \
-        [("grader", "img1", "retfound-aptos5")] * 2  # The deferred refusal sent nothing; no resend after 504.
+    assert [call for call in app.calls if call[0] == "grader" and call[1] == "img1"] ==         [("grader", "img1", "retfound-aptos5")] * 2  # The busy refusal sent nothing; no resend after 504.
+    clock[0] += 31
+    assert not runner.step()
 
 
 def test_closed_queue_defers_without_calling_the_model(tmp_path):
