@@ -75,12 +75,15 @@ ICO Table 1 is the International Clinical DR scale: 0 No apparent DR, 1 Mild NPD
 non-central, central) and needs a 3-D exam to diagnose.
 
 The deployed USPEC grader (NB01) outputs five classes 0 to 4 for UWF only
-(`NOT_VALIDATED_FOR_CFP`, production rights `UNVERIFIED`). The number and order of
-classes match ICDR, but whether its training labels used the ICDR definitions is
-not recorded in the repository. To confirm: which dataset and label guide the NB01
-head was trained on. USPEC itself (Cell Rep Med 2026) is a UWF foundation model
-pretrained on 875,947 unlabelled images; its paper and repository do not define a
-DR grade scale. USPEC does not predict DME.
+(`NOT_VALIDATED_FOR_CFP`, production rights `UNVERIFIED`). Owner answer
+(31 October): NB01 was fine-tuned on MMRDR (Tang et al., Sci Data 2026), whose
+UWF labels are five classes 0 to 4 (No DR, Mild, Moderate, Severe NPDR with the
+4-2-1 rule, PDR) following Wilkinson 2003 and ICO, on Optos images (10,404 UWF
+images, 6,109 patients). So the grade scale matches ICDR and the Thai DMS 2026
+guideline. Limits: MMRDR grades DME only on OCT, so the grader does not predict
+DME; poor-quality images were excluded from MMRDR, so the grader has not learned
+"ungradable" and a person must judge gradability; the MMRDR article is
+CC BY-NC-ND, so the model stays research and non-commercial.
 
 ### 4.2 Referral
 
@@ -254,6 +257,34 @@ different and costly task).
 5. Server package (Docker for the hospital VLAN) with install, backup and rollback
    scripts, tested first on a spare machine.
 6. Pilot on the hospital server after IT confirms option A or B.
+
+## 8a. Owner answers, 31 October 2026 (second round)
+
+1. Input: the program must take both new patients and archive folders (section 2).
+   Servers: both team designs. A: QA inside the hospital (VLAN) plus production;
+   B: QA in the cloud with an import that hospital IT approves. Either way
+   production (app, database, model server, images) stays in the hospital
+   network with no general internet.
+2. NB01 training data: MMRDR (section 4.1).
+3. Phase 1 has no referral system. Output is a PDF report that states Refer or
+   Not refer, chosen by the person who grades, on a form the physician team
+   reviews first. Draft form (A4, synthetic and blank, built from ICO 2017, Thai
+   DMS 2026 and MOH Singapore Advisory 04/2023):
+   https://claude.ai/artifact/6MsbQJ9J1NFdGzytrRkUMD (private until shared).
+   Automatic referral suggestions wait for the signed table in section 4.2.
+   The Thai DMS guideline gives two thresholds to settle: its AI chapter treats
+   moderate NPDR or worse, suspected DME, other significant retinal disease and
+   ungradable images as "referable", while its urgency section lists severe
+   NPDR or worse and DME; ungradable images must never be reported as normal.
+4. The hospital allows no patient image to leave, except consented images (such
+   as the consented UWF demo set). dr-train is for development and emergencies
+   only; real use runs on the hospital-local package. The backup-to-dr-train idea
+   in 5.4 is therefore out for real patients.
+5. Ethics approval: later, after the team agrees the program is worth taking further.
+6. "Vein" means vessel segmentation (vascular structure). This is phase 2 and
+   needs pixel masks, the most expensive label type. Ideas for later: draft
+   vessel maps from a classic filter or a public model for experts to correct
+   only on a small set, and agree a target with the physicians first.
 
 ## 9. Open questions for the owner
 
