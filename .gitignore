@@ -75,3 +75,6 @@ credentials
 /backups/
 /exports/
 /logs/
+
+# Editor settings stay local.
+.vscode/
