@@ -1,0 +1,190 @@
+{
+ "schema": "dr-redaction-manifest.v1",
+ "rule": "other team names, another account name and the private DR host address replaced; cross-folder links rewritten; nothing else changed",
+ "files": [
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/AUTHORITY_STATUS.json",
+   "original_sha256": "4f1c9e1b65f7c88c1978fc674f3d80f1a810a5147c813c9c8fdbd6cdec3731ef",
+   "copy": "docs/milestone/regular/owner-packet-20261031/AUTHORITY_STATUS.json",
+   "copy_sha256": "643c7d8f5aaf9b25a98393f881e4a68b1d63fd75d1bcdd8d491b0866eb6e084e",
+   "redactions": 2,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/AUTHORIZATION_AND_QUOTAS.md",
+   "original_sha256": "e052aa549a327d7e80162a3c39b4c3c2d81f0d01c9e2c2cfa1eb79c9ed4a5813",
+   "copy": "docs/milestone/regular/owner-packet-20261031/AUTHORIZATION_AND_QUOTAS.md",
+   "copy_sha256": "6b77af9fe2a22ee438bf74df885b1e82055dadf2d6646af76ec0a7e326a2b73d",
+   "redactions": 3,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/GOAL.md",
+   "original_sha256": "2071c814b62e06c415d1e293ddd605a1c2e6ff7d9996ad467d7e4e199c92c018",
+   "copy": "docs/milestone/regular/owner-packet-20261031/GOAL.md",
+   "copy_sha256": "2071c814b62e06c415d1e293ddd605a1c2e6ff7d9996ad467d7e4e199c92c018",
+   "redactions": 0,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/IMPLEMENTATION_PLAN.md",
+   "original_sha256": "a1c3b047ff47b608f51b8c6220b13fe56b8f6d749e4aff4bae8331881bb635cd",
+   "copy": "docs/milestone/regular/owner-packet-20261031/IMPLEMENTATION_PLAN.md",
+   "copy_sha256": "74baadffd43b2f5cf1480f4c5ef7545a1cb514dbbf3819d37164071392b91ff7",
+   "redactions": 2,
+   "links_rewritten": 1
+  },
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/OPERATIONS_AND_ROLLBACK.md",
+   "original_sha256": "78f02723b52f6442c5a9e229145c4e3de2a05ee9f843f60bce0e555f6e715608",
+   "copy": "docs/milestone/regular/owner-packet-20261031/OPERATIONS_AND_ROLLBACK.md",
+   "copy_sha256": "34a1ecaba6c1d12d28004748c8e35a808c9f97883c59b2c17c0061f43e2b98b5",
+   "redactions": 2,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/README.md",
+   "original_sha256": "4739bb49fce907d595b5a2750027331a4ab95c693c1298e706bb89f199fe1a8e",
+   "copy": "docs/milestone/regular/owner-packet-20261031/README.md",
+   "copy_sha256": "9d5a845ff3302e6c1e6885d602cfe15c6e8f784701f807c809b217a918bbd2b6",
+   "redactions": 0,
+   "links_rewritten": 7
+  },
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/REGULAR_SERVICE_SPEC.md",
+   "original_sha256": "19b1784bfdb7f787feaf6bf7050490e9e165f483d15482fc6170cdf8f6606a43",
+   "copy": "docs/milestone/regular/owner-packet-20261031/REGULAR_SERVICE_SPEC.md",
+   "copy_sha256": "a8e6d4a78f2aada84fae47305d5a4040f97072a9783129333df42e851ee79fda",
+   "redactions": 2,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/SHA256SUMS.json",
+   "original_sha256": "6f826a4d318f04365605849980515a7ba5ef4a8d0802919f7b5faf4f144e9e4e",
+   "copy": "docs/milestone/regular/owner-packet-20261031/SHA256SUMS.json",
+   "copy_sha256": "6f826a4d318f04365605849980515a7ba5ef4a8d0802919f7b5faf4f144e9e4e",
+   "redactions": 0,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/SHORT_PROMPT_TH.txt",
+   "original_sha256": "35fe3f42503ea28d055e88052dbd9e4dbf5a52fd35cecb6bd7a5af45c150ced0",
+   "copy": "docs/milestone/regular/owner-packet-20261031/SHORT_PROMPT_TH.txt",
+   "copy_sha256": "1c72db054c6150bcf9ab08747f6f870e7d56cc66be2c11addee1efb3f6445700",
+   "redactions": 3,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/VALIDATION_MATRIX.md",
+   "original_sha256": "678ba9366e74446dd65b1b118c1c98ba2021027ecb289131e999192bda4cc993",
+   "copy": "docs/milestone/regular/owner-packet-20261031/VALIDATION_MATRIX.md",
+   "copy_sha256": "3f0bc14542876af3649b421c4900a6abf201b0904648784d52873628bfde1384",
+   "redactions": 1,
+   "links_rewritten": 3
+  },
+  {
+   "original": "docs/long-runs/20261031-local-app-real-api/VALIDATION_REPORT.json",
+   "original_sha256": "afd23e05e27d7363ce08361abc6b571def080d23f5cee3bf40e84154680e0d95",
+   "copy": "docs/milestone/regular/owner-packet-20261031/VALIDATION_REPORT.json",
+   "copy_sha256": "afd23e05e27d7363ce08361abc6b571def080d23f5cee3bf40e84154680e0d95",
+   "redactions": 0,
+   "links_rewritten": 11
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/AUDIT.md",
+   "original_sha256": "b244019ddd6cc2cdacb95e04e4c6080e108d1ed04ac1264d982f9c4584558177",
+   "copy": "docs/milestone/regular/owner-audit-20261031/AUDIT.md",
+   "copy_sha256": "b7fac8ab46a72dce57aa3092ce7957baabba8079207e33f3e60b0c7eb45b04c8",
+   "redactions": 9,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/CHECKER_PROBES.json",
+   "original_sha256": "a3f8ab81555da89beb88437b9bf639a526435218aef2747b6fde50ded3702fa9",
+   "copy": "docs/milestone/regular/owner-audit-20261031/CHECKER_PROBES.json",
+   "copy_sha256": "a3f8ab81555da89beb88437b9bf639a526435218aef2747b6fde50ded3702fa9",
+   "redactions": 0,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/LEGACY_LEDGER_CHECK.json",
+   "original_sha256": "99c8ce0179d49b0d9061d52d2d771647dc7ff9a1b244709337160de492e9f49a",
+   "copy": "docs/milestone/regular/owner-audit-20261031/LEGACY_LEDGER_CHECK.json",
+   "copy_sha256": "99c8ce0179d49b0d9061d52d2d771647dc7ff9a1b244709337160de492e9f49a",
+   "redactions": 0,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/midnight-tests.xml",
+   "original_sha256": "fb4a71a315838919d92c160d98b1a5f97b0ffd74270b35ad69d2006d04627176",
+   "copy": "docs/milestone/regular/owner-audit-20261031/midnight-tests.xml",
+   "copy_sha256": "fb4a71a315838919d92c160d98b1a5f97b0ffd74270b35ad69d2006d04627176",
+   "redactions": 0,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/README.md",
+   "original_sha256": "c7d34cde613aa4b99dd890df3e9210d057cf2fdfaa5c628aad6a9aca46926d45",
+   "copy": "docs/milestone/regular/owner-audit-20261031/README.md",
+   "copy_sha256": "c7d34cde613aa4b99dd890df3e9210d057cf2fdfaa5c628aad6a9aca46926d45",
+   "redactions": 0,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/SAFE_TESTS.json",
+   "original_sha256": "eb0ec2bf7f23d28a09e6225a00dd8a58dbdc4ad319f4f1a7d8b1e9bfb6315003",
+   "copy": "docs/milestone/regular/owner-audit-20261031/SAFE_TESTS.json",
+   "copy_sha256": "ddbfbab229f54b810cbbcb9f877ed4ad4709c17eabcf0b15c653b26a350d5ef6",
+   "redactions": 1,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/SERVICE_ADDENDUM_SHA256.json",
+   "original_sha256": "e1cf5fbdd83c1ba3ad5c5eaf40e06a2cd63979e0e62a40227deb2e09618c7605",
+   "copy": "docs/milestone/regular/owner-audit-20261031/SERVICE_ADDENDUM_SHA256.json",
+   "copy_sha256": "e1cf5fbdd83c1ba3ad5c5eaf40e06a2cd63979e0e62a40227deb2e09618c7605",
+   "redactions": 0,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/SERVICE_QUOTA_AND_SAFE_TESTS_20261031.md",
+   "original_sha256": "63ec302080ff85acce6223a3a1185a0549d330ca8d6446042e3a75069c515150",
+   "copy": "docs/milestone/regular/owner-audit-20261031/SERVICE_QUOTA_AND_SAFE_TESTS_20261031.md",
+   "copy_sha256": "a78f9436ee9c8d543a0314a2732af0f7ba1e51f45a8cd674353fb65ff976f161",
+   "redactions": 4,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/SHA256.json",
+   "original_sha256": "3d0a6bb19aa351fa3ff97b7098b13c170a071953deb44ec72e29d812be135f53",
+   "copy": "docs/milestone/regular/owner-audit-20261031/SHA256.json",
+   "copy_sha256": "3d0a6bb19aa351fa3ff97b7098b13c170a071953deb44ec72e29d812be135f53",
+   "redactions": 0,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/SNAPSHOT.json",
+   "original_sha256": "fd3098f1caff9403e45025ac7cfa946dfd1153ad2a3d2a1353942ad90c039907",
+   "copy": "docs/milestone/regular/owner-audit-20261031/SNAPSHOT.json",
+   "copy_sha256": "fd3098f1caff9403e45025ac7cfa946dfd1153ad2a3d2a1353942ad90c039907",
+   "redactions": 0,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/SSH_DR_METADATA.json",
+   "original_sha256": "f55f4992ca2f9832cb0765d5978a5ec04a27584511b21d31c8aa5df07c64b2d1",
+   "copy": "docs/milestone/regular/owner-audit-20261031/SSH_DR_METADATA.json",
+   "copy_sha256": "f55f4992ca2f9832cb0765d5978a5ec04a27584511b21d31c8aa5df07c64b2d1",
+   "redactions": 0,
+   "links_rewritten": 0
+  },
+  {
+   "original": "docs/audit/20261031-local-web-real-api/VALIDATION.json",
+   "original_sha256": "3c217c03027c697952e38f1efae0e56250d9105f978deb168f88e7a0de74c8c3",
+   "copy": "docs/milestone/regular/owner-audit-20261031/VALIDATION.json",
+   "copy_sha256": "3c217c03027c697952e38f1efae0e56250d9105f978deb168f88e7a0de74c8c3",
+   "redactions": 0,
+   "links_rewritten": 0
+  }
+ ]
+}

@@ -1,0 +1,36 @@
+{
+  "status": "SAFE_AUDIT_TESTS_COMPLETE",
+  "existing_code_characterization": {
+    "passed": 2,
+    "daily_quota_product_status": "NOT_IMPLEMENTED"
+  },
+  "proposed_contract_simulation": {
+    "passed": 9,
+    "product_integration": "NOT_RUN"
+  },
+  "total_passed": 11,
+  "seconds": 2.96,
+  "timezone": "Asia/Bangkok",
+  "boundary_utc": "17:00:00Z",
+  "ssh_account": "siripon@[DR host]",
+  "ssh_path_access": "PASS",
+  "model_api_listener": "NOT_PRESENT_AT_CHECK",
+  "new_inference_requests": 0,
+  "real_ledger_changes": false,
+  "host_clock_changes": false,
+  "quota_settings_changed": false,
+  "quota_proposal": {
+    "recommended_per_day": 100,
+    "gpu_reservation_seconds_per_day": 7200,
+    "pilot_days": 7,
+    "alternative_per_day": 300,
+    "alternative_gpu_reservation_seconds_per_day": 21600,
+    "approved": false
+  },
+  "evidence": {
+    "SSH_DR_METADATA.json": "f55f4992ca2f9832cb0765d5978a5ec04a27584511b21d31c8aa5df07c64b2d1",
+    "midnight-tests.xml": "fb4a71a315838919d92c160d98b1a5f97b0ffd74270b35ad69d2006d04627176",
+    "daily_quota_contract_simulation.py": "ecfa2f713a3066e48861fafd46f6008dd4bdbe4662f011645c613e033a21888c",
+    "test_daily_quota_audit.py": "525e9b94c8b3c75ef8e065de9b3d025bc3641569417c164f5e0f3523140872e8"
+  }
+}

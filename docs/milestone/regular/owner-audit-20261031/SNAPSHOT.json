@@ -1,0 +1,81 @@
+{
+  "captured_utc": "2026-10-31T01:25:26.435121+00:00",
+  "kind": "AUDIT_ONLY_OVERLAY_SNAPSHOT_NOT_GIT_MERGE",
+  "main": "9c52853db8dd2b879f1151cb1308c860cb78b5af",
+  "branches": [
+    {
+      "ref": "fix/m1-watchdog-error-detail",
+      "head": "72c6ff641ddd7019475040cc11db190894a76147",
+      "worktree": "C:\\Users\\User\\Documents\\Codex\\2026-10-21\\task\\m1-watchdog-detail-worktree",
+      "status": "## fix/m1-watchdog-error-detail\n",
+      "changed_files": [
+        "scripts/model-server/m1_watchdog.py",
+        "tests/test_m1_watchdog.py"
+      ]
+    },
+    {
+      "ref": "feat/m1-offline-acceptance-checks",
+      "head": "193503585ce00c66a6bc3028ec4f27c2221b9b1e",
+      "worktree": "C:\\Users\\User\\Documents\\Codex\\2026-10-21\\task\\m1-offline-checks-worktree",
+      "status": "## feat/m1-offline-acceptance-checks\n M scripts/qa/check_export_folder.py\n",
+      "changed_files": [
+        "docs/planning/HOSPITAL_M1_AC11_MS07_GAP_ANALYSIS_20261026.md",
+        "scripts/qa/check_export_folder.py",
+        "tests/test_export_folder_check.py",
+        "tests/test_m1_fault_injection.py"
+      ]
+    },
+    {
+      "ref": "docs/m1-install-candidate-manual",
+      "head": "7bfce34d65f909c644a5e0fdd8e2e20ed0e787ca",
+      "worktree": "C:\\Users\\User\\Documents\\Codex\\2026-10-21\\task\\m1-install-manual-worktree",
+      "status": "## docs/m1-install-candidate-manual\n",
+      "changed_files": [
+        "GOAL.md",
+        "docs/manuals/clinician/04-confirm-grade.qmd",
+        "docs/manuals/clinician/MANUAL_STYLE_GUIDE.md",
+        "docs/manuals/clinician/screenshots/01-worklist.png",
+        "docs/manuals/clinician/screenshots/02-confirm-image.png",
+        "docs/manuals/clinician/screenshots/03-review-overview.png",
+        "docs/manuals/clinician/screenshots/05-confirm-dr-grade.png",
+        "docs/manuals/clinician/screenshots/06-dr-grade-recorded.png",
+        "docs/manuals/clinician/screenshots/07-annotation-editor.png",
+        "docs/manuals/clinician/screenshots/13-reviewer-default.png",
+        "docs/manuals/clinician/screenshots/14-dataset-readiness.png",
+        "docs/manuals/clinician/screenshots/14-dataset-summary.png",
+        "docs/manuals/clinician/screenshots/19-case-complete.png",
+        "docs/planning/HOSPITAL_M1_MASK_OPTIONS_20261026.md",
+        "docs/planning/HOSPITAL_M1_PENDING_WORKPLAN_20261026.md",
+        "scripts/docs/capture_manual_screenshots.py"
+      ]
+    }
+  ],
+  "uncommitted_overlay": {
+    "source": "C:\\Users\\User\\Documents\\Codex\\2026-10-21\\task\\m1-offline-checks-worktree\\scripts\\qa\\check_export_folder.py",
+    "sha256": "0ae837631ef607f9a552685aa55a715df14bfb76df5c1698ee08c1ea3475e587"
+  },
+  "selected_hashes": {
+    "GOAL.md": "66b2f5b1d2f1d1274ab0501ecf9e91e2a1f7ae4d0430119f328a71b6e1bd1c58",
+    "tests\\test_export_folder_check.py": "3c9035a9d25a551a8418d362261fdf3d5cd37d2d6d463f4cf66321c34fa2f47a",
+    "tests\\test_m1_fault_injection.py": "d6e3701a504453c330b70d5ec7f979271ad05d9b2e1b409ea07366babec8afd1",
+    "tests\\test_m1_watchdog.py": "669ce5c2c26a6b0bc8d3e34f20125aadf99f0cb3c77992464abc8affa36229cc",
+    "docs\\planning\\HOSPITAL_M1_AC11_MS07_GAP_ANALYSIS_20261026.md": "a3f8498a40e7624c02c1682b3d80b6f1b5855810f6970287e3bdd078a0a119a0",
+    "docs\\planning\\HOSPITAL_M1_MASK_OPTIONS_20261026.md": "eeca4fc37b53ab617f10ea11136080788b3ceb6da4d32a98b5ef2210fa71bb34",
+    "docs\\planning\\HOSPITAL_M1_PENDING_WORKPLAN_20261026.md": "5ab86ff2ffb6a9850c06c61e45eaafb1f7360da062eff44d6d3a5ab6392d13a4",
+    "docs\\manuals\\clinician\\04-confirm-grade.qmd": "75a62d20c6db1aa94ae91076fb014cf4f5e5b19afaef770c38e8abbcb1bf72d1",
+    "docs\\manuals\\clinician\\MANUAL_STYLE_GUIDE.md": "f7b4987b1e618d237f59654f134136650a8595fe5004af6dfd39c0166ad098a2",
+    "docs\\manuals\\clinician\\screenshots\\01-worklist.png": "15cb164322cf2854069c05b2eb9a92361be0da78e37c0facd4f816aee84ab36e",
+    "docs\\manuals\\clinician\\screenshots\\02-confirm-image.png": "37b771d3a660134a3cd059ee701fbdf75eac5d3f58edd639605b9e7bef7242c5",
+    "docs\\manuals\\clinician\\screenshots\\03-review-overview.png": "bed36c40af9a21be2ee5973ec41130d1dc492b1b06a4ea7d8590ba2b7fe24add",
+    "docs\\manuals\\clinician\\screenshots\\05-confirm-dr-grade.png": "d1f3e83db5164493a9bd49955508515b8773a492f140b0258a4961db3be6685b",
+    "docs\\manuals\\clinician\\screenshots\\06-dr-grade-recorded.png": "9acb9a69777f30bb7ffa554546ca9d4343163a66b8a58aa6bd6f776b40241ffc",
+    "docs\\manuals\\clinician\\screenshots\\07-annotation-editor.png": "2d804864d4d1cc2edbbab35ae28bf85d67d5c6fb8e8ab29bad032c0353c3645b",
+    "docs\\manuals\\clinician\\screenshots\\13-reviewer-default.png": "11ec906fdbb791df79e2aaf1d2757f6888e524aba3dff46919a1b68fba426f93",
+    "docs\\manuals\\clinician\\screenshots\\14-dataset-readiness.png": "6eb2d2d4bf1d72577450c2d51eaf8231670a9397c581fb46b5122066dab07e54",
+    "docs\\manuals\\clinician\\screenshots\\14-dataset-summary.png": "c82e06079b5597568c2d4220220eeb0f60738695e26ed9406fb767310a54cfd9",
+    "docs\\manuals\\clinician\\screenshots\\19-case-complete.png": "91f7919170622d0477879fc0decb5b1491b3d5c86f4f1c6753bec0250e26d93c",
+    "scripts\\docs\\capture_manual_screenshots.py": "5288c25e0439604098322388fb5d8a33bfea368657b21268f2ea111b216bf6ab",
+    "scripts\\model-server\\m1_watchdog.py": "937e4effe29394d4694297941755c117c3432645627bab5ce148f0aae4014be1",
+    "scripts\\qa\\check_export_folder.py": "0ae837631ef607f9a552685aa55a715df14bfb76df5c1698ee08c1ea3475e587"
+  }
+}
