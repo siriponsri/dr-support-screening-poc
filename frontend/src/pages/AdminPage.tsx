@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
   Alert, AlertIcon, Badge, Box, Button, Code, FormControl, FormLabel, Grid, HStack, Input, Select, SimpleGrid, Stack,
@@ -6,10 +7,10 @@ import {
 import { useLocation } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
-import { useAuth } from '@/components/shell/AuthGate';
+import { PILOT_ROLES, roleLabel, useAuth, type PilotRole } from '@/components/shell/AuthGate';
 import { apiJson } from '@/lib/api';
 
-interface UserRow { username: string; role: 'admin' | 'user'; disabled: boolean; must_change: boolean; updated_utc?: string }
+interface UserRow { username: string; role: PilotRole; disabled: boolean; must_change: boolean; updated_utc?: string }
 interface DbSummary {
   storage: string; workspace: { id: string; name: string } | null; cases: number; with_ai_grade: number;
   with_prism: number; grade_confirmed: number; grade_corrected: number; annotations: number; batches: number;
@@ -29,17 +30,18 @@ const post = (path: string, body: unknown) => apiJson<{ users: UserRow[] }>(path
 export function AdminPage() {
   const { pathname } = useLocation();
   const { user } = useAuth();
+  const t = useT();
   if (!user || user.role !== 'admin') {
     return (
       <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
-        <PageHeader pathname={pathname} subtitle="Accounts and stored data" />
-        <Alert status="info"><AlertIcon /><Text>Only an administrator can open this page.</Text></Alert>
+        <PageHeader pathname={pathname} subtitle={t('Accounts and stored data')} />
+        <Alert status="info"><AlertIcon /><Text>{t('Only an administrator can open this page.')}</Text></Alert>
       </Box>
     );
   }
   return (
     <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
-      <PageHeader pathname={pathname} subtitle="Accounts and stored data" />
+      <PageHeader pathname={pathname} subtitle={t('Accounts and stored data')} />
       <Tabs variant="enclosed" isLazy>
         <TabList><Tab>Users and sign-in</Tab><Tab>Database</Tab></TabList>
         <TabPanels>
@@ -52,12 +54,13 @@ export function AdminPage() {
 }
 
 function UsersPanel({ me }: { me: string }) {
+  const t = useT();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'user' | 'admin'>('user');
+  const [role, setRole] = useState<PilotRole>('physician');
 
   const load = useCallback(async () => {
     try { setUsers((await apiJson<{ users: UserRow[] }>('/v1/admin/users')).users); setError(null); }
@@ -82,14 +85,14 @@ function UsersPanel({ me }: { me: string }) {
   return (
     <Grid templateColumns={{ base: '1fr', desktop: 'minmax(0, 1.4fr) minmax(0, 1fr)' }} gap={5} alignItems="start">
     <Stack spacing={5}>
-      <Section title="Add a user or reset a password" description="Give the person a temporary password; the app asks them to choose their own at first sign-in.">
+      <Section title="Add a user or reset a password" description={t('Give the person a temporary password; the app asks them to choose their own at first sign-in.')}>
         <form onSubmit={(event) => void save(event)}>
           <SimpleGrid columns={{ base: 1, tablet: 4 }} spacing={3} alignItems="end">
             <FormControl><FormLabel>Username</FormLabel><Input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="off" /></FormControl>
             <FormControl><FormLabel>Temporary password</FormLabel><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" /></FormControl>
             <FormControl><FormLabel>Role</FormLabel>
-              <Select value={role} onChange={(event) => setRole(event.target.value as 'user' | 'admin')}>
-                <option value="user">Physician</option><option value="admin">Administrator</option>
+              <Select value={role} onChange={(event) => setRole(event.target.value as PilotRole)}>
+                {PILOT_ROLES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </Select></FormControl>
             <Button type="submit" isDisabled={!username.trim() || !password}>Save account</Button>
           </SimpleGrid>
@@ -97,7 +100,7 @@ function UsersPanel({ me }: { me: string }) {
       </Section>
       {notice && <Alert status="success" py={2}><AlertIcon /><Text fontSize="sm">{notice}</Text></Alert>}
       {error && <Alert status="error" py={2}><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
-      <Section title="Accounts" description="Disabling an account signs that person out at once.">
+      <Section title="Accounts" description={t('Disabling an account signs that person out at once.')}>
         <Box overflowX="auto">
           <Table size="sm">
             <Thead><Tr><Th>Username</Th><Th>Role</Th><Th>Status</Th><Th>Updated</Th><Th /></Tr></Thead>
@@ -105,7 +108,7 @@ function UsersPanel({ me }: { me: string }) {
               {users.map((row) => (
                 <Tr key={row.username}>
                   <Td fontWeight="semibold">{row.username}</Td>
-                  <Td>{row.role === 'admin' ? 'Administrator' : 'Physician'}</Td>
+                  <Td>{roleLabel(row.role)}</Td>
                   <Td>
                     {row.disabled ? <Badge colorScheme="gray">Disabled</Badge>
                       : row.must_change ? <Badge colorScheme="orange">Must set password</Badge> : <Badge colorScheme="green">Active</Badge>}

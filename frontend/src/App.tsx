@@ -2,6 +2,7 @@ import { ChakraProvider, ColorModeScript } from '@chakra-ui/react';
 import { HashRouter } from 'react-router-dom';
 import { theme } from '@/theme';
 import { AppRoutes } from '@/routes';
+import { LanguageProvider } from '@/lib/i18n';
 import type { ViewportTier } from '@/components/shell/SidebarStateProvider';
 
 /**
@@ -14,9 +15,11 @@ export function App() {
     <>
       <ColorModeScript initialColorMode={theme.config.initialColorMode} />
       <ChakraProvider theme={theme}>
-        <HashRouter>
-          <AppRoutes />
-        </HashRouter>
+        <LanguageProvider>
+          <HashRouter>
+            <AppRoutes />
+          </HashRouter>
+        </LanguageProvider>
       </ChakraProvider>
     </>
   );

@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useActiveCaseSession } from '@/hooks/useActiveCaseSession';
 import { localTiming } from '@/lib/localTiming';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -341,6 +342,7 @@ function ReviewPageSession() {
   const location = useLocation();
   const { pathname } = location;
   const navigate = useNavigate();
+  const t = useT();
   const { imageId } = useParams<{ imageId: string }>();
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [models, setModels] = useState<ModelDescriptor[]>([]);
@@ -807,13 +809,13 @@ function ReviewPageSession() {
         </Section>
         <Stack spacing={5} minW={0}>
           {manualOnly ? (
-            <Section title="AI assistance" description="AI is a suggestion only. You can always review without it.">
+            <Section title="AI assistance" description={t('AI is a suggestion only. You can always review without it.')}>
               <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone="warning">AI not available</StatusBadge></HStack>
               <Alert status="info" variant="subtle">
                 <AlertIcon />
                 <Stack spacing={1}>
                   <Text fontWeight="semibold">{item.modality === 'UWF' ? 'No ready UWF model capability is connected.' : item.modality === 'UNKNOWN' ? 'Confirm the image type before using model assistance.' : 'Model assistance is unavailable.'}</Text>
-                  <Text fontSize="sm">You can review this image without AI.</Text>
+                  <Text fontSize="sm">{t('You can review this image without AI.')}</Text>
                 </Stack>
               </Alert>
             </Section>
@@ -821,7 +823,7 @@ function ReviewPageSession() {
             <>
               <Section
                 title="Analysis"
-                description="AI suggests a grade. You confirm or correct it."
+                description={t('AI suggests a grade. You confirm or correct it.')}
                 action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{prismNeedsPreview ? 'Analyze grading only' : item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
               >
                 <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiStatus}</StatusBadge></HStack>

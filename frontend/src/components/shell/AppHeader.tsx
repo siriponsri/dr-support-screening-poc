@@ -10,6 +10,7 @@
  * the page-level title via their own PageHeader component (this header
  * still owns the chrome controls).
  */
+import { LanguageSwitch } from '@/lib/i18n';
 import {
   Box,
   Button,
@@ -78,6 +79,7 @@ export function AppHeader() {
         {showPermanent && hidden && <HiddenWorkspaceContext />}
         <RuntimePill runtime={runtime} />
         <SettingsShortcut hidden={!showPermanent || (showPermanent && collapsed)} />
+        <LanguageSwitch />
         <SignedInUser compact={!!isCompact} />
       </HStack>
     </HStack>

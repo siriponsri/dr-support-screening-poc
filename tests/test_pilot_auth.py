@@ -203,3 +203,77 @@ def test_an_operator_set_short_password_is_flagged_as_below_policy(tmp_path):
     app, _ = app_with(tmp_path, ("admin", "4321", "admin", False))
     client = TestClient(app)
     assert client.post("/v1/auth/login", json={"username": "admin", "password": "4321"}).json()["short_password"]
+
+
+def roles_app(tmp_path):
+    users = [(name, TEST_PASSWORD, role, False) for name, role in
+             (("admin1", "admin"), ("doc1", "physician"), ("nurse1", "nurse"), ("expert1", "expert"),
+              ("research1", "researcher"), ("legacy1", "user"))]
+    app, store_file = app_with(tmp_path, *users)
+
+    @app.post("/v1/cases/{image_id}/review")
+    def review(image_id: str):
+        return {"saved": image_id}
+
+    @app.post("/v1/cases/{image_id}/confirm-image")
+    def confirm(image_id: str):
+        return {"saved": image_id}
+
+    @app.post("/v1/dataset/export")
+    def export():
+        return {"exported": True}
+
+    @app.get("/v2/workspace-data/records")
+    def records():
+        return []
+
+    @app.post("/v2/predict/dr")
+    def predict():
+        return {"bearer": "checked by the model API"}
+    return app, store_file
+
+
+def signed_in(app, username):
+    client = TestClient(app)
+    assert client.post("/v1/auth/login", json={"username": username, "password": TEST_PASSWORD}).status_code == 200
+    return client
+
+
+def test_older_accounts_without_a_role_name_are_physicians(tmp_path):
+    app, store_file = roles_app(tmp_path)
+    assert signed_in(app, "legacy1").get("/v1/auth/me").json()["role"] == "physician"
+    assert {user["username"]: user["role"] for user in UserStore(store_file).list_users()}["legacy1"] == "physician"
+
+
+def test_a_nurse_grades_preliminarily_and_only_a_physician_confirms(tmp_path):
+    app, _ = roles_app(tmp_path)
+    nurse = signed_in(app, "nurse1")
+    refused = nurse.post("/v1/cases/a1/review")
+    assert refused.status_code == 403 and "physician confirms" in refused.json()["detail"]
+    assert nurse.post("/v1/cases/a1/confirm-image").status_code == 200
+    assert nurse.post("/v1/dataset/export").status_code == 403
+    for username in ("doc1", "expert1", "admin1"):
+        assert signed_in(app, username).post("/v1/cases/a1/review").status_code == 200
+
+
+def test_a_researcher_reads_and_exports_but_changes_no_case(tmp_path):
+    app, _ = roles_app(tmp_path)
+    researcher = signed_in(app, "research1")
+    assert researcher.get("/v1/cases").status_code == 200
+    assert researcher.post("/v1/dataset/export").status_code == 200
+    assert researcher.post("/v1/cases/a1/confirm-image").status_code == 403
+    assert researcher.post("/v1/cases/a1/review").status_code == 403
+
+
+def test_v2_case_records_need_a_session_but_the_model_api_route_keeps_its_own_token(tmp_path):
+    app, _ = roles_app(tmp_path)
+    anonymous = TestClient(app)
+    assert anonymous.get("/v2/workspace-data/records").status_code == 401
+    assert anonymous.post("/v2/predict/dr").status_code == 200
+    assert signed_in(app, "doc1").get("/v2/workspace-data/records").status_code == 200
+
+
+def test_unknown_roles_are_refused_and_the_role_list_is_exact():
+    assert pilot_auth.ROLES == {"admin", "physician", "nurse", "expert", "researcher"}
+    with pytest.raises(AuthError):
+        UserStore.__new__(UserStore).set_user("someone", TEST_PASSWORD, role="superuser", must_change=False)
