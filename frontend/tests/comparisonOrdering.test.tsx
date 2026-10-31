@@ -24,7 +24,7 @@ async function setup() {
     return json([]);
   });
   render(<ChakraProvider theme={theme}><MemoryRouter initialEntries={['/review/A']}><Routes><Route path='/review/:imageId' element={<ReviewPage />} /></Routes></MemoryRouter></ChakraProvider>);
-  await screen.findByText('Fixture A - optional model evidence for clinician inspection');
+  await screen.findByText('Fixture A, image under review');
   fireEvent.click(screen.getByRole('button', { name: 'Show comparison' }));
   await screen.findByRole('option', { name: 'Fixture B' });
   return { automatic, explicit, latest };

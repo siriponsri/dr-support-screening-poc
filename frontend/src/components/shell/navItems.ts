@@ -13,8 +13,10 @@ import {
   Activity,
   Database,
   Eye,
+  LayoutDashboard,
   ListChecks,
   Settings2,
+  Users,
   type LucideIcon,
 } from '@/lib/icons';
 
@@ -35,6 +37,7 @@ export interface NavSection {
 export const PRIMARY_NAV: NavSection = {
   heading: 'Clinical review',
   items: [
+    { to: '/today',    label: 'Today',    icon: LayoutDashboard },
     { to: '/worklist', label: 'Worklist', icon: ListChecks },
     { to: '/review',   label: 'Review',   icon: Eye },
   ],
@@ -49,6 +52,12 @@ export const SECONDARY_NAV: NavSection = {
     { to: '/settings', label: 'Settings',       icon: Settings2 },
   ],
 };
+
+/** With sign-in on, physicians see only the routine items; administrators see everything. */
+export const ADMIN_ONLY_PATHS = new Set(['/models']);
+
+/** Shown under Administration only to a signed-in administrator. */
+export const ADMIN_NAV_ITEM: NavItem = { to: '/admin', label: 'Admin', icon: Users };
 
 /** Flat list of every navigation entry the shell exposes. */
 export const ALL_NAV_ITEMS: NavItem[] = [

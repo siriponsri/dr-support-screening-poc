@@ -8,6 +8,8 @@ import { AnnotationEditorPage } from '@/pages/AnnotationEditorPage';
 import { ClinicianReviewPage } from '@/pages/ClinicianReviewPage';
 import { ModelsPage } from '@/pages/ModelsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { AdminPage } from '@/pages/AdminPage';
+import { TodayPage } from '@/pages/TodayPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { NavigationGuardProvider } from '@/components/shell/NavigationGuard';
 import { WorkspaceProvider } from '@/components/shell/workspace';
@@ -40,7 +42,8 @@ export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
       <LocalTimingObserver />
       <Routes>
         <Route element={<AppShell forceTier={forceTier} />}>
-          <Route index element={<Navigate to="/worklist" replace />} />
+          <Route index element={<Navigate to="/today" replace />} />
+          <Route path="/today" element={<TodayPage />} />
           <Route path="/worklist" element={<WorklistPage />} />
           <Route path="/datasets" element={<DatasetsPage />} />
           <Route path="/review" element={<ReviewPage />} />
@@ -49,6 +52,7 @@ export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
           <Route path="/clinician-review/:imageId" element={<ClinicianReviewPage />} />
           <Route path="/models" element={<ModelsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

@@ -54,6 +54,7 @@ export {
   Info,
   Layers,
   LineChart,
+  LayoutDashboard,
   ListChecks,
   ListTree,
   Loader2,
