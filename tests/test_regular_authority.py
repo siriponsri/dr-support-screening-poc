@@ -230,9 +230,9 @@ def test_removing_an_image_releases_its_unused_prism_slot(rig):
     authority.schedule()
     admit(authority, grader)
     with pytest.raises(ra.AuthorityError, match="CANCEL_FIRST"):
-        authority.release_image(principal="shared", workstation="ws-a", source_sha256=digest("img-a"))
+        authority.release_image(principal="shared", workstation="ws-a", pair_key=digest("img-a"))
     authority.finish(grader["ticket_id"], outcome="FAILED", reason="REMOTE_HTTP_ERROR")
-    assert authority.release_image(principal="shared", workstation="ws-a", source_sha256=digest("img-a")) == 1
+    assert authority.release_image(principal="shared", workstation="ws-a", pair_key=digest("img-a")) == 1
     assert authority.capacity()["invocations_used"] == 1 and authority.capacity()["invocations_held"] == 0
 
 
@@ -325,7 +325,8 @@ def test_status_shows_only_the_callers_own_tickets(rig):
     submit(authority, "ws-a", "img-a")
     submit(authority, "ws-b", "img-b")
     own = authority.status(principal="shared", workstation="ws-a")["own_open_tickets"]
-    assert len(own) == 1 and set(own[0]) == {"ticket_id", "kind", "model_id", "modality", "state", "last_reason"}
+    assert len(own) == 1 and set(own[0]) == {"ticket_id", "kind", "model_id", "modality", "state", "last_reason",
+                                              "ready_deadline_utc"}
     with pytest.raises(ra.AuthorityError, match="TICKET_NOT_FOUND"):
         authority.get(own[0]["ticket_id"], principal="someone-else")
 
@@ -334,3 +335,45 @@ def test_the_module_has_no_network_model_or_gpu_imports():
     source = (ROOT / "scripts/model-server/regular_authority.py").read_text(encoding="utf-8")
     for forbidden in ("import torch", "import httpx", "import requests", "import socket", "subprocess", "urllib"):
         assert forbidden not in source
+
+
+def test_an_arrived_call_waits_its_turn_and_a_refused_one_gives_back_its_slot(rig):
+    fake, _, open_authority = rig
+    authority = open_authority()
+    a = submit(authority, "ws-a", "img-a")
+    b = submit(authority, "ws-b", "img-b")
+    authority.schedule()
+    admit(authority, a)
+    authority.mark_arrived(b["ticket_id"], principal="shared", workstation="ws-b")
+    fake.advance(90)  # Past b's dispatch window while a runs.
+    authority.schedule()
+    assert authority.get(b["ticket_id"], principal="shared")["state"] == "READY"
+    authority.finish(a["ticket_id"], outcome="DONE")
+    admit(authority, b)
+    with pytest.raises(ra.AuthorityError, match="TICKET_ALREADY_ADMITTED"):
+        authority.abandon(b["ticket_id"], reason="REFUSED_BEFORE_ADMISSION")
+    authority.finish(b["ticket_id"], outcome="DONE")
+    c = submit(authority, "ws-c", "img-c")
+    authority.schedule()
+    authority.mark_arrived(c["ticket_id"], principal="shared", workstation="ws-c")
+    authority.abandon(c["ticket_id"], reason="REFUSED_BEFORE_ADMISSION")
+    assert authority.get(c["ticket_id"], principal="shared")["state"] == "EXPIRED"
+    assert authority.capacity()["invocations_used"] == 2 and authority.capacity()["invocations_held"] == 2
+
+
+def test_grader_and_prism_with_different_stage_digests_share_the_image_pair_hold(rig):
+    _, _, open_authority = rig
+    authority = open_authority()
+    image = digest("case-source")
+    grader = authority.submit(principal="shared", workstation="ws-a", idempotency_key="g",
+                              request_digest=digest("g"), kind="grader", model_id="uspec-uwf-grading",
+                              modality="UWF", source_sha256=digest("analysis-bytes"), pair_key=image)
+    authority.schedule()
+    admit(authority, grader)
+    authority.finish(grader["ticket_id"], outcome="DONE")
+    prism = authority.submit(principal="shared", workstation="ws-a", idempotency_key="p",
+                             request_digest=digest("p"), kind="prism", model_id="prism-dr-5fold",
+                             modality="UWF", source_sha256=image, pair_key=image)
+    authority.schedule()
+    assert authority.get(prism["ticket_id"], principal="shared")["hold_id"] == \
+        authority.get(grader["ticket_id"], principal="shared")["hold_id"]

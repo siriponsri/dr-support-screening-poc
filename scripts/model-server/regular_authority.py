@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS clock_highwater (
   id INTEGER PRIMARY KEY CHECK (id = 1), utc TEXT NOT NULL, boot_id TEXT NOT NULL, monotonic REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS holds (
   hold_id TEXT PRIMARY KEY, day TEXT NOT NULL, principal TEXT NOT NULL, workstation TEXT NOT NULL,
-  source_sha256 TEXT NOT NULL, slots_total INTEGER NOT NULL CHECK (slots_total IN (1, 2)),
+  pair_key TEXT NOT NULL, slots_total INTEGER NOT NULL CHECK (slots_total IN (1, 2)),
   slots_used INTEGER NOT NULL DEFAULT 0, slots_released INTEGER NOT NULL DEFAULT 0, created_utc TEXT NOT NULL,
   CHECK (slots_used + slots_released <= slots_total));
 CREATE TABLE IF NOT EXISTS tickets (
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   idempotency_key TEXT NOT NULL, request_digest TEXT NOT NULL, kind TEXT NOT NULL, model_id TEXT NOT NULL,
   modality TEXT NOT NULL, source_sha256 TEXT NOT NULL, state TEXT NOT NULL, hold_id TEXT,
   created_utc TEXT NOT NULL, updated_utc TEXT NOT NULL, ready_deadline_utc TEXT, last_reason TEXT,
-  UNIQUE (principal, idempotency_key));
+  pair_key TEXT NOT NULL, arrived_utc TEXT, UNIQUE (principal, idempotency_key));
 CREATE TABLE IF NOT EXISTS intents (
   intent_id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL UNIQUE, day TEXT NOT NULL, hold_id TEXT NOT NULL,
   principal TEXT NOT NULL, workstation TEXT NOT NULL, model_id TEXT NOT NULL, request_digest TEXT NOT NULL,
@@ -286,7 +286,7 @@ class Authority:
             return None
         hold_id = "hold_" + uuid.uuid4().hex
         self.db.execute("INSERT INTO holds VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?)",
-                        (hold_id, day, ticket["principal"], ticket["workstation"], ticket["source_sha256"],
+                        (hold_id, day, ticket["principal"], ticket["workstation"], ticket["pair_key"],
                          slots, now.isoformat()))
         self._event(now, "HOLD", {"hold_id": hold_id, "day": day, "slots": slots, "ticket_id": ticket["ticket_id"]})
         return hold_id
@@ -294,11 +294,11 @@ class Authority:
     def _usable_hold(self, now, ticket):
         """Today's unconsumed slot for this image (a grader pair hold covers its PRISM stage)."""
         row = self.db.execute(
-            "SELECT hold_id FROM holds WHERE day = ? AND principal = ? AND workstation = ? AND source_sha256 = ? "
+            "SELECT hold_id FROM holds WHERE day = ? AND principal = ? AND workstation = ? AND pair_key = ? "
             "AND slots_total - slots_used - slots_released > 0 AND hold_id NOT IN "
             "(SELECT hold_id FROM tickets WHERE state IN ('QUEUED','READY') AND hold_id IS NOT NULL "
             " AND ticket_id != ?) ORDER BY created_utc LIMIT 1",
-            (thai_day(now), ticket["principal"], ticket["workstation"], ticket["source_sha256"],
+            (thai_day(now), ticket["principal"], ticket["workstation"], ticket["pair_key"],
              ticket["ticket_id"])).fetchone()
         return row["hold_id"] if row else None
 
@@ -315,11 +315,16 @@ class Authority:
     # ------------------------------------------------------------------ tickets
 
     def submit(self, *, principal, workstation, idempotency_key, request_digest, kind, model_id, modality,
-               source_sha256) -> dict:
-        """Durable ticket. Same key and digest returns the existing ticket; a changed digest is refused."""
+               source_sha256, pair_key=None) -> dict:
+        """Durable ticket. Same key and digest returns the existing ticket; a changed digest is refused.
+
+        ``source_sha256`` is the digest the stage sends (grader: analysis bytes; PRISM: source).
+        ``pair_key`` names the image, so its grader and PRISM stages share one pair hold."""
+        pair_key = source_sha256 if pair_key is None else pair_key
         require(all(isinstance(value, str) and NAME.fullmatch(value)
                     for value in (principal, workstation, idempotency_key)), "TICKET_IDENTITY_INVALID")
-        require(SHA.fullmatch(str(request_digest)) and SHA.fullmatch(str(source_sha256)), "TICKET_DIGEST_INVALID")
+        require(all(SHA.fullmatch(str(value)) for value in (request_digest, source_sha256, pair_key)),
+                "TICKET_DIGEST_INVALID")
         require(kind in KINDS and (model_id, modality) in KINDS[kind], "UNSUPPORTED_STAGE_MODEL_MODALITY")
         with self._tx() as now:
             existing = self.db.execute("SELECT * FROM tickets WHERE principal = ? AND idempotency_key = ?",
@@ -330,9 +335,10 @@ class Authority:
                 return dict(existing)
             self._require_admissible(now)
             ticket_id = "tkt_" + uuid.uuid4().hex
-            self.db.execute("INSERT INTO tickets VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'QUEUED', NULL, ?, ?, NULL, NULL)",
+            self.db.execute("INSERT INTO tickets VALUES "
+                            "(?, ?, ?, ?, ?, ?, ?, ?, ?, 'QUEUED', NULL, ?, ?, NULL, NULL, ?, NULL)",
                             (ticket_id, principal, workstation, idempotency_key, request_digest, kind, model_id,
-                             modality, source_sha256, now.isoformat(), now.isoformat()))
+                             modality, source_sha256, now.isoformat(), now.isoformat(), pair_key))
             self._event(now, "TICKET", {"ticket_id": ticket_id, "workstation": workstation, "kind": kind,
                                         "model_id": model_id})
             return dict(self.db.execute("SELECT * FROM tickets WHERE ticket_id = ?", (ticket_id,)).fetchone())
@@ -355,8 +361,10 @@ class Authority:
         """Expire stale dispatch windows, then promote fairly. Returns newly READY ticket IDs."""
         promoted = []
         with self._tx() as now:
+            # A call that already arrived waits for the single running slot; it does not expire here.
             for row in self.db.execute("SELECT ticket_id, hold_id, kind FROM tickets WHERE state = 'READY' "
-                                       "AND ready_deadline_utc < ?", (now.isoformat(),)).fetchall():
+                                       "AND arrived_utc IS NULL AND ready_deadline_utc < ?",
+                                       (now.isoformat(),)).fetchall():
                 self._release(now, row["hold_id"], 2 if row["kind"] == "grader" else 1, "DISPATCH_WINDOW_EXPIRED")
                 self._set(now, row["ticket_id"], "EXPIRED", "DISPATCH_WINDOW_EXPIRED")
             state = self._state()
@@ -405,7 +413,8 @@ class Authority:
                 require(existing["request_digest"] == request_digest, "TICKET_ALREADY_USED_FOR_ANOTHER_REQUEST")
                 raise AuthorityError("TICKET_ALREADY_ADMITTED_NO_SECOND_DISPATCH")
             require(ticket["state"] == "READY", "TICKET_NOT_READY")
-            require(datetime.fromisoformat(ticket["ready_deadline_utc"]) >= now, "DISPATCH_WINDOW_EXPIRED")
+            require(ticket["arrived_utc"] is not None
+                    or datetime.fromisoformat(ticket["ready_deadline_utc"]) >= now, "DISPATCH_WINDOW_EXPIRED")
             require((ticket["model_id"], ticket["modality"], ticket["source_sha256"])
                     == (model_id, modality, source_sha256), "REQUEST_DOES_NOT_MATCH_TICKET")
             _, last_admission, _ = ai_window(now, self.config)
@@ -429,6 +438,32 @@ class Authority:
             self._event(now, "INTENT", {"intent_id": intent_id, "ticket_id": ticket_id, "day": day,
                                         "model_id": model_id, "request_digest": request_digest})
             return {"intent_id": intent_id, "ticket_id": ticket_id, "day": day}
+
+    def mark_arrived(self, ticket_id, *, principal, workstation) -> dict:
+        """The call reached the gateway inside its dispatch window; it may now wait its turn."""
+        with self._tx() as now:
+            ticket = self.db.execute("SELECT * FROM tickets WHERE ticket_id = ?", (ticket_id,)).fetchone()
+            require(ticket is not None and ticket["principal"] == principal
+                    and ticket["workstation"] == workstation, "TICKET_NOT_FOUND")
+            require(ticket["state"] == "READY", "TICKET_NOT_READY")
+            if ticket["arrived_utc"] is None:
+                require(datetime.fromisoformat(ticket["ready_deadline_utc"]) >= now, "DISPATCH_WINDOW_EXPIRED")
+                self.db.execute("UPDATE tickets SET arrived_utc = ? WHERE ticket_id = ?",
+                                (now.isoformat(), ticket_id))
+            return dict(self.db.execute("SELECT * FROM tickets WHERE ticket_id = ?", (ticket_id,)).fetchone())
+
+    def abandon(self, ticket_id, *, reason) -> None:
+        """A READY call proven never forwarded (refused before admission) gives back its slot."""
+        require(isinstance(reason, str) and NAME.fullmatch(reason), "REASON_INVALID")
+        with self._tx() as now:
+            ticket = self.db.execute("SELECT * FROM tickets WHERE ticket_id = ?", (ticket_id,)).fetchone()
+            require(ticket is not None, "TICKET_NOT_FOUND")
+            require(not self.db.execute("SELECT 1 FROM intents WHERE ticket_id = ?", (ticket_id,)).fetchone(),
+                    "TICKET_ALREADY_ADMITTED")
+            if ticket["state"] != "READY":
+                return
+            self._release(now, ticket["hold_id"], 2 if ticket["kind"] == "grader" else 1, reason)
+            self._set(now, ticket_id, "EXPIRED", reason)
 
     def finish(self, ticket_id, *, outcome, reason=None) -> None:
         """Record the forwarded call's outcome. Never refunds; UNKNOWN quarantines new GPU work."""
@@ -454,18 +489,18 @@ class Authority:
                 raise AuthorityError("ALREADY_ADMITTED_CANCEL_IS_NOT_PROOF")
         return self.get(ticket_id, principal=principal)
 
-    def release_image(self, *, principal, workstation, source_sha256) -> int:
+    def release_image(self, *, principal, workstation, pair_key) -> int:
         """Release today's unconsumed slots for an image the clinician removed. Never touches used slots."""
         released = 0
         with self._tx() as now:
             require(not self.db.execute(
-                "SELECT 1 FROM tickets WHERE principal = ? AND workstation = ? AND source_sha256 = ? "
-                "AND state IN ('QUEUED','READY','ADMITTED')", (principal, workstation, source_sha256)).fetchone(),
+                "SELECT 1 FROM tickets WHERE principal = ? AND workstation = ? AND pair_key = ? "
+                "AND state IN ('QUEUED','READY','ADMITTED')", (principal, workstation, pair_key)).fetchone(),
                 "IMAGE_HAS_OPEN_STAGE_CANCEL_FIRST")
             for row in self.db.execute(
                     "SELECT hold_id, slots_total - slots_used - slots_released AS free FROM holds WHERE day = ? "
-                    "AND principal = ? AND workstation = ? AND source_sha256 = ?",
-                    (thai_day(now), principal, workstation, source_sha256)).fetchall():
+                    "AND principal = ? AND workstation = ? AND pair_key = ?",
+                    (thai_day(now), principal, workstation, pair_key)).fetchall():
                 self._release(now, row["hold_id"], row["free"], "IMAGE_REMOVED")
                 released += max(0, row["free"])
         return released
@@ -535,6 +570,12 @@ class Authority:
             self._event(now, "RECONCILED", {"previous": previous, "reason": reason,
                                             "evidence_sha256": evidence_sha256})
 
+    def quarantine(self, reason) -> None:
+        """Stop new admission and GPU funding until an operator reconciles (first reason kept)."""
+        require(isinstance(reason, str) and NAME.fullmatch(reason), "REASON_INVALID")
+        with self._tx() as now:
+            self._quarantine(now, reason)
+
     def revoke(self, *, reason) -> None:
         with self._tx() as now:
             self.db.execute("UPDATE authority SET revoked_utc = ? WHERE id = 1", (now.isoformat(),))
@@ -556,7 +597,7 @@ class Authority:
         if principal is not None and workstation is not None:
             # Own tickets only: never another workstation's work.
             result["own_open_tickets"] = [dict(row) for row in self.db.execute(
-                "SELECT ticket_id, kind, model_id, modality, state, last_reason FROM tickets "
+                "SELECT ticket_id, kind, model_id, modality, state, last_reason, ready_deadline_utc FROM tickets "
                 "WHERE principal = ? AND workstation = ? AND state IN ('QUEUED','READY','ADMITTED')",
                 (principal, workstation))]
         return result
