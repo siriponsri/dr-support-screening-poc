@@ -18,6 +18,7 @@ Canonical documentation for the Retinal Review Workbench:
 - [Model API operations](operations/MODEL_SERVER.md)
 - [Troubleshooting](operations/TROUBLESHOOTING.md)
 - [Security and privacy](operations/SECURITY_PRIVACY.md)
+- [Security audit, 31 October 2026](audit/SECURITY_AUDIT_20261031.md) (fixed and open findings)
 
 - [Clinician manual](manuals/clinician/index.qmd)
 - [Operator manual](operations/INSTALLATION.md)

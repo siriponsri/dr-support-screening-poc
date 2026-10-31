@@ -26,8 +26,8 @@ sent to dr-train. Nothing here is done automatically by the app or by Claude Cod
    $P/environments/prism-qa-torch213/bin/python -I -B $D/scripts/model-server/regular_service.py \
      principal-add --principals $P/config/private/regular-principals.json --name ann --workstation ann-laptop
    ```
-   The token is shown once in the operator's terminal. Restart the gateway so it reads the
-   change. The file keeps only the token's SHA-256, the name and the allowed workstation IDs.
+   The token is shown once in the operator's terminal. The running gateway reads the change
+   on the next request (no restart). The file keeps only the token's SHA-256, the name and the allowed workstation IDs.
 4. **Hand-over:** give the token in person or through a password manager's secure share,
    never by chat or email body. The person saves it as `personal-token.txt` in the private
    folder above (only their own Windows account can read that folder).
@@ -40,7 +40,7 @@ sent to dr-train. Nothing here is done automatically by the app or by Claude Cod
 
 ## Revoke
 
-- Token: `regular_service.py principal-revoke --principals ... --name ann`, then restart the gateway.
+- Token: `regular_service.py principal-revoke --principals ... --name ann` (takes effect on the next request).
 - Account: `sudo userdel --remove drgw-ann` (administrator).
 - Device: remove it in the Tailscale admin console (owner).
 
@@ -50,4 +50,7 @@ sent to dr-train. Nothing here is done automatically by the app or by Claude Cod
   another person's tickets. The owner's shared token keeps working for the owner only.
 - Personal setups still need the M1 workspace setup on that PC (workspace, sign-in
   accounts, PRISM pins copy); see `docs/operations/TEAM_ACCESS_DR_TRAIN.md`.
-- Status: code and tests ready; no account, token or device has been created yet.
+- A personal token reaches only the service paths (status, tickets, grading, PRISM) and only from its
+  listed workstations.
+- Status: code and tests ready, running on dr-train since deployment `regular-20261031-r05`; no account,
+  token or device has been created yet.
