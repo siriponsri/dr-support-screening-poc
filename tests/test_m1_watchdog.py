@@ -231,3 +231,105 @@ def test_not_run_cases_fail_the_phase_but_need_no_cleanup():
                                  budget=None, lease=None, ledger=None, monitors={"gpu_monitor": Monitor()})
     assert done["cleanup_confirmed"] is True and done["status"] == "FAIL"
     assert done["window_stop"] == "NO_LEASE_RESERVED" and done["ledger_close"] == "NOT_OPENED"
+
+
+def test_failure_detail_keeps_only_allowlisted_scalars():
+    detail = watchdog.failure_detail({"stage": "PROC_RSS_PARSE", "exception_class": "StopIteration", "errno": 2,
+                                      "reason": "GPU_SAMPLE_STALE", "message": "/home/user/private/path",
+                                      "token": "secret-value"})
+    assert detail == {"stage": "PROC_RSS_PARSE", "exception_class": "StopIteration", "errno": 2,
+                      "reason": "GPU_SAMPLE_STALE"}
+    assert watchdog.failure_detail({"stage": "has space /tmp/x", "errno": 99999, "exception_class": 7}) is None
+    assert watchdog.failure_detail("PIDFD_POLL") is None and watchdog.failure_detail(None) is None
+
+
+def test_error_code_is_a_fixed_code_or_nothing():
+    assert watchdog.error_code(RuntimeError("CHILD_OBSERVATION_UNAVAILABLE")) == "CHILD_OBSERVATION_UNAVAILABLE"
+    assert watchdog.error_code(RuntimeError("free text with /path and token=x")) is None
+    assert watchdog.error_code(ValueError("CHILD_OBSERVATION_UNAVAILABLE")) is None
+
+
+class FaultingSupervisor(FakeSupervisor):
+    """Reproduces the phase A oom-contained outcome: the adapter fails while the child exits."""
+
+    def tick(self):
+        self.observation_failure = {"stage": "RESOURCE_SAMPLE", "exception_class": "StopIteration", "errno": None,
+                                    "path": "/proc/123/status"}
+        self.state, self.reason = "UNVERIFIED", "CHILD_OBSERVATION_UNAVAILABLE"
+        self.child.alive = False
+        raise RuntimeError("CHILD_OBSERVATION_UNAVAILABLE")
+
+
+class FailingResources(FakeResources):
+    last_failure = {"stage": "PROC_RSS_PARSE", "exception_class": "StopIteration", "detail": "VmRSS missing"}
+
+
+def test_run_case_records_the_cause_without_changing_the_verdict(tmp_path):
+    item = spec("oom-contained")
+    (tmp_path / "oom-contained.child.json").write_text(json.dumps({"oom_raised": True, "allocated_mib": 1024}))
+    child = FakeChild(0)
+    child.observation_failure = {"stage": "PROC_IDENTITY", "exception_class": "FileNotFoundError", "errno": 2}
+    observed = watchdog.run_case(item, spawn=lambda _: (child, FailingResources()),
+                                 supervise=lambda _, owned: FaultingSupervisor(owned, stop_after=1, reason=None),
+                                 run=tmp_path, sleep=lambda _: None)
+    assert observed["error_class"] == "RuntimeError" and observed["error_code"] == "CHILD_OBSERVATION_UNAVAILABLE"
+    assert observed["supervisor_failure"] == {"stage": "RESOURCE_SAMPLE", "exception_class": "StopIteration"}
+    assert observed["adapter_failure"] == {"stage": "PROC_IDENTITY", "exception_class": "FileNotFoundError", "errno": 2}
+    assert observed["resource_failure"] == {"stage": "PROC_RSS_PARSE", "exception_class": "StopIteration"}
+    # The verdict and cleanup are exactly what phase A recorded: the stop rule did not change.
+    assert observed["problems"] == ["state", "reason"] and observed["cleanup_confirmed"] is True
+    assert "/proc" not in json.dumps(observed) and "VmRSS" not in json.dumps(observed)
+
+
+def test_monitor_failure_detail_is_recorded_and_the_status_rule_is_unchanged():
+    class DetailedMonitor(Monitor):
+        failure_detail = {"stage": "GPU_SAMPLE", "exception_class": "RuntimeError", "reason": "GPU_SAMPLE_STALE",
+                          "raw": "nvidia-smi output"}
+    done = watchdog.finish_phase(result(), budget=None, lease=None, ledger=None,
+                                 monitors={"gpu_monitor": DetailedMonitor(), "disk_monitor": Monitor()})
+    assert done["monitor_failures"] == {"gpu_monitor": {"stage": "GPU_SAMPLE", "exception_class": "RuntimeError",
+                                                        "reason": "GPU_SAMPLE_STALE"}}
+    assert done["status"] == "FAIL"  # No lease/ledger closed here, exactly as before this change.
+
+
+def test_limits_quota_and_stop_rules_are_unchanged():
+    assert (watchdog.FRACTION_MIB, watchdog.PHASE_SECONDS, watchdog.IDLE_VRAM_MIB) == (1024, 780, 64)
+    assert watchdog.MIN_AVAILABLE_RAM == 12 * 1024**3
+    assert [(item["case"], item["max_vram_mib"], item["max_rss_bytes"], item["request_seconds"], item["max_seconds"],
+             item["hard_seconds"], item["expect"]["reason"]) for item in watchdog.CASES] == [
+        ("oom-contained", 2048, 4 * 1024**3, 10, 90, 120, "WORKER_EXITED"),
+        ("vram-limit", 768, 4 * 1024**3, 10, 90, 120, "VRAM_LIMIT"),
+        ("rss-limit", 2048, 4 * 1024**3, 10, 90, 120, "RSS_LIMIT"),
+        ("request-timeout", 2048, 4 * 1024**3, 10, 90, 120, "REQUEST_TIMEOUT"),
+        ("hard-alarm", 2048, 4 * 1024**3, 10, 90, 15, "WORKER_EXITED")]
+    source = (ROOT / "scripts/model-server/m1_watchdog.py").read_text(encoding="utf-8")
+    assert "drain_seconds=15" in source and "monitor_seconds=5" in source and "max_jobs=1" in source
+
+
+class Exploding:
+    @property
+    def observation_failure(self):
+        raise KeyError("boom")
+
+    failure_detail = observation_failure
+    last_failure = observation_failure
+
+
+def test_cause_capture_never_blocks_cleanup_or_accounting(tmp_path):
+    child = FakeChild(0)
+
+    class ExplodingResources(FakeResources):
+        last_failure = Exploding.observation_failure
+    observed = watchdog.run_case(spec("hard-alarm"), spawn=lambda _: (child, ExplodingResources()),
+                                 supervise=lambda _, owned: FakeSupervisor(owned, stop_after=1, reason="WORKER_EXITED"),
+                                 run=tmp_path, sleep=lambda _: None)
+    assert child.closed and observed["cleanup_confirmed"] is True and "resource_failure" not in observed
+    done = watchdog.finish_phase(result(), budget=None, lease=None, ledger=None, monitors={"gpu_monitor": Exploding()})
+    assert "monitor_failures" not in done and done["window_stop"] == "NO_LEASE_RESERVED"
+
+
+def test_lower_case_or_subclassed_detail_is_dropped():
+    class Sneaky(dict):
+        pass
+    assert watchdog.failure_detail(Sneaky(stage="PIDFD_POLL")) is None
+    assert watchdog.failure_detail({"stage": "deadbeefcafe0123", "reason": "token_abc"}) is None

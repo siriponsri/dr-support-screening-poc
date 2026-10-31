@@ -200,6 +200,37 @@ def stop_child(child, supervisor, *, clock=time.monotonic, sleep=time.sleep):
     return outcomes
 
 
+DETAIL_CODE = re.compile(r'[A-Z][A-Z0-9_]{0,63}')  # Fixed upper-case stage/reason codes only.
+CLASS_NAME = re.compile(r'[A-Za-z]{1,40}')
+FIXED_CODE = re.compile(r'[A-Z0-9_]{3,80}')
+
+
+def failure_detail(value):
+    """Allowlisted scalar cause only (stage, class, reason, errno); never messages, paths or payloads."""
+    if type(value) is not dict:
+        return None
+    patterns = {'stage': DETAIL_CODE, 'reason': DETAIL_CODE, 'exception_class': CLASS_NAME}
+    kept = {key: value[key] for key, pattern in patterns.items()
+            if type(value.get(key)) is str and pattern.fullmatch(value[key])}
+    if type(value.get('errno')) is int and 0 <= value['errno'] <= 4095:
+        kept['errno'] = value['errno']
+    return kept or None
+
+
+def safe_detail(owner, attribute):
+    """Never lets cause capture raise: it runs before cleanup and accounting."""
+    try:
+        return failure_detail(getattr(owner, attribute, None))
+    except Exception:
+        return None
+
+
+def error_code(error):
+    """The fixed refusal code a RuntimeError carries (for example CHILD_OBSERVATION_UNAVAILABLE)."""
+    text = str(error) if isinstance(error, RuntimeError) else ''
+    return text if FIXED_CODE.fullmatch(text) else None
+
+
 def run_case(spec, *, spawn, supervise, run, clock=time.monotonic, sleep=time.sleep):
     """One synthetic child under its own supervisor; returns the observation (never raises)."""
     observed = {'case': spec['case'], 'admitted': False}
@@ -218,7 +249,15 @@ def run_case(spec, *, spawn, supervise, run, clock=time.monotonic, sleep=time.sl
             sleep(.25)
     except BaseException as error:
         observed['error_class'] = type(error).__name__
+        observed['error_code'] = error_code(error)
     finally:
+        # Cause detail is read before cleanup, which may itself record a later stage.
+        for key, owner, attribute in (('supervisor_failure', supervisor, 'observation_failure'),
+                                      ('adapter_failure', child, 'observation_failure'),
+                                      ('resource_failure', resources, 'last_failure')):
+            detail = safe_detail(owner, attribute)
+            if detail is not None:
+                observed[key] = detail
         if child is not None:
             observed['cleanup'] = stop_child(child, supervisor, clock=clock, sleep=sleep)
             observed['cleanup_confirmed'] = all(observed['cleanup'].values())
@@ -279,6 +318,9 @@ def finish_phase(result, *, budget, lease, ledger, monitors):
         except BaseException:
             closed[name] = False
     result['monitors_closed'] = closed
+    failures = {name: safe_detail(monitor, 'failure_detail') for name, monitor in monitors.items()}
+    if any(failures.values()):
+        result['monitor_failures'] = {name: detail for name, detail in failures.items() if detail}
     # A case that never ran has nothing to clean; every spawned child must be confirmed reaped.
     result['cleanup_confirmed'] = all(closed.values()) and all(
         case.get('problems') == ['NOT_RUN'] or case.get('cleanup_confirmed') is True for case in result['cases'])
@@ -425,6 +467,7 @@ def watchdog(args):
         result['team_after'] = team_snapshot()
     except BaseException as error:
         result['error_class'] = type(error).__name__
+        result['error_code'] = error_code(error)
     finally:
         result['observed_seconds'] = round(time.monotonic() - started, 3)
         finish_phase(result, budget=budget, lease=lease, ledger=ledger,
@@ -436,7 +479,7 @@ def watchdog(args):
         print(json.dumps({'phase': 'STOPPED', 'status': result['status'],
                           'cases': {case['case']: case['passed'] for case in result['cases']},
                           **{key: result.get(key) for key in ('window_stop', 'ledger_close', 'gpu0_idle_after',
-                                                              'team_unchanged', 'error_class')}}), flush=True)
+                                                              'team_unchanged', 'error_class', 'error_code')}}), flush=True)
     return 0 if result['status'] == 'PASS' else 1
 
 
