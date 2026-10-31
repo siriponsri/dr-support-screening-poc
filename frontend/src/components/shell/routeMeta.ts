@@ -41,6 +41,10 @@ export const ROUTE_META: Record<string, RouteMeta> = {
     title: 'Settings',
     subtitle: 'Workspace, runtime, and clinician preferences',
   },
+  '/admin': {
+    title: 'Admin',
+    subtitle: 'Accounts and stored data',
+  },
 };
 
 export const DEFAULT_META: RouteMeta = {

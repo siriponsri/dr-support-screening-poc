@@ -126,3 +126,33 @@ def test_invalid_usernames_and_too_short_passwords_are_refused(tmp_path):
         store.set_user("A B", TEST_PASSWORD, role="user", must_change=True)
     with pytest.raises(AuthError):
         store.set_user("doctor3", "12", role="user", must_change=True)
+
+
+def test_the_admin_database_view_is_read_only_and_admin_only(tmp_path):
+    from types import SimpleNamespace
+    app, _ = app_with(tmp_path, ("admin", TEST_PASSWORD, "admin", False), ("doctor1", TEST_PASSWORD, "user", False))
+    stored = {"img1": {"image_id": "img1", "revision": 3, "reviewed_grade": 3, "grade_status": "CONFIRMED",
+                       "grade_review_source": "AI_CORRECTED", "annotations": [{"id": "a"}],
+                       "admission": {"retinal_modality": "UWF", "source_origin": "PUBLIC"},
+                       "inference_history": [{"task": "global", "model_id": "uspec-uwf-grading", "result": {"grade": 2}}]}}
+
+    class Store:
+        def all_cases(self):
+            return list(stored.values())
+
+        def get(self, image_id):
+            return stored[image_id]
+    app.state.store = Store()
+    app.state.workspace_manager = SimpleNamespace(active_workspace=SimpleNamespace(id="ws_1", name="TEST_ONLY pilot"))
+    doctor = TestClient(app)
+    doctor.post("/v1/auth/login", json={"username": "doctor1", "password": TEST_PASSWORD})
+    assert doctor.get("/v1/admin/db/summary").status_code == 403
+    admin = TestClient(app)
+    admin.post("/v1/auth/login", json={"username": "admin", "password": TEST_PASSWORD})
+    summary = admin.get("/v1/admin/db/summary").json()
+    assert summary["cases"] == 1 and summary["grade_corrected"] == 1 and summary["workspace"]["name"] == "TEST_ONLY pilot"
+    rows = admin.get("/v1/admin/db/cases", params={"limit": 500}).json()
+    assert rows["limit"] == 100 and rows["rows"][0]["ai_grade"] == 2 and rows["rows"][0]["clinician_grade"] == 3
+    assert admin.get("/v1/admin/db/cases/img1").json()["record"]["revision"] == 3
+    assert admin.get("/v1/admin/db/cases/missing").status_code == 404
+    assert admin.post("/v1/admin/db/cases/img1").status_code == 405

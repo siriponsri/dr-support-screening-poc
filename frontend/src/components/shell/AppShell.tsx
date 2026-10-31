@@ -18,6 +18,7 @@ import { Sidebar } from './Sidebar';
 import { SidebarDrawer } from './SidebarDrawer';
 import { AppHeader } from './AppHeader';
 import { useWorkspace } from './workspace';
+import { FadeIn } from './AuthGate';
 
 const SHELL_MIN_H = '100vh';
 
@@ -98,7 +99,8 @@ function ShellLayout() {
           <AppHeader />
         </GridItem>
         <GridItem area="main" minW={0}>
-          <Outlet key={caseWorkspaceKey} />
+          {/* Short fade between pages; off for reduced motion. */}
+          <FadeIn motionKey={pathname.split('/')[1] || 'home'}><Outlet key={caseWorkspaceKey} /></FadeIn>
         </GridItem>
         <GridItem
           area="footer"

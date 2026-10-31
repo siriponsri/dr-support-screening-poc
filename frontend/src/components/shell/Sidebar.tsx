@@ -26,7 +26,8 @@ import { BrandMark } from '@/components/common/BrandMark';
 import { sidebarScope } from '@/theme';
 import { SidebarNavList } from './SidebarNavList';
 import { WorkspaceCard } from './WorkspaceCard';
-import { PRIMARY_NAV, SECONDARY_NAV, type NavItem } from './navItems';
+import { ADMIN_NAV_ITEM, PRIMARY_NAV, SECONDARY_NAV, type NavItem } from './navItems';
+import { useAuth } from './AuthGate';
 import { useSidebarState } from './SidebarStateProvider';
 
 interface SidebarProps extends BoxProps {
@@ -48,9 +49,11 @@ export function Sidebar({
   collapsed: collapsedProp,
   onItemNavigate,
   primaryNav = PRIMARY_NAV.items,
-  secondaryNav = SECONDARY_NAV.items,
+  secondaryNav: secondaryNavProp = SECONDARY_NAV.items,
   ...rest
 }: SidebarProps) {
+  const { user } = useAuth();
+  const secondaryNav = user?.role === 'admin' ? [...secondaryNavProp, ADMIN_NAV_ITEM] : secondaryNavProp;
   const { collapsed: collapsedState } = useSidebarState();
   const collapsed = collapsedProp ?? collapsedState;
   const runtime = useRuntimeHealth();

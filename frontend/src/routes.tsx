@@ -8,6 +8,7 @@ import { AnnotationEditorPage } from '@/pages/AnnotationEditorPage';
 import { ClinicianReviewPage } from '@/pages/ClinicianReviewPage';
 import { ModelsPage } from '@/pages/ModelsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { AdminPage } from '@/pages/AdminPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { NavigationGuardProvider } from '@/components/shell/NavigationGuard';
 import { WorkspaceProvider } from '@/components/shell/workspace';
@@ -49,6 +50,7 @@ export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
           <Route path="/clinician-review/:imageId" element={<ClinicianReviewPage />} />
           <Route path="/models" element={<ModelsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>

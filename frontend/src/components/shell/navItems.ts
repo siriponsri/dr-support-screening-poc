@@ -15,6 +15,7 @@ import {
   Eye,
   ListChecks,
   Settings2,
+  Users,
   type LucideIcon,
 } from '@/lib/icons';
 
@@ -49,6 +50,9 @@ export const SECONDARY_NAV: NavSection = {
     { to: '/settings', label: 'Settings',       icon: Settings2 },
   ],
 };
+
+/** Shown under Administration only to a signed-in administrator. */
+export const ADMIN_NAV_ITEM: NavItem = { to: '/admin', label: 'Admin', icon: Users };
 
 /** Flat list of every navigation entry the shell exposes. */
 export const ALL_NAV_ITEMS: NavItem[] = [

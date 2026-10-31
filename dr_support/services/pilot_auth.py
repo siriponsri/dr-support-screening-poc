@@ -274,6 +274,8 @@ def install_pilot_auth(app, auth_file):
             raise HTTPException(400, str(error)) from None
         return {"users": store.list_users()}
 
+    from .pilot_admin import install_pilot_admin
+    install_pilot_admin(app, admin)
     return auth
 
 
