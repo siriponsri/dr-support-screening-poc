@@ -1,0 +1,15 @@
+{
+  "kind": "READ_ONLY_PINNED_LEGACY_LEDGER_REPLAY",
+  "sha256": "ebc4f23ac5b9d89f136ada7a36b08350ddacf186e338a50c0ea5ba6f5ba14d98",
+  "rows": 1423,
+  "intents": 476,
+  "jobs": 480,
+  "terminal_counts": {
+    "FAILED_NO_RETRY": 9,
+    "PASS_READBACK": 467,
+    "BLOCKED_PREMODEL": 4
+  },
+  "verifier": "batch_ledger._prior_batch",
+  "status": "PASS",
+  "current_service_lineage": "NOT_REPLAYED_REMOTE_ACCESS_UNAVAILABLE"
+}

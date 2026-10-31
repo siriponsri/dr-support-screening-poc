@@ -9,6 +9,10 @@ Commands (all fail closed; no ACL, credential, role or schema change):
   workspace --name NAME          create one new TEST_ONLY PostgreSQL workspace profile
   serve --workspace-id ID ...    own an SSH loopback tunnel to the host session, compose
                                  the reviewed workspace authority and serve the review app
+  serve-regular --workspace-id ID --workstation NAME ...
+                                 the same reviewed composition against the shared regular
+                                 Model API (control service on the host): every model call
+                                 waits for a scheduled ticket; adds the daily AI batch
   readback --workspace-id ID ... read the pending admission from the host STATUS, verify its
                                  persisted inference provenance in PostgreSQL and publish the
                                  trusted readback receipt to the host run directory
@@ -277,8 +281,10 @@ def create_workspace(name):
     return workspace_id
 
 
-def compose(workspace_id, prism_pins, model_port, token):
-    """Exact reviewed composition; preflight and recovery precede app construction."""
+def compose(workspace_id, prism_pins, model_port, token, regular_gate=None):
+    """Exact reviewed composition; preflight and recovery precede app construction.
+
+    With ``regular_gate`` the channel's transport adds scheduled tickets to charged calls."""
     import httpx
     from dr_support.api._factory import create_app
     from dr_support.persistence.entry_fence import PostgresEntryFence
@@ -286,8 +292,12 @@ def compose(workspace_id, prism_pins, model_port, token):
     from dr_support.providers.prism_workspace_remote import WorkspaceRemotePRISM, WorkspaceStatusReader
     from dr_support.services.m1_workspace_context import WorkspaceContextReader
     from dr_support.services.prism_workspace_authority import WorkspaceAuthority
+    transport = httpx.HTTPTransport(retries=0)
+    if regular_gate is not None:
+        from dr_support.services.regular_queue import RegularTransport
+        transport = RegularTransport(regular_gate, transport)
     channel = ExplicitHttpChannel(model_configuration(model_port)['REMOTE_MODEL_URL'],
-                                  transport=httpx.HTTPTransport(retries=0),
+                                  transport=transport,
                                   auth_headers=lambda *_: {'Authorization': 'Bearer ' + token})
     status_reader = WorkspaceStatusReader(channel)
     reader = WorkspaceContextReader(role_config=PLAN, database_name=DATABASE)
@@ -297,8 +307,11 @@ def compose(workspace_id, prism_pins, model_port, token):
     authority.recover()
     provider = WorkspaceRemotePRISM(channel, source_authority=authority, expected_pins=prism_pins)
     provider.negotiate()
+    if regular_gate is not None:
+        regular_gate.renegotiate = provider.negotiate
     app = create_app(include_samples=False, include_demo_fixtures=False, case_store_mode='postgres',
-                     workspace_id=workspace_id, workspace_authority=authority, workspace_prism_provider=provider)
+                     workspace_id=workspace_id, workspace_authority=authority, workspace_prism_provider=provider,
+                     regular_gate=regular_gate)
     return app, authority, channel
 
 
@@ -340,6 +353,56 @@ def serve(args):
         finally:
             authority.close()
             channel.close()
+    return 0
+
+
+REGULAR_BATCHES = PRIVATE_DIRECTORY / 'regular-batches'
+WORKSTATION = re.compile(r'[A-Za-z0-9_.:-]{1,120}')
+READY_WAIT_SECONDS = 300   # Child load is bounded at 240 s on the host.
+
+
+def wait_for_model_server(gate, *, clock=time.monotonic, sleep=time.sleep):
+    """Inside AI hours, ask the shared service to load and wait (bounded) for its child."""
+    status = gate.status()
+    require(not status.get('quarantined') and not status.get('revoked'), 'REGULAR_SERVICE_PAUSED_OPERATOR_CHECK')
+    require(status.get('ai_open') is True, 'OUTSIDE_AI_HOURS_USE_PREPARE_FOR_MANUAL_REVIEW')
+    deadline = clock() + READY_WAIT_SECONDS
+    while status.get('model_server') != 'READY':
+        require(clock() < deadline, 'MODEL_SERVER_DID_NOT_LOAD_IN_TIME')
+        gate.warm()
+        sleep(5)
+        status = gate.status()
+    return status
+
+
+def serve_regular(args):
+    require_remote_token_opt_in(getattr(args, 'allow_remote_token_read', False))
+    model_configuration(args.model_port)
+    require(isinstance(args.workstation, str) and WORKSTATION.fullmatch(args.workstation) is not None,
+            'SIMPLE_WORKSTATION_ID_REQUIRED')
+    import httpx
+    import uvicorn
+    from dr_support.services.regular_queue import RegularGate
+    prism_pins = json.loads(Path(args.prism_pins).read_bytes())
+    require(port_free(args.app_port), 'FREE_APP_PORT_REQUIRED')
+    token = host_token(allow_remote_token_read=args.allow_remote_token_read)
+    with owned_tunnel(args.model_port), session_environment(workspace_id=args.workspace_id,
+                                                            model_port=args.model_port, token=token):
+        os.environ['DR_SUPPORT_REGULAR_BATCH_DIR'] = str(REGULAR_BATCHES)
+        gate = RegularGate(model_configuration(args.model_port)['REMOTE_MODEL_URL'], token, args.workstation,
+                           transport=httpx.HTTPTransport(retries=0))
+        cancelled = gate.cancel_stale()
+        wait_for_model_server(gate)
+        app, authority, channel = compose(args.workspace_id, prism_pins, args.model_port, token, regular_gate=gate)
+        print(json.dumps({'phase': 'SERVING', 'url': f'http://127.0.0.1:{args.app_port}/app/',
+                          'workspace_id': args.workspace_id, 'profile': 'QA_SERVER_REGULAR',
+                          'workstation': args.workstation, 'stale_tickets_cancelled': cancelled}), flush=True)
+        try:
+            uvicorn.run(app, host='127.0.0.1', port=args.app_port, workers=1, access_log=False)
+        finally:
+            authority.close()
+            channel.close()
+            gate.close()
     return 0
 
 
@@ -460,7 +523,8 @@ def readback(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('command', choices=['diagnose', 'workspace', 'prepare', 'serve', 'readback'])
+    parser.add_argument('command', choices=['diagnose', 'workspace', 'prepare', 'serve', 'serve-regular',
+                                            'readback'])
     parser.add_argument('--allow-remote-token-read', action='store_true',
                         help='Only after owner approval: read the existing dr-train Model API token '
                              'over SSH into this Windows process memory. Disabled by default.')
@@ -471,6 +535,7 @@ def main(argv=None):
     parser.add_argument('--model-port', type=int, default=47860)
     parser.add_argument('--app-port', type=int, default=8010)
     parser.add_argument('--run')
+    parser.add_argument('--workstation', help='serve-regular: a simple, non-secret name for this app')
     args = parser.parse_args(argv)
     try:
         if args.command == 'diagnose':
@@ -480,6 +545,8 @@ def main(argv=None):
             return 0
         if args.command == 'prepare':
             return prepare(args)
+        if args.command == 'serve-regular':
+            return serve_regular(args)
         return serve(args) if args.command == 'serve' else readback(args)
     except SessionError as error:
         print(json.dumps({'status': 'REFUSED', 'code': str(error)}), file=sys.stderr)

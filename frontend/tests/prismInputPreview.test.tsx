@@ -164,6 +164,21 @@ describe('single Review UI preparation panel', () => {
     expect(screen.getByRole('button', { name: 'Submit prepared input to PRISM' })).toBeDisabled();
     expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   });
+  it('never invites a resend when the PRISM outcome is unknown', async () => {
+    const plan = { ...makePlan(), submission_binding_enforced: true };
+    const unknown = 'The PRISM result could not be confirmed and nothing was saved. Do not resend this image; the operator can check what happened. Manual review remains available.';
+    vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST'
+      ? ({ ok: false, status: 502, json: async () => ({ detail: unknown }) } as Response)
+      : ({ ok: true, arrayBuffer: async () => pngBytes.buffer.slice(0) } as Response));
+    render(<ChakraProvider>{node({ ...previewCase, prism_input_preview: plan })}</ChakraProvider>);
+    fireEvent.click(screen.getByRole('button', { name: 'Preview PRISM input' }));
+    await screen.findByAltText('Verified planned input preview');
+    fireEvent.click(screen.getByRole('checkbox', { name: /I inspected/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit prepared input to PRISM' }));
+    expect(await screen.findByText(unknown)).toBeInTheDocument();
+    expect(screen.queryByText(/Prepare a new receipt/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Prepare the input again to retry/)).not.toBeInTheDocument();
+  });
   it('prepares through the CPU route and verifies returned assets before enabling acknowledgement', async () => {
     const plan = { ...makePlan(), submission_binding_enforced: true };
     vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST'

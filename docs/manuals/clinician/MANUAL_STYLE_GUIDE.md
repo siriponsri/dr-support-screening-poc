@@ -35,33 +35,26 @@ Use sentence case in prose. Preserve the capitalization of buttons, fields, tabs
 
 ## Screenshot rules
 
-Capture the final UI only, with public or synthetic data. The committed screenshots are v0.7.0 captures; the earlier capture scripts were removed from `main` in `ec74af8`, so a re-capture needs a script written against the current UI (for example Playwright against `python -m dr_support.run` with a synthetic Workspace). Prefer a locator or bounded region over a full-page screenshot. Keep the retinal image and the control being described visible. Crop long lists to a readable header and representative rows. Do not capture PHI, tokens, private paths, raw DICOM identifiers, or development panels. Each figure needs a concise caption and a nearby procedural reference.
+Capture the final UI only, with public or synthetic data. Re-capture with `python scripts/docs/capture_manual_screenshots.py --out local-state/manual-capture` (it starts its own throwaway app with a Workspace of the ten pinned public HRF samples, uses the installed Microsoft Edge, and writes PNGs for review before they are copied here). Prefer a locator or bounded region over a full-page screenshot. Keep the retinal image and the control being described visible. Crop long lists to a readable header and representative rows. Do not capture PHI, tokens, private paths, raw DICOM identifiers, or development panels. Each figure needs a concise caption and a nearby procedural reference.
 
 ## Screenshots pending refresh
 
-The text was updated to the M1 UI on 2026-10-25, but most screenshots are still v0.7.0 captures and no longer match it. They stay referenced until they are re-captured. Never capture them from the hospital instance: it holds consented hospital images that must not be committed. Re-capture from a synthetic or public-sample Workspace (`python -m dr_support.run` with a synthetic Workspace), then rebuild the PDF.
+Re-captured on 2026-10-26 from the synthetic public-sample instance with the script above: `01-worklist`, `02-confirm-image`, `03-review-overview`, `05-confirm-dr-grade`, `06-dr-grade-recorded` (the toast and the Annotation Editor with Grading complete, which is the current flow), `07-annotation-editor`, `13-reviewer-default` (bounded to the preference block; the Workspace card shows local paths), `14-dataset-summary`, `14-dataset-readiness` and `19-case-complete`. The synthetic instance has no model connection, so `03-review-overview` shows AI UNAVAILABLE and manual review only, not AI READY.
+
+Still pending (they need a model connection or a staged state the script does not create yet). Never capture them from the hospital instance: it holds consented hospital images that must not be committed.
 
 | File | Why it no longer matches | What the new capture should show |
 |:-----|:-------------------------|:---------------------------------|
 | `images/clinician-workflow.png` / `.svg` | Middle-dot separators; "Confirm DR Grade" and "Confirm Annotation" labels; "Confirm Image starts again". | Same eight steps with ":" or "/" separators, "Confirm DR grade", "Finish image & next", and "Next unfinished image". |
-| `01-worklist.png` | Old sidebar groups; "N cases - N need attention"; Result shows AI grade; Review shows Review complete / Pending review. | Quick filter chips All / Not started / In progress / Done with counts, "N cases shown", Result with a clinician grade and "AI ready", Review with Not started / In progress / Done and a next step. Optional second capture: Done selected with the Final grade row. |
 | (new) Quick look | Not captured yet. | Quick look panel for a done case: large image, AI suggestions and Clinician findings switches, final grade, findings, reviewer, Open review. |
-| `02-confirm-image.png` | No image beside the fields, no image quality choice, full reviewer field. | Dialog with the retinal image on the left; Image type, Patient, Eye summaries; Image quality (optional) Usable / Not usable; "Reviewer: name" with Change. |
-| `03-review-overview.png` | Old viewer modes and technical details on the page; sidebar expanded. | Sidebar collapsed; viewer modes Original / AI evidence / More views; Analysis with AI READY; DR assessment with "AI: RETFound (CFP grading)"; Processing details collapsed. |
 | `04-ai-controls.png` | "Show AI suggestions" switch and middle-dot lesion filter labels. | AI evidence selected, lesion filter with "MA: Microaneurysm" style options, and "Active overlays N of M raw AI suggestions". |
 | (new) PRISM quality gate | Not captured yet. | Preview PRISM input opened on an image without confirmed quality: "Confirm image quality before using PRISM." with Image quality acceptable. |
-| `05-confirm-dr-grade.png` | Grade dropdown and "Confirm DR Grade". | Grade buttons 0-4 and U with one selected, Grade guide, "Reviewer: name", Confirm DR grade, Can't finalize this case. |
-| `06-dr-grade-recorded.png` | "DR grade confirmed" heading and middle-dot toast. | Grading complete card with grade, reviewer, confirmed at, Continue to Annotation Editor, Edit confirmed grade. |
-| `07-annotation-editor.png` | Old Finish label; sidebar expanded. | Sidebar collapsed; Review findings toolbar; Complete review panel with the Finish label for the case shown. |
 | `08-roi-popover.png` | Overlay label uses a middle dot. | Selected AI ROI labelled `HE 0.55` with the AI suggestion card. |
 | `09-roi-corrected.png` | Old corrected-label format. | Corrected ROI labelled `EX: clinician corrected` and a human box labelled `Human: HE`. |
 | `10-navigation-hint.png` | Old third body line. | "Switch to another image?" with "Unconfirmed work will still need your attention." |
 | `11-draft-status.png` | Shows the removed Save draft button. | Draft status line only ("N human annotations" and "Draft saved"). |
 | `12-confirm-annotation.png` | Old Finish label. | Complete review panel with "Finish: no findings added (N AI suggestions not accepted)" or "Finish image & next". |
-| `13-reviewer-default.png` | "Show next action hints" checkbox. | Review preferences with Default reviewer and the Guide mode checkbox. |
-| `14-dataset-summary.png` | Old "Dataset manifest" summary and Lesion-ready tab. | Workspace Data header (Workspace, records, digest), filters, and tabs All / DR-ready / Lesion-positive ready / Needs review / Excluded. |
-| `14-dataset-readiness.png` | Old table columns. | DR-ready tab with DR label, Lesion labels, Completeness, Source, and Details columns. |
-| `19-case-complete.png` | Middle-dot toast, old Worklist, old Confirm Image dialog. | After Finish: the Worklist notice "Case complete. Opening the next Worklist image." behind the next image's new Confirm Image dialog. |
+| `03-review-overview.png` (AI state) | Captured without a model connection. | Same view with AI READY and "AI: RETFound (CFP grading)" from a synthetic model connection. |
 
 `15-export-success.png`, `16-models-audit.png`, `17-edit-grade-warning.png`, and `18-edit-annotations-warning.png` still match the current UI.
 

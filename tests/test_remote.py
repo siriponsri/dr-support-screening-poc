@@ -593,7 +593,8 @@ def test_api_returns_504_when_remote_times_out(monkeypatch):
                            json={'image_id': FIXTURE_IMAGE.image_id,
                                  'model_id': 'retfound-aptos5'})
     assert response.status_code == 504
-    assert 'timeout' in response.json()['detail'].lower()
+    detail = response.json()['detail']
+    assert 'did not reply in time' in detail and 'unknown' in detail and 'REMOTE_MODEL_URL' not in detail
 
 
 def test_api_returns_502_when_remote_returns_non_2xx(monkeypatch):
@@ -617,7 +618,7 @@ def test_api_returns_502_when_remote_returns_non_2xx(monkeypatch):
                            json={'image_id': FIXTURE_IMAGE.image_id,
                                  'model_id': 'retfound-aptos5'})
     assert response.status_code == 502
-    assert 'Remote model error' in response.json()['detail']
+    assert 'refused or could not complete' in response.json()['detail']
 
 
 def test_api_returns_502_when_remote_returns_malformed_payload(monkeypatch):

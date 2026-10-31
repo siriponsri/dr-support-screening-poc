@@ -4,7 +4,9 @@ Routes the clinician UI, cases, review state, CVAT integration, and the
 inference dispatcher, which routes to local providers or the remote proxy.
 """
 import hmac
+import logging
 import os
+import time
 from copy import deepcopy
 from datetime import datetime, timezone
 from functools import wraps
@@ -37,12 +39,17 @@ from dr_support.contracts import (
 from dr_support.providers.mock import infer_mock
 from dr_support.providers.prism import PRISM
 from dr_support.providers.remote import (
+    RemoteAuthorizationError,
+    RemoteConnectionLostError,
     RemoteGlobalProvider,
+    RemoteHTTPError,
     RemoteLesionProvider,
     RemoteModelError,
     RemoteNotConfiguredError,
     RemoteModelProvider,
+    RemoteSchemaError,
     RemoteTimeoutError,
+    RemoteUnreachableError,
     provider_from_descriptor,
 )
 from dr_support.runtime import runtime_snapshot
@@ -182,6 +189,159 @@ def _workspace_composition(function):
     return composed
 
 
+_MANUAL = ' Manual review remains available.'
+_UNKNOWN = ' The result is unknown and nothing was saved. Do not resend this image now.'
+# Remote grading failures in plain words. "Not sent" is used only when no connection was made.
+REMOTE_FAILURE_WORDING = {
+    RemoteUnreachableError: (503, 'The model server could not be reached, so the image was not sent.' + _MANUAL),
+    RemoteTimeoutError: (504, 'The model server did not reply in time.' + _UNKNOWN + _MANUAL),
+    RemoteConnectionLostError: (502, 'The connection to the model server was lost before a reply.' + _UNKNOWN + _MANUAL),
+    RemoteHTTPError: (502, 'The model server refused or could not complete this request. Nothing was saved.' + _MANUAL),
+    RemoteSchemaError: (502, "The model server's reply could not be verified, so nothing was saved." + _MANUAL),
+    RemoteAuthorizationError: (409, "This image's source is not approved for sending to the model server." + _MANUAL),
+    RemoteModelError: (502, 'The model server request failed. Nothing was saved.' + _MANUAL),
+}
+
+
+def install_regular_routes(app, gate, infer, workspace_id):
+    """Shared-queue status and the daily AI batch; only for the owned regular session."""
+    from ..services.prism_preview import PreviewSubmitRequest
+    from ..services.regular_batch import GRADER_MODELS, BatchRunner, BatchStore, PrismPrepareRefused
+    from ..services.regular_queue import WORDING, RegularQueueError
+    directory = (os.environ.get('DR_SUPPORT_REGULAR_BATCH_DIR') or '').strip()
+    if not directory or not Path(directory).is_absolute():
+        raise ValueError('The regular session requires an absolute private batch directory')
+
+    def stage_for(image_id):
+        admission = app.state.admissions.get(image_id)
+        if (admission is None or not is_inference_eligible(admission)
+                or not source_allowed_for_model(admission.get('source_origin', 'UNKNOWN'))):
+            return None
+        model_id = GRADER_MODELS.get(admission.get('retinal_modality'))
+        return (model_id, admission['retinal_modality']) if model_id in app.state.providers else None
+
+    def has_result(image_id, task):
+        try:
+            case = app.state.store.get(image_id)
+        except Exception:
+            return False
+        models = set(GRADER_MODELS.values()) if task == 'global' else {'prism-dr-5fold'}
+        return any(item.get('task') == task and item.get('model_id') in models and isinstance(item.get('result'), dict)
+                   for item in case.get('inference_history', []))
+
+    def run_grader(image_id, model_id, modality, invocation_id):
+        infer(InferenceRequest(image_id=image_id, modality=modality, model_id=model_id), 'global',
+              invocation_id=invocation_id)
+
+    def run_prism(image_id):
+        """The existing one-use receipt path: prepare for the current revision, submit exactly that receipt."""
+        service = app.state.prism_preview
+        revision = app.state.store.get(image_id)['revision']
+        try:
+            receipt = service.prepare(image_id, revision)
+        except HTTPException as refusal:
+            raise PrismPrepareRefused(refusal.status_code, str(refusal.detail)) from None
+        service.submit(image_id, receipt['plan_id'], PreviewSubmitRequest(
+            revision=revision, source_sha256=receipt['source_sha256'], wire_sha256=receipt['wire_sha256'],
+            plan_sha256=receipt['plan_sha256'], mask_sha256=receipt['mask']['sha256'],
+            transform_sha256=receipt['transform']['sha256'], model_version=receipt['model_version']))
+
+    def queue_open():
+        try:
+            status = gate.public_status()
+        except RegularQueueError:
+            return False
+        return bool(status['ai_open'] and status['invocations_available'] and not status['quarantined'])
+
+    runner = BatchRunner(
+        BatchStore(Path(directory) / workspace_id), workspace_id=workspace_id, stage_for=stage_for,
+        has_result=has_result, run_grader=run_grader, run_prism=run_prism, queue_open=queue_open,
+        deferred_details=set(WORDING.values()) | {
+            REMOTE_FAILURE_WORDING[RemoteUnreachableError][1],
+            'AI analysis is not available; manual review remains available.',
+            # PRISM receipt refusals raised before the call is sent (the case changed under the receipt).
+            'Case changed before preview preparation.', 'Preview is stale; prepare a new input plan.',
+            'Workspace changed; prepare a new preview.', 'Preview changed before provider execution.'})
+    app.state.regular_batches = runner
+
+    @app.on_event('startup')
+    def start_regular_batches():
+        runner.start()
+
+    @app.on_event('shutdown')
+    def stop_regular_batches():
+        runner.stop()
+
+    @app.get('/v1/regular/status')
+    def regular_status():
+        try:
+            return gate.public_status()
+        except RegularQueueError as error:
+            raise HTTPException(503, error.message) from None
+
+    @app.get('/v1/batches')
+    def list_batches():
+        return {'batches': runner.list()}
+
+    @app.post('/v1/batches')
+    def create_batch(request: dict):
+        image_ids = request.get('image_ids') if isinstance(request, dict) else None
+        if request.get('all_ready') is True:
+            image_ids = [image_id for image_id in app.state.admissions
+                         if stage_for(image_id) is not None
+                         and not (has_result(image_id, 'global') and has_result(image_id, 'lesion-roi'))]
+            if not image_ids:
+                raise HTTPException(409, 'No confirmed image is waiting for AI analysis.')
+        try:
+            return runner.create(image_ids if isinstance(image_ids, list) else [])
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+
+    @app.post('/v1/batches/{batch_id}/cancel')
+    def cancel_batch(batch_id: str):
+        try:
+            return runner.cancel(batch_id)
+        except (KeyError, OSError):
+            raise HTTPException(404, 'Batch not found.') from None
+
+
+class OwnedReachability:
+    """Live reachability of the owned M1 model route, checked at most once per ``ttl`` seconds.
+
+    The check (health and model list) reuses the session's backend-held token and never
+    returns it, never swaps the owned provider or endpoint, never enters a writer scope and
+    never loads or runs a model. Any failure, including an unexpected one, means unreachable.
+    """
+
+    def __init__(self, check, *, clock=time.monotonic, ttl=5.0):
+        self.check, self.clock, self.ttl = check, clock, ttl
+        self.lock = RLock()
+        self.checked = None
+        self.reachable = False
+
+    def __call__(self):
+        with self.lock:
+            now = self.clock()
+            if self.checked is not None and 0 <= now - self.checked < self.ttl:
+                return self.reachable
+            try:
+                live = self.check()
+                self.reachable = bool(live.server_reachable and live.connection_verified)
+            except Exception:
+                self.reachable = False
+            self.checked = self.clock()
+            return self.reachable
+
+
+def owned_status_probe(models, reachable):
+    """Status for the owned M1 session: identity fixed at start, reachability live."""
+    if reachable:
+        return ModelGatewayProbe(True, True, True, True, 'CONNECTED',
+                                 'Connected to the model server. Each result is checked when it is saved.', models)
+    return ModelGatewayProbe(False, True, False, False, 'UNAVAILABLE',
+                             'The model server is not reachable right now. Manual review remains available.', models)
+
+
 @_workspace_composition
 def create_app(
     state_path=None,
@@ -195,6 +355,7 @@ def create_app(
     source_mutation_gate=None,
     workspace_authority=None,
     workspace_prism_provider=None,
+    regular_gate=None,
 ):
     # Reject an invalid private boundary before creating stores or migrating DBs.
     # Availability is deliberately not checked here: review remains usable offline.
@@ -225,7 +386,8 @@ def create_app(
             raise ValueError('The owned session requires an existing PostgreSQL workspace profile')
         # USPEC/RETFound grading stays on the existing remote providers. One
         # authenticated discovery against the owned endpoint/token happens at
-        # composition; later status GETs reuse it and never probe.
+        # composition and fixes the model identity; later status GETs only recheck
+        # reachability (workspace_reachable) and never change that identity.
         workspace_global_probe = probe_model_connection(
             deployment.model_endpoint, os.environ.get('REMOTE_MODEL_TOKEN') or None,
         )
@@ -252,6 +414,14 @@ def create_app(
     app.add_middleware(BodyLimitMiddleware)
     app.state.source_mutation_gate = source_mutation_gate
     app.state.workspace_authority = workspace_authority
+    app.state.regular_gate = regular_gate
+    if regular_gate is not None:
+        import httpx
+        from ..services.regular_queue import RegularGate, RegularTransport
+        if type(regular_gate) is not RegularGate or workspace_authority is None:
+            raise ValueError('The regular queue requires the owned workspace session')
+        # Global grading providers send through the same ticketed transport as PRISM.
+        app.state.model_gateway_transport = RegularTransport(regular_gate, httpx.HTTPTransport(retries=0))
     root = Path(__file__).resolve().parents[2]
 
     if qa_fixed_session is not None:
@@ -651,13 +821,13 @@ def create_app(
             descriptor = summary[0]
         except (ValueError, RuntimeError, AttributeError):
             raise HTTPException(409, 'The model session changed. Stop and restart with the approved configuration.') from None
-        # Identity was authenticated at session start; live reachability is
-        # not polled, so it is never reported as CONNECTED/reachable here.
-        # A request to an unavailable Model API fails safely at dispatch.
-        return ModelGatewayProbe(False, True, True, True, 'UNVERIFIED',
-            'Model identity was authenticated at session start; live availability is not polled '
-            'and inference is not verified.',
-            (*workspace_global_descriptors, descriptor))
+        # Model identity stays the one authenticated at session start; only reachability is
+        # rechecked live, so a dropped or restored link shows truthfully.
+        return owned_status_probe((*workspace_global_descriptors, descriptor), workspace_reachable())
+
+    # Authenticated control-plane check over the owned route with the backend-held token.
+    workspace_reachable = OwnedReachability(
+        lambda: probe_model_connection(deployment.model_endpoint, owned_connection_token))
 
     owned_connection_token = app.state.model_connection.token if workspace_authority is not None else None
 
@@ -738,13 +908,13 @@ def create_app(
     def model_connection():
         connection = getattr(app.state, 'model_connection', None)
         probe = refresh_remote_state() if connection is not None else None
-        return response_payload(connection, probe=probe)
+        return response_payload(connection, probe=probe, managed_by_operator=workspace_authority is not None)
 
     @app.post('/v1/model-connection/test', response_model=ModelConnectionResponse)
     def test_model_connection(request: ModelConnectionInput):
         if workspace_authority is not None:
             owned_connection(request)
-            return response_payload(app.state.model_connection, probe=workspace_cached_probe())
+            return response_payload(app.state.model_connection, probe=workspace_cached_probe(), managed_by_operator=True)
         try:
             connection = ModelConnection(request.name, request.url, request.token)
         except DeploymentProfileError as exc:
@@ -760,7 +930,7 @@ def create_app(
                 candidate = owned_connection(request)
                 probe = workspace_cached_probe()
                 app.state.model_connection = candidate
-                return response_payload(candidate, probe=probe)
+                return response_payload(candidate, probe=probe, managed_by_operator=True)
         previous = getattr(app.state, 'model_connection', None)
         token = request.token
         if token is None and previous is not None and previous.url == request.url:
@@ -957,6 +1127,9 @@ def create_app(
             )
             if qa_batch_profile is not None:
                 qa_batch_profile.claim(request, image, admission)
+            from ..services.regular_queue import PAIR_KEY
+            # Per-call context (request thread or batch worker): pairs this image's grader and PRISM holds.
+            PAIR_KEY.set(analysis_derivative.lineage.source_sha256)
             with inference_lock:
                 if (
                     isinstance(provider, RemoteModelProvider)
@@ -1011,12 +1184,17 @@ def create_app(
                 409,
                 'A safe analysis representation is not available for this source. Review it manually or use a supported image.',
             ) from None
-        except RemoteTimeoutError:
-            raise HTTPException(504, 'Remote model timeout; inspect REMOTE_MODEL_URL and runtime latency') from None
         except RemoteNotConfiguredError:
             raise HTTPException(503, 'AI analysis is not available.') from None
         except RemoteModelError as exc:
-            raise HTTPException(502, f'Remote model error: {exc}') from None
+            # Plain clinician wording only; the class goes to the operator log. A reply that may
+            # have been processed is never described as "not sent".
+            logging.getLogger(__name__).warning('Remote inference refused: %s', type(exc).__name__)
+            from ..services.regular_queue import RegularQueueError
+            if isinstance(exc, RegularQueueError):
+                raise HTTPException(503, exc.message) from None
+            status, detail = REMOTE_FAILURE_WORDING.get(type(exc), REMOTE_FAILURE_WORDING[RemoteModelError])
+            raise HTTPException(status, detail) from None
         except MutationFenced:
             raise
         except (RuntimeError, ValueError, KeyError, OSError, ImportError):
@@ -1287,6 +1465,9 @@ def create_app(
                 status_code=503,
             )
     app.state.infer = infer
+    app.state.regular_batches = None
+    if regular_gate is not None:
+        install_regular_routes(app, regular_gate, infer, workspace_id)
     if qa_batch_profile is not None:
         qa_batch_profile.bind(app)
     if qa_fixed_session is not None:

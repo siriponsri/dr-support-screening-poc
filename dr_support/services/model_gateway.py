@@ -261,6 +261,7 @@ def response_payload(
     connection: ModelConnection | None,
     *,
     probe: ModelGatewayProbe | None = None,
+    managed_by_operator: bool = False,
 ) -> dict[str, Any]:
     """Build the public connection payload without ever including the token."""
 
@@ -296,4 +297,5 @@ def response_payload(
         "connection_verified": current.connection_verified,
         "capabilities_ready": current.capabilities_ready,
         "models": list(current.models),
+        "managed_by_operator": managed_by_operator,
     }

@@ -1,0 +1,61 @@
+{
+  "completed_utc": "2026-10-31T01:36:32.596040+00:00",
+  "scope": "READ_ONLY_AUDIT_PLUS_ISOLATED_OFFLINE_TESTS",
+  "snapshot": "SNAPSHOT.json",
+  "focused": {
+    "junit_file": "focused-tests.xml",
+    "passed": 50,
+    "skipped": 0,
+    "xfailed": 4,
+    "failed": 0,
+    "errors": 0,
+    "error_or_failure_tests": []
+  },
+  "full_backend": {
+    "junit_file": "backend-tests-elevated.xml",
+    "passed": 2139,
+    "skipped": 68,
+    "xfailed": 4,
+    "failed": 0,
+    "errors": 1,
+    "error_or_failure_tests": [
+      "tests.test_m1_service_session::test_an_operation_keeping_its_old_window_is_refused"
+    ]
+  },
+  "fresh_fixture_service_diagnostic": {
+    "junit_file": "service-diagnostic.xml",
+    "passed": 27,
+    "skipped": 0,
+    "xfailed": 0,
+    "failed": 0,
+    "errors": 0,
+    "error_or_failure_tests": []
+  },
+  "full_backend_exit_code": 1,
+  "diagnostic_exit_code": 0,
+  "full_backend_seconds": 364.69,
+  "service_diagnostic_seconds": 94.38,
+  "full_backend_error_reason": "Synthetic fixture os.replace JOURNAL_HEAD.pending -> JOURNAL_HEAD.json: PermissionError WinError 5; cause not established",
+  "ruff_dr_support_tests": "PASS",
+  "root_node_overlay": "PASS",
+  "root_node_api_hardening": "PASS",
+  "documentation_checker": "PASS (154 Markdown/Quarto sources)",
+  "initial_full_backend_attempt": "COLLECTION_ERROR: sandbox denied cv2/config.py; no packages changed",
+  "not_newly_run": [
+    "frontend tests/typecheck/build",
+    "root UI smoke",
+    "browser",
+    "live PostgreSQL",
+    "inference",
+    "GPU workloads",
+    "restart/reboot",
+    "installation launch",
+    "guarded restore",
+    "hospital target"
+  ],
+  "source_implementation_edits": false,
+  "quota_or_window_changes": false,
+  "deploy_push_merge": false,
+  "new_inference_requests": 0,
+  "private_secret_values_or_patient_payloads_read": false
+}
