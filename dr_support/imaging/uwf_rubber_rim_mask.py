@@ -1,4 +1,5 @@
-"""Mask A for PRISM UWF input: remove only the device's rubber rim (owner-approved 2026-10-31).
+"""Mask A2 for PRISM UWF input: remove only the device's rubber rim (A owner-approved 2026-10-31; A2, which
+also removes the dim outer rim band, owner-approved the same day after a visual check on 31 images).
 
 Goal for phase 1: PRISM should not label the yellow-green rubber eyecup rim in
 Optos UWF images. Everything else, including dark peripheral retina, the optic
@@ -10,6 +11,11 @@ and low in blue, and it must belong to a large region touching the outer edge
 of the picture area. The kept area is the picture area minus that rim, the
 largest connected part, with enclosed holes filled. Deterministic and CPU only;
 no anatomy segmentation and no model.
+
+A2 adds the dim outer band: pixels greener than this image's own central retina
+(green/red above its 95th percentile, at least 0.8), low in blue, close to the
+bright rim, close to the dark frame (the outer side; retina lies on the inner
+side) and connected to the bright rim.
 """
 from __future__ import annotations
 
@@ -27,7 +33,7 @@ except ImportError:  # OpenCV is an optional extra on non-inference workstations
     cv2 = None
     np = None
 
-MASK_A_VERSION = "uwf_rubber_rim_colour_a_v1"
+MASK_A_VERSION = "uwf_rubber_rim_colour_a2_v1"   # A2; the name is kept so every pin imports one value.
 _WORKING_SIDE = 960
 _MIN_KEPT, _MAX_KEPT = 0.10, 0.999
 
@@ -64,8 +70,31 @@ def rim_pixels(rgb):
     return cv2.dilate(rim.astype(np.uint8), np.ones((7, 7), np.uint8), iterations=1).astype(bool), picture.astype(bool)
 
 
+def dim_rim(rgb, rim, picture):
+    """The dim outer rim band grown from the bright rim, on the frame side only."""
+    r, g, b = (rgb[..., index].astype(np.float32) for index in range(3))
+    h, w = rim.shape
+    centre = np.zeros_like(rim)
+    centre[h // 4: 3 * h // 4, w // 4: 3 * w // 4] = True
+    centre &= picture & ~rim & (g > 10)
+    reference = float(np.percentile(g[centre] / np.maximum(r[centre], 1), 95)) if centre.any() else 1.0
+    candidate = picture & (g > 20) & (g >= max(0.8, 1.05 * reference) * r) & (b <= 0.35 * g)
+    candidate &= cv2.distanceTransform((~rim).astype(np.uint8), cv2.DIST_L2, 3) <= 0.06 * max(h, w)
+    # Frame = wide dark background reaching the image edge; thin dark lines inside the picture do not count.
+    dark = cv2.morphologyEx((~picture).astype(np.uint8), cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
+    count, labels = cv2.connectedComponents(np.pad(dark, 1, constant_values=1), connectivity=8)
+    frame = labels == labels[0, 0]
+    candidate &= cv2.distanceTransform((~frame).astype(np.uint8), cv2.DIST_L2, 3)[1:-1, 1:-1] <= 0.035 * max(h, w)
+    count, labels = cv2.connectedComponents((candidate | rim).astype(np.uint8), connectivity=8)
+    touching = np.unique(labels[rim])
+    grown = np.isin(labels, touching[touching > 0]) & ~rim
+    return cv2.dilate(grown.astype(np.uint8), np.ones((5, 5), np.uint8)).astype(bool)
+
+
 def kept_area(rgb):
     rim, picture = rim_pixels(rgb)
+    if rim.any():
+        rim = rim | dim_rim(rgb, rim, picture)
     keep = (picture & ~rim).astype(np.uint8)
     keep = cv2.morphologyEx(keep, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8), iterations=1)
     count, labels, stats, _ = cv2.connectedComponentsWithStats(keep, 8)

@@ -1,4 +1,4 @@
-"""Mask A (rubber rim only) on synthetic UWF-like pictures: no clinical claim, geometry and colour rules only."""
+"""Mask A2 (rubber rim only, including its dim outer band) on synthetic UWF-like pictures: no clinical claim, geometry and colour rules only."""
 import numpy as np
 from PIL import Image, ImageDraw
 
@@ -8,7 +8,8 @@ from dr_support.imaging.uwf_white_rim_fov import FovStatus
 W, H = 640, 300
 
 
-def picture(rim_colour=(210, 230, 40), retina=(140, 60, 20), spot=None, full_width=False):
+def picture(rim_colour=(210, 230, 40), retina=(140, 60, 20), spot=None, full_width=False, dim_band=False,
+            inner_wedge=False):
     image = Image.new("RGB", (W, H), (0, 0, 0))
     draw = ImageDraw.Draw(image)
     if full_width:
@@ -19,8 +20,15 @@ def picture(rim_colour=(210, 230, 40), retina=(140, 60, 20), spot=None, full_wid
     else:
         # Round picture area (x 140 to 500) with a rubber rim crescent outside it on the right (x 500 to 530).
         draw.ellipse((140, 10, 500, 290), fill=retina)
+        if dim_band:
+            # Dim outer rim band between the bright rim and the frame (visible at x 530 to 545).
+            draw.ellipse((430, 15, 545, 285), fill=(57, 74, 1))
         draw.ellipse((430, 20, 530, 280), fill=rim_colour)
         draw.ellipse((405, 35, 495, 265), fill=retina)
+        if inner_wedge:
+            # Dark greenish peripheral retina on the inner side of the rim, partly behind a thin black line.
+            draw.ellipse((460, 110, 494, 190), fill=(45, 60, 5))
+            draw.rectangle((494, 140, 496, 160), fill=(0, 0, 0))
     if spot:
         draw.ellipse(spot, fill=(230, 200, 60))   # Yellow lesion-like spot inside the retina.
     return image
@@ -56,6 +64,17 @@ def test_a_kept_area_that_cuts_into_the_picture_scores_low():
     keep = np.zeros((100, 100), bool)
     keep[30:70, 30:70] = True   # Not next to any rim or frame.
     assert boundary_support(keep, np.zeros((100, 100), bool), picture_area) == 0.0
+
+
+def test_the_dim_outer_rim_band_is_removed_too():
+    fov = detect_rubber_rim_mask(picture(dim_band=True))
+    assert fov.status == FovStatus.READY and not kept(fov, 538, 150) and kept(fov, 320, 150)
+
+
+def test_dark_greenish_retina_on_the_inner_side_of_the_rim_is_kept():
+    # A thin dark line inside the picture is not the frame, so the inner side is never grown into.
+    fov = detect_rubber_rim_mask(picture(dim_band=True, inner_wedge=True))
+    assert kept(fov, 478, 150) and kept(fov, 470, 125) and not kept(fov, 538, 150)
 
 
 def test_yellow_spots_inside_the_retina_are_never_masked():
