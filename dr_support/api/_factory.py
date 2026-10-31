@@ -697,6 +697,12 @@ def create_app(
             return JSONResponse({'detail': 'Cross-origin mutation rejected'}, status_code=403)
         return await call_next(request)
 
+    auth_file = (os.environ.get('DR_SUPPORT_AUTH_FILE') or '').strip()
+    if auth_file:
+        # Physician UX pilot sign-in; without the variable the app is unchanged.
+        from ..services.pilot_auth import install_pilot_auth
+        install_pilot_auth(app, auth_file)
+
     runtime = (os.environ.get('MODEL_RUNTIME') or 'local').strip().lower()
     if qa_fixed_session is not None:
         app.state.remote_runtime = False

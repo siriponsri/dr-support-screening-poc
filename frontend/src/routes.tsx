@@ -12,6 +12,7 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
 import { NavigationGuardProvider } from '@/components/shell/NavigationGuard';
 import { WorkspaceProvider } from '@/components/shell/workspace';
 import { LocalTimingObserver } from '@/components/shell/LocalTimingObserver';
+import { AuthGate } from '@/components/shell/AuthGate';
 
 interface AppRoutesProps {
   /** Test-only viewport override — see AppShell. */
@@ -35,7 +36,7 @@ interface AppRoutesProps {
  */
 export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
   return (
-    <NavigationGuardProvider><WorkspaceProvider>
+    <AuthGate><NavigationGuardProvider><WorkspaceProvider>
       <LocalTimingObserver />
       <Routes>
         <Route element={<AppShell forceTier={forceTier} />}>
@@ -51,6 +52,6 @@ export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
-    </WorkspaceProvider></NavigationGuardProvider>
+    </WorkspaceProvider></NavigationGuardProvider></AuthGate>
   );
 }

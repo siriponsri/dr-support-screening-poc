@@ -362,6 +362,7 @@ def serve(args):
 
 
 REGULAR_BATCHES = PRIVATE_DIRECTORY / 'regular-batches'
+PILOT_USERS = PRIVATE_DIRECTORY / 'pilot-users.json'
 WORKSTATION = re.compile(r'[A-Za-z0-9_.:-]{1,120}')
 READY_WAIT_SECONDS = 300   # Child load is bounded at 240 s on the host.
 
@@ -415,6 +416,8 @@ def serve_regular(args):
                                                             model_port=args.model_port, token=token,
                                                             public_samples=public):
         os.environ['DR_SUPPORT_REGULAR_BATCH_DIR'] = str(REGULAR_BATCHES)
+        # Pilot sign-in: hashed users in the private folder (set up with `python -m dr_support.services.pilot_auth`).
+        os.environ['DR_SUPPORT_AUTH_FILE'] = str(PILOT_USERS)
         if demo is not None:
             # The app's demo path admits the folder's top-level images as PUBLIC, instead of the pinned samples.
             os.environ['DR_DEMO_FOLDER'] = str(demo)
