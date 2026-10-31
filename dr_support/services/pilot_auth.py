@@ -26,7 +26,35 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 COOKIE = "dr_session"
-ROLES = {"admin", "user"}
+ROLES = {"admin", "physician", "nurse", "expert", "researcher"}
+LEGACY_ROLES = {"user": "physician"}   # Accounts made before roles existed are physicians.
+
+
+def normalize_role(role: str) -> str:
+    return LEGACY_ROLES.get(role, role)
+
+
+# Writes each role may not make (reads stay open to every signed-in user). The administrator account keeps
+# every permission because it is also the owner's working account. Checked again by each route's own rules.
+_REVIEW_CONFIRM = re.compile(r"/v1/cases/[^/]+/review")
+_EXPORTS = ("/v1/dataset/", "/v2/dataset/")
+_SETTINGS = ("/v1/model-connection",)
+_CVAT = re.compile(r"/v1/cases/[^/]+/(cvat/|manual-sync)")
+
+
+def role_denial(role: str, method: str, path: str) -> str | None:
+    """A plain refusal message when this role may not make this change, else None."""
+    if method in ("GET", "HEAD", "OPTIONS") or path.startswith("/v1/auth/") or role in ("admin", "physician", "expert"):
+        return None
+    if role == "nurse":
+        if _REVIEW_CONFIRM.fullmatch(path):
+            return "A nurse's grade is preliminary. A physician confirms the DR grade."
+        if path.startswith(_EXPORTS) or path.startswith(_SETTINGS) or _CVAT.match(path):
+            return "Your role cannot do this. Ask a physician or the administrator."
+        return None
+    if role == "researcher":
+        return None if path.startswith(_EXPORTS) else "A researcher account can read and export, not change cases."
+    return "Your role cannot do this."
 USERNAME = re.compile(r"[a-z0-9_.-]{3,40}")
 ITERATIONS = 310_000
 SESSION_SECONDS = 12 * 3600
@@ -115,6 +143,7 @@ class UserStore:
                  enforce_policy: bool = True) -> None:
         if not USERNAME.fullmatch(username or ""):
             raise AuthError("Use 3 to 40 lowercase letters, digits, dot, dash or underscore for the username.")
+        role = normalize_role(role)
         if role not in ROLES:
             raise AuthError("Unknown role.")
         if not isinstance(password, str) or len(password) < MIN_PASSWORD:
@@ -153,7 +182,7 @@ class UserStore:
     def list_users(self) -> list[dict]:
         with self.lock:
             users = self._load()["users"]
-        return [{"username": name, "role": entry["role"], "disabled": entry.get("disabled", False),
+        return [{"username": name, "role": normalize_role(entry["role"]), "disabled": entry.get("disabled", False),
                  "must_change": entry.get("must_change", False), "updated_utc": entry.get("updated_utc")}
                 for name, entry in sorted(users.items())]
 
@@ -189,7 +218,7 @@ class Authenticator:
                 raise AuthError("The username or password is not correct.")
             self.failures.pop(username, None)
             token = secrets.token_urlsafe(32)
-            session = Session(username, entry["role"], bool(entry.get("must_change")), now + SESSION_SECONDS,
+            session = Session(username, normalize_role(entry["role"]), bool(entry.get("must_change")), now + SESSION_SECONDS,
                               bool(entry.get("short_password")))
             self.sessions[token] = session
             self.last_seen[token] = now
@@ -232,6 +261,9 @@ class Authenticator:
 
 
 OPEN_PATHS = ("/v1/auth/", "/health")
+# Every API prefix needs a session; the model API's own routes are protected by its bearer token instead.
+PROTECTED_PREFIXES = ("/v1/", "/v2/")
+TOKEN_PROTECTED = ("/v2/predict/",)
 
 
 def install_pilot_auth(app, auth_file):
@@ -243,12 +275,15 @@ def install_pilot_auth(app, auth_file):
     @app.middleware("http")
     async def require_session(request: Request, call_next):
         path = request.url.path
-        if path.startswith("/v1/") and not path.startswith(OPEN_PATHS):
+        if path.startswith(PROTECTED_PREFIXES) and not path.startswith(OPEN_PATHS + TOKEN_PROTECTED):
             session = auth.session(request.cookies.get(COOKIE))
             if session is None:
                 return JSONResponse({"detail": "Please sign in."}, status_code=401)
             if session.must_change and not path.startswith("/v1/auth/"):
                 return JSONResponse({"detail": "Please change your password first."}, status_code=403)
+            denial = role_denial(session.role, request.method, path)
+            if denial is not None:
+                return JSONResponse({"detail": denial}, status_code=403)
             request.state.user = session
         return await call_next(request)
 
@@ -356,7 +391,7 @@ def main(argv=None):
     parser.add_argument("command", choices=["set-user"])
     parser.add_argument("--file", type=Path, required=True)
     parser.add_argument("--username", required=True)
-    parser.add_argument("--role", choices=sorted(ROLES), default="user")
+    parser.add_argument("--role", choices=sorted(ROLES | set(LEGACY_ROLES)), default="physician")
     parser.add_argument("--must-change", action="store_true")
     args = parser.parse_args(argv)
     password = sys.stdin.readline().rstrip(chr(13) + chr(10)) if not sys.stdin.isatty() else getpass.getpass("Password: ")
