@@ -2015,7 +2015,7 @@ prepare timeout, without GPU use.
   up to 300 s; it cannot be executed or charged. Not yet tested live against
   the host (needs a future session).
 
-## 36. Offline checks, watchdog detail and manual screenshots, 26 to 31 October 2026 (IN PROGRESS)
+## 36. Offline checks, watchdog detail and manual screenshots, 26 to 31 October 2026 (DONE, merged in §37)
 
 Branches (Claude, not yet merged at the time of writing; see the GOAL change log
 and the final integration report for the merged state):
@@ -2036,3 +2036,74 @@ The phase A watchdog result remains FAIL (oom-contained UNVERIFIED); the owner's
 safety acceptance on 2026-10-25 is recorded separately and does not change it.
 No installation candidate has been built yet. The 2026-10-31 regular-service
 packet (`docs/long-runs/20261031-local-app-real-api/`) governs the next work.
+
+## 37. Regular shared Model API, two-stage batch and commissioning, 31 October 2026 (SINGLE-USER COMMISSIONING; NOT 3 TO 5 USERS)
+
+Owner packet `docs/long-runs/20261031-local-app-real-api/` (redacted Git copy:
+[docs/milestone/regular](docs/milestone/regular/README.md)). Design and wire
+contract: [M1_REGULAR_SERVICE_DESIGN.md](docs/milestone/m1/M1_REGULAR_SERVICE_DESIGN.md).
+Operations, rollback and the candidate:
+[REGULAR_SERVICE_OPERATIONS.md](docs/operations/REGULAR_SERVICE_OPERATIONS.md).
+
+**Merged on main and pushed** (`8527c0f`, then fixes up to `92a91ea` and this
+checkpoint): the three audited branches (§36, with review fixes), the daily
+authority and gateway (`scripts/model-server/regular_authority.py`,
+`regular_service.py`), the review-app queue and two-stage batch
+(`dr_support/services/regular_queue.py`, `regular_batch.py`, Worklist "AI
+batch" panel), launcher `serve-regular` with `--public-samples`, redacted
+packet copies. Two independent reviews; all findings fixed with tests.
+
+**Validation**
+- Backend, final combined candidate before merge: 2242 passed, 69 skipped,
+  0 xfail, 0 error, 0 failed. Final main `92a91ea` after the commissioning
+  fixes: 2247 passed, 69 skipped, 0 xfail, 0 error, 0 failed.
+- Frontend: 322/322 with 2 workers. Full parallel runs failed a different few
+  slow tests each time (Workspace manager, UWF intake, S3 Worklist, navigation
+  drafts timing); the same tests fail on the earlier integration code under
+  load and pass alone. Recorded as timing-flaky, not loosened.
+- WinError5 (`os.replace` in the service-session test): not reproduced in 3
+  full reruns; cause unknown, not fixed.
+- Main: tree identical to the tested candidate; Ruff clean, typecheck 0,
+  `frontend/dist` rebuilt, root smoke PASS, browser render PASS.
+
+**Commissioning (public samples only, TEST_ONLY workspace
+`ws_m1_aed5d92659ee4c658df9`, workstation `owner-ws-1`, shared token)**
+- Host: new folder `deployments/regular-20261031-r01`, CPU identity equal to
+  the reviewed RETFound/USPEC/PRISM pins; gateway on `127.0.0.1:7860`.
+- 10 public HRF CFP samples confirmed (CFP, usable) by `TEST_ONLY engineering`.
+  Batch: RETFound grader saved for 10/10 (10 admitted calls, each charged once
+  before dispatch, 10 tickets DONE).
+- PRISM: 0/10. Refused before any model work. First "Recorded source
+  attestation is unavailable" (these legacy public samples have no recorded
+  source projection; the projection tool is approved only for workspace
+  `ws_m1_63ed86c7…`), then after restart "Admission projections disagree".
+  No image is labelled complete (panel: "0 of 10 images have both AI results").
+  **Needs an owner decision** (projection approval for this workspace, or
+  another approved public PRISM path).
+- Clinician review: 01 accepted (grade 2), 02 corrected to grade 3; raw AI
+  grade 2 unchanged in both. Export to the workspace output folder: checker
+  PASS (11 images, all TEST_ONLY, none training-ready; AI and clinician grades
+  separate). Reopen after restart: grades, AI results and batch state intact.
+- GPU: 2 child starts, 5 segments, 1,500 of 43,200 GPU-seconds (load, work and
+  idle included); both children stopped by themselves about 300 s after the
+  last activity; no overrun, no quarantine; GPU1 not touched. Calls: 10 of
+  1,500; 10 PRISM slots stay held until Thai midnight (the release fix landed
+  after they were held).
+- Commissioning found and fixed: gateway pause while spawning the child (app
+  now rides it out), a refused stage holding up the batch, precondition
+  refusals treated as waits, unused PRISM slots not released.
+
+**Not done or blocked**
+- Live multi-user: BLOCKED. Only the shared backend token exists; the
+  workstation ID is a label, not an identity. Proposal (not approved):
+  [REGULAR_SERVICE_SECURITY_REQUEST_20261031.md](docs/planning/REGULAR_SERVICE_SECURITY_REQUEST_20261031.md).
+- PRISM live in the regular batch: BLOCKED on the precondition above.
+- UWF live: NOT RUN (no public UWF sample); offline tests only.
+- Opening the app loads the GPU child (PRISM handshake), so each app start
+  costs a segment; outside AI hours the app does not compose (use `prepare`).
+- Inside one app, a call waiting for its queue turn holds that app's inference
+  lock (manual Run AI waits behind a batch item, at most the 300 s queue wait).
+- Installation candidate `0.8.0-m1-regular.rc1` built and extraction-tested;
+  not a final release (gaps in the operations note).
+- The host gateway and the commissioning state stay running/kept; stop with the
+  rollback steps when not needed.
