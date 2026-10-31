@@ -2098,7 +2098,16 @@ packet copies. Two independent reviews; all findings fixed with tests.
   workstation ID is a label, not an identity. Proposal (not approved):
   [REGULAR_SERVICE_SECURITY_REQUEST_20261031.md](docs/planning/REGULAR_SERVICE_SECURITY_REQUEST_20261031.md).
 - PRISM live in the regular batch: BLOCKED on the precondition above.
-- UWF live: NOT RUN (no public UWF sample); offline tests only.
+- UWF live (added the same day): owner-confirmed public UWF folder (licence
+  confirmed by the owner; filenames may hold identifiers, so only hash prefixes
+  are reported), new launcher option `--public-demo-folder`, TEST_ONLY
+  workspace `ws_m1_4d9f8d39d72d475fa578`. USPEC grader saved 3/5 sent; 2 were
+  refused after sending (charged, not resent) by the Model API's model-boundary
+  colour heuristic (`_check_admission`), which exempts only hospital-lane
+  images. Offline, that heuristic passes 7 of the 11 folder images. Changing
+  it is a frozen Model API decision for the owner. Each failed call drains the
+  child by design, so it reloads (GPU cost). PRISM 0/5, same precondition.
+  Day totals after this: 15/1,500 calls, 2,400+ GPU-seconds (child idling out).
 - Opening the app loads the GPU child (PRISM handshake), so each app start
   costs a segment; outside AI hours the app does not compose (use `prepare`).
 - Inside one app, a call waiting for its queue turn holds that app's inference
