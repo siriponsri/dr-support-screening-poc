@@ -64,8 +64,8 @@ describe('pilot sign-in gate', () => {
 
   it('asks a new user to choose a password before the app opens', async () => {
     routes({
-      '/v1/auth/me': () => ({ status: 200, body: { username: 'doctor1', role: 'user', must_change: true, short_password: false } }),
-      '/v1/auth/password': () => ({ status: 200, body: { username: 'doctor1', role: 'user', must_change: false, short_password: false } }),
+      '/v1/auth/me': () => ({ status: 200, body: { username: 'doctor1', role: 'physician', must_change: true, short_password: false } }),
+      '/v1/auth/password': () => ({ status: 200, body: { username: 'doctor1', role: 'physician', must_change: false, short_password: false } }),
     });
     mount();
     expect(await screen.findByRole('heading', { name: 'Choose a new password' })).toBeInTheDocument();

@@ -40,12 +40,16 @@ output stays a suggestion; the person's grade is authoritative.
 
 | Action | nurse | physician | expert | researcher | admin |
 | --- | --- | --- | --- | --- | --- |
-| Import, run AI, grade | yes (preliminary) | yes | yes | no | no |
-| Confirm a grade, sign a report | no | yes | yes | no | no |
-| Sort an archive, export folders | no | yes | yes | no | no |
-| Gold-100 labelling | no | no | yes | no | no |
-| Research exports | no | no | yes | yes | no |
+| Import, run AI, grade | yes (preliminary) | yes | yes | no | yes |
+| Confirm a grade, sign a report | no | yes | yes | no | yes |
+| Sort an archive, export folders | no | yes | yes | yes (exports) | yes |
+| Gold-100 labelling | no | no | yes | no | yes |
+| Research exports | no | yes | yes | yes | yes |
 | Accounts, policy, server mode, database view | no | no | no | no | yes |
+
+The administrator account keeps every permission because it is also the owner's working account
+(implementation 31 October 2026). Reads stay open to every signed-in role; the server refuses the writes a
+role may not make, with a plain message.
 
 A nurse's grade is shown as "Preliminary, waiting for physician confirmation"
 until a physician confirms it; the report shows both names.

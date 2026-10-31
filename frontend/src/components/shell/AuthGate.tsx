@@ -1,3 +1,4 @@
+import { LanguageSwitch, useT } from '@/lib/i18n';
 import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Alert, AlertIcon, Box, Button, Flex, FormControl, FormLabel, Grid, Heading, HStack, IconButton, Input, InputGroup, InputRightElement, Stack, Text } from '@chakra-ui/react';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -6,9 +7,23 @@ import { Eye, EyeOff, Lock, ShieldCheck } from '@/lib/icons';
 import { sidebarScope } from '@/theme';
 import { kkuColors } from '@/theme/colors';
 
+export type PilotRole = 'admin' | 'physician' | 'nurse' | 'expert' | 'researcher';
+
+export const PILOT_ROLES: { value: PilotRole; label: string }[] = [
+  { value: 'physician', label: 'Physician' },
+  { value: 'nurse', label: 'Nurse' },
+  { value: 'expert', label: 'Ophthalmologist (expert)' },
+  { value: 'researcher', label: 'Researcher' },
+  { value: 'admin', label: 'Administrator' },
+];
+
+export function roleLabel(role: string): string {
+  return PILOT_ROLES.find((item) => item.value === role)?.label ?? 'Physician';
+}
+
 export interface PilotUser {
   username: string;
-  role: 'admin' | 'user';
+  role: PilotRole;
   must_change: boolean;
   short_password: boolean;
 }
@@ -29,7 +44,7 @@ type GateState = { kind: 'checking' } | { kind: 'off' } | { kind: 'signedOut' } 
 
 function isUser(value: unknown): value is PilotUser {
   return !!value && typeof value === 'object' && typeof (value as PilotUser).username === 'string'
-    && ((value as PilotUser).role === 'admin' || (value as PilotUser).role === 'user');
+    && PILOT_ROLES.some((item) => item.value === (value as PilotUser).role);
 }
 
 async function post(path: string, body: unknown) {
@@ -126,6 +141,7 @@ function PreviewCard() {
 }
 
 function FeatureSlides() {
+  const t = useT();
   const [index, setIndex] = useState(0);
   const reduce = useReducedMotion();
   useEffect(() => {
@@ -140,7 +156,7 @@ function FeatureSlides() {
         <motion.div key={index} initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: 'easeOut' }}>
           <Heading as="h2" fontSize="3xl" fontWeight="bold" lineHeight="short" letterSpacing="-0.01em">{slide.title}</Heading>
-          <Text mt={3} fontSize="md" opacity={0.85}>{slide.body}</Text>
+          <Text mt={3} fontSize="md" opacity={0.85}>{t(slide.body)}</Text>
         </motion.div>
       </Box>
       <HStack spacing={2} role="tablist" aria-label="Features">
@@ -160,17 +176,18 @@ function FeatureSlides() {
  * the app's dark green on the right with a preview card and short feature notes.
  */
 function Frame({ title, children }: { title: string; children: ReactNode }) {
+  const t = useT();
   return (
     <FadeIn motionKey={title}>
       <Flex minH="100vh" bg="surface.canvas" align="center" justify="center" p={{ base: 0, tablet: 6, laptop: 10 }}>
         <Grid w="100%" maxW="1180px" minH={{ base: '100vh', tablet: '640px' }} templateColumns={{ base: '1fr', laptop: '1fr 1.1fr' }}
           bg="surface.panel" borderRadius={{ base: 0, tablet: 'xl' }} overflow="hidden" boxShadow={{ base: 'none', tablet: 'xl' }}>
           <Flex direction="column" px={{ base: 6, tablet: 12, laptop: 16 }} py={{ base: 8, tablet: 10 }}>
-            <BrandMark />
+            <HStack justify="space-between" align="center"><BrandMark /><LanguageSwitch /></HStack>
             <Flex flex={1} align="center" py={10}>
               <Box w="100%" maxW="400px">{children}</Box>
             </Flex>
-            <Text fontSize="xs" color="text.secondary">Physician UX pilot for research use. Not a diagnostic device.</Text>
+            <Text fontSize="xs" color="text.secondary">{t('Physician UX pilot for research use. Not a diagnostic device.')}</Text>
           </Flex>
           <Flex display={{ base: 'none', laptop: 'flex' }} direction="column" position="relative" overflow="hidden"
             sx={sidebarScope} bg="surface.panel" color="text.primary" px={12} py={10}>
@@ -191,6 +208,7 @@ function Frame({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function LandingSignIn({ onSignedIn }: { onSignedIn: (user: PilotUser) => void }) {
+  const t = useT();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -219,7 +237,7 @@ function LandingSignIn({ onSignedIn }: { onSignedIn: (user: PilotUser) => void }
         <Stack spacing={5}>
           <Stack spacing={1}>
             <Heading as="h1" fontSize={{ base: "3xl", tablet: "4xl" }} fontWeight="bold" letterSpacing="-0.02em">Sign in</Heading>
-            <Text fontSize="md" color="text.secondary">Use the account your administrator gave you.</Text>
+            <Text fontSize="md" color="text.secondary">{t('Use the account your administrator gave you.')}</Text>
           </Stack>
           <FormControl>
             <FormLabel>Username</FormLabel>

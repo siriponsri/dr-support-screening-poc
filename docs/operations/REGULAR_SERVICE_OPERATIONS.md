@@ -44,6 +44,20 @@ unsent call is released. Status per workstation comes from
 `GET /v1/regular/status` (authenticated); the review app shows it in the
 Worklist "AI batch" panel.
 
+## One click (owner workstation, demo and development)
+
+Double-click the desktop shortcut "DR Screening Demo" (made by
+`scripts/demo/install-desktop-shortcut.ps1`), or run
+`scripts/demo/start-dr-train-demo.bat`. It checks the SSH route, starts the
+gateway on dr-train if nothing listens on 7860 (`scripts/demo/remote-start-gateway.sh`,
+CPU only), starts the review app (which warms the GPU child inside AI hours) and
+opens the browser. Settings live in the private file
+`%LOCALAPPDATA%\DRScreening\M1PrivateConfig\demo.env` (template
+`scripts/demo/demo.env.example`); only public or consented images may be used.
+Closing the window stops the app; `scripts/demo/stop-dr-train-demo.sh --gateway`
+also stops the gateway. Outside 06:00 to 21:55 Thai time it stops with a plain
+message.
+
 ## Start the review app (workstation)
 
 ```powershell

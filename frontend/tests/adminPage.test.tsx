@@ -6,7 +6,7 @@ import { AuthGate } from '@/components/shell/AuthGate';
 import { AdminPage } from '@/pages/AdminPage';
 
 const users = [{ username: 'admin', role: 'admin', disabled: false, must_change: false },
-  { username: 'doctor1', role: 'user', disabled: false, must_change: true }];
+  { username: 'doctor1', role: 'physician', disabled: false, must_change: true }];
 
 function serve(role: 'admin' | 'user') {
   const calls: string[] = [];
@@ -39,6 +39,14 @@ describe('admin page', () => {
     expect(await screen.findByText('doctor1')).toBeInTheDocument();
     expect(screen.getByText('Must set password')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Disable' })).toHaveLength(1);  // Never for yourself.
+  });
+
+  it('offers the five roles in plain words', async () => {
+    serve('admin');
+    mount();
+    const role = await screen.findByLabelText('Role');
+    const options = Array.from((role as HTMLSelectElement).options).map((option) => option.textContent);
+    expect(options).toEqual(['Physician', 'Nurse', 'Ophthalmologist (expert)', 'Researcher', 'Administrator']);
   });
 
   it('shows the read-only database view with AI and clinician grades apart', async () => {
