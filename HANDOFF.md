@@ -2014,3 +2014,25 @@ prepare timeout, without GPU use.
 - Known limit (accepted): a client timeout can leave an unused host ticket for
   up to 300 s; it cannot be executed or charged. Not yet tested live against
   the host (needs a future session).
+
+## 36. Offline checks, watchdog detail and manual screenshots, 26 to 31 October 2026 (IN PROGRESS)
+
+Branches (Claude, not yet merged at the time of writing; see the GOAL change log
+and the final integration report for the merged state):
+
+- `fix/m1-watchdog-error-detail`: allowlisted failure cause in watchdog
+  observations; capture can never block cleanup or accounting. Not deployed.
+- `feat/m1-offline-acceptance-checks`: read-only export folder checker (AC-09)
+  with the audit counterexamples; AC-11 fault injection starting from confirmed
+  clinician work; plain remote-failure wording that says "not sent" only when no
+  connection was made; PRISM non-JSON replies treated as transport refusals and,
+  from execute on, as unknown outcome; live reachability for the owned M1 status;
+  operator-managed connection shown read-only; grade buttons and dataset labels.
+- `docs/m1-install-candidate-manual`: GOAL AC-12 (phase A evidence only),
+  workplan, mask options, screenshot capture script with exact pinned public
+  sample membership.
+
+The phase A watchdog result remains FAIL (oom-contained UNVERIFIED); the owner's
+safety acceptance on 2026-10-25 is recorded separately and does not change it.
+No installation candidate has been built yet. The 2026-10-31 regular-service
+packet (`docs/long-runs/20261031-local-app-real-api/`) governs the next work.
