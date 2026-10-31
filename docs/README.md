@@ -2,6 +2,14 @@
 
 Canonical documentation for the Retinal Review Workbench:
 
+## Start here (phase 1)
+
+- [Architecture for the team](ARCHITECTURE.md)
+- [Phase 1 specification](milestone/phase1/PHASE1_PROGRAM_SPEC.md)
+- [Team access to dr-train](operations/TEAM_ACCESS_DR_TRAIN.md) and [personal tokens](operations/TOKEN_DISTRIBUTION.md)
+- [Docker package 1: web app](../deployment/webapp/README.md) and [package 2: hospital server](../deployment/hospital-server/README.md)
+- [Regular service operations and one-click demo](operations/REGULAR_SERVICE_OPERATIONS.md)
+
 ## Current operating and deployment guides
 
 - [No-code workstation quick start](../README_START_HERE.md)
