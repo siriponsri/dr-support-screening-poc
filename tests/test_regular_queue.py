@@ -7,7 +7,7 @@ from fastapi import HTTPException
 import httpx
 import pytest
 
-from dr_support.services.regular_batch import BatchRunner, BatchStore
+from dr_support.services.regular_batch import BatchDeferred, BatchRunner, BatchStore, PrismPrepareRefused
 from dr_support.services.regular_queue import PAIR_KEY, WORDING, RegularGate, RegularQueueError, RegularTransport
 
 TOKEN = "t" * 40
@@ -134,65 +134,114 @@ def test_public_status_has_plain_fields_only():
     assert value["own_waiting"] == 1 and "own_open_tickets" not in value and "model_epoch" not in value
 
 
-# ---------------------------------------------------------------- batch runner
+# ---------------------------------------------------------------- batch runner (two stages)
 
 class FakeApp:
     def __init__(self):
         self.stages = {"img1": ("retfound-aptos5", "CFP"), "img2": ("uspec-uwf-grading", "UWF"), "img3": None}
-        self.saved = {("img0", "global")}
-        self.calls, self.fail = [], {}
+        self.saved = {("img0", "global"), ("img0", "lesion-roi")}
+        self.calls, self.fail, self.prism_fail = [], {}, {}
         self.open = True
 
     def has_result(self, image_id, task):
         return (image_id, task) in self.saved
 
     def run_grader(self, image_id, model_id, modality, invocation_id):
-        self.calls.append((image_id, model_id, modality, invocation_id))
+        self.calls.append(("grader", image_id, model_id))
         if image_id in self.fail:
             raise HTTPException(*self.fail.pop(image_id))
         self.saved.add((image_id, "global"))
 
+    def run_prism(self, image_id):
+        self.calls.append(("prism", image_id))
+        if image_id in self.prism_fail:
+            raise self.prism_fail.pop(image_id)
+        self.saved.add((image_id, "lesion-roi"))
+
 
 def runner_for(tmp_path, app):
     return BatchRunner(BatchStore(tmp_path), workspace_id="ws_1", stage_for=app.stages.get,
-                       has_result=app.has_result, run_grader=app.run_grader, queue_open=lambda: app.open,
-                       deferred_details=set(WORDING.values()))
+                       has_result=app.has_result, run_grader=app.run_grader, run_prism=app.run_prism,
+                       queue_open=lambda: app.open, deferred_details=set(WORDING.values()))
 
 
-def test_a_batch_runs_each_confirmed_image_once_and_skips_saved_or_unconfirmed(tmp_path):
+def drain(runner):
+    while True:
+        try:
+            if not runner.step():
+                return
+        except BatchDeferred:
+            return
+
+
+def test_every_confirmed_image_gets_its_grader_then_prism_and_is_complete_only_with_both(tmp_path):
     app = FakeApp()
     runner = runner_for(tmp_path, app)
     batch = runner.create(["img0", "img1", "img2", "img3", "img1"])
-    assert batch["total"] == 4 and batch["counts"] == {"SAVED": 1, "PENDING": 2, "NEEDS_CONFIRM_IMAGE": 1,
-                                                       "PRISM_SAVED": 0}
-    while runner.step():
-        pass
+    assert batch["total"] == 4 and batch["complete"] == 1
+    assert batch["counts"]["grader"] == {"SAVED": 1, "PENDING": 2, "NEEDS_CONFIRM_IMAGE": 1}
+    drain(runner)
     summary = runner.list()[0]
-    assert [call[0] for call in app.calls] == ["img1", "img2"] and summary["counts"]["SAVED"] == 3
-    assert summary["active"] is False
-    assert all(row["prism"] == "WAITING_FOR_REVIEW" for row in summary["items"])
+    assert app.calls == [("grader", "img1", "retfound-aptos5"), ("prism", "img1"),
+                         ("grader", "img2", "uspec-uwf-grading"), ("prism", "img2")]
+    assert summary["complete"] == 3 and summary["active"] is False
+    rows = {row["image_id"]: row for row in summary["items"]}
+    assert rows["img3"]["complete"] is False and rows["img3"]["prism"] == "NEEDS_CONFIRM_IMAGE"
+
+
+def test_a_prism_precondition_failure_is_shown_with_its_reason_and_is_not_complete(tmp_path):
+    app = FakeApp()
+    app.prism_fail["img1"] = PrismPrepareRefused(409, "Source/admission is not eligible for PRISM.")
+    runner = runner_for(tmp_path, app)
+    runner.create(["img1"])
+    drain(runner)
+    row = runner.list()[0]["items"][0]
+    assert row["grader"] == "SAVED" and row["prism"] == "NOT_ELIGIBLE" and row["complete"] is False
+    assert row["prism_detail"] == "Source/admission is not eligible for PRISM." and row["prism_label"] == "PRISM not run"
+
+
+def test_prism_preparation_while_the_server_loads_waits_without_sending(tmp_path):
+    app = FakeApp()
+    app.prism_fail["img1"] = PrismPrepareRefused(503, "PRISM is not available right now. Try again shortly.")
+    runner = runner_for(tmp_path, app)
+    runner.create(["img1"])
+    drain(runner)
+    assert runner.list()[0]["items"][0]["prism"] == "PENDING"
+    drain(runner)
+    assert runner.list()[0]["items"][0]["prism"] == "SAVED"
+
+
+def test_an_unknown_prism_outcome_needs_action_and_is_never_resent(tmp_path):
+    app = FakeApp()
+    unknown = HTTPException(502, "The PRISM result could not be confirmed and nothing was saved. Do not resend "
+                                 "this image; the operator can check what happened. Manual review remains available.")
+    app.prism_fail["img1"] = unknown
+    runner = runner_for(tmp_path, app)
+    runner.create(["img1"])
+    drain(runner)
+    row = runner.list()[0]["items"][0]
+    assert row["prism"] == "NEEDS_ACTION" and "Do not resend" in row["prism_detail"]
+    assert [call for call in app.calls if call[0] == "prism"] == [("prism", "img1")]
 
 
 def test_a_refusal_before_sending_waits_but_any_other_failure_needs_action_without_resend(tmp_path):
-    from dr_support.services.regular_batch import BatchDeferred
     app = FakeApp()
     runner = runner_for(tmp_path, app)
     runner.create(["img1", "img2"])
     app.fail["img1"] = (503, WORDING["OUTSIDE_AI_HOURS"])
     with pytest.raises(BatchDeferred):
         runner.step()
-    assert runner.list()[0]["counts"]["PENDING"] == 2
+    assert runner.list()[0]["counts"]["grader"]["PENDING"] == 2
     app.fail["img1"] = (504, "The model server did not reply in time.")
-    runner.step()
-    runner.step()
+    drain(runner)
     rows = {row["image_id"]: row for row in runner.list()[0]["items"]}
-    assert rows["img1"]["grader"] == "NEEDS_ACTION" and rows["img2"]["grader"] == "SAVED"
-    assert [call[0] for call in app.calls] == ["img1", "img1", "img2"]
-    assert not runner.step()  # img1 is never resent automatically.
+    assert rows["img1"]["grader"] == "NEEDS_ACTION" and rows["img1"]["prism"] == "SAVED"
+    assert rows["img2"]["complete"] is True
+    assert [call for call in app.calls if call[0] == "grader" and call[1] == "img1"] == \
+        [("grader", "img1", "retfound-aptos5")] * 2  # The deferred refusal sent nothing; no resend after 504.
 
 
 def test_closed_queue_defers_without_calling_the_model(tmp_path):
-    from dr_support.services.regular_batch import BatchDeferred
     app = FakeApp()
     app.open = False
     runner = runner_for(tmp_path, app)
@@ -200,6 +249,18 @@ def test_closed_queue_defers_without_calling_the_model(tmp_path):
     with pytest.raises(BatchDeferred):
         runner.step()
     assert app.calls == [] and runner.list()[0]["note"]
+
+
+def test_type_or_rights_withdrawn_mid_batch_stops_the_next_stage(tmp_path):
+    app = FakeApp()
+    runner = runner_for(tmp_path, app)
+    runner.create(["img1"])
+    runner.step()                 # Grader saved.
+    app.stages["img1"] = None     # Source rights or type withdrawn before PRISM.
+    runner.step()
+    row = runner.list()[0]["items"][0]
+    assert row["prism"] == "NEEDS_CONFIRM_IMAGE" and row["complete"] is False
+    assert ("prism", "img1") not in app.calls
 
 
 def test_a_stage_interrupted_while_running_is_never_resent_after_restart(tmp_path):
@@ -210,17 +271,20 @@ def test_a_stage_interrupted_while_running_is_never_resent_after_restart(tmp_pat
     stored["items"]["img1"]["grader"]["state"] = "RUNNING"
     runner.store.save(stored)
     restarted = runner_for(tmp_path, app)
-    assert restarted.list()[0]["items"][0]["grader"] == "NEEDS_ACTION" and not restarted.step()
-    assert app.calls == []
+    row = restarted.list()[0]["items"][0]
+    assert row["grader"] == "NEEDS_ACTION"
+    drain(restarted)
+    assert ("grader", "img1", "retfound-aptos5") not in app.calls  # PRISM may still run; the grader is not resent.
 
 
-def test_cancel_stops_waiting_images_only(tmp_path):
+def test_cancel_stops_waiting_stages_only(tmp_path):
     app = FakeApp()
     runner = runner_for(tmp_path, app)
     batch = runner.create(["img0", "img1", "img2"])
     runner.step()
     summary = runner.cancel(batch["batch_id"])
-    assert summary["counts"]["CANCELLED"] == 1 and summary["counts"]["SAVED"] == 2 and not runner.step()
+    assert summary["counts"]["grader"] == {"SAVED": 2, "CANCELLED": 1}
+    assert summary["counts"]["prism"]["CANCELLED"] == 2 and not runner.step()
 
 
 # ---------------------------------------------------------------- review-app routes
@@ -239,9 +303,22 @@ def test_regular_routes_create_run_and_report_a_batch_through_the_existing_infer
                             "uwf1": {**admitted, "retinal_modality": "UWF"},
                             "new1": {**admitted, "modality_admission": "NEEDS_REVIEW", "retinal_modality": "UNKNOWN"}}
     app.state.providers = {"retfound-aptos5": object(), "uspec-uwf-grading": object()}
-    cases = {image_id: {"inference_history": []} for image_id in app.state.admissions}
+    cases = {image_id: {"revision": 3, "inference_history": []} for image_id in app.state.admissions}
     app.state.store = SimpleNamespace(get=cases.__getitem__)
     calls = []
+
+    class Preview:
+        def prepare(self, image_id, revision):
+            calls.append((image_id, "prism-dr-5fold", "prepare", revision))
+            return {"plan_id": "p" * 48, "source_sha256": SHA_A, "wire_sha256": SHA_B, "plan_sha256": SHA_A,
+                    "mask": {"sha256": None}, "transform": {"sha256": SHA_B}, "model_version": "r2"}
+
+        def submit(self, image_id, token, request):
+            assert token == "p" * 48 and request.revision == 3 and request.plan_sha256 == SHA_A
+            calls.append((image_id, "prism-dr-5fold", "lesion-roi", None))
+            cases[image_id]["inference_history"].append(
+                {"task": "lesion-roi", "model_id": "prism-dr-5fold", "result": {"detections": []}})
+    app.state.prism_preview = Preview()
 
     def infer(request, task, *, invocation_id=None):
         calls.append((request.image_id, request.model_id, task, invocation_id))
@@ -254,13 +331,15 @@ def test_regular_routes_create_run_and_report_a_batch_through_the_existing_infer
     client = TestClient(app)
     assert client.get("/v1/regular/status").json()["model_server"] == "READY"
     created = client.post("/v1/batches", json={"all_ready": True}).json()
-    assert created["total"] == 2 and created["counts"]["PENDING"] == 2
+    assert created["total"] == 2 and created["counts"]["grader"]["PENDING"] == 2
     while app.state.regular_batches.step():
         pass
     listed = client.get("/v1/batches").json()["batches"][0]
-    assert listed["counts"]["SAVED"] == 2
-    assert sorted(call[1] for call in calls) == ["retfound-aptos5", "uspec-uwf-grading"]
-    assert all(call[2] == "global" and call[3].startswith("regular-batch_") for call in calls)
+    assert listed["complete"] == 2 and listed["counts"]["prism"] == {"SAVED": 2}
+    graders = [call for call in calls if call[2] == "global"]
+    assert sorted(call[1] for call in graders) == ["retfound-aptos5", "uspec-uwf-grading"]
+    assert all(call[3].startswith("regular-batch_") for call in graders)
+    assert [call[2] for call in calls if call[0] == "cfp1"] == ["global", "prepare", "lesion-roi"]
     assert client.post("/v1/batches", json={"all_ready": True}).status_code == 409
     assert client.post("/v1/batches/batch_0000000000000000/cancel").status_code == 404
 

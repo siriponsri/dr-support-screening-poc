@@ -954,9 +954,11 @@ export interface RegularStatus {
 export interface RegularBatch {
   batch_id: string;
   total: number;
+  /** Images with both the grader result and the PRISM result saved. */
+  complete: number;
   active: boolean;
   cancelled: boolean;
-  counts: Record<string, number>;
+  counts: { grader: Record<string, number>; prism: Record<string, number> };
   note?: string | null;
 }
 

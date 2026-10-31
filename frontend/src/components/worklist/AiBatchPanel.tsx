@@ -18,9 +18,10 @@ function hoursLabel(status: RegularStatus): string {
 }
 
 /**
- * Daily AI batch on the shared model server: grading runs in the background,
- * one image at a time; PRISM stays in Review. Hidden when the app is not on
- * the shared queue (the status route is absent).
+ * Daily AI batch on the shared model server: for each image the grader and
+ * then PRISM run in the background, one stage at a time. An image counts as
+ * complete only with both results. Hidden when the app is not on the shared
+ * queue (the status route is absent).
  */
 export function AiBatchPanel() {
   const [status, setStatus] = useState<RegularStatus | null>(null);
@@ -77,10 +78,18 @@ export function AiBatchPanel() {
     }
   };
 
-  const counts = batch?.counts ?? {};
-  const finished = (counts.SAVED ?? 0) + (counts.NEEDS_ACTION ?? 0) + (counts.NEEDS_CONFIRM_IMAGE ?? 0)
-    + (counts.CANCELLED ?? 0);
+  const grader: Record<string, number> = batch?.counts.grader ?? {};
+  const prism: Record<string, number> = batch?.counts.prism ?? {};
   const total = batch?.total ?? 0;
+  const settled = (counts: Record<string, number>) => total - (counts.PENDING ?? 0) - (counts.RUNNING ?? 0);
+  const stageText = (name: string, counts: Record<string, number>) => [
+    `${name}: ${counts.SAVED ?? 0} saved`,
+    counts.RUNNING ? '1 running' : '',
+    counts.PENDING ? `${counts.PENDING} waiting` : '',
+    counts.NEEDS_ACTION ? `${counts.NEEDS_ACTION} need action` : '',
+    counts.NOT_ELIGIBLE ? `${counts.NOT_ELIGIBLE} not run` : '',
+    counts.NEEDS_CONFIRM_IMAGE ? `${counts.NEEDS_CONFIRM_IMAGE} need Confirm Image` : '',
+  ].filter(Boolean).join(', ');
 
   return (
     <Box borderWidth="1px" borderColor="border.default" bg="surface.subtle" p={4} mb={4} data-testid="ai-batch-panel">
@@ -101,15 +110,10 @@ export function AiBatchPanel() {
         </HStack>
         {batch && (
           <Stack spacing={1} data-testid="ai-batch-progress">
-            <Progress value={total ? (finished / total) * 100 : 0} size="sm" aria-label="AI batch progress" />
-            <Text fontSize="sm">
-              {counts.SAVED ?? 0} of {total} AI grades saved
-              {counts.RUNNING ? ', 1 analysing' : ''}
-              {counts.PENDING ? `, ${counts.PENDING} waiting` : ''}
-              {counts.NEEDS_ACTION ? `, ${counts.NEEDS_ACTION} need action` : ''}
-              {counts.NEEDS_CONFIRM_IMAGE ? `, ${counts.NEEDS_CONFIRM_IMAGE} need Confirm Image` : ''}.
-              {' '}PRISM saved for {counts.PRISM_SAVED ?? 0}; run PRISM from Review.
-            </Text>
+            <Progress value={total ? ((settled(grader) + settled(prism)) / (2 * total)) * 100 : 0} size="sm" aria-label="AI batch progress" />
+            <Text fontSize="sm" fontWeight="semibold">{batch.complete} of {total} images have both AI results.</Text>
+            <Text fontSize="sm">{stageText('Grade', grader)}.</Text>
+            <Text fontSize="sm">{stageText('PRISM', prism)}.</Text>
             {batch.note && <Text fontSize="sm" color="text.secondary">{batch.note}</Text>}
           </Stack>
         )}

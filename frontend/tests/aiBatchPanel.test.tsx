@@ -5,8 +5,9 @@ import { AiBatchPanel } from '@/components/worklist/AiBatchPanel';
 
 const status = { ai_open: true, invocations_available: 1480, invocations_cap: 1500, model_server: 'STOPPED',
   quarantined: false, revoked: false };
-const batch = { batch_id: 'batch_0123456789abcdef', total: 4, active: true, cancelled: false, note: null,
-  counts: { SAVED: 1, PENDING: 2, NEEDS_CONFIRM_IMAGE: 1, PRISM_SAVED: 0 } };
+const batch = { batch_id: 'batch_0123456789abcdef', total: 4, complete: 1, active: true, cancelled: false, note: null,
+  counts: { grader: { SAVED: 2, PENDING: 1, NEEDS_CONFIRM_IMAGE: 1 },
+    prism: { SAVED: 1, NOT_ELIGIBLE: 1, PENDING: 1, NEEDS_CONFIRM_IMAGE: 1 } } };
 
 function respond(routes: Record<string, { status: number; body: unknown }>) {
   const calls: string[] = [];
@@ -37,8 +38,10 @@ describe('AI batch panel', () => {
     expect(await screen.findByTestId('ai-batch-status')).toHaveTextContent(
       'AI server idle, starts when needed. Analyses left today: 1480 of 1500.');
     fireEvent.click(screen.getByRole('button', { name: 'Run AI on confirmed images' }));
-    expect(await screen.findByTestId('ai-batch-progress')).toHaveTextContent(
-      '1 of 4 AI grades saved, 2 waiting, 1 need Confirm Image. PRISM saved for 0; run PRISM from Review.');
+    const progress = await screen.findByTestId('ai-batch-progress');
+    expect(progress).toHaveTextContent('1 of 4 images have both AI results.');
+    expect(progress).toHaveTextContent('Grade: 2 saved, 1 waiting, 1 need Confirm Image.');
+    expect(progress).toHaveTextContent('PRISM: 1 saved, 1 waiting, 1 not run, 1 need Confirm Image.');
     expect(calls).toContain('POST /v1/batches');
     expect(screen.getByRole('button', { name: 'Stop waiting images' })).toBeInTheDocument();
   });
