@@ -30,6 +30,7 @@ import os
 from pathlib import Path
 import re
 import threading
+import time
 from typing import Callable
 from uuid import uuid4
 
@@ -120,7 +121,7 @@ class BatchRunner:
     def __init__(self, store: BatchStore, *, workspace_id: str, stage_for: Callable[[str], tuple[str, str] | None],
                  has_result: Callable[[str, str], bool], run_grader: Callable[[str, str, str, str], None],
                  run_prism: Callable[[str], None], queue_open: Callable[[], bool], deferred_details: set[str],
-                 idle_seconds: float = 1.0, deferred_seconds: float = 30.0):
+                 idle_seconds: float = 1.0, deferred_seconds: float = 30.0, clock=None):
         self.store, self.workspace_id = store, workspace_id
         self.stage_for, self.has_result = stage_for, has_result
         self.run_grader, self.run_prism, self.queue_open = run_grader, run_prism, queue_open
@@ -130,6 +131,8 @@ class BatchRunner:
         self.stop_event, self.wake = threading.Event(), threading.Event()
         self.thread = None
         self.deferred_note = None
+        self.clock = clock or time.monotonic
+        self.waiting_until = {}
         self._recover()
 
     @staticmethod
@@ -206,17 +209,24 @@ class BatchRunner:
         return [self.summary(batch) for batch in self.store.all() if batch["workspace_id"] == self.workspace_id]
 
     def _next(self):
-        """The first runnable stage: an image's grader, then its PRISM once the grader is settled."""
+        """The first runnable stage: an image's grader, then its PRISM once the grader is settled.
+
+        A stage waiting after a refusal before sending is skipped until its wait ends, so it never holds
+        up the other images. Returns (None, None, None, waiting) where waiting tells whether any is left."""
+        now, waiting = self.clock(), False
         for batch in self.store.all():
             if batch["workspace_id"] != self.workspace_id or batch["cancelled"]:
                 continue
             for image_id in batch["order"]:
                 item = batch["items"][image_id]
-                if item["grader"]["state"] == "PENDING":
-                    return batch, image_id, "grader"
-                if item["prism"]["state"] == "PENDING" and item["grader"]["state"] in TERMINAL:
-                    return batch, image_id, "prism"
-        return None, None, None
+                for stage in STAGES:
+                    if item[stage]["state"] != "PENDING" or (stage == "prism" and item["grader"]["state"] not in TERMINAL):
+                        continue
+                    if self.waiting_until.get((batch["batch_id"], image_id, stage), 0) > now:
+                        waiting = True
+                        continue
+                    return batch, image_id, stage, waiting
+        return None, None, None, waiting
 
     def _set(self, batch_id, image_id, stage, state, detail=None, deferrals=0):
         batch = self.store.load(batch_id)
@@ -231,12 +241,15 @@ class BatchRunner:
             return True
         self._set(batch["batch_id"], image_id, stage, "PENDING", None, deferrals)
         self.deferred_note = detail
-        raise BatchDeferred()
+        self.waiting_until[(batch["batch_id"], image_id, stage)] = self.clock() + self.deferred_seconds
+        return True   # Nothing was sent; move on to the next image's stage.
 
     def step(self) -> bool:
         """Run at most one stage. Returns True when a stage was settled."""
-        batch, image_id, stage = self._next()
+        batch, image_id, stage, waiting = self._next()
         if batch is None:
+            if waiting:
+                raise BatchDeferred()
             return False
         if not self.queue_open():
             self.deferred_note = "Waiting for AI hours or today's limit; the batch continues automatically."
@@ -258,8 +271,8 @@ class BatchRunner:
             else:
                 self.run_prism(image_id)
         except PrismPrepareRefused as refusal:
-            # Preparation never starts model work. Not loaded or busy: wait. Otherwise PRISM cannot run here.
-            if refusal.status == 503 or refusal.detail in self.deferred_details:
+            # Preparation never starts model work. Server loading or busy: wait. A precondition: PRISM not run.
+            if refusal.detail in self.deferred_details:
                 return self._defer(batch, image_id, stage, refusal.detail)
             self._set(batch["batch_id"], image_id, stage, "NOT_ELIGIBLE", refusal.detail)
             return True

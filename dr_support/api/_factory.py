@@ -261,7 +261,10 @@ def install_regular_routes(app, gate, infer, workspace_id):
             'AI analysis is not available; manual review remains available.',
             # PRISM receipt refusals raised before the call is sent (the case changed under the receipt).
             'Case changed before preview preparation.', 'Preview is stale; prepare a new input plan.',
-            'Workspace changed; prepare a new preview.', 'Preview changed before provider execution.'})
+            'Workspace changed; prepare a new preview.', 'Preview changed before provider execution.',
+            # PRISM preparation while the shared server loads or is busy; no model work started.
+            'The model server did not answer in time. No model work was started; press Prepare again.',
+            'PRISM is not available right now. No model work was started.'})
     app.state.regular_batches = runner
 
     @app.on_event('startup')
