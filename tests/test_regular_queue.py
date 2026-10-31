@@ -402,3 +402,31 @@ def test_public_commissioning_sets_no_hospital_lane(monkeypatch):
                                                      "MODEL_ALLOW_AUTHORIZED_HOSPITAL", "MODEL_HOSPITAL_SCOPE"))
         assert os.environ["REMOTE_MODEL_URL"] == "http://127.0.0.1:47860"
     assert "REMOTE_MODEL_TOKEN" not in os.environ
+
+
+def test_the_launcher_and_queue_ride_out_a_brief_gateway_pause():
+    from types import SimpleNamespace
+
+    from scripts.qa import m1_server_app as launcher
+    replies = iter([{"ai_open": True, "model_server": "STOPPED"}, RegularQueueError("QUEUE_UNREACHABLE"),
+                    {"ai_open": True, "model_server": "READY"}])
+
+    def status():
+        value = next(replies)
+        if isinstance(value, Exception):
+            raise value
+        return value
+    gate = SimpleNamespace(status=status, warm=lambda: None)
+    assert launcher.wait_for_model_server(gate, sleep=lambda _: None)["model_server"] == "READY"
+
+    host = FakeHost()
+    original = host.__call__
+    failures = iter([True, False])
+
+    def flaky(request):
+        if request.url.path.startswith("/v1/regular/tickets/") and next(failures, False):
+            raise httpx.ConnectTimeout("paused")
+        return original(request)
+    regular = RegularGate("http://control", TOKEN, "ws-a", transport=httpx.MockTransport(flaky), sleep=lambda _: None)
+    assert regular.acquire(kind="grader", model_id="retfound-aptos5", modality="CFP", source_sha256=SHA_A,
+                           pair_key=None).startswith("tkt_")

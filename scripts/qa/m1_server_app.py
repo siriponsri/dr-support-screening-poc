@@ -368,15 +368,21 @@ READY_WAIT_SECONDS = 300   # Child load is bounded at 240 s on the host.
 
 def wait_for_model_server(gate, *, clock=time.monotonic, sleep=time.sleep):
     """Inside AI hours, ask the shared service to load and wait (bounded) for its child."""
+    from dr_support.services.regular_queue import RegularQueueError
     status = gate.status()
     require(not status.get('quarantined') and not status.get('revoked'), 'REGULAR_SERVICE_PAUSED_OPERATOR_CHECK')
     require(status.get('ai_open') is True, 'OUTSIDE_AI_HOURS_USE_PREPARE_FOR_MANUAL_REVIEW')
     deadline = clock() + READY_WAIT_SECONDS
     while status.get('model_server') != 'READY':
         require(clock() < deadline, 'MODEL_SERVER_DID_NOT_LOAD_IN_TIME')
-        gate.warm()
-        sleep(5)
-        status = gate.status()
+        try:
+            gate.warm()
+            sleep(5)
+            status = gate.status()
+        except RegularQueueError as error:
+            # The gateway pauses briefly while it spawns the GPU child; keep waiting within the bound.
+            require(error.code == 'QUEUE_UNREACHABLE', 'REGULAR_QUEUE_REFUSED')
+            sleep(5)
     return status
 
 
