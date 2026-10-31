@@ -386,6 +386,18 @@ def wait_for_model_server(gate, *, clock=time.monotonic, sleep=time.sleep):
     return status
 
 
+def public_demo_folder(value, public):
+    """An owner-confirmed public image folder: local, real directory, top level only, public mode only."""
+    if value is None:
+        return None
+    require(public, 'PUBLIC_DEMO_FOLDER_REQUIRES_PUBLIC_SAMPLES_MODE')
+    folder = Path(value)
+    require(folder.is_absolute() and folder.is_dir() and not folder.is_symlink()
+            and not has_reparse_component(folder) and not str(folder).startswith(('\\', '//')),
+            'LOCAL_PUBLIC_DEMO_FOLDER_REQUIRED')
+    return folder
+
+
 def serve_regular(args):
     require_remote_token_opt_in(getattr(args, 'allow_remote_token_read', False))
     model_configuration(args.model_port)
@@ -398,10 +410,14 @@ def serve_regular(args):
     require(port_free(args.app_port), 'FREE_APP_PORT_REQUIRED')
     token = host_token(allow_remote_token_read=args.allow_remote_token_read)
     public = getattr(args, 'public_samples', False) is True
+    demo = public_demo_folder(getattr(args, 'public_demo_folder', None), public)
     with owned_tunnel(args.model_port), session_environment(workspace_id=args.workspace_id,
                                                             model_port=args.model_port, token=token,
                                                             public_samples=public):
         os.environ['DR_SUPPORT_REGULAR_BATCH_DIR'] = str(REGULAR_BATCHES)
+        if demo is not None:
+            # The app's demo path admits the folder's top-level images as PUBLIC, instead of the pinned samples.
+            os.environ['DR_DEMO_FOLDER'] = str(demo)
         gate = RegularGate(model_configuration(args.model_port)['REMOTE_MODEL_URL'], token, args.workstation,
                            transport=httpx.HTTPTransport(retries=0))
         cancelled = gate.cancel_stale()
@@ -411,7 +427,8 @@ def serve_regular(args):
         print(json.dumps({'phase': 'SERVING', 'url': f'http://127.0.0.1:{args.app_port}/app/',
                           'workspace_id': args.workspace_id, 'profile': 'QA_SERVER_REGULAR',
                           'workstation': args.workstation, 'stale_tickets_cancelled': cancelled,
-                          'images': 'PUBLIC_PINNED_SAMPLES_ONLY' if public else 'APPROVED_PRIVATE_ROOTS'}),
+                          'images': ('PUBLIC_DEMO_FOLDER_TOP_LEVEL' if demo is not None else
+                                     'PUBLIC_PINNED_SAMPLES_ONLY' if public else 'APPROVED_PRIVATE_ROOTS')}),
               flush=True)
         try:
             uvicorn.run(app, host='127.0.0.1', port=args.app_port, workers=1, access_log=False)
@@ -552,6 +569,9 @@ def main(argv=None):
     parser.add_argument('--app-port', type=int, default=8010)
     parser.add_argument('--run')
     parser.add_argument('--workstation', help='serve-regular: a simple, non-secret name for this app')
+    parser.add_argument('--public-demo-folder', type=Path,
+                        help='serve-regular with --public-samples: an owner-confirmed public image folder '
+                             '(top level only) instead of the pinned samples')
     parser.add_argument('--public-samples', action='store_true',
                         help='serve-regular: commissioning with the ten pinned public samples; no hospital roots')
     args = parser.parse_args(argv)

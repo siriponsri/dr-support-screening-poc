@@ -480,3 +480,13 @@ def test_the_gate_releases_only_by_a_valid_image_key():
         return original(request)
     gate = RegularGate("http://control", TOKEN, "ws-a", transport=httpx.MockTransport(record), sleep=lambda _: None)
     assert gate.release(SHA_A) == 1 and gate.release("not-a-hash") == 0 and seen == [{"pair_key": SHA_A}]
+
+
+def test_a_public_demo_folder_needs_public_mode_and_a_local_real_folder(tmp_path):
+    from scripts.qa import m1_server_app as launcher
+    assert launcher.public_demo_folder(None, False) is None
+    assert launcher.public_demo_folder(tmp_path, True) == tmp_path
+    with pytest.raises(launcher.SessionError, match="REQUIRES_PUBLIC_SAMPLES_MODE"):
+        launcher.public_demo_folder(tmp_path, False)
+    with pytest.raises(launcher.SessionError, match="LOCAL_PUBLIC_DEMO_FOLDER_REQUIRED"):
+        launcher.public_demo_folder(tmp_path / "missing", True)
