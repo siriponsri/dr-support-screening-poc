@@ -2252,3 +2252,44 @@ not touched.
 GRADABLE); per-user Model API principals (single-user commissioning only);
 worktrees `m1-mask-a2-worktree` and `m1-handoff-39-worktree` join the list for
 the owner to remove.
+
+## 40. Phase 1 long run: one-click demo, Docker packages, roles, report, Gold-100, 31 October 2026 (TEST_ONLY)
+
+Specification with the owner's recorded decisions:
+[PHASE1_PROGRAM_SPEC.md](docs/milestone/phase1/PHASE1_PROGRAM_SPEC.md). Plan:
+[PHASE1_ALL_IN_ONE_PLAN_20261031.md](docs/planning/PHASE1_ALL_IN_ONE_PLAN_20261031.md).
+Report form reviewed by the owner (A4, formal light KKU green, no logo).
+
+**Merged on main and pushed** (each branch: focused tests, full backend and
+frontend suites, then merge; `frontend/dist` rebuilt on main):
+
+| Merge | Branch | What |
+| --- | --- | --- |
+| `e4b3cb0` | `feat/one-click-dr-train` | desktop shortcut "DR Screening Demo" (app logo): SSH check, starts the dr-train gateway if needed, starts the review app (warms the GPU child), opens the browser; `*.sh` kept LF |
+| `c676bc3` | `feat/docker-packages` | `deployment/webapp` (package 1) and `deployment/hospital-server` (package 2) |
+| `d12bb17` | `feat/roles-and-language` | roles physician, nurse, expert, researcher, admin; EN/TH switch; sign-in now also guards `/v2/` routes (security fix) |
+| `58ae686` | `feat/screening-report-and-ai-folders` | screening report, AI-predicted archive folders, Gold-100, admin AI-server choice with consent gate |
+
+**Validation** (last full runs before each merge): backend 2,320 passed,
+69 skipped, 0 failed (screening branch); frontend 44 files, 337 tests passed;
+typecheck 0; Ruff clean. Docker package 1 built (261 MB image) and exercised
+on Docker Desktop: HTTPS, health, sign-in required, admin creation, forced
+first password change, database backup. Package 2: compose validated only.
+One-click demo exercised live (gateway started from scratch, GPU warm in about
+90 s, app served, browser opened). Browser check of the new pages on the main
+build with synthetic data.
+
+**Owner action needed:** record the AI-server choice for the demo workspace
+(Admin page, AI server tab, or the private `server-mode.json`); until then the
+desktop button stops with a plain message (by design; Claude was not allowed
+to mark consent).
+
+**Not done or limits**
+- Package 2 has not run on a hospital GPU server; dr-train cannot run Docker
+  for this account (not in the `docker` group; not changed).
+- Physicians cannot run the AI demo from their own PCs without the team-server
+  key and the owner's private setup; their path is the workstation ZIP (no AI).
+- Automatic referral suggestions, vessel segmentation and training remain
+  phase 2 or need a signed clinical definition.
+- Thai translations cover sign-in, Today, Review hints and Admin text; other
+  pages show English.

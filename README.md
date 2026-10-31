@@ -8,6 +8,51 @@ A clinician-controlled workspace for retinal image review and research dataset p
 
 This project supports public or approved synthetic research and clinical-support workflows. It is **not** an autonomous diagnostic or regulated medical device.
 
+## Quick start (phase 1)
+
+### Development team: Docker packages
+
+Two packages, both built from this repository (no weights, data or secrets inside):
+
+| Package | Folder | What it runs |
+| --- | --- | --- |
+| 1. Web app | [`deployment/webapp`](deployment/webapp/README.md) | review app, PostgreSQL and an HTTPS front with sign-in; the AI model server is reached by URL |
+| 2. Hospital local server | [`deployment/hospital-server`](deployment/hospital-server/README.md) | package 1 plus the gateway and the three GPU model services, all inside the hospital network |
+
+```bash
+git clone https://github.com/siriponsri/dr-support-screening-poc.git
+cd dr-support-screening-poc
+# Package 1 (Linux): copy and fill the env file first, see deployment/webapp/README.md
+deployment/webapp/bin/start.sh
+# Package 2 (Linux GPU server): see deployment/hospital-server/README.md
+deployment/hospital-server/bin/start.sh
+```
+
+On Windows with Docker Desktop, package 1 starts with `deployment/webapp/start-webapp.bat`.
+Status: package 1 was built and exercised on Docker Desktop; package 2 has not
+yet run on a hospital GPU server. The phase 1 specification is
+[`docs/milestone/phase1/PHASE1_PROGRAM_SPEC.md`](docs/milestone/phase1/PHASE1_PROGRAM_SPEC.md).
+
+### Physicians and nurses (no code): try the program
+
+1. Ask the project owner for the workstation package (a ZIP file) and a
+   sign-in account.
+2. Unzip it, double-click `FIRST_RUN.bat` once, then `START_DR_SCREENING.bat`
+   each day. The app opens in your browser. It works without AI: you can import
+   images, grade, write the screening report and export.
+3. Use the EN / TH switch at the top right for Thai text.
+
+What you will find: **Today** (your work at a glance), **Worklist** and
+**Review** (grade each image; AI is a suggestion only), **Screening report**
+(you choose Refer or Not refer; a physician signs; Print saves a PDF),
+**Gold-100** (for the ophthalmologist: grade first, AI shown only afterwards).
+
+The live AI demo runs from the project owner's workstation (desktop button
+"DR Screening Demo"), because it needs access to the team AI server. Only
+public or consented images are sent to the team server.
+
+Screening and research support only; not a diagnostic device.
+
 ## Start with your role
 
 | Role | First step | Detailed guide |

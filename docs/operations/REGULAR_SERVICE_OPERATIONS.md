@@ -54,7 +54,8 @@ CPU only), starts the review app (which warms the GPU child inside AI hours) and
 opens the browser. Settings live in the private file
 `%LOCALAPPDATA%\DRScreening\M1PrivateConfig\demo.env` (template
 `scripts/demo/demo.env.example`); only public or consented images may be used.
-Closing the window stops the app; `scripts/demo/stop-dr-train-demo.sh --gateway`
+Before starting, it checks the Admin page's AI-server choice: the team server must be
+selected and the workspace marked as public or consented images only. Closing the window stops the app; `scripts/demo/stop-dr-train-demo.sh --gateway`
 also stops the gateway. Outside 06:00 to 21:55 Thai time it stops with a plain
 message.
 
