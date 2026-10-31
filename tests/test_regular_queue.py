@@ -105,14 +105,33 @@ def test_prism_preparation_while_the_server_is_stopped_asks_it_to_start_and_says
     assert host.states == ["WARM"] and host.model_calls == []
 
 
-def test_prism_preparation_on_a_new_child_renegotiates_and_uses_the_live_epoch():
+def test_prism_preparation_on_a_new_child_renegotiates_and_sends_the_child_session_epoch():
+    # The gateway epoch (rs_...) only marks a child start; the child's PRISM transport has its own epoch.
     host = FakeHost()
     gate, inner = gate_for(host)
     calls = []
-    gate.renegotiate = lambda: calls.append("negotiate")
-    request = httpx.Request("POST", "http://control/v1/prism-bound/prepare", headers={"X-Prism-Epoch": "rs_old"})
-    RegularTransport(gate, inner).handle_request(request)
-    assert calls == ["negotiate"] and host.model_calls[0][1]["x-prism-epoch"] == "rs_new"
+    gate.renegotiate = lambda: calls.append("negotiate") or "m1_epoch_live"
+    transport = RegularTransport(gate, inner)
+    for _ in range(2):
+        request = httpx.Request("POST", "http://control/v1/prism-bound/prepare",
+                                headers={"X-Prism-Epoch": "m1_epoch_old" if not calls else "m1_epoch_live"})
+        transport.handle_request(request)
+    assert calls == ["negotiate"]   # Once per child start, not on every preparation.
+    assert [headers["x-prism-epoch"] for _, headers in host.model_calls] == ["m1_epoch_live", "m1_epoch_live"]
+    host.status["model_epoch"] = "rs_next"
+    gate.renegotiate = lambda: calls.append("negotiate") or "m1_epoch_next"
+    transport.handle_request(httpx.Request("POST", "http://control/v1/prism-bound/prepare",
+                                           headers={"X-Prism-Epoch": "m1_epoch_live"}))
+    assert calls == ["negotiate", "negotiate"] and host.model_calls[-1][1]["x-prism-epoch"] == "m1_epoch_next"
+
+
+def test_prism_preparation_without_a_live_session_epoch_is_not_sent():
+    host = FakeHost()
+    gate, inner = gate_for(host)
+    gate.renegotiate = lambda: None
+    reply = RegularTransport(gate, inner).handle_request(httpx.Request("POST", "http://control/v1/prism-bound/prepare"))
+    assert reply.status_code == 503 and reply.json() == {"error": "PREPARE_UNAVAILABLE"} and host.model_calls == []
+    assert gate.negotiated_epoch is None
 
 
 def test_a_prism_execute_gets_a_prism_ticket_for_its_bound_source():

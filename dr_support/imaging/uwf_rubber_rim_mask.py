@@ -71,14 +71,25 @@ def kept_area(rgb):
     count, labels, stats, _ = cv2.connectedComponentsWithStats(keep, 8)
     if count > 1:
         keep = (labels == 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
-    return _fill_holes(keep.astype(bool)), bool(rim.any())
+    keep = _fill_holes(keep.astype(bool))
+    return keep, bool(rim.any()), boundary_support(keep, rim, picture)
+
+
+def boundary_support(keep, rim, picture):
+    """Engineering boundary score, not a clinical probability: the share of the kept-area outline lying next to
+    the removed rim or the dark frame (outside the image counts as frame). Low means it cuts into the picture."""
+    padded = np.pad(keep.astype(np.uint8), 1)
+    outline = (padded == 1) & (cv2.erode(padded, np.ones((3, 3), np.uint8)) == 0)
+    explained = np.pad((rim | ~picture).astype(np.uint8), 1, constant_values=1)
+    explained = cv2.dilate(explained, np.ones((7, 7), np.uint8)) == 1
+    return round(float(explained[outline].mean()), 4) if outline.any() else 0.0
 
 
 def _result(rgb: Image.Image, status: FovStatus, reason: str | None, mask: Image.Image | None = None,
-            boundary=(), box=None, kept=None) -> WhiteRimFov:
+            boundary=(), box=None, kept=None, support=None) -> WhiteRimFov:
     return WhiteRimFov(status=status, field_mask=mask, mask_version=MASK_A_VERSION,
                        mask_sha256=mask_hash(mask) if mask is not None else None, source_rgb_sha256=_source_hash(rgb),
-                       boundary_confidence=None, field_fraction=kept, excluded_fraction=None if kept is None else 1 - kept,
+                       boundary_confidence=support, field_fraction=kept, excluded_fraction=None if kept is None else 1 - kept,
                        bounding_box=box, boundary=tuple(boundary), image_width=rgb.width, image_height=rgb.height,
                        reason_code=reason)
 
@@ -91,7 +102,7 @@ def detect_rubber_rim_mask(original_rgb: Image.Image) -> WhiteRimFov:
     scale = min(1.0, _WORKING_SIDE / max(rgb.size))
     working = rgb if scale == 1.0 else rgb.resize((max(1, round(rgb.width * scale)), max(1, round(rgb.height * scale))),
                                                   Image.BILINEAR)
-    keep, rim_found = kept_area(np.asarray(working))
+    keep, rim_found, support = kept_area(np.asarray(working))
     fraction = float(keep.mean())
     if not _MIN_KEPT <= fraction <= _MAX_KEPT:
         return _result(rgb, FovStatus.UNAVAILABLE, "KEPT_AREA_OUT_OF_RANGE")
@@ -105,4 +116,4 @@ def detect_rubber_rim_mask(original_rgb: Image.Image) -> WhiteRimFov:
     boundary = [] if outline is None else [(int(x), int(y)) for x, y in
                                            cv2.approxPolyDP(outline, 2.0, True).reshape(-1, 2)]
     return _result(rgb, FovStatus.READY, None if rim_found else "NO_RIM_FOUND_PICTURE_AREA_ONLY", mask, boundary,
-                   box, round(float(full.mean()), 6))
+                   box, round(float(full.mean()), 6), support)
