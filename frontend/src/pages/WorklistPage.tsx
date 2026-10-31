@@ -14,6 +14,7 @@ import { DEFAULT_FILTERS, filterCases, groupCases, matchesQuickFilter, sortCases
 import { WorklistQuickFilter } from '@/components/worklist/WorklistQuickFilter';
 import { QuickLookDrawer } from '@/components/worklist/QuickLookDrawer';
 import { WorklistToolbar } from '@/components/worklist/WorklistToolbar';
+import { AiBatchPanel } from '@/components/worklist/AiBatchPanel';
 import { imageContextConfirmed } from '@/lib/caseProgress';
 
 export function WorklistPage() {
@@ -107,6 +108,7 @@ export function WorklistPage() {
             <Text><strong>Case complete.</strong> {completedNotice.nextId ? 'Opening the next Worklist image.' : 'Every Worklist image is complete.'}</Text>
           </Alert>
         )}
+        <AiBatchPanel />
         {error && <Alert status="error" mb={4}><AlertIcon /><Text>{error}</Text></Alert>}
         {scanNotice && <Alert status="info" mb={4}><AlertIcon /><Text>{scanNotice}</Text></Alert>}
         {loading && cases.length === 0 ? (

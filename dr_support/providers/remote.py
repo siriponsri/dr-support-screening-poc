@@ -158,6 +158,10 @@ class RemoteModelProvider:
         except httpx.HTTPError as exc:
             self.last_error = f'transport error: {type(exc).__name__}'
             raise RemoteConnectionLostError(f'Remote model connection lost: {type(exc).__name__}') from None
+        except RemoteModelError as exc:
+            # A transport hook (the regular queue) refused before sending; keep its class and wording.
+            self.last_error = f'refused before sending: {type(exc).__name__}'
+            raise
         except Exception as exc:  # pragma: no cover - defensive guard
             # Any non-httpx exception (DNS resolution failures, SSL errors that
             # escape httpx, etc.) must be translated to ``RemoteModelError`` so

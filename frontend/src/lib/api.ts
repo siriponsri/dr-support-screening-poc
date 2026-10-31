@@ -942,6 +942,32 @@ export const modelConnectionApi = {
   save: (request: ModelConnectionInput) => apiJson<ModelConnectionResponse>('/v1/model-connection', jsonRequest({ method: 'PUT', body: JSON.stringify(request) })),
 };
 
+export interface RegularStatus {
+  ai_open?: boolean;
+  invocations_available?: number;
+  invocations_cap?: number;
+  model_server?: string | null;
+  quarantined?: boolean;
+  revoked?: boolean;
+}
+
+export interface RegularBatch {
+  batch_id: string;
+  total: number;
+  active: boolean;
+  cancelled: boolean;
+  counts: Record<string, number>;
+  note?: string | null;
+}
+
+/** Shared AI queue and daily batch; present only on the shared regular model server. */
+export const regularApi = {
+  status: () => apiJson<RegularStatus>('/v1/regular/status'),
+  batches: () => apiJson<{ batches: RegularBatch[] }>('/v1/batches'),
+  startAll: () => apiJson<RegularBatch>('/v1/batches', jsonRequest({ method: 'POST', body: JSON.stringify({ all_ready: true }) })),
+  cancel: (batchId: string) => apiJson<RegularBatch>(`/v1/batches/${encodeURIComponent(batchId)}/cancel`, jsonRequest({ method: 'POST' })),
+};
+
 export async function apiJson<T>(input: RequestInfo | URL, init?: RequestInit, parameters?: TimingModel): Promise<T> {
   const timing = requestTiming(input, init?.method, parameters);
   try {

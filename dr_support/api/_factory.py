@@ -203,6 +203,90 @@ REMOTE_FAILURE_WORDING = {
 }
 
 
+def install_regular_routes(app, gate, infer, workspace_id):
+    """Shared-queue status and the daily AI batch; only for the owned regular session."""
+    from ..services.regular_batch import GRADER_MODELS, BatchRunner, BatchStore
+    from ..services.regular_queue import WORDING, RegularQueueError
+    directory = (os.environ.get('DR_SUPPORT_REGULAR_BATCH_DIR') or '').strip()
+    if not directory or not Path(directory).is_absolute():
+        raise ValueError('The regular session requires an absolute private batch directory')
+
+    def stage_for(image_id):
+        admission = app.state.admissions.get(image_id)
+        if (admission is None or not is_inference_eligible(admission)
+                or not source_allowed_for_model(admission.get('source_origin', 'UNKNOWN'))):
+            return None
+        model_id = GRADER_MODELS.get(admission.get('retinal_modality'))
+        return (model_id, admission['retinal_modality']) if model_id in app.state.providers else None
+
+    def has_result(image_id, task):
+        try:
+            case = app.state.store.get(image_id)
+        except Exception:
+            return False
+        models = set(GRADER_MODELS.values()) if task == 'global' else {'prism-dr-5fold'}
+        return any(item.get('task') == task and item.get('model_id') in models and isinstance(item.get('result'), dict)
+                   for item in case.get('inference_history', []))
+
+    def run_grader(image_id, model_id, modality, invocation_id):
+        infer(InferenceRequest(image_id=image_id, modality=modality, model_id=model_id), 'global',
+              invocation_id=invocation_id)
+
+    def queue_open():
+        try:
+            status = gate.public_status()
+        except RegularQueueError:
+            return False
+        return bool(status['ai_open'] and status['invocations_available'] and not status['quarantined'])
+
+    runner = BatchRunner(
+        BatchStore(Path(directory) / workspace_id), workspace_id=workspace_id, stage_for=stage_for,
+        has_result=has_result, run_grader=run_grader, queue_open=queue_open,
+        deferred_details=set(WORDING.values()) | {
+            REMOTE_FAILURE_WORDING[RemoteUnreachableError][1],
+            'AI analysis is not available; manual review remains available.'})
+    app.state.regular_batches = runner
+
+    @app.on_event('startup')
+    def start_regular_batches():
+        runner.start()
+
+    @app.on_event('shutdown')
+    def stop_regular_batches():
+        runner.stop()
+
+    @app.get('/v1/regular/status')
+    def regular_status():
+        try:
+            return gate.public_status()
+        except RegularQueueError as error:
+            raise HTTPException(503, error.message) from None
+
+    @app.get('/v1/batches')
+    def list_batches():
+        return {'batches': runner.list()}
+
+    @app.post('/v1/batches')
+    def create_batch(request: dict):
+        image_ids = request.get('image_ids') if isinstance(request, dict) else None
+        if request.get('all_ready') is True:
+            image_ids = [image_id for image_id in app.state.admissions
+                         if stage_for(image_id) is not None and not has_result(image_id, 'global')]
+            if not image_ids:
+                raise HTTPException(409, 'No confirmed image is waiting for AI analysis.')
+        try:
+            return runner.create(image_ids if isinstance(image_ids, list) else [])
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+
+    @app.post('/v1/batches/{batch_id}/cancel')
+    def cancel_batch(batch_id: str):
+        try:
+            return runner.cancel(batch_id)
+        except (KeyError, OSError):
+            raise HTTPException(404, 'Batch not found.') from None
+
+
 class OwnedReachability:
     """Live reachability of the owned M1 model route, checked at most once per ``ttl`` seconds.
 
@@ -253,6 +337,7 @@ def create_app(
     source_mutation_gate=None,
     workspace_authority=None,
     workspace_prism_provider=None,
+    regular_gate=None,
 ):
     # Reject an invalid private boundary before creating stores or migrating DBs.
     # Availability is deliberately not checked here: review remains usable offline.
@@ -311,6 +396,14 @@ def create_app(
     app.add_middleware(BodyLimitMiddleware)
     app.state.source_mutation_gate = source_mutation_gate
     app.state.workspace_authority = workspace_authority
+    app.state.regular_gate = regular_gate
+    if regular_gate is not None:
+        import httpx
+        from ..services.regular_queue import RegularGate, RegularTransport
+        if type(regular_gate) is not RegularGate or workspace_authority is None:
+            raise ValueError('The regular queue requires the owned workspace session')
+        # Global grading providers send through the same ticketed transport as PRISM.
+        app.state.model_gateway_transport = RegularTransport(regular_gate, httpx.HTTPTransport(retries=0))
     root = Path(__file__).resolve().parents[2]
 
     if qa_fixed_session is not None:
@@ -1016,6 +1109,9 @@ def create_app(
             )
             if qa_batch_profile is not None:
                 qa_batch_profile.claim(request, image, admission)
+            from ..services.regular_queue import PAIR_KEY
+            # Per-call context (request thread or batch worker): pairs this image's grader and PRISM holds.
+            PAIR_KEY.set(analysis_derivative.lineage.source_sha256)
             with inference_lock:
                 if (
                     isinstance(provider, RemoteModelProvider)
@@ -1076,6 +1172,9 @@ def create_app(
             # Plain clinician wording only; the class goes to the operator log. A reply that may
             # have been processed is never described as "not sent".
             logging.getLogger(__name__).warning('Remote inference refused: %s', type(exc).__name__)
+            from ..services.regular_queue import RegularQueueError
+            if isinstance(exc, RegularQueueError):
+                raise HTTPException(503, exc.message) from None
             status, detail = REMOTE_FAILURE_WORDING.get(type(exc), REMOTE_FAILURE_WORDING[RemoteModelError])
             raise HTTPException(status, detail) from None
         except MutationFenced:
@@ -1348,6 +1447,9 @@ def create_app(
                 status_code=503,
             )
     app.state.infer = infer
+    app.state.regular_batches = None
+    if regular_gate is not None:
+        install_regular_routes(app, regular_gate, infer, workspace_id)
     if qa_batch_profile is not None:
         qa_batch_profile.bind(app)
     if qa_fixed_session is not None:

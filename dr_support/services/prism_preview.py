@@ -343,6 +343,10 @@ class PrismPreviewService:
                     "PRISM execution refused: %s %s", type(error).__name__,
                     code if isinstance(code, str) and re.fullmatch(r"[A-Z0-9_]{1,80}", code) else "")
                 from dr_support.providers.prism_remote_bound import RemoteExecutionUncertain
+                from dr_support.services.regular_queue import RegularQueueError
+                if isinstance(error, RegularQueueError):
+                    # Refused by the queue before the call was sent; the receipt is still used up.
+                    raise HTTPException(503, error.message) from None
                 if isinstance(error, RemoteExecutionUncertain):
                     # Possibly started: never call it failed or invite a resend.
                     raise HTTPException(502, "The PRISM result could not be confirmed and nothing was saved. "
