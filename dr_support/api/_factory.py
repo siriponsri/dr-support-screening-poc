@@ -113,6 +113,8 @@ from ..persistence import (
 from ..workflow import install_workflow
 from .workspaces import install_workspace_routes
 from .dataset import install_dataset_routes
+from ..services.screening_report import install_screening_report_routes
+from ..services.gold_labels import install_gold_label_routes
 
 
 def _resolve_case_store_mode(case_store_mode: str | None, state_path) -> str:
@@ -490,6 +492,8 @@ def create_app(
     app.state.workspace_id = selected_workspace_id
     install_workspace_routes(app, workspace_manager)
     install_dataset_routes(app)
+    install_screening_report_routes(app)
+    install_gold_label_routes(app)
 
     @app.exception_handler(CaseConflictError)
     async def case_conflict(_request, _exc):

@@ -860,6 +860,7 @@ function ReviewPageSession() {
           )}
           <Stack spacing={2}>
             <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid" alignSelf="flex-start">Continue to clinician review</Button>
+            <Button as={Link} to={`/report/${encodeURIComponent(item.image_id)}`} variant="outline" alignSelf="flex-start">Screening report</Button>
             <Text fontSize="xs" color="text.secondary">Nothing is recorded on this page; you confirm the DR grade next.</Text>
           </Stack>
         </Stack>

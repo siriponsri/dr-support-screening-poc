@@ -1,7 +1,7 @@
 import { useT } from '@/lib/i18n';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
-  Alert, AlertIcon, Badge, Box, Button, Code, FormControl, FormLabel, Grid, HStack, Input, Select, SimpleGrid, Stack,
+  Alert, AlertIcon, Badge, Box, Button, Checkbox, Code, FormControl, FormLabel, Grid, HStack, Input, Radio, RadioGroup, Select, SimpleGrid, Stack,
   Switch, Tab, TabList, TabPanel, TabPanels, Table, Tabs, Tbody, Td, Text, Th, Thead, Tr,
 } from '@chakra-ui/react';
 import { useLocation } from 'react-router-dom';
@@ -43,10 +43,11 @@ export function AdminPage() {
     <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader pathname={pathname} subtitle={t('Accounts and stored data')} />
       <Tabs variant="enclosed" isLazy>
-        <TabList><Tab>Users and sign-in</Tab><Tab>Database</Tab></TabList>
+        <TabList><Tab>Users and sign-in</Tab><Tab>Database</Tab><Tab>AI server</Tab></TabList>
         <TabPanels>
           <TabPanel px={0}><UsersPanel me={user.username} /></TabPanel>
           <TabPanel px={0}><DatabasePanel /></TabPanel>
+          <TabPanel px={0}><ServerModePanel /></TabPanel>
         </TabPanels>
       </Tabs>
     </Box>
@@ -300,6 +301,61 @@ function DatabasePanel() {
           </Box>
         </Section>
       )}
+    </Stack>
+  );
+}
+
+
+interface ServerMode {
+  mode: 'hospital_local' | 'team_server'; modes: Record<string, string>; consented_workspaces: string[];
+  current_workspace: string | null; current_model_host: string; applies: string;
+}
+
+/** Which AI server the app uses. The team server takes only workspaces marked as public or consented images. */
+function ServerModePanel() {
+  const [state, setState] = useState<ServerMode | null>(null);
+  const [mode, setMode] = useState<ServerMode['mode']>('hospital_local');
+  const [consented, setConsented] = useState<string[]>([]);
+  const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  useEffect(() => {
+    void apiJson<ServerMode>('/v1/admin/server-mode').then((value) => {
+      setState(value); setMode(value.mode); setConsented(value.consented_workspaces);
+    }).catch((reason) => setMessage({ tone: 'error', text: reason instanceof Error ? reason.message : 'Could not load the setting.' }));
+  }, []);
+  const workspace = state?.current_workspace ?? null;
+  const save = async () => {
+    try {
+      const value = await apiJson<ServerMode>('/v1/admin/server-mode', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, consented_workspaces: consented }),
+      });
+      setState(value); setMessage({ tone: 'success', text: `Saved. It applies ${value.applies}.` });
+    } catch (reason) { setMessage({ tone: 'error', text: reason instanceof Error ? reason.message : 'Not saved.' }); }
+  };
+  return (
+    <Stack spacing={5} maxW="760px">
+      <Section title="AI server" description="Choose where AI analysis runs. Images may leave the hospital only when they are public or consented.">
+        <Stack spacing={4}>
+          <RadioGroup value={mode} onChange={(value) => setMode(value as ServerMode['mode'])}>
+            <Stack spacing={2}>
+              <Radio value="hospital_local">Hospital model server (all admitted images)</Radio>
+              <Radio value="team_server">Team server, dr-train (public or consented images only)</Radio>
+            </Stack>
+          </RadioGroup>
+          {workspace && (
+            <Checkbox isChecked={consented.includes(workspace)}
+              onChange={(event) => setConsented((current) => event.target.checked
+                ? [...new Set([...current, workspace])] : current.filter((item) => item !== workspace))}>
+              This workspace ({workspace}) holds only public or consented images
+            </Checkbox>
+          )}
+          <Text fontSize="sm" color="text.secondary">
+            Model server in use now: {state?.current_model_host || 'not set'}. A change applies at the next start.
+          </Text>
+          <Button alignSelf="flex-start" onClick={() => void save()} isDisabled={!state}>Save AI server</Button>
+        </Stack>
+      </Section>
+      {message && <Alert status={message.tone} py={2}><AlertIcon /><Text fontSize="sm">{message.text}</Text></Alert>}
     </Stack>
   );
 }

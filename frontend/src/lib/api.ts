@@ -934,6 +934,11 @@ export const datasetApi = {
     '/v1/dataset/export/grouped-by-grade',
     jsonRequest({ method: 'POST', body: JSON.stringify({ image_format: imageFormat, jpeg_quality: jpegQuality }) }),
   ),
+  /** Archive sorting by the AI grade only: a separate ai_predicted_unverified folder, never clinical grades. */
+  exportAiPredicted: (imageFormat: 'PNG' | 'JPEG', jpegQuality: number) => apiJson<GroupedGradeExportResponse>(
+    '/v1/dataset/export/ai-predicted-by-grade',
+    jsonRequest({ method: 'POST', body: JSON.stringify({ image_format: imageFormat, jpeg_quality: jpegQuality }) }),
+  ),
 };
 
 export const modelConnectionApi = {

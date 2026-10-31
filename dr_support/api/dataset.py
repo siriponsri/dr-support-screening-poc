@@ -53,6 +53,17 @@ def install_dataset_routes(app) -> None:
         except OSError:
             raise HTTPException(status_code=503, detail="The Workspace output folder is not available.") from None
 
+    @app.post("/v1/dataset/export/ai-predicted-by-grade")
+    def ai_predicted_grade_export(request: GroupedGradeExportRequest):
+        """Archive sorting: copies into ai_predicted_unverified/ai_grade_N by the AI grade only (not reviewed)."""
+        try:
+            return service.export_grouped(image_format=request.image_format, jpeg_quality=request.jpeg_quality,
+                                          basis="ai_predicted")
+        except DatasetManifestError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from None
+        except OSError:
+            raise HTTPException(status_code=503, detail="The Workspace output folder is not available.") from None
+
     @app.get("/v2/workspace-data/records")
     def workspace_data_records(
         page: int = Query(default=1, ge=1),

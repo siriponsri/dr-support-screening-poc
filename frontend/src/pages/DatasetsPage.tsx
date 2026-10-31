@@ -227,6 +227,16 @@ export function DatasetsPage() {
     try { const result = await datasetApi.snapshot(); setNotice(`Canonical snapshot created: ${result.snapshot_id}.`); } catch (err) { setError(plainExportRefusal(err) ?? 'The canonical snapshot is blocked or could not be created. Review source authorization and Workspace state.'); } finally { setSnapshotting(false); }
   };
 
+  const createAiSortedExport = async () => {
+    const quality = Number(jpegQuality);
+    if (!manifest?.can_export || exportingGrouped || !Number.isInteger(quality) || quality < 1 || quality > 100) return;
+    setExportingGrouped(true); setError(null); setNotice(null);
+    try {
+      const result = await datasetApi.exportAiPredicted(groupedFormat, quality);
+      setNotice(`AI-sorted copies (not reviewed, not clinical grades) in ${result.directory_name}: ${result.copied_count} copied, ${result.identical_existing_count} already present, ${result.skipped_count} skipped.`);
+    } catch (err) { setError(plainExportRefusal(err) ?? 'The AI-sorted export could not be created.'); } finally { setExportingGrouped(false); }
+  };
+
   const createGroupedExport = async () => {
     const quality = Number(jpegQuality);
     if (!manifest?.can_export || exportingGrouped || !Number.isInteger(quality) || quality < 1 || quality > 100) return;
@@ -270,7 +280,7 @@ export function DatasetsPage() {
         <Section title="Legacy export tools" description="Metadata-only canonical snapshots do not copy images. The older grouped-image export updates a shared folder; use Grading-folder snapshot for a new immutable copy.">
           <Stack spacing={3} align="flex-start">
             {!manifest?.can_export && <Text fontSize="sm" color="status.warning">{manifest?.workspace_id ? 'Export is restricted for this Workspace. Review source identity and authorization.' : 'Open an active Workspace to export a dataset manifest.'}</Text>}
-            <HStack flexWrap="wrap"><Button leftIcon={<Download size={15} />} onClick={() => void createExport()} isLoading={exporting} isDisabled={!manifest?.can_export}>Export manifest</Button><Button variant="outline" onClick={() => void createGroupedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export}>Export grouped images</Button></HStack>
+            <HStack flexWrap="wrap"><Button leftIcon={<Download size={15} />} onClick={() => void createExport()} isLoading={exporting} isDisabled={!manifest?.can_export}>Export manifest</Button><Button variant="outline" onClick={() => void createGroupedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export}>Export grouped images</Button><Button variant="ghost" onClick={() => void createAiSortedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export}>Sort by AI grade (unverified)</Button></HStack>
             <HStack role="group" aria-label="Grouped export image format" spacing={1}>{(['PNG', 'JPEG'] as const).map((format) => <Button key={format} size="sm" variant={groupedFormat === format ? 'solid' : 'outline'} aria-pressed={groupedFormat === format} onClick={() => setGroupedFormat(format)}>{format}</Button>)}</HStack>
             {groupedFormat === 'JPEG' && <FormControl maxW="180px"><FormLabel htmlFor="grouped-jpeg-quality" fontSize="sm">JPEG quality</FormLabel><Input id="grouped-jpeg-quality" type="number" min={1} max={100} step={1} value={jpegQuality} onChange={(event) => setJpegQuality(event.target.value)} /></FormControl>}
           </Stack>
