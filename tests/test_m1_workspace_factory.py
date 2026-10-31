@@ -184,3 +184,39 @@ def test_busy_or_already_bound_authority_is_refused_before_any_work(owned):
     with pytest.raises(ValueError, match='already bound'):
         compose(owned)
     assert owned.built == [] and owned.order == []
+
+
+def test_owned_status_follows_a_dropped_and_restored_link_without_changing_identity():
+    clock, state, calls = [100.0], {"up": True}, []
+
+    def check():
+        calls.append(clock[0])
+        if state["up"] is None:
+            raise RuntimeError("synthetic probe crash")
+        return global_probe(verified=state["up"])
+    reachable = _factory.OwnedReachability(check, clock=lambda: clock[0], ttl=5.0)
+    models = (dict(model_id='retfound-aptos5', ready=True),)
+    first = _factory.owned_status_probe(models, reachable())
+    assert first.status == 'CONNECTED' and first.server_reachable and first.models is models
+    state["up"] = False
+    clock[0] += 1
+    assert reachable() is True and len(calls) == 1  # Within 5 s the shared result is reused.
+    clock[0] += 5
+    dropped = _factory.owned_status_probe(models, reachable())
+    assert dropped.status == 'UNAVAILABLE' and not dropped.connection_verified and dropped.models is models
+    assert 'Manual review remains available' in dropped.message and 'SYNTHETIC' not in dropped.message
+    state["up"] = None
+    clock[0] += 6
+    assert reachable() is False  # An unexpected failure is unreachable, never an error page.
+    state["up"] = True
+    clock[0] += 6
+    assert _factory.owned_status_probe(models, reachable()).status == 'CONNECTED' and len(calls) == 4
+
+
+def test_connection_payload_marks_operator_managed_sessions_and_never_returns_the_token():
+    from dr_support.services.model_gateway import ModelConnection, response_payload
+    connection = ModelConnection('dr-train M1', ENDPOINT, 'SYNTHETIC_CONTROL_ONLY')
+    managed = response_payload(connection, probe=global_probe(), managed_by_operator=True)
+    assert managed['managed_by_operator'] is True and managed['token_configured'] is True
+    assert 'SYNTHETIC_CONTROL_ONLY' not in str(managed)
+    assert response_payload(connection, probe=global_probe())['managed_by_operator'] is False

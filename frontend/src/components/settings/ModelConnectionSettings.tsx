@@ -93,16 +93,23 @@ export function ModelConnectionSettings() {
   };
 
   const status = statusView(connection);
+  // Operator-managed (owned session): status only, never a URL or token form in the page.
+  const managed = connection?.managed_by_operator === true;
   return (
     <Section title="AI Model Connection" description="Optional provider-neutral connection for a hospital LAN GPU server or local GPU API." action={<StatusBadge tone={status.tone}><CheckCircle2 size={11} aria-hidden="true" /> {status.label}</StatusBadge>}>
       {loading ? <HStack color="text.secondary"><Spinner size="sm" /><Text fontSize="sm">Loading connection settings</Text></HStack> : (
         <Stack spacing={4}>
           {feedback && <Alert status={feedback.status}><AlertIcon /><Text fontSize="sm">{feedback.message}</Text></Alert>}
-          <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={4}>
+          {managed && <Stack spacing={1} data-testid="model-connection-managed">
+            <Text fontSize="sm"><strong>Connection:</strong> {connection?.name ?? 'Model API'}</Text>
+            <Text fontSize="sm"><strong>Access token:</strong> {connection?.token_configured ? 'configured by the operator' : 'not configured'}</Text>
+            <Text fontSize="xs" color="text.secondary">This connection is set up by the operator on the server. It cannot be changed here.</Text>
+          </Stack>}
+          {!managed && <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={4}>
             <FormControl isRequired><FormLabel htmlFor="model-connection-name">Connection name</FormLabel><Input id="model-connection-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Model API" /></FormControl>
             <FormControl isRequired><FormLabel htmlFor="model-connection-url">Model API URL</FormLabel><Input id="model-connection-url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://model-api.example" inputMode="url" /></FormControl>
-          </SimpleGrid>
-          <FormControl><FormLabel htmlFor="model-connection-token">Access token (optional)</FormLabel><Input id="model-connection-token" type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder={connection?.token_configured ? 'Token configured; leave blank to keep it' : 'Enter only when required'} autoComplete="new-password" /><Text mt={1} fontSize="xs" color="text.secondary">Stored only by the running backend connection. It is never returned to this page or written to Workspace storage.</Text></FormControl>
+          </SimpleGrid>}
+          {!managed && <FormControl><FormLabel htmlFor="model-connection-token">Access token (optional)</FormLabel><Input id="model-connection-token" type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder={connection?.token_configured ? 'Token configured; leave blank to keep it' : 'Enter only when required'} autoComplete="new-password" /><Text mt={1} fontSize="xs" color="text.secondary">Stored only by the running backend connection. It is never returned to this page or written to Workspace storage.</Text></FormControl>}
           {connection && <Stack spacing={3}>
             <Text fontSize="sm" color="text.secondary">{connection.message}</Text>
             <Alert status={connection.capabilities_ready ? 'success' : 'info'} alignItems="flex-start">
@@ -111,10 +118,10 @@ export function ModelConnectionSettings() {
             </Alert>
             {connection.models.length > 0 && <Stack spacing={2}><Text fontSize="sm" fontWeight="semibold">Discovered capabilities</Text>{connection.models.map((model) => <ModelCapabilityRow key={model.model_id} model={model} />)}</Stack>}
           </Stack>}
-          <HStack justify="flex-end" spacing={2}>
+          {!managed && <HStack justify="flex-end" spacing={2}>
             <Button variant="outline" leftIcon={<TestTube2 size={15} />} onClick={() => void test()} isLoading={working === 'test'} isDisabled={working !== null || !name.trim() || !url.trim()}>Test connection</Button>
             <Button variant="solid" leftIcon={<Save size={15} />} onClick={() => void save()} isLoading={working === 'save'} isDisabled={working !== null || !name.trim() || !url.trim()}>Save</Button>
-          </HStack>
+          </HStack>}
         </Stack>
       )}
     </Section>

@@ -19,6 +19,10 @@ class RemoteExecutionUncertain(TransportError):
     pass
 
 
+class RemoteReplyUnreadable(TransportError):
+    """The reply was not a JSON object, so it says nothing about what the host did."""
+
+
 # Prepare uploads the wire and the host builds the frozen CPU plan; it took longer
 # than the 2 s client default right after a PRISM job (MS-03, 2026-10-25). Prepare
 # is a control call that starts no model work. The review runtime holds the case
@@ -51,7 +55,14 @@ class ExplicitHttpChannel:
                 if len(data) > 20_100_000:
                     raise TransportError("RESPONSE_LIMIT", 502)
             import json
-            parsed = json.loads(data)
+            try:
+                parsed = json.loads(data)
+            except ValueError:
+                parsed = None
+            if not isinstance(parsed, dict):
+                # A proxy page or truncated body: never parsed as a host decision.
+                raise RemoteReplyUnreadable("REMOTE_REPLY_NOT_JSON",
+                                            response.status_code if response.status_code >= 400 else 502)
             if response.status_code not in {200, 202}:
                 # Host refusals carry `error` (transport) or `code` (M1 session admission).
                 code = parsed.get("error") or parsed.get("code")
@@ -231,7 +242,8 @@ class RemoteBoundTransportCandidate:
                                   else {"kind": "NO_GRANT_SENT"})
                 else:
                     lease.quarantine("UNKNOWN_REMOTE_GRANT_OUTCOME_NO_TIMEOUT_RELEASE")
-            if isinstance(error, httpx.TransportError):
+            if isinstance(error, (httpx.TransportError, RemoteReplyUnreadable)):
+                # From the execute POST on, an unreadable reply or lost link may hide a started run.
                 raise RemoteExecutionUncertain("TRANSPORT_LOST_NO_AUTOMATIC_RETRY", 503) from None
             raise
 

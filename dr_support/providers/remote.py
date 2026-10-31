@@ -39,7 +39,15 @@ class RemoteModelError(RuntimeError):
 
 
 class RemoteTimeoutError(RemoteModelError):
-    """Remote model exceeded the configured timeout."""
+    """Remote model exceeded the configured timeout after the request may have been sent."""
+
+
+class RemoteUnreachableError(RemoteModelError):
+    """No connection was established, so the request was not sent."""
+
+
+class RemoteConnectionLostError(RemoteModelError):
+    """The connection failed after the request may have been sent; the outcome is unknown."""
 
 
 class RemoteHTTPError(RemoteModelError):
@@ -140,12 +148,16 @@ class RemoteModelProvider:
         try:
             with self._client(kwargs.pop('timeout', self._client_timeout)) as client:
                 response = client.request(method, url, headers=headers, **kwargs)
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            # No connection, so nothing was sent; exception text stays out of the message.
+            self.last_error = f'unreachable: {type(exc).__name__}'
+            raise RemoteUnreachableError('Remote model unreachable; request not sent') from None
         except httpx.TimeoutException as exc:
             self.last_error = f'timeout after {self._client_timeout:.0f}s'
-            raise RemoteTimeoutError(f'Remote model timeout: {exc}') from None
+            raise RemoteTimeoutError(f'Remote model timeout: {type(exc).__name__}') from None
         except httpx.HTTPError as exc:
             self.last_error = f'transport error: {type(exc).__name__}'
-            raise RemoteModelError(f'Remote model transport error: {exc}') from None
+            raise RemoteConnectionLostError(f'Remote model connection lost: {type(exc).__name__}') from None
         except Exception as exc:  # pragma: no cover - defensive guard
             # Any non-httpx exception (DNS resolution failures, SSL errors that
             # escape httpx, etc.) must be translated to ``RemoteModelError`` so

@@ -40,7 +40,8 @@ export function GradeChoice({ labelId, value, onChange, isDisabled = false }: Gr
     <SimpleGrid
       role="radiogroup"
       aria-labelledby={labelId}
-      columns={{ base: 3, tablet: 6 }}
+      // Three per row: the clinician panel is narrow, so six columns clipped the labels.
+      columns={3}
       spacing={2}
       onKeyDown={(event) => { if (!isDisabled) handleRadioArrowKeys(event, values, value, onChange); }}
     >
@@ -70,7 +71,7 @@ export function GradeChoice({ labelId, value, onChange, isDisabled = false }: Gr
             _hover={{ bg: selected ? 'action.primaryHover' : 'surface.subtle' }}
           >
             <Box as="span" fontSize="xl" fontWeight="semibold" lineHeight="1">{option.mark}</Box>
-            <Text as="span" fontSize="xs" fontWeight="medium" color="inherit" noOfLines={1}>{option.label}</Text>
+            <Text as="span" fontSize="xs" fontWeight="medium" color="inherit" whiteSpace="normal" textAlign="center" lineHeight="short">{option.label}</Text>
           </Button>
         );
       })}

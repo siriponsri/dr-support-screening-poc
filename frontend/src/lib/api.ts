@@ -810,6 +810,7 @@ export interface ModelConnectionResponse {
   name: string | null;
   url: string | null;
   token_configured: boolean;
+  managed_by_operator?: boolean;
   status: 'CONNECTED' | 'NOT_CONFIGURED' | 'UNAVAILABLE' | 'UNVERIFIED';
   message: string;
   server_reachable: boolean;
