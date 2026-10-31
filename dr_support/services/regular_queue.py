@@ -78,7 +78,8 @@ class RegularGate:
         self.workstation, self._token = workstation, token
         self.clock, self.sleep = clock, sleep
         self.ready_wait_seconds, self.poll_seconds = ready_wait_seconds, poll_seconds
-        self.client = httpx.Client(base_url=base_url, transport=transport, timeout=httpx.Timeout(5),
+        # 15 s rides out the gateway's brief pause while it spawns the GPU child.
+        self.client = httpx.Client(base_url=base_url, transport=transport, timeout=httpx.Timeout(15),
                                    trust_env=False, follow_redirects=False)
         self.renegotiate = None   # Set to the PRISM provider's negotiate once composed.
         self.lock = threading.RLock()
@@ -161,7 +162,12 @@ class RegularGate:
                     pass
                 raise RegularQueueError(reason if reason == "DAILY_INVOCATIONS_EXHAUSTED" else "QUEUE_WAIT_TIMEOUT")
             self.sleep(self.poll_seconds)
-            ticket = self._call("GET", f"/tickets/{ticket_id}")
+            try:
+                ticket = self._call("GET", f"/tickets/{ticket_id}")
+            except RegularQueueError as error:
+                if error.code != "QUEUE_UNREACHABLE":
+                    raise
+                # A brief gateway pause: keep the last known state and poll again within the same bound.
 
     def headers(self, ticket_id: str) -> dict:
         return {"X-DR-Ticket": ticket_id, "X-DR-Workstation": self.workstation}
