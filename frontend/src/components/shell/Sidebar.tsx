@@ -26,7 +26,7 @@ import { BrandMark } from '@/components/common/BrandMark';
 import { sidebarScope } from '@/theme';
 import { SidebarNavList } from './SidebarNavList';
 import { WorkspaceCard } from './WorkspaceCard';
-import { ADMIN_NAV_ITEM, PRIMARY_NAV, SECONDARY_NAV, type NavItem } from './navItems';
+import { ADMIN_NAV_ITEM, ADMIN_ONLY_PATHS, PRIMARY_NAV, SECONDARY_NAV, type NavItem } from './navItems';
 import { useAuth } from './AuthGate';
 import { useSidebarState } from './SidebarStateProvider';
 
@@ -53,7 +53,9 @@ export function Sidebar({
   ...rest
 }: SidebarProps) {
   const { user } = useAuth();
-  const secondaryNav = user?.role === 'admin' ? [...secondaryNavProp, ADMIN_NAV_ITEM] : secondaryNavProp;
+  // Without sign-in (user is null) the navigation is unchanged.
+  const secondaryNav = user?.role === 'admin' ? [...secondaryNavProp, ADMIN_NAV_ITEM]
+    : user ? secondaryNavProp.filter((item) => !ADMIN_ONLY_PATHS.has(item.to)) : secondaryNavProp;
   const { collapsed: collapsedState } = useSidebarState();
   const collapsed = collapsedProp ?? collapsedState;
   const runtime = useRuntimeHealth();

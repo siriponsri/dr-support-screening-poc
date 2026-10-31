@@ -59,3 +59,28 @@ describe('admin page', () => {
     expect(screen.queryByRole('tab', { name: 'Users' })).toBeNull();
   });
 });
+
+describe('sign-in policy panel', () => {
+  it('shows the rules in plain words and saves a change', async () => {
+    const calls: Array<{ path: string; body?: string }> = [];
+    let policy = { min_length: 8, letters_and_numbers: true, first_sign_in_change: true, max_failures: 5, lockout_minutes: 5, idle_minutes: 30 };
+    const bounds = { min_length: [6, 64], max_failures: [3, 10], lockout_minutes: [1, 60], idle_minutes: [5, 480] };
+    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+      calls.push({ path: input, body: init?.body as string | undefined });
+      if (input === '/v1/auth/me') return { ok: true, status: 200, headers: new Headers(), json: async () => ({ username: 'admin', role: 'admin', must_change: false, short_password: false }) };
+      if (input === '/v1/admin/users') return { ok: true, status: 200, headers: new Headers(), json: async () => ({ users }) };
+      if (input === '/v1/admin/policy') {
+        if (init?.method === 'POST') policy = JSON.parse(String(init.body));
+        return { ok: true, status: 200, headers: new Headers(), json: async () => ({ policy, bounds }) };
+      }
+      return { ok: false, status: 404, headers: new Headers(), json: async () => ({ detail: 'Not Found' }) };
+    }));
+    mount();
+    const length = await screen.findByLabelText('Minimum password length');
+    expect(screen.getByText('Sign out when idle for')).toBeInTheDocument();
+    fireEvent.change(length, { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save policy' }));
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
+    expect(JSON.parse(calls.find((call) => call.path === '/v1/admin/policy' && call.body)!.body!).min_length).toBe(10);
+  });
+});

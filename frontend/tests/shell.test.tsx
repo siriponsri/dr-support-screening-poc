@@ -92,9 +92,9 @@ describe('Header and route mapping', () => {
     ).toBeInTheDocument();
   });
 
-  it('redirects the index route to /worklist', () => {
+  it('opens the physician start page (Today) from the index route', () => {
     renderAppAt('/');
-    expect(screen.getAllByRole('heading', { level: 1, name: /Worklist/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('heading', { level: 1, name: /Today/i }).length).toBeGreaterThan(0);
   });
 });
 

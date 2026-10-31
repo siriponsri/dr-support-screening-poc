@@ -23,7 +23,7 @@ export const ROUTE_META: Record<string, RouteMeta> = {
   },
   '/review': {
     title: 'Review',
-    subtitle: 'Inspect optional model evidence before clinician sign-off',
+    subtitle: 'Check the image and the AI result, then confirm',
   },
   '/edit': {
     title: 'Annotation Editor',
@@ -40,6 +40,10 @@ export const ROUTE_META: Record<string, RouteMeta> = {
   '/settings': {
     title: 'Settings',
     subtitle: 'Workspace, runtime, and clinician preferences',
+  },
+  '/today': {
+    title: 'Today',
+    subtitle: 'Your review work at a glance',
   },
   '/admin': {
     title: 'Admin',

@@ -186,10 +186,10 @@ describe('Review responsibility boundary', () => {
     const models: ModelDescriptor[] = [loaded];
     mockReviewApi(undefined, readyCase, models);
     renderAppAt('/review/ready');
-    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('AI READY');
+    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('AI ready');
     models.splice(0, 1, { ...loaded, status: 'REMOTE_UNAVAILABLE' });
     fireEvent.focus(window);
-    await waitFor(() => expect(screen.getByLabelText('AI availability')).toHaveTextContent('AI UNAVAILABLE'));
+    await waitFor(() => expect(screen.getByLabelText('AI availability')).toHaveTextContent('AI not available'));
   });
 
   it('runs global grading separately and never silently submits PRISM without a bound preview', async () => {
@@ -340,7 +340,7 @@ describe('Review responsibility boundary', () => {
     renderAppAt('/review/ready');
 
     expect(await screen.findByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
-    expect(screen.getAllByText(/Manual review remains available/i)).not.toHaveLength(0);
+    expect(screen.getAllByText(/review this image without AI|Manual review remains available/i)).not.toHaveLength(0);
     expect(screen.queryByRole('heading', { name: 'Analysis' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'DR assessment' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Lesion suggestions' })).not.toBeInTheDocument();
@@ -504,8 +504,8 @@ describe('Review responsibility boundary', () => {
     mockReviewApi(undefined, preparedCase, [prismUwfDescriptor]);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('PRISM PREVIEW REQUIRED');
-    expect(screen.queryByText('AI UNAVAILABLE')).not.toBeInTheDocument();
+    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('PRISM input check needed');
+    expect(screen.queryByText('AI not available')).not.toBeInTheDocument();
     const fieldButton = screen.getByRole('button', { name: 'PRISM analysis field' });
     expect(fieldButton).toBeEnabled();
     await userEvent.setup().click(fieldButton);
@@ -528,7 +528,7 @@ describe('Review responsibility boundary', () => {
     mockReviewApi(undefined, fallbackCase, [prismUwfDescriptor]);
     renderAppAt('/review/ready');
 
-    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('PRISM PREVIEW REQUIRED');
+    expect(await screen.findByLabelText('AI availability')).toHaveTextContent('PRISM input check needed');
     expect(screen.queryByRole('button', { name: 'PRISM analysis field' })).not.toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /PRISM analysis boundary/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Original' })).toHaveAttribute('aria-pressed', 'true');

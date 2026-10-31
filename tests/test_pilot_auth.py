@@ -9,14 +9,14 @@ import pytest
 from dr_support.services import pilot_auth
 from dr_support.services.pilot_auth import AuthError, Authenticator, UserStore, install_pilot_auth
 
-TEST_PASSWORD = "synthetic-test-pass"
+TEST_PASSWORD = "synthetic-test-pass-7"
 
 
 def app_with(tmp_path, *users):
     store_file = tmp_path / "users.json"
     store = UserStore(store_file)
     for username, password, role, must_change in users:
-        store.set_user(username, password, role=role, must_change=must_change)
+        store.set_user(username, password, role=role, must_change=must_change, enforce_policy=False)
     app = FastAPI()
     install_pilot_auth(app, store_file)
 
@@ -68,9 +68,9 @@ def test_a_new_user_must_change_the_password_before_using_the_app(tmp_path):
     client = TestClient(app)
     assert client.post("/v1/auth/login", json={"username": "doctor1", "password": TEST_PASSWORD}).json()["must_change"]
     assert client.get("/v1/cases").status_code == 403
-    bad = client.post("/v1/auth/password", json={"current_password": "x", "new_password": "another-pass"})
+    bad = client.post("/v1/auth/password", json={"current_password": "x", "new_password": "another-pass-9"})
     assert bad.status_code == 400
-    ok = client.post("/v1/auth/password", json={"current_password": TEST_PASSWORD, "new_password": "another-pass"})
+    ok = client.post("/v1/auth/password", json={"current_password": TEST_PASSWORD, "new_password": "another-pass-9"})
     assert ok.status_code == 200 and ok.json()["must_change"] is False
     assert client.get("/v1/cases").status_code == 200
 
@@ -90,14 +90,14 @@ def test_only_an_admin_manages_users_and_cannot_disable_itself(tmp_path):
     assert doctor.get("/v1/admin/users").status_code == 403
     admin = TestClient(app)
     admin.post("/v1/auth/login", json={"username": "admin", "password": TEST_PASSWORD})
-    created = admin.post("/v1/admin/users", json={"username": "doctor2", "password": "first-pass", "role": "user"})
+    created = admin.post("/v1/admin/users", json={"username": "doctor2", "password": "first-pass-1", "role": "user"})
     assert created.status_code == 200
     row = next(user for user in created.json()["users"] if user["username"] == "doctor2")
     assert row["must_change"] is True and "hash" not in row and "salt" not in row
     assert admin.post("/v1/admin/users", json={"username": "admin", "disabled": True}).status_code == 400
     admin.post("/v1/admin/users", json={"username": "doctor1", "disabled": True})
     assert doctor.get("/v1/cases").status_code == 401  # Disabling ends the session.
-    assert "first-pass" not in store_file.read_text(encoding="utf-8")
+    assert "first-pass-1" not in store_file.read_text(encoding="utf-8")
 
 
 def test_a_session_expires(tmp_path):
@@ -156,3 +156,50 @@ def test_the_admin_database_view_is_read_only_and_admin_only(tmp_path):
     assert admin.get("/v1/admin/db/cases/img1").json()["record"]["revision"] == 3
     assert admin.get("/v1/admin/db/cases/missing").status_code == 404
     assert admin.post("/v1/admin/db/cases/img1").status_code == 405
+
+
+def test_the_admin_policy_is_bounded_and_enforced_on_new_passwords(tmp_path):
+    app, _ = app_with(tmp_path, ("admin", TEST_PASSWORD, "admin", False))
+    admin = TestClient(app)
+    admin.post("/v1/auth/login", json={"username": "admin", "password": TEST_PASSWORD})
+    assert admin.get("/v1/admin/policy").json()["policy"]["min_length"] == 8
+    assert admin.post("/v1/admin/policy", json={"min_length": 3}).status_code == 400
+    assert admin.post("/v1/admin/policy", json={"letters_and_numbers": "yes"}).status_code == 400
+    saved = admin.post("/v1/admin/policy", json={"min_length": 10, "idle_minutes": 15})
+    assert saved.json()["policy"]["min_length"] == 10
+    weak = admin.post("/v1/admin/users", json={"username": "doctor2", "password": "abc12345", "role": "user"})
+    assert weak.status_code == 400 and "at least 10 characters" in weak.json()["detail"]
+    ok = admin.post("/v1/admin/users", json={"username": "doctor2", "password": "abcdef12345", "role": "user"})
+    assert ok.status_code == 200
+    assert TestClient(app).get("/v1/auth/policy").json() == {"min_length": 10, "letters_and_numbers": True}
+
+
+def test_idle_sessions_end_by_policy(tmp_path):
+    store = UserStore(tmp_path / "users.json")
+    store.set_user("admin", TEST_PASSWORD, role="admin", must_change=False)
+    store.set_policy({"idle_minutes": 5})
+    now = [1000.0]
+    auth = Authenticator(store, clock=lambda: now[0])
+    token, _ = auth.login("admin", TEST_PASSWORD)
+    now[0] += 4 * 60
+    assert auth.session(token)          # Activity keeps it alive.
+    now[0] += 6 * 60
+    assert auth.session(token) is None
+
+
+def test_lockout_follows_the_policy(tmp_path):
+    store = UserStore(tmp_path / "users.json")
+    store.set_user("admin", TEST_PASSWORD, role="admin", must_change=False)
+    store.set_policy({"max_failures": 3, "lockout_minutes": 2})
+    auth = Authenticator(store)
+    for _ in range(3):
+        with pytest.raises(AuthError):
+            auth.login("admin", "wrong")
+    with pytest.raises(AuthError, match="Wait 2 minutes"):
+        auth.login("admin", TEST_PASSWORD)
+
+
+def test_an_operator_set_short_password_is_flagged_as_below_policy(tmp_path):
+    app, _ = app_with(tmp_path, ("admin", "4321", "admin", False))
+    client = TestClient(app)
+    assert client.post("/v1/auth/login", json={"username": "admin", "password": "4321"}).json()["short_password"]

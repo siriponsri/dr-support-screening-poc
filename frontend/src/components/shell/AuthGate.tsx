@@ -243,6 +243,21 @@ function LandingSignIn({ onSignedIn }: { onSignedIn: (user: PilotUser) => void }
   );
 }
 
+/** The current rules from the server, in plain words. */
+function PasswordRules() {
+  const [rules, setRules] = useState<{ min_length: number; letters_and_numbers: boolean } | null>(null);
+  useEffect(() => {
+    void fetch('/v1/auth/policy').then((response) => (response.ok ? response.json() : null))
+      .then((value) => setRules(value)).catch(() => setRules(null));
+  }, []);
+  if (!rules) return null;
+  return (
+    <Text fontSize="sm" color="text.secondary">
+      Use at least {rules.min_length} characters{rules.letters_and_numbers ? ', with letters and numbers' : ''}.
+    </Text>
+  );
+}
+
 function ChangePassword({ user, onChanged, onSignOut }: { user: PilotUser; onChanged: (user: PilotUser) => void; onSignOut: () => Promise<void> }) {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -271,6 +286,7 @@ function ChangePassword({ user, onChanged, onSignOut }: { user: PilotUser; onCha
           <Stack spacing={1}>
             <Heading as="h1" fontSize={{ base: "2xl", tablet: "3xl" }} fontWeight="bold" letterSpacing="-0.02em">Choose a new password</Heading>
             <Text fontSize="sm" color="text.secondary">{user.username}, set your own password before you continue.</Text>
+            <PasswordRules />
           </Stack>
           <FormControl><FormLabel>Current password</FormLabel>
             <Input type="password" value={current} onChange={(event) => setCurrent(event.target.value)} autoComplete="current-password" /></FormControl>

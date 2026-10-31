@@ -562,7 +562,7 @@ function ReviewPageSession() {
   // Availability follows the latest model read; an earlier failed run keeps its
   // own error message but does not pin the badge once the Model API is back.
   const aiReady = analysisAllowed;
-  const aiStatus = prismNeedsPreview && !globalModel ? 'PRISM PREVIEW REQUIRED' : aiReady ? 'AI READY' : 'AI UNAVAILABLE';
+  const aiStatus = prismNeedsPreview && !globalModel ? 'PRISM input check needed' : aiReady ? 'AI ready' : 'AI not available';
   const prismUwfResult = item?.modality === 'UWF' && item.lesion?.model_id === 'prism-dr-5fold';
   const comparisonIdentityResolved = Boolean(
     item?.patient_resolution_state === 'RESOLVED'
@@ -683,7 +683,7 @@ function ReviewPageSession() {
       <Box data-qa-identifying><PageHeader
         pathname={pathname}
         title="Review"
-        subtitle={`${item.display_name} - optional model evidence for clinician inspection`}
+        subtitle={`${item.display_name}, image under review`}
         actions={<Button onClick={() => void leaveToWorklist()} leftIcon={<ArrowLeft size={15} />}>Back to Worklist</Button>}
       /></Box>
       <HStack mb={5} spacing={2} aria-label="Patient and eye context">
@@ -807,13 +807,13 @@ function ReviewPageSession() {
         </Section>
         <Stack spacing={5} minW={0}>
           {manualOnly ? (
-            <Section title="AI assistance" description="Model evidence is optional; manual review remains available.">
-              <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone="warning">AI UNAVAILABLE</StatusBadge></HStack>
+            <Section title="AI assistance" description="AI is a suggestion only. You can always review without it.">
+              <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone="warning">AI not available</StatusBadge></HStack>
               <Alert status="info" variant="subtle">
                 <AlertIcon />
                 <Stack spacing={1}>
                   <Text fontWeight="semibold">{item.modality === 'UWF' ? 'No ready UWF model capability is connected.' : item.modality === 'UNKNOWN' ? 'Confirm the image type before using model assistance.' : 'Model assistance is unavailable.'}</Text>
-                  <Text fontSize="sm">Manual review remains available. No unqualified model result is shown.</Text>
+                  <Text fontSize="sm">You can review this image without AI.</Text>
                 </Stack>
               </Alert>
             </Section>
@@ -821,7 +821,7 @@ function ReviewPageSession() {
             <>
               <Section
                 title="Analysis"
-                description="Optional model evidence; manual review remains available."
+                description="AI suggests a grade. You confirm or correct it."
                 action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{prismNeedsPreview ? 'Analyze grading only' : item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
               >
                 <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiStatus}</StatusBadge></HStack>

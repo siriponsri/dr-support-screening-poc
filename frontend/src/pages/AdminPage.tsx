@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
-  Alert, AlertIcon, Badge, Box, Button, Code, FormControl, FormLabel, HStack, Input, Select, SimpleGrid, Stack,
-  Tab, TabList, TabPanel, TabPanels, Table, Tabs, Tbody, Td, Text, Th, Thead, Tr,
+  Alert, AlertIcon, Badge, Box, Button, Code, FormControl, FormLabel, Grid, HStack, Input, Select, SimpleGrid, Stack,
+  Switch, Tab, TabList, TabPanel, TabPanels, Table, Tabs, Tbody, Td, Text, Th, Thead, Tr,
 } from '@chakra-ui/react';
 import { useLocation } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -41,7 +41,7 @@ export function AdminPage() {
     <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader pathname={pathname} subtitle="Accounts and stored data" />
       <Tabs variant="enclosed" isLazy>
-        <TabList><Tab>Users</Tab><Tab>Database</Tab></TabList>
+        <TabList><Tab>Users and sign-in</Tab><Tab>Database</Tab></TabList>
         <TabPanels>
           <TabPanel px={0}><UsersPanel me={user.username} /></TabPanel>
           <TabPanel px={0}><DatabasePanel /></TabPanel>
@@ -80,6 +80,7 @@ function UsersPanel({ me }: { me: string }) {
   };
 
   return (
+    <Grid templateColumns={{ base: '1fr', desktop: 'minmax(0, 1.4fr) minmax(0, 1fr)' }} gap={5} alignItems="start">
     <Stack spacing={5}>
       <Section title="Add a user or reset a password" description="Give the person a temporary password; the app asks them to choose their own at first sign-in.">
         <form onSubmit={(event) => void save(event)}>
@@ -122,6 +123,86 @@ function UsersPanel({ me }: { me: string }) {
         </Box>
       </Section>
     </Stack>
+    <PolicyPanel />
+    </Grid>
+  );
+}
+
+interface Policy {
+  min_length: number; letters_and_numbers: boolean; first_sign_in_change: boolean;
+  max_failures: number; lockout_minutes: number; idle_minutes: number;
+}
+type Bounds = Record<'min_length' | 'max_failures' | 'lockout_minutes' | 'idle_minutes', [number, number]>;
+
+const NUMBER_FIELDS: Array<{ key: keyof Bounds; label: string; unit: string }> = [
+  { key: 'min_length', label: 'Minimum password length', unit: 'characters' },
+  { key: 'max_failures', label: 'Lock the account after', unit: 'wrong tries' },
+  { key: 'lockout_minutes', label: 'Keep it locked for', unit: 'minutes' },
+  { key: 'idle_minutes', label: 'Sign out when idle for', unit: 'minutes' },
+];
+
+/** Sign-in rules in plain words; every number stays within safe limits set by the server. */
+function PolicyPanel() {
+  const [policy, setPolicy] = useState<Policy | null>(null);
+  const [bounds, setBounds] = useState<Bounds | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    void apiJson<{ policy: Policy; bounds: Bounds }>('/v1/admin/policy')
+      .then((value) => { setPolicy(value.policy); setBounds(value.bounds); })
+      .catch((reason) => setError(reason instanceof Error ? reason.message : 'The policy could not be loaded.'));
+  }, []);
+
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!policy) return;
+    try {
+      const value = await apiJson<{ policy: Policy }>('/v1/admin/policy', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(policy),
+      });
+      setPolicy(value.policy); setSaved(true); setError(null);
+    } catch (reason) { setSaved(false); setError(reason instanceof Error ? reason.message : 'The policy was not saved.'); }
+  };
+
+  return (
+    <Section title="Sign-in policy" description="Applies to new and changed passwords and to every sign-in.">
+      {!policy || !bounds ? (error ? <Text fontSize="sm" color="status.danger">{error}</Text> : <Text fontSize="sm" color="text.secondary">Loading...</Text>) : (
+        <form onSubmit={(event) => void save(event)}>
+          <Stack spacing={0} divider={<Box borderTopWidth="1px" borderColor="border.subtle" />}>
+            {NUMBER_FIELDS.map(({ key, label, unit }) => (
+              <HStack key={key} justify="space-between" py={2.5} spacing={3}>
+                <Text fontSize="sm">{label}</Text>
+                <HStack spacing={2}>
+                  <Input type="number" size="sm" w="76px" min={bounds[key][0]} max={bounds[key][1]} value={policy[key]}
+                    aria-label={label} onChange={(event) => { setSaved(false); setPolicy({ ...policy, [key]: Number(event.target.value) }); }} />
+                  <Text fontSize="xs" color="text.secondary" w="72px">{unit}</Text>
+                </HStack>
+              </HStack>
+            ))}
+            <HStack justify="space-between" py={2.5}>
+              <Text fontSize="sm">Passwords need letters and numbers</Text>
+              <Switch isChecked={policy.letters_and_numbers} aria-label="Passwords need letters and numbers"
+                onChange={(event) => { setSaved(false); setPolicy({ ...policy, letters_and_numbers: event.target.checked }); }} />
+            </HStack>
+            <HStack justify="space-between" py={2.5}>
+              <Text fontSize="sm">New users choose their own password</Text>
+              <Switch isChecked={policy.first_sign_in_change} aria-label="New users choose their own password"
+                onChange={(event) => { setSaved(false); setPolicy({ ...policy, first_sign_in_change: event.target.checked }); }} />
+            </HStack>
+            <HStack justify="space-between" py={2.5}>
+              <Text fontSize="sm">Usernames</Text>
+              <Text fontSize="sm" color="text.secondary">3 to 40 of a to z, 0 to 9, dot, dash, underscore</Text>
+            </HStack>
+          </Stack>
+          {error && <Text mt={2} fontSize="sm" color="status.danger">{error}</Text>}
+          <HStack mt={3} spacing={3}>
+            <Button type="submit" size="sm">Save policy</Button>
+            {saved && <Text fontSize="sm" color="status.success">Saved</Text>}
+          </HStack>
+        </form>
+      )}
+    </Section>
   );
 }
 

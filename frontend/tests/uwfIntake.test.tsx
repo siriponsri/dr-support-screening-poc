@@ -126,7 +126,7 @@ describe('UWF intake and clinical review', () => {
     expect(screen.getByRole('heading', { name: 'AI assistance' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Analyze' })).not.toBeInTheDocument();
     expect(screen.getByText('No ready UWF model capability is connected.')).toBeInTheDocument();
-    expect(screen.getByText('Manual review remains available. No unqualified model result is shown.')).toBeInTheDocument();
+    expect(screen.getByText('You can review this image without AI.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Continue to clinician review' })).toHaveAttribute('href', '/clinician-review/synthetic-uwf');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Analysis area' }));
     expect(screen.getByRole('button', { name: 'Analysis area' })).toHaveAttribute('aria-pressed', 'true');

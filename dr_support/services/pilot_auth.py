@@ -30,9 +30,22 @@ ROLES = {"admin", "user"}
 USERNAME = re.compile(r"[a-z0-9_.-]{3,40}")
 ITERATIONS = 310_000
 SESSION_SECONDS = 12 * 3600
-MAX_FAILURES, LOCKOUT_SECONDS = 5, 300
-MIN_PASSWORD = 4   # The owner chose a short pilot password; the app keeps asking to change a short one.
-SHORT_PASSWORD = 8
+MIN_PASSWORD = 4   # Absolute floor (the operator's own setup command); the app policy is stricter.
+# Sign-in policy the administrator can change, each within safe bounds.
+DEFAULT_POLICY = {"min_length": 8, "letters_and_numbers": True, "first_sign_in_change": True,
+                  "max_failures": 5, "lockout_minutes": 5, "idle_minutes": 30}
+POLICY_BOUNDS = {"min_length": (6, 64), "max_failures": (3, 10), "lockout_minutes": (1, 60),
+                 "idle_minutes": (5, 480)}
+
+
+def password_problems(password: str, policy: dict) -> list[str]:
+    """Plain reasons a password does not meet the policy; empty when it does."""
+    problems = []
+    if len(password) < policy["min_length"]:
+        problems.append(f"at least {policy['min_length']} characters")
+    if policy["letters_and_numbers"] and not (re.search(r"[A-Za-z]", password) and re.search(r"[0-9]", password)):
+        problems.append("both letters and numbers")
+    return problems
 
 
 class AuthError(Exception):
@@ -74,20 +87,48 @@ class UserStore:
         temporary.write_text(json.dumps(data, indent=1, sort_keys=True), encoding="utf-8")
         os.replace(temporary, self.path)
 
-    def set_user(self, username: str, password: str, *, role: str, must_change: bool) -> None:
+    def policy(self) -> dict:
+        with self.lock:
+            stored = self._load().get("policy") or {}
+        return {**DEFAULT_POLICY, **{key: stored[key] for key in DEFAULT_POLICY if key in stored}}
+
+    def set_policy(self, values: dict) -> dict:
+        policy = self.policy()
+        for key, value in (values or {}).items():
+            if key not in DEFAULT_POLICY:
+                raise AuthError("Unknown policy setting.")
+            if isinstance(DEFAULT_POLICY[key], bool):
+                if type(value) is not bool:
+                    raise AuthError("Use on or off for this setting.")
+            else:
+                low, high = POLICY_BOUNDS[key]
+                if type(value) is not int or not low <= value <= high:
+                    raise AuthError(f"Choose a number from {low} to {high}.")
+            policy[key] = value
+        with self.lock:
+            data = self._load()
+            data["policy"] = policy
+            self._save(data)
+        return policy
+
+    def set_user(self, username: str, password: str, *, role: str, must_change: bool,
+                 enforce_policy: bool = True) -> None:
         if not USERNAME.fullmatch(username or ""):
             raise AuthError("Use 3 to 40 lowercase letters, digits, dot, dash or underscore for the username.")
         if role not in ROLES:
             raise AuthError("Unknown role.")
         if not isinstance(password, str) or len(password) < MIN_PASSWORD:
             raise AuthError(f"The password needs at least {MIN_PASSWORD} characters.")
+        problems = password_problems(password, self.policy())
+        if enforce_policy and problems:
+            raise AuthError("The password needs " + " and ".join(problems) + ".")
         salt = secrets.token_bytes(16)
         with self.lock:
             data = self._load()
             previous = data["users"].get(username, {})
             data["users"][username] = {"role": role, "salt": salt.hex(), "hash": _hash(password, salt),
                                        "iterations": ITERATIONS, "must_change": must_change, "disabled": False,
-                                       "short_password": len(password) < SHORT_PASSWORD,
+                                       "short_password": bool(problems),
                                        "created_utc": previous.get("created_utc", _now()), "updated_utc": _now()}
             self._save(data)
 
@@ -126,17 +167,21 @@ class Authenticator:
     def __init__(self, store: UserStore, *, clock=time.time):
         self.store, self.clock = store, clock
         self.sessions: dict[str, Session] = {}
+        self.last_seen: dict[str, float] = {}
         self.failures: dict[str, list[float]] = {}
         self.lock = threading.RLock()
 
     def login(self, username: str, password: str) -> tuple[str, Session]:
         username = (username or "").strip().lower()
         now = self.clock()
+        policy = self.store.policy()
+        window = policy["lockout_minutes"] * 60
         with self.lock:
-            recent = [moment for moment in self.failures.get(username, []) if now - moment < LOCKOUT_SECONDS]
+            recent = [moment for moment in self.failures.get(username, []) if now - moment < window]
             self.failures[username] = recent
-            if len(recent) >= MAX_FAILURES:
-                raise AuthError("Too many attempts. Wait 5 minutes and try again.")
+            if len(recent) >= policy["max_failures"]:
+                minutes = policy["lockout_minutes"]
+                raise AuthError(f"Too many attempts. Wait {minutes} minute{'s' if minutes != 1 else ''} and try again.")
         entry = self.store.verify(username, password)
         with self.lock:
             if entry is None:
@@ -147,16 +192,21 @@ class Authenticator:
             session = Session(username, entry["role"], bool(entry.get("must_change")), now + SESSION_SECONDS,
                               bool(entry.get("short_password")))
             self.sessions[token] = session
+            self.last_seen[token] = now
             return token, session
 
     def session(self, token: str | None) -> Session | None:
         if not token:
             return None
+        now = self.clock()
+        idle = self.store.policy()["idle_minutes"] * 60
         with self.lock:
             session = self.sessions.get(token)
-            if session is None or session.expires < self.clock():
+            if session is None or session.expires < now or now - self.last_seen.get(token, now) > idle:
                 self.sessions.pop(token, None)
+                self.last_seen.pop(token, None)
                 return None
+            self.last_seen[token] = now
             return session
 
     def logout(self, token: str | None) -> None:
@@ -171,7 +221,7 @@ class Authenticator:
             raise AuthError("Choose a password different from the current one.")
         self.store.set_user(session.username, new, role=session.role, must_change=False)
         with self.lock:
-            updated = Session(session.username, session.role, False, session.expires, len(new) < SHORT_PASSWORD)
+            updated = Session(session.username, session.role, False, session.expires, False)
             self.sessions[token] = updated
             return updated
 
@@ -266,13 +316,31 @@ def install_pilot_auth(app, auth_file):
                 if body["disabled"]:
                     auth.end_sessions_of(username)
             else:
-                # New user or password reset: the person changes it at their next sign-in.
+                # New user or password reset: by policy, the person chooses their own at the next sign-in.
                 store.set_user(username, str(body.get("password", "")), role=str(body.get("role", "user")),
-                               must_change=True)
+                               must_change=store.policy()["first_sign_in_change"])
                 auth.end_sessions_of(username)
         except AuthError as error:
             raise HTTPException(400, str(error)) from None
         return {"users": store.list_users()}
+
+    @app.get("/v1/admin/policy")
+    def get_policy(request: Request):
+        admin(request)
+        return {"policy": store.policy(), "bounds": POLICY_BOUNDS}
+
+    @app.post("/v1/admin/policy")
+    def save_policy(request: Request, body: dict):
+        admin(request)
+        try:
+            return {"policy": store.set_policy(body), "bounds": POLICY_BOUNDS}
+        except AuthError as error:
+            raise HTTPException(400, str(error)) from None
+
+    @app.get("/v1/auth/policy")
+    def password_rules():
+        policy = store.policy()
+        return {key: policy[key] for key in ("min_length", "letters_and_numbers")}
 
     from .pilot_admin import install_pilot_admin
     install_pilot_admin(app, admin)
@@ -293,7 +361,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     password = sys.stdin.readline().rstrip(chr(13) + chr(10)) if not sys.stdin.isatty() else getpass.getpass("Password: ")
     try:
-        UserStore(args.file).set_user(args.username, password, role=args.role, must_change=args.must_change)
+        # Operator setup on the workstation may set any password of at least 4 characters; the app flags it.
+        UserStore(args.file).set_user(args.username, password, role=args.role, must_change=args.must_change,
+                                      enforce_policy=False)
     except AuthError as error:
         print(str(error), file=sys.stderr)
         return 2
