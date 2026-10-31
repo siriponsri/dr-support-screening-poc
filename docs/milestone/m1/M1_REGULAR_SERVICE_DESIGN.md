@@ -165,7 +165,25 @@ bound source). `pair_key` is the admitted image's content SHA-256 for both
 stages. Refusals carry a fixed `code`; the review app turns them into plain
 wording that says nothing was sent.
 
-## 8. What this does not claim
+## 8. Review amendments (2026-10-31)
+
+- The gateway promotes one ticket at a time, only when no call is READY or
+  running, so READY means "send now". Up to 5 workstations still wait fairly in
+  the queue (round-robin); the 5-active ceiling stays the authority's limit.
+- A charged call that cannot get the single dispatch slot within 10 s is
+  released unsent (`QUEUE_BUSY_NOT_SENT`), well inside the app's 30 s client
+  timeout. The reply (PRISM's 202 job ID included) goes back at once; the slot
+  stays held until the child's terminal receipt.
+- At gateway start, an ADMITTED call left open becomes UNKNOWN (charged) and
+  pauses new work for the operator; an unsent READY call is released.
+- Late receipts for settled tickets change nothing; the scheduler loop survives
+  any error and pauses new GPU work instead of stopping.
+- Before funding a child, the port and the RTX's idle state are checked.
+- Known limit: inside one review app, a model call waiting for its queue turn
+  holds that app's inference lock, so the clinician's own Run AI waits behind
+  the batch item (at most the 300 s queue wait).
+
+## 9. What this does not claim
 
 No clinical accuracy, no continuous 16 h readiness, no 500-image/day
 throughput until measured, no live multiuser acceptance without per-user

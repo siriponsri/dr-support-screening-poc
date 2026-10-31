@@ -41,6 +41,8 @@ WORDING = {
     "QUEUE_WAIT_TIMEOUT": "The AI queue did not reach this image in time. Try again later." + _NOTHING_SENT,
     "DISPATCH_WINDOW_EXPIRED": "The AI queue turn for this image expired. Try again." + _NOTHING_SENT,
     "QUEUE_UNREACHABLE": "The AI queue could not be reached." + _NOTHING_SENT,
+    "QUEUE_BUSY_NOT_SENT": "The AI server was busy with another image. Try again." + _NOTHING_SENT,
+    "MODEL_SERVER_NOT_READY": "The AI server is not running now. Try again shortly." + _NOTHING_SENT,
 }
 TERMINAL = {"DONE", "FAILED", "UNKNOWN", "CANCELLED", "EXPIRED"}
 
@@ -198,7 +200,17 @@ class RegularTransport(httpx.BaseTransport):
                 with self.gate.lock:
                     self.gate.renegotiate()
                 request.headers["X-Prism-Epoch"] = epoch
-        return self.inner.handle_request(request)
+        response = self.inner.handle_request(request)
+        if method == "POST" and path in {GLOBAL_ROUTE, PRISM_BASE + "/execute"} and response.status_code == 503:
+            # The gateway refused before dispatch (busy or not loaded): nothing was sent.
+            try:
+                code = json.loads(response.read()).get("code")
+            except (ValueError, AttributeError):
+                code = None
+            if code in {"QUEUE_BUSY_NOT_SENT", "MODEL_SERVER_NOT_READY"}:
+                response.close()
+                raise RegularQueueError(code)
+        return response
 
     def close(self):
         self.inner.close()

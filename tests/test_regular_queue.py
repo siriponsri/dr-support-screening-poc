@@ -126,6 +126,22 @@ def test_a_prism_execute_gets_a_prism_ticket_for_its_bound_source():
     assert ticket["kind"] == "prism" and ticket["pair_key"] == SHA_A and host.model_calls[0][1]["x-dr-ticket"]
 
 
+def test_a_gateway_refusal_before_dispatch_is_a_not_sent_queue_refusal():
+    host = FakeHost()
+    original = host.__call__
+
+    def busy(request):
+        if request.url.path == "/v1/predict/dr":
+            return httpx.Response(503, json={"code": "QUEUE_BUSY_NOT_SENT", "detail": "busy"})
+        return original(request)
+    gate, _ = gate_for(host)
+    transport = RegularTransport(gate, httpx.MockTransport(busy))
+    client = httpx.Client(transport=transport, base_url="http://control")
+    with pytest.raises(RegularQueueError) as raised:
+        client.post("/v1/predict/dr", json={"model_id": "retfound-aptos5", "modality": "CFP", "image_sha256": SHA_A})
+    assert raised.value.code == "QUEUE_BUSY_NOT_SENT" and "Nothing was sent" in raised.value.message
+
+
 def test_public_status_has_plain_fields_only():
     host = FakeHost()
     host.status["own_open_tickets"] = [{"ticket_id": "tkt_x", "state": "QUEUED"}]

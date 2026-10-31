@@ -330,7 +330,8 @@ class Authority:
             existing = self.db.execute("SELECT * FROM tickets WHERE principal = ? AND idempotency_key = ?",
                                        (principal, idempotency_key)).fetchone()
             if existing is not None:
-                require(existing["request_digest"] == request_digest and existing["kind"] == kind,
+                require(existing["request_digest"] == request_digest and existing["kind"] == kind
+                        and existing["workstation"] == workstation,
                         "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST")
                 return dict(existing)
             self._require_admissible(now)
@@ -357,7 +358,7 @@ class Authority:
                         [state, now.isoformat(), reason, *values, ticket_id])
         self._event(now, "TICKET_" + state, {"ticket_id": ticket_id, "reason": reason})
 
-    def schedule(self) -> list[str]:
+    def schedule(self, max_promote=None) -> list[str]:
         """Expire stale dispatch windows, then promote fairly. Returns newly READY ticket IDs."""
         promoted = []
         with self._tx() as now:
@@ -375,6 +376,8 @@ class Authority:
             active = self.db.execute("SELECT workstation FROM tickets WHERE state IN ('READY','ADMITTED')").fetchall()
             busy = {row["workstation"] for row in active}
             slots = self.config.max_active - len(active)
+            if max_promote is not None:
+                slots = min(slots, max_promote)
             candidates = self.db.execute(
                 "SELECT t.* FROM tickets t LEFT JOIN served s ON s.workstation = t.workstation "
                 "WHERE t.state = 'QUEUED' ORDER BY COALESCE(s.last_served_utc, ''), t.created_utc").fetchall()
@@ -569,6 +572,24 @@ class Authority:
             self.db.execute("UPDATE authority SET quarantine = NULL WHERE id = 1")
             self._event(now, "RECONCILED", {"previous": previous, "reason": reason,
                                             "evidence_sha256": evidence_sha256})
+
+    def recover_open_tickets(self) -> dict:
+        """Gateway start: an ADMITTED call may have run (UNKNOWN, quarantine); an unsent READY call is released."""
+        recovered = {"unknown": 0, "released": 0}
+        with self._tx() as now:
+            for row in self.db.execute("SELECT * FROM tickets WHERE state IN ('READY','ADMITTED')").fetchall():
+                if row["state"] == "ADMITTED":
+                    self.db.execute("UPDATE intents SET outcome = 'UNKNOWN', finished_utc = ? WHERE ticket_id = ?",
+                                    (now.isoformat(), row["ticket_id"]))
+                    self._set(now, row["ticket_id"], "UNKNOWN", "GATEWAY_RESTARTED_OUTCOME_UNKNOWN")
+                    recovered["unknown"] += 1
+                else:
+                    self._release(now, row["hold_id"], 2 if row["kind"] == "grader" else 1, "GATEWAY_RESTARTED")
+                    self._set(now, row["ticket_id"], "EXPIRED", "GATEWAY_RESTARTED")
+                    recovered["released"] += 1
+            if recovered["unknown"]:
+                self._quarantine(now, "GATEWAY_RESTARTED_WITH_OPEN_CALL")
+        return recovered
 
     def quarantine(self, reason) -> None:
         """Stop new admission and GPU funding until an operator reconciles (first reason kept)."""

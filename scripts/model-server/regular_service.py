@@ -51,6 +51,7 @@ STOP_MARGIN_SECONDS = 40                 # Drain (20 s) plus force/reap margin b
 PROMOTE_MIN_SECONDS = 90                 # Never open a dispatch window the funded time cannot cover.
 FAILURE_BACKOFF_SECONDS = 600            # No automatic restart storm after a failed load.
 GLOBAL_TERMINAL_SECONDS = 45             # Native 30 s request limit plus receipt margin.
+DISPATCH_WAIT_SECONDS = 10               # Well inside the review app's 30 s grading client timeout.
 PRISM_TERMINAL_SECONDS = 60              # PRISM job 24 s plus status and receipt margin.
 ON_DEMAND_WARNING = ('The model server starts on demand inside AI hours (06:00-22:00 Bangkok); '
                      'the first request may wait while it loads.')
@@ -267,39 +268,48 @@ class ControlService:
         body = await self.body(receive)
         self.authority.mark_arrived(ticket_id, principal=self.principal, workstation=workstation)
         self.last_activity = self.monotonic()
-        async with self.dispatch_lock:
+        try:
+            await asyncio.wait_for(self.dispatch_lock.acquire(), DISPATCH_WAIT_SECONDS)
+        except asyncio.TimeoutError:
+            self.authority.abandon(ticket_id, reason='DISPATCH_SLOT_BUSY')
+            return await self.respond(send, 503, {'detail': 'The model server is busy; no inference dispatched.',
+                                                  'code': 'QUEUE_BUSY_NOT_SENT'})
+        try:
             if self.runtime.state != 'READY':
                 self.authority.abandon(ticket_id, reason='MODEL_SERVER_NOT_READY')
                 return await self.respond(send, 503, {'detail': 'The model server is not running now; '
                                                                 'no inference dispatched.',
                                                       'code': 'MODEL_SERVER_NOT_READY'})
             self.current = self.authority.get(ticket_id, principal=self.principal)
+            forward = asyncio.ensure_future(self.runtime.forward('POST', scope['path'], headers, body))
+            # Answer the child's admission receipt while its call waits (the child allows 10 s).
+            while not forward.done():
+                self.service_receipts()
+                await asyncio.wait({forward}, timeout=.02)
             try:
-                forward = asyncio.ensure_future(self.runtime.forward('POST', scope['path'], headers, body))
-                # Answer the child's admission receipt while its call waits (the child allows 10 s).
-                while not forward.done():
-                    self.service_receipts()
-                    await asyncio.wait({forward}, timeout=.02)
-                try:
-                    status, content_type, data = forward.result()
-                except Exception:
-                    status, content_type, data = None, b'application/json', b''
-                state = self.authority.get(ticket_id, principal=self.principal)['state']
-                if state == 'READY':
-                    # Only this service writes the child's admission; without it the child never dispatches.
-                    self.authority.abandon(ticket_id, reason='REFUSED_BEFORE_ADMISSION')
-                elif state == 'ADMITTED':
-                    await self._await_terminal(ticket_id, PRISM_TERMINAL_SECONDS if ticket['kind'] == 'prism'
-                                               else GLOBAL_TERMINAL_SECONDS)
-            finally:
-                self.current = None
-                self.last_activity = self.monotonic()
-        if status is None:
-            return await self.respond(send, 502, {'detail': 'The model server connection was lost; '
-                                                            'the outcome is unknown.', 'code': 'CHILD_CONNECTION_LOST'})
-        await send({'type': 'http.response.start', 'status': status,
-                    'headers': [(b'content-type', content_type), (b'cache-control', b'no-store')]})
-        await send({'type': 'http.response.body', 'body': data})
+                status, content_type, data = forward.result()
+            except Exception:
+                status, content_type, data = None, b'application/json', b''
+            state = self.authority.get(ticket_id, principal=self.principal)['state']
+            if state == 'READY':
+                # Only this service writes the child's admission; without it the child never dispatches.
+                self.authority.abandon(ticket_id, reason='REFUSED_BEFORE_ADMISSION')
+            # Reply at once: a PRISM client needs its 202 job ID within 2 s to poll and grant.
+            if status is None:
+                await self.respond(send, 502, {'detail': 'The model server connection was lost; '
+                                                         'the outcome is unknown.', 'code': 'CHILD_CONNECTION_LOST'})
+            else:
+                await send({'type': 'http.response.start', 'status': status,
+                            'headers': [(b'content-type', content_type), (b'cache-control', b'no-store')]})
+                await send({'type': 'http.response.body', 'body': data})
+            if state == 'ADMITTED':
+                # The single running slot stays held until the child's terminal receipt.
+                await self._await_terminal(ticket_id, PRISM_TERMINAL_SECONDS if ticket['kind'] == 'prism'
+                                           else GLOBAL_TERMINAL_SECONDS)
+        finally:
+            self.current = None
+            self.last_activity = self.monotonic()
+            self.dispatch_lock.release()
 
     async def _await_terminal(self, ticket_id, seconds):
         deadline = self.monotonic() + seconds
@@ -311,6 +321,9 @@ class ControlService:
         # No terminal receipt in time: the call may still be running; never a failure or refund.
         self.authority.finish(ticket_id, outcome='UNKNOWN', reason='NO_TERMINAL_RECEIPT')
         self.last_reason = 'UNKNOWN_OUTCOME_QUARANTINED'
+        for entry in self.receipts.values():
+            if entry.get('ticket_id') == ticket_id and entry['state'] == 'ADMITTED':
+                entry['state'] = 'UNKNOWN'
 
     # ------------------------------------------------------------------ child receipts
 
@@ -331,6 +344,7 @@ class ControlService:
             new_json(Path(self.runtime.run) / name, value)
         except FileExistsError:
             pass
+        return True
 
     def _admit(self, request_id, path):
         pid = self.runtime.pid
@@ -372,13 +386,24 @@ class ControlService:
                                                        'code': 'SUPERVISOR_REFUSED'})
             self.receipts[request_id] = {'state': 'REFUSED'}
             return
-        self._write(f'{request_id}.admitted.json', {'request_id': request_id, 'pid': pid,
-                                                    'admission_id': intent['intent_id'],
-                                                    'job_id': ticket['ticket_id'], 'operation_id': ticket['ticket_id']})
+        try:
+            self._write(f'{request_id}.admitted.json', {'request_id': request_id, 'pid': pid,
+                                                        'admission_id': intent['intent_id'],
+                                                        'job_id': ticket['ticket_id'],
+                                                        'operation_id': ticket['ticket_id']})
+        except OSError:
+            # Without the admitted receipt the child never dispatches: charged, never refunded, not unknown.
+            self.authority.finish(ticket['ticket_id'], outcome='FAILED', reason='ADMISSION_RECEIPT_NOT_WRITTEN')
+            self.receipts[request_id] = {'state': 'REFUSED'}
+            return
         self.receipts[request_id] = {'state': 'ADMITTED', 'ticket_id': ticket['ticket_id'],
                                      'intent_id': intent['intent_id']}
 
     def _observe(self, request_id, entry):
+        if self.authority.get(entry['ticket_id'], principal=self.principal)['state'] != 'ADMITTED':
+            # Already settled (timed out to UNKNOWN or reconciled): a late receipt changes nothing.
+            entry['state'] = 'SETTLED'
+            return
         run = Path(self.runtime.run)
         finished = run / f'{request_id}.finished.json'
         if finished.is_file():
@@ -448,8 +473,11 @@ class ControlService:
             if left <= STOP_MARGIN_SECONDS or (idle and status['running'] == 0 and self.current is None):
                 if status['running'] == 0 and self.current is None:
                     return self._stop('IDLE' if idle else 'FUNDED_TIME_ENDING')
-            if state == 'READY' and left > PROMOTE_MIN_SECONDS:
-                self.authority.schedule()
+            if state == 'READY' and left > PROMOTE_MIN_SECONDS and status['ready'] == 0 \
+                    and status['running'] == 0 and self.current is None:
+                self.authority.schedule(max_promote=1)
+            elif status['ready'] or status['queued']:
+                self.authority.schedule(max_promote=0)   # Still expire stale dispatch windows.
             return
         if state == 'STOPPING':
             return
@@ -460,6 +488,12 @@ class ControlService:
 
     def _start(self, now):
         epoch = 'rs_' + secrets.token_hex(12)
+        refusal = self.runtime.preflight()
+        if refusal:
+            # Port busy or GPU not idle: nothing funded, nothing started.
+            self.last_reason = refusal
+            self.backoff_until = self.monotonic() + FAILURE_BACKOFF_SECONDS
+            return
         try:
             segment = self.authority.fund_segment(epoch=epoch, gpu_uuid=self.authority.config.gpu_uuid)
         except ra.AuthorityError as error:
@@ -518,7 +552,18 @@ class ControlService:
                 self.step()
             except ra.AuthorityError as error:
                 self.last_reason = str(error)
+            except Exception as error:
+                # Never stop scheduling or lifecycle control; stop new GPU work until an operator checks.
+                self.last_reason = 'SCHEDULER_ERROR_' + type(error).__name__
+                try:
+                    self.authority.quarantine('SCHEDULER_ERROR')
+                except Exception:
+                    pass
             await asyncio.sleep(period)
+
+    def recover_after_restart(self):
+        """At gateway start: settle work the previous gateway left open. Never refunds."""
+        return self.authority.recover_open_tickets()
 
 
 # ---------------------------------------------------------------------------
@@ -552,6 +597,23 @@ class HostRuntime:
 
     def failed_reason(self):
         return self._failed
+
+    def preflight(self):
+        import socket
+        import subprocess
+        with socket.socket() as probe:
+            try:
+                probe.bind(('127.0.0.1', CHILD_PORT))
+            except OSError:
+                return 'CHILD_PORT_BUSY'
+        try:
+            used = subprocess.run(['nvidia-smi', '--id=' + self.m1.GPU, '--query-gpu=memory.used',
+                                   '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=10)
+            if used.returncode != 0 or int(used.stdout.strip()) > 64:
+                return 'GPU0_NOT_IDLE_NO_ADOPTION'
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            return 'GPU0_STATE_UNKNOWN'
+        return None
 
     def start(self, epoch):
         import socket
@@ -593,7 +655,10 @@ class HostRuntime:
                     and owned_loopback_listener(CHILD_PORT, self.pid):
                 self.state = 'READY'
         if self.state == 'STOPPING' and self._stopper is not None and self._stopper.done():
-            outcomes = self._stopper.result()
+            try:
+                outcomes = self._stopper.result()
+            except Exception as error:
+                outcomes = {'cleanup': {'confirmed': False, 'error_class': type(error).__name__}}
             import socket
             with socket.socket() as sock:
                 closed = sock.connect_ex(('127.0.0.1', CHILD_PORT)) != 0
@@ -676,6 +741,7 @@ def serve_main(args):
                           runs=runs, token=token)
     service = ControlService(authority, runtime, token=token, models=models, operations=operations,
                              discovery_path=state / 'discovery.json')
+    recovered = service.recover_after_restart()
 
     class Lifespan:
         async def __call__(self, scope, receive, send):
@@ -697,7 +763,7 @@ def serve_main(args):
             await service(scope, receive, send)
 
     print(json.dumps({'phase': 'SERVING', 'url': f'http://127.0.0.1:{CONTROL_PORT}', 'child_port': CHILD_PORT,
-                      'authority': str(state / 'authority.sqlite3')}), flush=True)
+                      'authority': str(state / 'authority.sqlite3'), 'recovered': recovered}), flush=True)
     uvicorn.run(Lifespan(), host='127.0.0.1', port=CONTROL_PORT, workers=1, access_log=False,
                 log_level='warning', log_config=None, timeout_graceful_shutdown=45)
     return 0

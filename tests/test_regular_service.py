@@ -45,7 +45,7 @@ class FakeChild:
         self.state, self.run, self.pid = "STOPPED", None, 4242
         self.starts, self.stops, self.forwarded = [], [], []
         self.jobs_done, self.busy, self.mode, self.sequence = 0, None, "ok", 0
-        self.stop_record = self._failed = None
+        self.stop_record = self._failed = self.preflight_refusal = None
         self.docs = {"/health": {"status": "PASS", "assets_verified": True, "warnings": ["w"]},
                      "/v1/models": [{"model_id": "retfound-aptos5", "ready": True}]}
 
@@ -57,6 +57,9 @@ class FakeChild:
 
     def failed_reason(self):
         return self._failed
+
+    def preflight(self):
+        return self.preflight_refusal
 
     def can_admit(self):
         return self.state == "READY" and self.busy is None
@@ -368,4 +371,109 @@ def test_a_prism_execute_is_charged_on_the_image_pair_hold_and_finishes_at_its_t
             assert authority.capacity()["invocations_used"] == 2 and authority.capacity()["invocations_held"] == 0
             wrong = await client.post("/v1/predict/dr", json=predict_body(), headers=headers(ticket=prism))
             assert wrong.status_code == 409
+    run(scenario())
+
+
+def test_a_gateway_restart_settles_open_calls_without_refunds_and_pauses_for_the_operator(rig):
+    _, authority, child, service = rig
+
+    async def scenario():
+        async with await client_for(service) as client:
+            admitted = await scheduled_ticket(service, client, key="a1")
+            ticket = authority.get(admitted, principal=rs.PRINCIPAL)
+            authority.admit(admitted, principal=rs.PRINCIPAL, workstation="ws-a", model_id="retfound-aptos5",
+                            modality="CFP", source_sha256=IMAGE_SHA, request_digest=ticket["request_digest"])
+            ready = (await client.post("/v1/regular/tickets", json=ticket_body("b1"), headers=headers("ws-b"))).json()
+            authority.schedule()
+            assert service.recover_after_restart() == {"unknown": 1, "released": 1}
+            assert authority.get(admitted, principal=rs.PRINCIPAL)["state"] == "UNKNOWN"
+            assert authority.get(ready["ticket_id"], principal=rs.PRINCIPAL)["state"] == "EXPIRED"
+            status = authority.status()
+            assert status["quarantined"] is True and status["running"] == 0
+            assert authority.capacity()["invocations_used"] == 1 and authority.capacity()["invocations_held"] == 1
+    run(scenario())
+
+
+def test_a_late_receipt_for_a_settled_ticket_never_breaks_the_scheduler(rig):
+    _, authority, child, service = rig
+    child.mode = "uncertain"
+
+    async def scenario():
+        async with await client_for(service) as client:
+            ticket = await scheduled_ticket(service, client)
+            await client.post("/v1/predict/dr", json=predict_body(), headers=headers(ticket=ticket))
+            request_id = next(iter(service.receipts))
+            rs.new_json(child.run / f"{request_id}.finished.json", {"request_id": request_id, "pid": child.pid,
+                                                                    "success": True, "response_sha256": "e" * 64,
+                                                                    "result_sha256": None})
+            service.step()   # Must not raise.
+            assert authority.get(ticket, principal=rs.PRINCIPAL)["state"] == "UNKNOWN"
+    run(scenario())
+
+
+def test_a_call_that_cannot_get_the_dispatch_slot_in_time_is_released_unsent(rig, monkeypatch):
+    _, authority, child, service = rig
+    monkeypatch.setattr(rs, "DISPATCH_WAIT_SECONDS", .05)
+
+    async def scenario():
+        async with await client_for(service) as client:
+            ticket = await scheduled_ticket(service, client)
+            await service.dispatch_lock.acquire()   # Another call holds the single slot.
+            reply = await client.post("/v1/predict/dr", json=predict_body(), headers=headers(ticket=ticket))
+            service.dispatch_lock.release()
+            assert reply.status_code == 503 and reply.json()["code"] == "QUEUE_BUSY_NOT_SENT"
+            assert child.sequence == 0 and authority.get(ticket, principal=rs.PRINCIPAL)["state"] == "EXPIRED"
+            assert authority.capacity()["invocations_held"] == 0
+    run(scenario())
+
+
+def test_a_busy_gpu_or_port_funds_nothing_and_starts_nothing(rig):
+    fake, authority, child, service = rig
+    child.preflight_refusal = "GPU0_NOT_IDLE_NO_ADOPTION"
+    service.warm_until = fake.mono + 300
+    service.step()
+    assert child.starts == [] and authority.capacity()["gpu_seconds_reserved"] == 0
+    assert service.last_reason == "GPU0_NOT_IDLE_NO_ADOPTION"
+
+
+def test_only_one_call_is_promoted_at_a_time(rig):
+    _, authority, child, service = rig
+
+    async def scenario():
+        async with await client_for(service) as client:
+            for workstation in ("ws-a", "ws-b", "ws-c"):
+                await client.post("/v1/regular/tickets", json=ticket_body("k-" + workstation), headers=headers(workstation))
+            for _ in range(3):
+                service.step()
+            assert authority.status()["ready"] == 1 and authority.status()["queued"] == 2
+    run(scenario())
+
+
+def test_the_scheduler_loop_survives_an_unexpected_error_and_pauses_new_work(rig, monkeypatch):
+    _, authority, child, service = rig
+    calls = []
+
+    def broken():
+        calls.append(1)
+        if len(calls) == 1:
+            raise OSError("disk")
+        raise asyncio.CancelledError()
+    monkeypatch.setattr(service, "step", broken)
+
+    async def scenario():
+        with pytest.raises(asyncio.CancelledError):
+            await service.loop(period=0)
+    run(scenario())
+    assert len(calls) == 2 and service.last_reason == "SCHEDULER_ERROR_OSError"
+    assert authority.status()["quarantined"] is True
+
+
+def test_an_idempotency_key_is_never_shared_across_workstations(rig):
+    _, authority, child, service = rig
+
+    async def scenario():
+        async with await client_for(service) as client:
+            await client.post("/v1/regular/tickets", json=ticket_body("same"), headers=headers("ws-a"))
+            reply = await client.post("/v1/regular/tickets", json=ticket_body("same"), headers=headers("ws-b"))
+            assert reply.status_code == 409 and reply.json()["code"] == "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST"
     run(scenario())
