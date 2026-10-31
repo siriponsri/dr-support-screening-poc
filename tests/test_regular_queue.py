@@ -388,3 +388,17 @@ def test_the_launcher_waits_for_the_model_server_only_inside_ai_hours():
     closed = SimpleNamespace(status=lambda: {"ai_open": False, "model_server": "STOPPED"}, warm=lambda: None)
     with pytest.raises(launcher.SessionError, match="OUTSIDE_AI_HOURS"):
         launcher.wait_for_model_server(closed, sleep=lambda _: None)
+
+
+def test_public_commissioning_sets_no_hospital_lane(monkeypatch):
+    import os
+
+    from scripts.qa import m1_server_app as launcher
+    monkeypatch.setattr(launcher, "runtime_values", lambda: {})
+    monkeypatch.setattr(launcher, "roots", lambda: pytest.fail("public commissioning must not read hospital roots"))
+    with launcher.session_environment(workspace_id="ws_m1_x", model_port=47860, token="t" * 40, public_samples=True):
+        assert not any(key in os.environ for key in ("DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS",
+                                                     "DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL",
+                                                     "MODEL_ALLOW_AUTHORIZED_HOSPITAL", "MODEL_HOSPITAL_SCOPE"))
+        assert os.environ["REMOTE_MODEL_URL"] == "http://127.0.0.1:47860"
+    assert "REMOTE_MODEL_TOKEN" not in os.environ

@@ -161,24 +161,28 @@ def roots():
 
 
 @contextmanager
-def session_environment(*, workspace_id=None, model_port=None, token=None):
+def session_environment(*, workspace_id=None, model_port=None, token=None, public_samples=False):
+    """``public_samples``: commissioning with the ten pinned public samples only; no hospital lane."""
     previous = dict(os.environ)
     try:
         for key in list(os.environ):
             if _CLEAR.match(key):
                 del os.environ[key]
         os.environ.update(runtime_values())
-        os.environ.update(DR_SUPPORT_CASE_STORE='postgres', APP_PROFILE='review', MODEL_RUNTIME='remote',
-                          WORKERS='1', DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL='1',
-                          DR_SUPPORT_HOSPITAL_SCOPE='PRIVATE_PROJECT_EVALUATION',
-                          DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS=json.dumps(roots(), sort_keys=True))
+        os.environ.update(DR_SUPPORT_CASE_STORE='postgres', APP_PROFILE='review', MODEL_RUNTIME='remote', WORKERS='1')
+        if not public_samples:
+            os.environ.update(DR_SUPPORT_ENABLE_AUTHORIZED_HOSPITAL='1',
+                              DR_SUPPORT_HOSPITAL_SCOPE='PRIVATE_PROJECT_EVALUATION',
+                              DR_SUPPORT_AUTHORIZED_HOSPITAL_ROOTS=json.dumps(roots(), sort_keys=True))
         if workspace_id is not None:
             os.environ['DR_SUPPORT_WORKSPACE_ID'] = workspace_id
         if model_port is not None:
             os.environ.update(model_configuration(model_port))
-            # Owner-approved transfer of the approved private-root images to the
-            # owned Model API session: the client-side model boundary opt-in.
-            os.environ.update(MODEL_HOSPITAL_SCOPE='PRIVATE_PROJECT_EVALUATION', MODEL_ALLOW_AUTHORIZED_HOSPITAL='1')
+            if not public_samples:
+                # Owner-approved transfer of the approved private-root images to the
+                # owned Model API session: the client-side model boundary opt-in.
+                os.environ.update(MODEL_HOSPITAL_SCOPE='PRIVATE_PROJECT_EVALUATION',
+                                  MODEL_ALLOW_AUTHORIZED_HOSPITAL='1')
         if token is not None:
             os.environ['REMOTE_MODEL_TOKEN'] = token
         yield
@@ -281,7 +285,7 @@ def create_workspace(name):
     return workspace_id
 
 
-def compose(workspace_id, prism_pins, model_port, token, regular_gate=None):
+def compose(workspace_id, prism_pins, model_port, token, regular_gate=None, public_samples=False):
     """Exact reviewed composition; preflight and recovery precede app construction.
 
     With ``regular_gate`` the channel's transport adds scheduled tickets to charged calls."""
@@ -309,9 +313,10 @@ def compose(workspace_id, prism_pins, model_port, token, regular_gate=None):
     provider.negotiate()
     if regular_gate is not None:
         regular_gate.renegotiate = provider.negotiate
-    app = create_app(include_samples=False, include_demo_fixtures=False, case_store_mode='postgres',
-                     workspace_id=workspace_id, workspace_authority=authority, workspace_prism_provider=provider,
-                     regular_gate=regular_gate)
+    # Public commissioning admits only the hash-pinned public samples (origin PUBLIC), never hospital roots.
+    app = create_app(include_samples=public_samples, include_demo_fixtures=public_samples,
+                     case_store_mode='postgres', workspace_id=workspace_id, workspace_authority=authority,
+                     workspace_prism_provider=provider, regular_gate=regular_gate)
     return app, authority, channel
 
 
@@ -386,17 +391,22 @@ def serve_regular(args):
     prism_pins = json.loads(Path(args.prism_pins).read_bytes())
     require(port_free(args.app_port), 'FREE_APP_PORT_REQUIRED')
     token = host_token(allow_remote_token_read=args.allow_remote_token_read)
+    public = getattr(args, 'public_samples', False) is True
     with owned_tunnel(args.model_port), session_environment(workspace_id=args.workspace_id,
-                                                            model_port=args.model_port, token=token):
+                                                            model_port=args.model_port, token=token,
+                                                            public_samples=public):
         os.environ['DR_SUPPORT_REGULAR_BATCH_DIR'] = str(REGULAR_BATCHES)
         gate = RegularGate(model_configuration(args.model_port)['REMOTE_MODEL_URL'], token, args.workstation,
                            transport=httpx.HTTPTransport(retries=0))
         cancelled = gate.cancel_stale()
         wait_for_model_server(gate)
-        app, authority, channel = compose(args.workspace_id, prism_pins, args.model_port, token, regular_gate=gate)
+        app, authority, channel = compose(args.workspace_id, prism_pins, args.model_port, token, regular_gate=gate,
+                                          public_samples=public)
         print(json.dumps({'phase': 'SERVING', 'url': f'http://127.0.0.1:{args.app_port}/app/',
                           'workspace_id': args.workspace_id, 'profile': 'QA_SERVER_REGULAR',
-                          'workstation': args.workstation, 'stale_tickets_cancelled': cancelled}), flush=True)
+                          'workstation': args.workstation, 'stale_tickets_cancelled': cancelled,
+                          'images': 'PUBLIC_PINNED_SAMPLES_ONLY' if public else 'APPROVED_PRIVATE_ROOTS'}),
+              flush=True)
         try:
             uvicorn.run(app, host='127.0.0.1', port=args.app_port, workers=1, access_log=False)
         finally:
@@ -536,6 +546,8 @@ def main(argv=None):
     parser.add_argument('--app-port', type=int, default=8010)
     parser.add_argument('--run')
     parser.add_argument('--workstation', help='serve-regular: a simple, non-secret name for this app')
+    parser.add_argument('--public-samples', action='store_true',
+                        help='serve-regular: commissioning with the ten pinned public samples; no hospital roots')
     args = parser.parse_args(argv)
     try:
         if args.command == 'diagnose':
