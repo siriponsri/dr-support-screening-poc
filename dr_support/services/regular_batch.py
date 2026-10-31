@@ -121,7 +121,8 @@ class BatchRunner:
     def __init__(self, store: BatchStore, *, workspace_id: str, stage_for: Callable[[str], tuple[str, str] | None],
                  has_result: Callable[[str, str], bool], run_grader: Callable[[str, str, str, str], None],
                  run_prism: Callable[[str], None], queue_open: Callable[[], bool], deferred_details: set[str],
-                 idle_seconds: float = 1.0, deferred_seconds: float = 30.0, clock=None):
+                 idle_seconds: float = 1.0, deferred_seconds: float = 30.0, clock=None,
+                 release_image: Callable[[str], None] | None = None):
         self.store, self.workspace_id = store, workspace_id
         self.stage_for, self.has_result = stage_for, has_result
         self.run_grader, self.run_prism, self.queue_open = run_grader, run_prism, queue_open
@@ -132,6 +133,7 @@ class BatchRunner:
         self.thread = None
         self.deferred_note = None
         self.clock = clock or time.monotonic
+        self.release_image = release_image
         self.waiting_until = {}
         self._recover()
 
@@ -232,6 +234,13 @@ class BatchRunner:
         batch = self.store.load(batch_id)
         batch["items"][image_id][stage] = _stage(state, detail, deferrals)
         self.store.save(batch)
+        if (stage == "prism" and state in {"NOT_ELIGIBLE", "NEEDS_CONFIRM_IMAGE", "CANCELLED"}
+                and self.release_image is not None):
+            # The image's PRISM slot will not be used today: give it back. A used slot is never returned.
+            try:
+                self.release_image(image_id)
+            except Exception:
+                pass
 
     def _defer(self, batch, image_id, stage, detail):
         deferrals = batch["items"][image_id][stage].get("deferrals", 0) + 1

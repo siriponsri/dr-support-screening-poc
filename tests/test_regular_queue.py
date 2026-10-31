@@ -453,3 +453,30 @@ def test_the_launcher_and_queue_ride_out_a_brief_gateway_pause():
     regular = RegularGate("http://control", TOKEN, "ws-a", transport=httpx.MockTransport(flaky), sleep=lambda _: None)
     assert regular.acquire(kind="grader", model_id="retfound-aptos5", modality="CFP", source_sha256=SHA_A,
                            pair_key=None).startswith("tkt_")
+
+
+def test_an_image_whose_prism_will_not_run_gives_back_its_unused_slot(tmp_path):
+    app = FakeApp()
+    app.prism_fail["img1"] = PrismPrepareRefused(409, "Source/admission is not eligible for PRISM.")
+    released = []
+    runner = BatchRunner(BatchStore(tmp_path), workspace_id="ws_1", stage_for=app.stages.get,
+                         has_result=app.has_result, run_grader=app.run_grader, run_prism=app.run_prism,
+                         queue_open=lambda: True, deferred_details=set(WORDING.values()),
+                         release_image=released.append)
+    runner.create(["img1", "img2"])
+    drain(runner)
+    assert released == ["img1"]
+
+
+def test_the_gate_releases_only_by_a_valid_image_key():
+    host = FakeHost()
+    seen = []
+    original = host.__call__
+
+    def record(request):
+        if request.url.path == "/v1/regular/images/release":
+            seen.append(json.loads(request.content))
+            return httpx.Response(200, json={"released": 1})
+        return original(request)
+    gate = RegularGate("http://control", TOKEN, "ws-a", transport=httpx.MockTransport(record), sleep=lambda _: None)
+    assert gate.release(SHA_A) == 1 and gate.release("not-a-hash") == 0 and seen == [{"pair_key": SHA_A}]

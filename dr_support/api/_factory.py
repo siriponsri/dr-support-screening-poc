@@ -246,6 +246,11 @@ def install_regular_routes(app, gate, infer, workspace_id):
             plan_sha256=receipt['plan_sha256'], mask_sha256=receipt['mask']['sha256'],
             transform_sha256=receipt['transform']['sha256'], model_version=receipt['model_version']))
 
+    def release_image(image_id):
+        image = app.state.images.get(image_id)
+        if image is not None:
+            gate.release(image.sha256)
+
     def queue_open():
         try:
             status = gate.public_status()
@@ -256,6 +261,7 @@ def install_regular_routes(app, gate, infer, workspace_id):
     runner = BatchRunner(
         BatchStore(Path(directory) / workspace_id), workspace_id=workspace_id, stage_for=stage_for,
         has_result=has_result, run_grader=run_grader, run_prism=run_prism, queue_open=queue_open,
+        release_image=release_image,
         deferred_details=set(WORDING.values()) | {
             REMOTE_FAILURE_WORDING[RemoteUnreachableError][1],
             'AI analysis is not available; manual review remains available.',

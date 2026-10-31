@@ -116,6 +116,12 @@ class RegularGate:
     def warm(self) -> None:
         self._call("POST", "/warm")
 
+    def release(self, pair_key: str) -> int:
+        """Give back today's unused slots of an image whose remaining stage will not run (never a used slot)."""
+        if not isinstance(pair_key, str) or not SHA.fullmatch(pair_key):
+            return 0
+        return int(self._call("POST", "/images/release", {"pair_key": pair_key}).get("released", 0))
+
     def cancel(self, ticket_id: str) -> dict:
         return self._call("POST", f"/tickets/{ticket_id}/cancel")
 
