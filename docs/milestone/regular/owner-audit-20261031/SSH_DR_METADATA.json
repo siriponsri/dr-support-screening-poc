@@ -1,0 +1,151 @@
+{
+  "accounting": {
+    "continuation": {
+      "base_used": 534,
+      "cap": 540,
+      "prior_gpu_seconds_preserved": 31402.874,
+      "schema": "hospital-m1-accounting-origin.v1"
+    },
+    "sha256": "d92ac735051fdbcd8ad3e7cd217b49f2bf1cb4dde0fb00c8605445d72ba09354"
+  },
+  "accounting_directory": "/home/siripon/projects/dr-model-api-qa/m1-accounting-service-20261025",
+  "deployment": {
+    "exists": true,
+    "path": "/home/siripon/projects/dr-model-api-qa/deployments/m1-session-20261025-s04",
+    "source_sha256": {
+      "scripts/model-server/m1_session.py": "ea831c82790e4679b0e338ca0d3719362935d6d934d6675b1234950cc57c5042",
+      "scripts/qa/batch_runtime/batch_ledger.py": "41329b51a1e23c1a5be4ee431b4864841cfb1a3b39dc52d1188cfdbd022d7134"
+    },
+    "top_level_names": [
+      "EXPECTED_BATCH_MODELS.json",
+      "base",
+      "dr_support",
+      "pyproject.toml",
+      "scripts"
+    ]
+  },
+  "files": [
+    "ACCOUNTING.json",
+    "APPROVAL.json",
+    "JOURNAL_HEAD.json",
+    "LEDGER.jsonl",
+    "PROPOSAL.json",
+    "upstream",
+    "windows"
+  ],
+  "journal": {
+    "chain_valid": true,
+    "ends_newline": true,
+    "intents": 6,
+    "rows": 18,
+    "sha256": "8e3cc89cc22821d06363ff94854a54ee5f8088692fa2372869dd58e14c291ae7",
+    "terminal_counts": {
+      "PASS_READBACK": 6
+    }
+  },
+  "journal_head": {
+    "journal_sha256": "8e3cc89cc22821d06363ff94854a54ee5f8088692fa2372869dd58e14c291ae7",
+    "manifest": "f0ac31cb6d789cac2862578dbbaca20b8fd771b92da2d18f2198a5f9b347f381",
+    "matches_journal": true,
+    "proposal_sha256": "2ac0b6fa36ecb0931b7a56a851003c8eab09390c303d729487d74edee682666d",
+    "seq": 18,
+    "sha256": "6519aaf402f73f48231fd9e1e5c4a1e380b16e065c1c318f319d0a4918d1b962",
+    "tail": "54a99de9cd7491322682410cdef167ee295d44f7182fed981dc4a698bf9b97a0"
+  },
+  "kind": "READ_ONLY_REMOTE_DR_METADATA",
+  "locks": {
+    "HANDOVER.lock": false,
+    "M1_WINDOW_ACTIVATION.lock": false,
+    "SESSION.lock": false
+  },
+  "proposal": {
+    "allocations": {
+      "post_fix_verification": 6
+    },
+    "base_used": 534,
+    "cap": 540,
+    "decision_id": "HOSPITAL_M1_ACCOUNTING_SERVICE_20261025",
+    "new_admissions_max": 6,
+    "schema": "hospital-m1-service-continuation.v1",
+    "sha256": "2ac0b6fa36ecb0931b7a56a851003c8eab09390c303d729487d74edee682666d",
+    "windows": {
+      "HOSPITAL_M1_QA_SERVER_SERVICE_20261025": {
+        "gpu_index": 0,
+        "gpu_seconds_cap": 3600,
+        "profile": "QA_SERVER",
+        "refund_unused": false,
+        "renew": false,
+        "wall_seconds_cap": 7200
+      },
+      "HOSPITAL_M1_QA_SERVER_WATCHDOG_20261025": {
+        "gpu_index": 0,
+        "gpu_seconds_cap": 900,
+        "profile": "QA_SERVER",
+        "refund_unused": false,
+        "renew": false,
+        "wall_seconds_cap": 1800
+      }
+    }
+  },
+  "service_complete": {
+    "accounting": {
+      "active_admission": false,
+      "automatic_retries": 0,
+      "cap": 540,
+      "counter_source": "EXISTING_BATCH_LEDGER",
+      "global_used": 540,
+      "global_used_at_least": 540,
+      "poisoned": false,
+      "supervisor_state": "DRAINING",
+      "usage_status": "EXACT"
+    },
+    "automatic_retries": 0,
+    "cleanup_confirmed": true,
+    "ledger_close": "CONFIRMED",
+    "listener_closed": true,
+    "observed_session_seconds": 705.486,
+    "sha256": "782730642d77cdd0bdec5b4f46ee1200720fe8ef8aab38b07864592127f7ba57",
+    "window_stop": "CONFIRMED"
+  },
+  "utc": "2026-10-31T01:48:23.439779+00:00",
+  "windows": {
+    "HOSPITAL_M1_QA_SERVER_SERVICE_20261025": {
+      "activation": {
+        "gpu_uuid": "GPU-044a8b11-4729-458b-a07b-297e45439419",
+        "refund_unused": false,
+        "renew": false,
+        "sha256": "c90bcb8afdc31719154b18cac182913f736a8554dc7db61226a879d76e82a0e1",
+        "window_id": "HOSPITAL_M1_QA_SERVER_SERVICE_20261025"
+      },
+      "active": null,
+      "body_hash_valid": true,
+      "budget_sha256": "f3d0c3729e3cf2d848426f32883c533cba7b205d112292ebee1fc63280853ddf",
+      "charged_gpu_seconds": 3600,
+      "clock_origin": "300036b297b0eea216dfab6e517573ee7924d4aad641cf03e7e5435ed0ba1cba",
+      "lease_count": 1,
+      "quarantined": false,
+      "started_monotonic": 880391.016146741,
+      "started_utc": 1792934374.7719514,
+      "window_closed": true
+    },
+    "HOSPITAL_M1_QA_SERVER_WATCHDOG_20261025": {
+      "activation": {
+        "gpu_uuid": "GPU-044a8b11-4729-458b-a07b-297e45439419",
+        "refund_unused": false,
+        "renew": false,
+        "sha256": "e1ef60a31b4cd65b92595f5675bfc85b270784ed717fe993e4207b59573903ee",
+        "window_id": "HOSPITAL_M1_QA_SERVER_WATCHDOG_20261025"
+      },
+      "active": null,
+      "body_hash_valid": true,
+      "budget_sha256": "25bc80731a30588958295adcc23adaac189afab4655ce778c8089c71b88a2d0d",
+      "charged_gpu_seconds": 900,
+      "clock_origin": "300036b297b0eea216dfab6e517573ee7924d4aad641cf03e7e5435ed0ba1cba",
+      "lease_count": 1,
+      "quarantined": false,
+      "started_monotonic": 880058.983317182,
+      "started_utc": 1792934042.7391222,
+      "window_closed": true
+    }
+  }
+}

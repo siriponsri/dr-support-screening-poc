@@ -1,0 +1,79 @@
+{
+  "source_kind": "SYNTHETIC_TEST_EXPORT",
+  "baseline": {
+    "status": "PASS",
+    "checks": {
+      "exact_files": true,
+      "parseable": true,
+      "schema_version": true,
+      "image_header": true,
+      "annotation_header": true,
+      "file_hashes": true,
+      "file_list": true,
+      "counts_match": true,
+      "training_ready_count": true,
+      "coordinate_system": true,
+      "ai_rows_not_training_ready": true,
+      "test_only_not_training_ready": true,
+      "label_class_values": true,
+      "image_ids_unique": true,
+      "annotations_reference_images": true,
+      "no_absolute_paths": true
+    },
+    "counts": {
+      "images": 1,
+      "annotations": 5,
+      "training_ready_images": 1,
+      "test_only_images": 0
+    }
+  },
+  "probes": {
+    "/etc": {
+      "status": "PASS",
+      "no_absolute_paths": true
+    },
+    "/ผู้ป่วย/image.png": {
+      "status": "PASS",
+      "no_absolute_paths": true
+    },
+    "/患者/image.png": {
+      "status": "PASS",
+      "no_absolute_paths": true
+    },
+    "note=/home/sample/image.png": {
+      "status": "FAIL",
+      "no_absolute_paths": false
+    },
+    "C:/sample/image.png": {
+      "status": "FAIL",
+      "no_absolute_paths": false
+    },
+    "extra CSV cell containing absolute path": {
+      "status": "PASS",
+      "checks": {
+        "exact_files": true,
+        "parseable": true,
+        "schema_version": true,
+        "image_header": true,
+        "annotation_header": true,
+        "file_hashes": true,
+        "file_list": true,
+        "counts_match": true,
+        "training_ready_count": true,
+        "coordinate_system": true,
+        "ai_rows_not_training_ready": true,
+        "test_only_not_training_ready": true,
+        "label_class_values": true,
+        "image_ids_unique": true,
+        "annotations_reference_images": true,
+        "no_absolute_paths": true
+      },
+      "counts": {
+        "images": 1,
+        "annotations": 5,
+        "training_ready_images": 1,
+        "test_only_images": 0
+      }
+    }
+  }
+}

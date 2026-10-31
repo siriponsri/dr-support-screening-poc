@@ -1,0 +1,293 @@
+{
+  "validated_utc": "2026-10-31T02:13:09.706380+00:00",
+  "status": "PASS",
+  "kind": "DOCUMENTATION_VALIDATION_ONLY_NOT_PRODUCT_TEST",
+  "payload_files": 9,
+  "markdown_link_references": 53,
+  "unique_link_targets": 29,
+  "prompt_characters_including_newlines": 3222,
+  "prompt_utf8_bytes": 5263,
+  "normative_requirements": [
+    "RS-01",
+    "RS-02",
+    "RS-03",
+    "RS-04",
+    "RS-05",
+    "RS-06",
+    "RS-07",
+    "RS-08",
+    "RS-09",
+    "RS-10"
+  ],
+  "offline_control_rows": 36,
+  "live_main_candidate_rows": 16,
+  "authorization_consistency": "PASS",
+  "errors": [],
+  "links": [
+    {
+      "source": "README.md",
+      "target": "SHORT_PROMPT_TH.txt",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "GOAL.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "AUTHORIZATION_AND_QUOTAS.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "REGULAR_SERVICE_SPEC.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "IMPLEMENTATION_PLAN.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "VALIDATION_MATRIX.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "OPERATIONS_AND_ROLLBACK.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "AUTHORITY_STATUS.json",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../../AGENTS.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../../README.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../../DESIGN.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../../GOAL.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../../HANDOFF.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../../CLAUDE.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../operations/INSTALLATION.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../operations/MODEL_SERVER.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../operations/SECURITY_PRIVACY.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../manuals/clinician/02-workflow.qmd",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../milestone/m1/HOSPITAL_M1_RELEASE_CANDIDATE_SPEC.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../milestone/m1/M1_MUTABLE_PRISM_ENTRY_AUTHORITY.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../milestone/m1/M1_ACCOUNTING_CONTINUATION.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../audit/20261031-local-web-real-api/AUDIT.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../audit/20261031-local-web-real-api/SERVICE_QUOTA_AND_SAFE_TESTS_20261031.md",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../audit/20261031-local-web-real-api/SNAPSHOT.json",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../audit/20261031-local-web-real-api/VALIDATION.json",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../audit/20261031-local-web-real-api/SAFE_TESTS.json",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../audit/20261031-local-web-real-api/SSH_DR_METADATA.json",
+      "exists": true
+    },
+    {
+      "source": "README.md",
+      "target": "../../audit/20261031-local-web-real-api/CHECKER_PROBES.json",
+      "exists": true
+    },
+    {
+      "source": "GOAL.md",
+      "target": "AUTHORIZATION_AND_QUOTAS.md",
+      "exists": true
+    },
+    {
+      "source": "GOAL.md",
+      "target": "REGULAR_SERVICE_SPEC.md",
+      "exists": true
+    },
+    {
+      "source": "GOAL.md",
+      "target": "VALIDATION_MATRIX.md",
+      "exists": true
+    },
+    {
+      "source": "GOAL.md",
+      "target": "OPERATIONS_AND_ROLLBACK.md",
+      "exists": true
+    },
+    {
+      "source": "AUTHORIZATION_AND_QUOTAS.md",
+      "target": "AUTHORITY_STATUS.json",
+      "exists": true
+    },
+    {
+      "source": "AUTHORIZATION_AND_QUOTAS.md",
+      "target": "REGULAR_SERVICE_SPEC.md",
+      "exists": true
+    },
+    {
+      "source": "AUTHORIZATION_AND_QUOTAS.md",
+      "target": "README.md",
+      "exists": true
+    },
+    {
+      "source": "REGULAR_SERVICE_SPEC.md",
+      "target": "AUTHORIZATION_AND_QUOTAS.md",
+      "exists": true
+    },
+    {
+      "source": "REGULAR_SERVICE_SPEC.md",
+      "target": "IMPLEMENTATION_PLAN.md",
+      "exists": true
+    },
+    {
+      "source": "REGULAR_SERVICE_SPEC.md",
+      "target": "AUTHORIZATION_AND_QUOTAS.md",
+      "exists": true
+    },
+    {
+      "source": "REGULAR_SERVICE_SPEC.md",
+      "target": "VALIDATION_MATRIX.md",
+      "exists": true
+    },
+    {
+      "source": "REGULAR_SERVICE_SPEC.md",
+      "target": "OPERATIONS_AND_ROLLBACK.md",
+      "exists": true
+    },
+    {
+      "source": "IMPLEMENTATION_PLAN.md",
+      "target": "REGULAR_SERVICE_SPEC.md",
+      "exists": true
+    },
+    {
+      "source": "IMPLEMENTATION_PLAN.md",
+      "target": "AUTHORIZATION_AND_QUOTAS.md",
+      "exists": true
+    },
+    {
+      "source": "IMPLEMENTATION_PLAN.md",
+      "target": "VALIDATION_MATRIX.md",
+      "exists": true
+    },
+    {
+      "source": "IMPLEMENTATION_PLAN.md",
+      "target": "../../audit/20261031-local-web-real-api/CHECKER_PROBES.json",
+      "exists": true
+    },
+    {
+      "source": "IMPLEMENTATION_PLAN.md",
+      "target": "OPERATIONS_AND_ROLLBACK.md",
+      "exists": true
+    },
+    {
+      "source": "VALIDATION_MATRIX.md",
+      "target": "REGULAR_SERVICE_SPEC.md",
+      "exists": true
+    },
+    {
+      "source": "VALIDATION_MATRIX.md",
+      "target": "IMPLEMENTATION_PLAN.md",
+      "exists": true
+    },
+    {
+      "source": "VALIDATION_MATRIX.md",
+      "target": "../../audit/20261031-local-web-real-api/VALIDATION.json",
+      "exists": true
+    },
+    {
+      "source": "VALIDATION_MATRIX.md",
+      "target": "../../audit/20261031-local-web-real-api/SAFE_TESTS.json",
+      "exists": true
+    },
+    {
+      "source": "VALIDATION_MATRIX.md",
+      "target": "../../audit/20261031-local-web-real-api/SSH_DR_METADATA.json",
+      "exists": true
+    },
+    {
+      "source": "OPERATIONS_AND_ROLLBACK.md",
+      "target": "REGULAR_SERVICE_SPEC.md",
+      "exists": true
+    },
+    {
+      "source": "OPERATIONS_AND_ROLLBACK.md",
+      "target": "AUTHORIZATION_AND_QUOTAS.md",
+      "exists": true
+    },
+    {
+      "source": "OPERATIONS_AND_ROLLBACK.md",
+      "target": "VALIDATION_MATRIX.md",
+      "exists": true
+    }
+  ]
+}
