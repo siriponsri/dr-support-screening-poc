@@ -28,7 +28,8 @@ from dr_support.services.source_policy import source_allowed_for_model
 from .assets import verify_source, verify_weight
 from .prism import PREPROCESSING, REVISION, PRISM
 
-MASK_VERSION = "uwf_white_rim_fov_v1"
+# Mask A (owner-approved 2026-10-31): remove only the rubber rim. One version string for every side.
+from dr_support.imaging.uwf_rubber_rim_mask import MASK_A_VERSION as MASK_VERSION  # noqa: E402
 # Incompatible with v1 and the original unreviewed candidate protocol.
 PROPOSED_PROTOCOL = "prism-wire-binding.source-attested.v2"
 MAX_BYTES = 20_000_000
@@ -176,8 +177,8 @@ class BoundLocalPRISM(PRISM):
 
     @staticmethod
     def _detect_baseline(wire_rgb):
-        from dr_support.imaging.uwf_white_rim_fov import detect_white_rim_fov
-        return detect_white_rim_fov(wire_rgb)
+        from dr_support.imaging.uwf_rubber_rim_mask import detect_rubber_rim_mask
+        return detect_rubber_rim_mask(wire_rgb)
 
     def _prepare_candidate(self, wire):
         if not isinstance(wire.data, bytes):

@@ -1,4 +1,5 @@
 """Fake HTTP, fake model port, synthetic bytes only; never a live runtime proof."""
+import dr_support.services.prism_remote_transport as transport_module
 import base64
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -83,7 +84,7 @@ class FakeExecutor:
         self.prepares += 1
         if self.ready_mask:
             image = pixels(wire);mask = Image.new("L", image.size, 255);mask.putpixel((0, 0), 0)
-            return {"status": "READY", "mask_png": png(mask), "mask_version": "uwf_white_rim_fov_v1", "reason_code": None}
+            return {"status": "READY", "mask_png": png(mask), "mask_version": transport_module.MASK_VERSION, "reason_code": None}
         return {"status": "UNCERTAIN", "mask_png": None, "mask_version": None, "reason_code": "FIXTURE_UNCERTAIN"}
     def load_until(self, deadline, cancelled):
         self.loads += 1;self.load_entered.set()

@@ -23,7 +23,7 @@ from PIL import Image
 PROTOCOL = "prism-wire-binding.source-attested.v2"
 TRANSPORT = "prism-remote-entry-fence.candidate.v1"
 BASE = "/v1/prism-bound"
-MASK_VERSION = "uwf_white_rim_fov_v1"
+from dr_support.imaging.uwf_rubber_rim_mask import MASK_A_VERSION as MASK_VERSION  # noqa: E402
 FINAL = {"COMPLETE", "FAILED", "ABORTED"}
 
 

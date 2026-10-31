@@ -28,7 +28,7 @@ from ..contracts import Contract
 
 PROTOCOL = "prism-wire-binding.source-attested.v2"
 MODEL_ID = "prism-dr-5fold"
-MASK_VERSION = "uwf_white_rim_fov_v1"
+from dr_support.imaging.uwf_rubber_rim_mask import MASK_A_VERSION as MASK_VERSION  # noqa: E402
 MAX_PIXELS = 50_000_000
 MAX_BYTES = 32 * 1024 * 1024
 
