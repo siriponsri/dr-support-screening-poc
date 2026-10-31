@@ -1,5 +1,6 @@
 import { Box, Heading, HStack, Text } from '@chakra-ui/react';
 import type { ReactNode } from 'react';
+import { useT } from '@/lib/i18n';
 
 interface SectionProps {
   title: ReactNode;
@@ -9,6 +10,7 @@ interface SectionProps {
 }
 
 export function Section({ title, description, action, children }: SectionProps) {
+  const t = useT();   // Body text follows the EN/TH switch; titles stay English.
   return (
     <Box
       bg="surface.panel"
@@ -32,7 +34,7 @@ export function Section({ title, description, action, children }: SectionProps) 
           </Heading>
           {description && (
             <Text fontSize="sm" color="text.secondary">
-              {description}
+              {typeof description === 'string' ? t(description) : description}
             </Text>
           )}
         </Box>

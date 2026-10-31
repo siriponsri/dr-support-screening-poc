@@ -43,11 +43,12 @@ export function AdminPage() {
     <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader pathname={pathname} subtitle={t('Accounts and stored data')} />
       <Tabs variant="enclosed" isLazy>
-        <TabList><Tab>Users and sign-in</Tab><Tab>Database</Tab><Tab>AI server</Tab></TabList>
+        <TabList><Tab>Users and sign-in</Tab><Tab>Database</Tab><Tab>AI server</Tab><Tab>Referral connector</Tab></TabList>
         <TabPanels>
           <TabPanel px={0}><UsersPanel me={user.username} /></TabPanel>
           <TabPanel px={0}><DatabasePanel /></TabPanel>
           <TabPanel px={0}><ServerModePanel /></TabPanel>
+          <TabPanel px={0}><ReferralConnectorPanel /></TabPanel>
         </TabPanels>
       </Tabs>
     </Box>
@@ -353,6 +354,57 @@ function ServerModePanel() {
             Model server in use now: {state?.current_model_host || 'not set'}. A change applies at the next start.
           </Text>
           <Button alignSelf="flex-start" onClick={() => void save()} isDisabled={!state}>Save AI server</Button>
+        </Stack>
+      </Section>
+      {message && <Alert status={message.tone} py={2}><AlertIcon /><Text fontSize="sm">{message.text}</Text></Alert>}
+    </Stack>
+  );
+}
+
+
+interface Connector { kind: 'none' | 'file_drop' | 'webhook'; folder: string; url: string; token_env: string }
+
+/** Where signed referrals go. Off by default; sending patient data outside needs the hospital's approval first. */
+function ReferralConnectorPanel() {
+  const [form, setForm] = useState<Connector>({ kind: 'none', folder: '', url: '', token_env: '' });
+  const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  useEffect(() => {
+    void apiJson<Connector>('/v1/admin/referral-connector').then((value) => setForm({
+      kind: value.kind, folder: value.folder, url: value.url, token_env: value.token_env,
+    })).catch(() => setMessage({ tone: 'error', text: 'Could not load the setting.' }));
+  }, []);
+  const save = async () => {
+    try {
+      await apiJson<Connector>('/v1/admin/referral-connector', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+      });
+      setMessage({ tone: 'success', text: 'Saved.' });
+    } catch (reason) { setMessage({ tone: 'error', text: reason instanceof Error ? reason.message : 'Not saved.' }); }
+  };
+  return (
+    <Stack spacing={5} maxW="760px">
+      <Section title="Referral connector" description="Where signed referrals go when someone presses Send. Patient data may leave the app only after the hospital approves the destination.">
+        <Stack spacing={4}>
+          <RadioGroup value={form.kind} onChange={(kind) => setForm({ ...form, kind: kind as Connector['kind'] })}>
+            <Stack spacing={2}>
+              <Radio value="none">Off (nothing leaves the app)</Radio>
+              <Radio value="file_drop">File drop folder (FHIR JSON for a hospital integration engine)</Radio>
+              <Radio value="webhook">HTTPS webhook (FHIR JSON)</Radio>
+            </Stack>
+          </RadioGroup>
+          {form.kind === 'file_drop' && (
+            <FormControl><FormLabel>Folder (full path)</FormLabel>
+              <Input value={form.folder} onChange={(event) => setForm({ ...form, folder: event.target.value })} /></FormControl>
+          )}
+          {form.kind === 'webhook' && (
+            <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={3}>
+              <FormControl><FormLabel>Address (https://)</FormLabel>
+                <Input value={form.url} onChange={(event) => setForm({ ...form, url: event.target.value })} /></FormControl>
+              <FormControl><FormLabel>Token variable name (optional)</FormLabel>
+                <Input value={form.token_env} placeholder="REFERRAL_TOKEN" onChange={(event) => setForm({ ...form, token_env: event.target.value })} /></FormControl>
+            </SimpleGrid>
+          )}
+          <Button alignSelf="flex-start" onClick={() => void save()}>Save connector</Button>
         </Stack>
       </Section>
       {message && <Alert status={message.tone} py={2}><AlertIcon /><Text fontSize="sm">{message.text}</Text></Alert>}

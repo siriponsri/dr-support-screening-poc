@@ -382,6 +382,8 @@ def install_pilot_auth(app, auth_file):
     from pathlib import Path as _Path
     from .server_mode import install_server_mode
     install_server_mode(app, admin, _Path(auth_file).parent)
+    from .referral_outbox import install_referral_admin
+    install_referral_admin(app, admin, _Path(auth_file).parent)
     return auth
 
 
