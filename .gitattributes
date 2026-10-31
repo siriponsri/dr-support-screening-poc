@@ -6,3 +6,5 @@ dr_support/services/artifact_generic_v01/generic_uwf.py text eol=lf
 
 # Keep qualified finite-QA control sources byte-identical across checkouts.
 scripts/qa/batch_runtime/*.py text eol=lf
+docs/milestone/regular/owner-*/** -text
+docs/milestone/regular/REDACTION_MANIFEST.json -text
