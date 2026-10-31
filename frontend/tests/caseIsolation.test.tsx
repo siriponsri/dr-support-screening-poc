@@ -29,10 +29,10 @@ for (const [route, Page] of [['review', ReviewPage], ['clinician-review', Clinic
         return json([]);
       });
       render(<StrictMode><ChakraProvider theme={theme}><MemoryRouter initialEntries={[`/${route}/A`]}><Routes><Route path={`/${route}/:imageId`} element={<Page />} /></Routes></MemoryRouter></ChakraProvider></StrictMode>);
-      await screen.findByText(/Fixture latest -/);
+      await screen.findByText(/Fixture latest(,| -) /);
       await act(async () => obsolete.resolve(json({ ...fixture('A'), display_name: 'Fixture obsolete' })));
-      expect(screen.getByText(/Fixture latest -/)).toBeInTheDocument();
-      expect(screen.queryByText(/Fixture obsolete -/)).not.toBeInTheDocument();
+      expect(screen.getByText(/Fixture latest(,| -) /)).toBeInTheDocument();
+      expect(screen.queryByText(/Fixture obsolete(,| -) /)).not.toBeInTheDocument();
     });
 
     it('removes the previous case while the next image loads and when it fails', async () => {
@@ -43,9 +43,9 @@ for (const [route, Page] of [['review', ReviewPage], ['clinician-review', Clinic
         return json([]);
       });
       render(<ChakraProvider theme={theme}><MemoryRouter initialEntries={[`/${route}/A`]}><Routes><Route path={`/${route}/:imageId`} element={<><Switch /><Page /></>} /></Routes></MemoryRouter></ChakraProvider>);
-      await screen.findByText(/Fixture A -/);
+      await screen.findByText(/Fixture A(,| -) /);
       fireEvent.click(screen.getByText('Test switch'));
-      expect(screen.queryByText(/Fixture A -/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Fixture A(,| -) /)).not.toBeInTheDocument();
       await act(async () => b.resolve(new Response(JSON.stringify({ detail: 'Fixture unavailable' }), { status: 404 })));
       expect(await screen.findByText('Fixture unavailable')).toBeInTheDocument();
       expect(screen.queryByRole('radiogroup', { name: 'Final DR grade' })).not.toBeInTheDocument();
@@ -55,10 +55,10 @@ for (const [route, Page] of [['review', ReviewPage], ['clinician-review', Clinic
       vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => String(input) === '/v1/cases/A' ? a.promise : json(String(input) === '/v1/cases/B' ? fixture('B') : []));
       render(<ChakraProvider theme={theme}><MemoryRouter initialEntries={[`/${route}/A`]}><Routes><Route path={`/${route}/:imageId`} element={<><Switch /><Page /></>} /></Routes></MemoryRouter></ChakraProvider>);
       fireEvent.click(screen.getByText('Test switch'));
-      await screen.findByText(/Fixture B -/);
+      await screen.findByText(/Fixture B(,| -) /);
       await act(async () => a.resolve(json(fixture('A'))));
-      expect(screen.getByText(/Fixture B -/)).toBeInTheDocument();
-      expect(screen.queryByText(/Fixture A -/)).not.toBeInTheDocument();
+      expect(screen.getByText(/Fixture B(,| -) /)).toBeInTheDocument();
+      expect(screen.queryByText(/Fixture A(,| -) /)).not.toBeInTheDocument();
     });
   });
 }
@@ -80,9 +80,9 @@ describe('Grade mutation lifetime and refresh', () => {
     fireEvent.click(screen.getByRole('radio', { name: /^2 / }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm DR grade' }));
     fireEvent.click(screen.getByText('Test switch'));
-    await screen.findByText(/Fixture B -/);
+    await screen.findByText(/Fixture B(,| -) /);
     await act(async () => pending.resolve(json(gradeCase('A'))));
-    expect(screen.getByText(/Fixture B -/)).toBeInTheDocument();
+    expect(screen.getByText(/Fixture B(,| -) /)).toBeInTheDocument();
     expect(screen.queryByText('Unexpected old navigation')).not.toBeInTheDocument();
   });
 
@@ -138,8 +138,8 @@ it('serializes ROI confirmation, locks editing while pending, and retires follow
   await waitFor(() => expect(decisions).toBe(1));
   expect(screen.getByRole('button', { name: 'Box', exact: true })).toBeDisabled();
   fireEvent.click(screen.getByText('Test switch'));
-  await screen.findByText(/Fixture B -/);
+  await screen.findByText(/Fixture B(,| -) /);
   await act(async () => pending.resolve(json({ ...a, revision: 2 })));
   expect(derivations).toBe(0);
-  expect(screen.getByText(/Fixture B -/)).toBeInTheDocument();
+  expect(screen.getByText(/Fixture B(,| -) /)).toBeInTheDocument();
 });
