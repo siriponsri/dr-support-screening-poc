@@ -31,9 +31,10 @@ export function AiBatchPanel() {
   const [available, setAvailable] = useState(true);
   const loaded = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     try {
-      const [nextStatus, batches] = await Promise.all([regularApi.status(), regularApi.batches()]);
+      const nextStatus = await regularApi.status();
+      const batches = await regularApi.batches();
       setStatus(nextStatus);
       setBatch(batches.batches.length ? batches.batches[batches.batches.length - 1] : null);
       setError(null);
@@ -41,15 +42,23 @@ export function AiBatchPanel() {
       // Not on the shared queue (or never reached it): stay hidden; once shown, report the problem.
       if (!loaded.current) setAvailable(false);
       else setError(reason instanceof Error && reason.message ? reason.message : 'AI queue status is not available.');
-      return;
+      return loaded.current;
     }
     loaded.current = true;
+    return true;
   }, []);
 
   useEffect(() => {
-    void load();
-    const timer = window.setInterval(() => void load(), POLL_MS);
-    return () => window.clearInterval(timer);
+    let timer: number | undefined;
+    let cancelled = false;
+    // Poll only when the first status call shows this app is on the shared queue.
+    void load().then((onQueue) => {
+      if (onQueue && !cancelled) timer = window.setInterval(() => void load(), POLL_MS);
+    });
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearInterval(timer);
+    };
   }, [load]);
 
   if (!available) return null;
