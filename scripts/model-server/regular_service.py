@@ -18,6 +18,9 @@ import argparse
 import asyncio
 from datetime import datetime, timezone
 from hmac import compare_digest
+import contextvars
+import hashlib as _hashlib
+import secrets as _secrets
 import json
 import os
 from pathlib import Path
@@ -78,16 +81,43 @@ def read_json(path, limit=65536):
     return json.loads(raw)
 
 
+# Personal tokens (owner-approved 2026-10-31): the caller of the current request, set per request.
+_REQUEST = contextvars.ContextVar('regular_request_caller', default=None)
+PRINCIPAL_NAME = re.compile(r'[a-z0-9][a-z0-9._-]{2,39}')
+
+
+def load_principals(path):
+    """Personal tokens from a private operator file: only token hashes, names and allowed workstation IDs."""
+    if path is None:
+        return {}
+    path = Path(path)
+    if not path.exists():
+        return {}
+    if path.is_symlink() or (os.name == 'posix' and path.stat().st_mode & 0o077):
+        raise RuntimeError('PRINCIPALS_FILE_MUST_BE_PRIVATE_0600')
+    value = json.loads(path.read_text(encoding='utf-8'))
+    book = {}
+    for entry in value.get('principals', []):
+        digest, name, workstations = entry.get('token_sha256'), entry.get('name'), entry.get('workstations')
+        if (not isinstance(digest, str) or not re.fullmatch(r'[a-f0-9]{64}', digest) or not isinstance(name, str)
+                or not PRINCIPAL_NAME.fullmatch(name) or not isinstance(workstations, list) or not workstations
+                or not all(isinstance(item, str) and WORKSTATION.fullmatch(item) for item in workstations)):
+            raise RuntimeError('PRINCIPALS_FILE_INVALID')
+        book[digest] = {'principal': 'user:' + name, 'workstations': frozenset(workstations)}
+    return book
+
+
 class ControlService:
     """ASGI gateway plus the scheduler/lifecycle step. Every refusal is a fixed code."""
 
     def __init__(self, authority, runtime, *, token, models, operations, discovery_path=None,
-                 monotonic=time.monotonic, principal=PRINCIPAL):
+                 monotonic=time.monotonic, principal=PRINCIPAL, principals=None):
         if not isinstance(token, str) or not 32 <= len(token) <= 1024 or not token.isascii():
             raise ValueError('PRIVATE_TOKEN_CONFIGURATION_REQUIRED')
         self.authority, self.runtime, self.monotonic = authority, runtime, monotonic
         self.expected = b'Bearer ' + token.encode('ascii')
-        self.models, self.operations, self.principal = models, operations, principal
+        self.models, self.operations, self._owner_principal = models, operations, principal
+        self.principals = dict(principals or {})   # token_sha256 -> personal principal and allowed workstations
         self.discovery_path = Path(discovery_path) if discovery_path else None
         self.discovery = self._load_discovery()
         self.dispatch_lock = asyncio.Lock()
@@ -101,6 +131,24 @@ class ControlService:
         self.discovery_epoch = None
         self.refresh = None
         self.last_reason = None
+
+    @property
+    def principal(self):
+        """The current request's caller; the owner principal outside a request."""
+        current = _REQUEST.get()
+        return current[0] if current else self._owner_principal
+
+    def caller(self, authorization):
+        """(principal, allowed workstations or None) for a valid token, else None."""
+        if len(authorization) != 1 or len(authorization[0]) > 2048:
+            return None
+        value = authorization[0]
+        if compare_digest(value, self.expected):
+            return self._owner_principal, None
+        if not self.principals or not value.startswith(b'Bearer '):
+            return None
+        entry = self.principals.get(_hashlib.sha256(value[7:]).hexdigest())
+        return (entry['principal'], entry['workstations']) if entry else None
 
     # ------------------------------------------------------------------ ASGI
 
@@ -118,10 +166,22 @@ class ControlService:
         headers = {}
         for key, value in scope.get('headers', []):
             headers.setdefault(key.lower(), []).append(value)
-        authorization = headers.get(b'authorization', [])
-        if len(authorization) != 1 or len(authorization[0]) > 2048 or not compare_digest(authorization[0], self.expected):
+        caller = self.caller(headers.get(b'authorization', []))
+        if caller is None:
             return await self.respond(send, 401, {'detail': 'Unauthorized'}, extra=[(b'www-authenticate', b'Bearer')])
         path, method = scope['path'], scope['method']
+        allowed = caller[1]
+        if allowed is not None and (path.startswith(REGULAR) or (method == 'POST' and path in CHARGED)):
+            if self.one(headers, b'x-dr-workstation', WORKSTATION) not in allowed:
+                return await self.respond(send, 403, {'detail': 'This token is not allowed for this workstation',
+                                                      'code': 'WORKSTATION_NOT_ALLOWED_FOR_TOKEN'})
+        marker = _REQUEST.set(caller)
+        try:
+            return await self.route(scope, receive, send, headers, path, method)
+        finally:
+            _REQUEST.reset(marker)
+
+    async def route(self, scope, receive, send, headers, path, method):
         try:
             if path.startswith(REGULAR + '/') or path == REGULAR:
                 return await self.regular(scope, receive, send, headers)
@@ -212,7 +272,8 @@ class ControlService:
         value = self.authority.status(principal=self.principal, workstation=workstation)
         value.update(model_server=self.runtime.state, model_epoch=self.epoch if self.runtime.state == 'READY' else None,
                      funded_until_utc=self.funded_until.isoformat() if self.funded_until else None,
-                     identity='SHARED_BACKEND_WORKSTATION_NOT_AUTHENTICATED', last_reason=self.last_reason)
+                     identity=('PERSONAL_TOKEN' if (_REQUEST.get() or (None, None))[1] is not None
+                               else 'SHARED_BACKEND_WORKSTATION_NOT_AUTHENTICATED'), last_reason=self.last_reason)
         return value
 
     # ------------------------------------------------------------------ model routes
@@ -739,8 +800,9 @@ def serve_main(args):
     runs.mkdir(mode=0o700, exist_ok=True)
     runtime = HostRuntime(deploy=args.deploy, models_path=args.models, prism_pins_path=args.prism_pins,
                           runs=runs, token=token)
+    principals = load_principals(args.principals or (m1_session.PROJECT / 'config/private/regular-principals.json'))
     service = ControlService(authority, runtime, token=token, models=models, operations=operations,
-                             discovery_path=state / 'discovery.json')
+                             discovery_path=state / 'discovery.json', principals=principals)
     recovered = service.recover_after_restart()
 
     class Lifespan:
@@ -769,9 +831,47 @@ def serve_main(args):
     return 0
 
 
+def principal_command(args):
+    """Operator only, on dr-train: add, revoke or list personal tokens. A new token is shown once, here."""
+    path = Path(args.principals)
+    data = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'principals': []}
+    entries = data.setdefault('principals', [])
+    if args.command == 'principal-list':
+        for entry in entries:
+            print(entry['name'], ','.join(entry['workstations']), entry.get('created_utc', ''))
+        return 0
+    if not args.name or not PRINCIPAL_NAME.fullmatch(args.name):
+        raise SystemExit('Give --name: 3 to 40 lowercase letters, digits, dot, dash or underscore')
+    if args.command == 'principal-revoke':
+        data['principals'] = [entry for entry in entries if entry['name'] != args.name]
+        token = None
+    else:
+        workstations = args.workstation or []
+        if not workstations or not all(WORKSTATION.fullmatch(item) for item in workstations):
+            raise SystemExit('Give at least one --workstation with a simple name')
+        token = _secrets.token_urlsafe(32)
+        data['principals'] = [entry for entry in entries if entry['name'] != args.name] + [{
+            'name': args.name, 'token_sha256': _hashlib.sha256(token.encode('ascii')).hexdigest(),
+            'workstations': workstations, 'created_utc': datetime.now(timezone.utc).isoformat()}]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix('.tmp')
+    temporary.write_text(json.dumps(data, indent=2), encoding='utf-8')
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+    if token:
+        print('Personal token for ' + args.name + ' (shown once; hand it over as TOKEN_DISTRIBUTION.md says):')
+        print(token)
+    print('Restart the gateway so it reads the change.')
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['serve'], nargs='?', default='serve')
+    parser.add_argument('command', choices=['serve', 'principal-add', 'principal-revoke', 'principal-list'],
+                        nargs='?', default='serve')
+    parser.add_argument('--principals', type=Path, help='private personal-token file (0600)')
+    parser.add_argument('--name')
+    parser.add_argument('--workstation', action='append')
     parser.add_argument('--child', action='store_true')
     parser.add_argument('--deploy', type=Path)
     parser.add_argument('--run', type=Path)
@@ -784,6 +884,10 @@ def main():
         parser.error('Run on the approved GPU host through the existing SSH connection')
     if args.child:
         return child_main(args)
+    if args.command.startswith('principal-'):
+        if args.principals is None:
+            parser.error('--principals is required')
+        return principal_command(args)
     return serve_main(args)
 
 

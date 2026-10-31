@@ -45,10 +45,11 @@ is handed out. Per-person access needs these approved first (proposal:
 | 3 | Owner (operator on dr-train) | Issue the developer a personal model token; the gateway maps it to that person (per-user principal) |
 | 4 | Developer | Keep the key and token in `%LOCALAPPDATA%\DRScreening\M1PrivateConfig\` only (never in Git, chat or logs) |
 
-After approval, the engineering changes are: the launcher reads the host,
-key and a personal token from the private settings file instead of the owner's
-fixed values, and the gateway checks personal tokens. Until then, Level 0 is the
-team path.
+Approved by the owner on 31 October 2026 (no devices added yet). The code is
+ready: the gateway accepts personal tokens (each person's tickets are kept
+apart) and the launcher reads `DR_HOST`, `DR_KEY` and `DR_TOKEN_FILE` from the
+person's private `demo.env`. Step-by-step issuing, hand-over and revoking:
+[TOKEN_DISTRIBUTION.md](TOKEN_DISTRIBUTION.md).
 
 ## Level 2: run the hospital package on a GPU machine
 

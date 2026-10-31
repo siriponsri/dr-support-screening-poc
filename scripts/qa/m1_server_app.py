@@ -45,8 +45,11 @@ from dr_support.services.filesystem_privacy import has_reparse_component, privat
 from scripts.qa.configure_m1_test_credentials import PRIVATE_DIRECTORY
 from scripts.qa.qualify_m1_entry_fence import AUTHORITY, DATABASE, PLAN, RUNTIME
 
-HOST = 'siripon@100.77.149.83'
-SSH_KEY = 'C:/Users/User/.ssh/id_ed25519_dr_train'
+# Each person's own route (personal access, owner-approved 2026-10-31); the owner's values are the default.
+HOST = os.environ.get('DR_HOST') or 'siripon@100.77.149.83'
+SSH_KEY = os.environ.get('DR_KEY') or 'C:/Users/User/.ssh/id_ed25519_dr_train'
+# A personal model token kept in a private local file; when set, the owner's host token is never read.
+PERSONAL_TOKEN_FILE = os.environ.get('DR_TOKEN_FILE') or ''
 SSH = ['C:/Windows/System32/OpenSSH/ssh.exe', '-T', '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes',
        '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10', '-i', SSH_KEY]
 REMOTE_PROJECT = '/home/siripon/projects/dr-model-api-qa'
@@ -197,8 +200,19 @@ def ssh(command, *, data=None, timeout=30):
     return completed.stdout
 
 
+def personal_token():
+    """The person's own token from a private local file (never printed or logged)."""
+    path = Path(PERSONAL_TOKEN_FILE)
+    require(path.is_file() and not path.is_symlink(), 'PERSONAL_TOKEN_FILE_REQUIRED')
+    token = path.read_text(encoding='ascii').strip()
+    require(32 <= len(token) <= 1024 and token.isascii() and ' ' not in token, 'PERSONAL_TOKEN_INVALID')
+    return token
+
+
 def host_token(*, allow_remote_token_read=False):
-    """Explicitly opted-in existing-host credential transfer into memory only."""
+    """Explicitly opted-in existing-host credential transfer into memory only, or the person's own token."""
+    if PERSONAL_TOKEN_FILE:
+        return personal_token()
     require_remote_token_opt_in(allow_remote_token_read)
     # The existing host reader takes a pathlib.Path, not a string.
     raw = ssh("python3 -c \"import sys, pathlib; sys.path.insert(0, '" + HOST_TOKEN_READER_PATH
@@ -403,7 +417,8 @@ def public_demo_folder(value, public):
 
 
 def serve_regular(args):
-    require_remote_token_opt_in(getattr(args, 'allow_remote_token_read', False))
+    if not PERSONAL_TOKEN_FILE:
+        require_remote_token_opt_in(getattr(args, 'allow_remote_token_read', False))
     model_configuration(args.model_port)
     require(isinstance(args.workstation, str) and WORKSTATION.fullmatch(args.workstation) is not None,
             'SIMPLE_WORKSTATION_ID_REQUIRED')
