@@ -50,7 +50,7 @@ say "1/4 Checking the connection to dr-train"
 "${SSH[@]}" true || fail "cannot reach dr-train over SSH. Check the network or VPN."
 
 say "2/4 Starting the AI server on dr-train (if it is not running)"
-result=$("${SSH[@]}" "sh -s -- '$DR_DEPLOY' '$DR_PINS_REMOTE' '$DR_STATE'" < "$HERE/remote-start-gateway.sh") \
+result=$(tr -d '\r' < "$HERE/remote-start-gateway.sh" | "${SSH[@]}" "sh -s -- '$DR_DEPLOY' '$DR_PINS_REMOTE' '$DR_STATE'") \
   || fail "the AI server did not start: $result"
 case "$result" in
   *GATEWAY_ALREADY_RUNNING*) say "    already running" ;;
