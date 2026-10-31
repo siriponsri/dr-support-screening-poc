@@ -38,6 +38,24 @@ def test_the_rubber_rim_is_removed_and_the_retina_kept():
     assert not kept(fov, 515, 150)        # On the rubber rim.
     assert not kept(fov, 20, 20)          # Black frame.
     assert fov.mask_sha256 == mask_hash(fov.field_mask)
+    assert fov.boundary_confidence >= 0.9   # The outline follows the rim and the frame.
+
+
+def test_a_mask_a_field_passes_the_prism_evidence_contract_used_on_the_model_host():
+    from dr_support.contracts.phase3 import PrismAnalysisFieldEvidence
+    from dr_support.providers.prism import PRISM
+    for image in (picture(), picture(full_width=True)):
+        fov = detect_rubber_rim_mask(image)
+        evidence = PrismAnalysisFieldEvidence.model_validate(PRISM._fov_evidence(fov, used_for_model_input=True))
+        assert evidence.mask_version == MASK_A_VERSION and 0 <= evidence.boundary_confidence <= 1
+
+
+def test_a_kept_area_that_cuts_into_the_picture_scores_low():
+    from dr_support.imaging.uwf_rubber_rim_mask import boundary_support
+    picture_area = np.ones((100, 100), bool)
+    keep = np.zeros((100, 100), bool)
+    keep[30:70, 30:70] = True   # Not next to any rim or frame.
+    assert boundary_support(keep, np.zeros((100, 100), bool), picture_area) == 0.0
 
 
 def test_yellow_spots_inside_the_retina_are_never_masked():

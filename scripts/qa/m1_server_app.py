@@ -312,7 +312,10 @@ def compose(workspace_id, prism_pins, model_port, token, regular_gate=None, publ
     provider = WorkspaceRemotePRISM(channel, source_authority=authority, expected_pins=prism_pins)
     provider.negotiate()
     if regular_gate is not None:
-        regular_gate.renegotiate = provider.negotiate
+        def renegotiate():
+            provider.negotiate()
+            return provider.capabilities['epoch']   # The child's PRISM session epoch, not the gateway's.
+        regular_gate.renegotiate = renegotiate
     # Public commissioning admits only the hash-pinned public samples (origin PUBLIC), never hospital roots.
     app = create_app(include_samples=public_samples, include_demo_fixtures=public_samples,
                      case_store_mode='postgres', workspace_id=workspace_id, workspace_authority=authority,

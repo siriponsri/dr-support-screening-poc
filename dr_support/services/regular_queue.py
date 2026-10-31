@@ -81,7 +81,9 @@ class RegularGate:
         # 15 s rides out the gateway's brief pause while it spawns the GPU child.
         self.client = httpx.Client(base_url=base_url, transport=transport, timeout=httpx.Timeout(15),
                                    trust_env=False, follow_redirects=False)
-        self.renegotiate = None   # Set to the PRISM provider's negotiate once composed.
+        # Set once composed: renegotiates the PRISM provider and returns the child's own session epoch.
+        self.renegotiate = None
+        self.negotiated_epoch = None   # The gateway epoch (one per child start) last renegotiated for.
         self.lock = threading.RLock()
 
     def _call(self, method: str, path: str, value=None) -> dict:
@@ -207,11 +209,15 @@ class RegularTransport(httpx.BaseTransport):
                     self.gate.warm()   # Start loading; the clinician prepares again shortly.
                 return httpx.Response(503, json={"error": "PREPARE_UNAVAILABLE"}, request=request)
             epoch = status.get("model_epoch")
-            if epoch and request.headers.get("x-prism-epoch") != epoch and callable(self.gate.renegotiate):
-                # A newly started child has a new epoch: renegotiate its loaded identity first.
+            if epoch and epoch != self.gate.negotiated_epoch and callable(self.gate.renegotiate):
+                # A newly started child (new gateway epoch) has its own PRISM session epoch: renegotiate
+                # its loaded identity first and send that session epoch, never the gateway's.
                 with self.gate.lock:
-                    self.gate.renegotiate()
-                request.headers["X-Prism-Epoch"] = epoch
+                    live = self.gate.renegotiate()
+                    if not isinstance(live, str) or not live:
+                        return httpx.Response(503, json={"error": "PREPARE_UNAVAILABLE"}, request=request)
+                    self.gate.negotiated_epoch = epoch
+                request.headers["X-Prism-Epoch"] = live
         response = self.inner.handle_request(request)
         if method == "POST" and path in {GLOBAL_ROUTE, PRISM_BASE + "/execute"} and response.status_code == 503:
             # The gateway refused before dispatch (busy or not loaded): nothing was sent.
