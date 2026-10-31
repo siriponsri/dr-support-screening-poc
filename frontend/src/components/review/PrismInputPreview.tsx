@@ -207,7 +207,7 @@ export function PrismInputPreview({ item, model, onInferenceComplete, technicalB
       {open && <>
         <Button data-testid="prism-preview-prepare" alignSelf="flex-start" size="sm" variant="outline" isLoading={busy} isDisabled={!qualityConfirmed || (technicalBatch && technicalPrepared.current)} onClick={() => void prepare()}>Prepare / refresh API input</Button>
         {technicalBatch && busy && <Text data-testid="qa-batch-busy">Technical PRISM operation in progress</Text>}
-        {actionError?.context === context && <Alert status="error"><AlertIcon /><Text>{actionError.message}{technicalBatch ? ' This technical attempt failed or is uncertain; no retry is permitted.' : actionError.stage === 'submit' ? ' Prepare a new receipt before another attempt.' : ''}</Text></Alert>}
+        {actionError?.context === context && <Alert status="error"><AlertIcon /><Text>{actionError.message}{technicalBatch ? ' This technical attempt failed or is uncertain; no retry is permitted.' : actionError.stage === 'submit' && !/Do not resend/.test(actionError.message) ? ' Prepare a new receipt before another attempt.' : ''}</Text></Alert>}
         <Text fontSize="sm">Optical FOV is the camera field; an artifact mask excludes selected pixels; native ROI is PRISM’s internal crop. None is a lesion box or a clinical grade.</Text>
         {(unavailable || error?.key === key) ? <Alert status="warning"><AlertIcon /><Stack spacing={1}>
           <Text fontWeight="semibold">PRISM input preview unavailable</Text>

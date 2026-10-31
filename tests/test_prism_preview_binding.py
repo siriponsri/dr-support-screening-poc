@@ -570,3 +570,17 @@ def test_a_transport_failure_during_submit_refresh_keeps_the_execution_refusal(r
     response = submit(rig, plan)
     assert response.status_code == 502 and "cannot be reused" in response.json()["detail"]
     assert len(calls) == 2 and rig.provider.calls == 0 and rig.saved == []
+
+
+def test_a_possibly_started_prism_run_is_reported_as_unknown_not_failed(rig, monkeypatch):
+    from dr_support.providers.prism_remote_bound import RemoteExecutionUncertain
+    plan = prepare(rig)
+
+    def uncertain(*args, **kwargs):
+        raise RemoteExecutionUncertain("TRANSPORT_LOST_NO_AUTOMATIC_RETRY", 503)
+    monkeypatch.setattr(rig.provider, "infer_bound_prism", uncertain)
+    response = submit(rig, plan)
+    detail = response.json()["detail"]
+    assert response.status_code == 502 and "could not be confirmed" in detail and "Do not resend" in detail
+    assert "failed verification" not in detail and "TRANSPORT_LOST" not in detail
+    assert rig.saved == [] and submit(rig, plan).status_code == 409  # Consumed: no second dispatch.

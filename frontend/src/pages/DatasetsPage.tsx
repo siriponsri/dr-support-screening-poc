@@ -48,6 +48,7 @@ import {
   type WorkspaceDataResponse,
 } from '@/lib/api';
 import { ChevronLeft, ChevronRight, Download, Eye, RefreshCw, Search } from '@/lib/icons';
+import { completenessLabel, readinessReasonLabel } from '@/lib/datasetLabels';
 
 type DatasetFilter = 'all' | 'dr-ready' | 'lesion-positive-ready' | 'needs-review' | 'excluded';
 
@@ -82,10 +83,10 @@ function exportAuthorizationLabel(authorization?: string): string {
 }
 
 function readinessLabel(row: DatasetImageRow, kind: 'dr' | 'lesion'): string {
-  if (kind === 'dr') return (row.dr_grade_training_ready ?? row.include_in_training) ? `Ready${row.clinician_grade === null ? '' : ` - ${drGradeLabel(row.clinician_grade)}`}` : (row.grade_eligibility_reason ?? 'Needs review').replace(/_/g, ' ');
+  if (kind === 'dr') return (row.dr_grade_training_ready ?? row.include_in_training) ? `Ready${row.clinician_grade === null ? '' : ` - ${drGradeLabel(row.clinician_grade)}`}` : readinessReasonLabel(row.grade_eligibility_reason);
   if (row.lesion_positive_training_ready ?? false) return 'Positive labels ready';
   if (row.core_completeness_state === 'REVIEWED_NONE_FOUND') return 'Core reviewed - none recorded';
-  return (row.lesion_eligibility_reason ?? 'Needs review').replace(/_/g, ' ');
+  return readinessReasonLabel(row.lesion_eligibility_reason);
 }
 
 function WorkspaceDataTable({ records, onSelect }: { records: DatasetImageRow[]; onSelect: (imageId: string) => void }) {
@@ -102,7 +103,7 @@ function WorkspaceDataTable({ records, onSelect }: { records: DatasetImageRow[];
             <Td><Text fontSize="sm">{patientEye(row)}</Text></Td>
             <Td><StatusBadge tone={(row.dr_grade_training_ready ?? row.include_in_training) ? 'success' : 'warning'}>{readinessLabel(row, 'dr')}</StatusBadge></Td>
             <Td><Stack spacing={1} fontSize="xs"><Text>{annotationSummary(row)}</Text><Text color="text.secondary">{readinessLabel(row, 'lesion')}</Text></Stack></Td>
-            <Td><Stack spacing={0.5} fontSize="xs"><Text>{row.core_completeness_state?.replace(/_/g, ' ') ?? 'Core not reviewed'}</Text><Text color="text.secondary">Advanced: {row.advanced_completeness_state?.replace(/_/g, ' ') ?? 'Not reviewed'}</Text></Stack></Td>
+            <Td><Stack spacing={0.5} fontSize="xs"><Text>{completenessLabel(row.core_completeness_state, 'Core not reviewed')}</Text><Text color="text.secondary">Advanced: {completenessLabel(row.advanced_completeness_state)}</Text></Stack></Td>
             <Td><Stack spacing={0.5} fontSize="xs"><Text>{sourceOriginLabel(row.source_origin)}{row.source_available === false ? ' - source unavailable' : ''}</Text><Text color={row.export_authorization?.startsWith('BLOCKED_') ? 'status.warning' : 'text.secondary'}>{exportAuthorizationLabel(row.export_authorization)}</Text></Stack></Td>
             <Td><Button size="xs" variant="outline" leftIcon={<Eye size={13} />} onClick={() => onSelect(row.image_id)}>Details</Button></Td>
           </Tr>
@@ -123,7 +124,7 @@ function DetailModal({ detail, onClose }: { detail: WorkspaceDataDetail | null; 
             <Tabs variant="line" isLazy>
               <TabList><Tab>Review</Tab><Tab>Processing</Tab><Tab>AI evidence</Tab><Tab>Eligibility</Tab></TabList>
               <TabPanels>
-                <TabPanel px={0}><Stack spacing={3}>{detail.completeness.map((item) => <Box key={item.group} borderWidth="1px" borderColor="border.subtle" p={3}><Text fontWeight="semibold">{item.group}</Text><Text fontSize="sm">{item.state.replace(/_/g, ' ')}</Text><Text fontSize="xs" color="text.secondary">{item.reviewer ?? 'No reviewer recorded'}{item.timestamp ? ` / ${item.timestamp}` : ''}</Text>{item.state === 'REVIEWED_NONE_FOUND' && <Text fontSize="xs" color="status.warning">Training negative: not authorized by current policy.</Text>}</Box>)}</Stack></TabPanel>
+                <TabPanel px={0}><Stack spacing={3}>{detail.completeness.map((item) => <Box key={item.group} borderWidth="1px" borderColor="border.subtle" p={3}><Text fontWeight="semibold">{item.group}</Text><Text fontSize="sm">{completenessLabel(item.state)}</Text><Text fontSize="xs" color="text.secondary">{item.reviewer ?? 'No reviewer recorded'}{item.timestamp ? ` / ${item.timestamp}` : ''}</Text>{item.state === 'REVIEWED_NONE_FOUND' && <Text fontSize="xs" color="status.warning">Training negative: not authorized by current policy.</Text>}</Box>)}</Stack></TabPanel>
                 <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>Status: {String(detail.processing.status ?? 'UNAVAILABLE')}</Text><Text>Source SHA-256: {String(detail.processing.source_sha256 ?? 'Unavailable')}</Text><Text>Analysis SHA-256: {String(detail.processing.analysis_sha256 ?? 'Unavailable')}</Text><Text>Representation: {String(detail.processing.representation_version ?? 'Unavailable')}</Text><Text color="text.secondary">Processing details are recorded evidence only; Phase 4 does not recompute model results.</Text></Stack></TabPanel>
                 <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>Status: {detail.explainability.status}</Text><Text>Evidence identity: {detail.explainability.evidence_identity ?? 'Unavailable'}</Text><Text>AI evidence items: {detail.ai_evidence_counts.items} / unresolved {detail.ai_evidence_counts.unresolved}</Text><Text color="text.secondary">AI evidence is separate from gold labels and does not establish clinical accuracy.</Text></Stack></TabPanel>
                 <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>DR: {readinessLabel(detail.record, 'dr')}</Text><Text>Lesion-positive: {readinessLabel(detail.record, 'lesion')}</Text><Text>Gold DR rows: {detail.gold_label_counts.dr_grade}</Text><Text>Gold lesion rows: {detail.gold_label_counts.lesion_positive}</Text><Text>Training negatives: not authorized</Text><Text>Source authorization: {exportAuthorizationLabel(detail.record.export_authorization)}</Text></Stack></TabPanel>

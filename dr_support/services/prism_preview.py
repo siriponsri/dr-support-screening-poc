@@ -342,6 +342,12 @@ class PrismPreviewService:
                 logging.getLogger(__name__).warning(
                     "PRISM execution refused: %s %s", type(error).__name__,
                     code if isinstance(code, str) and re.fullmatch(r"[A-Z0-9_]{1,80}", code) else "")
+                from dr_support.providers.prism_remote_bound import RemoteExecutionUncertain
+                if isinstance(error, RemoteExecutionUncertain):
+                    # Possibly started: never call it failed or invite a resend.
+                    raise HTTPException(502, "The PRISM result could not be confirmed and nothing was saved. "
+                                             "Do not resend this image; the run is kept for the operator to check. "
+                                             "Manual review remains available.") from None
                 raise HTTPException(502, "PRISM execution failed verification; this receipt cannot be reused.") from None
 
 

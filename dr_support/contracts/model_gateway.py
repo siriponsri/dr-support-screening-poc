@@ -83,3 +83,6 @@ class ModelConnectionResponse(Contract):
     connection_verified: bool = False
     capabilities_ready: bool = False
     models: list[ModelConnectionModel] = Field(default_factory=list)
+    # Additive: the connection and its token are configured by the operator on the server side
+    # (owned M1 session), so the page shows status only and offers no URL or token entry.
+    managed_by_operator: bool = False
