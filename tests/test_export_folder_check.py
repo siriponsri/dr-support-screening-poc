@@ -67,3 +67,60 @@ def test_the_check_never_writes(exported):
     before = {path.name: (path.stat().st_mtime_ns, path.read_bytes()) for path in exported.iterdir()}
     check(exported)
     assert {path.name: (path.stat().st_mtime_ns, path.read_bytes()) for path in exported.iterdir()} == before
+
+
+def set_manifest_note(folder, value):
+    manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    manifest["note"] = value
+    (folder / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+
+@pytest.mark.parametrize("leak", ["/etc", "/ผู้ป่วย/image.png", "/患者/image.png", "path:/home/u/a.png",
+                                  "file:///home/u/a.png", "~/a.png", "//server/share/a.png", "(/data/a.png)"])
+def test_audit_counterexample_paths_fail(exported, leak):  # docs/audit/20261031-local-web-real-api/CHECKER_PROBES.json
+    set_manifest_note(exported, leak)
+    assert check(exported)["checks"]["no_absolute_paths"] is False
+
+
+@pytest.mark.parametrize("value", [r"images\sub\a.png", "https://example.org/a/b", "s3://bucket/key",
+                                   "2026-10-31T17:00:00+00:00", "grade 2/4", "HE/EX"])
+def test_ordinary_values_are_not_paths(exported, value):
+    set_manifest_note(exported, value)
+    assert check(exported)["checks"]["no_absolute_paths"] is True
+
+
+def test_a_surplus_csv_cell_fails_even_with_a_matching_hash(exported):
+    import hashlib
+    path = exported / "images.csv"
+    lines = path.read_text(encoding="utf-8").split("\n")
+    lines[1] = lines[1] + ",C:/sample/image.png"
+    path.write_text("\n".join(lines), encoding="utf-8", newline="")
+    manifest = json.loads((exported / "manifest.json").read_text(encoding="utf-8"))
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest["file_sha256"]["images.csv"] = manifest["images_csv_sha256"] = digest
+    (exported / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    report = check(exported)
+    assert report["checks"]["file_hashes"] is True
+    assert report["checks"]["row_widths"] is False and report["checks"]["no_absolute_paths"] is False
+    assert report["status"] == "FAIL"
+
+
+def test_a_missing_csv_cell_fails(exported):
+    path = exported / "images.csv"
+    lines = path.read_text(encoding="utf-8").split("\n")
+    lines[1] = lines[1].rsplit(",", 1)[0]
+    path.write_text("\n".join(lines), encoding="utf-8", newline="")
+    assert check(exported)["checks"]["row_widths"] is False
+
+
+def test_an_unreadable_folder_fails_without_printing_its_path(tmp_path, monkeypatch, capsys):
+    from pathlib import Path
+
+    def deny(self):
+        raise PermissionError(13, "denied", str(self))
+    monkeypatch.setattr(Path, "iterdir", deny)
+    folder = tmp_path / "dataset-export-x"
+    folder.mkdir()
+    assert main([str(folder)]) == 1
+    printed = capsys.readouterr().out
+    assert '"readable": false' in printed and str(tmp_path) not in printed
