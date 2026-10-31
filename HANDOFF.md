@@ -2199,3 +2199,56 @@ images, TEST_ONLY; hash prefixes only)**
 - Worktrees `m1-login-colours-worktree`, `m1-pilot-ux-worktree`,
   `m1-prism-epoch-worktree`, `m1-handoff-38-worktree` are left for the owner
   to remove (the cleanup command was blocked in this session).
+
+## 39. Mask A2 (dim outer rim band) merged, deployed and checked live, 31 October 2026 (TEST_ONLY; SINGLE-USER)
+
+**Owner decisions (chat, 31 October):** "Show a draft first", then "Approve A2"
+after the private visual sheets. Later: the regular Model API budget may be
+extended and this period counts as development, not real use (limits were not
+binding; the authority config is unchanged, since a change needs a new
+authority record with the old one kept as evidence).
+
+**Merged on main and pushed:** `ec0d30e` (`feat/mask-a2-dim-rim`). Mask version
+`uwf_rubber_rim_colour_a2_v1` (constant name `MASK_A_VERSION` kept so all three
+receipt pins import one value). A2 grows from the detected bright rim into
+pixels greener than the image's own central retina (green/red above its 95th
+percentile, at least 0.8), low in blue, within 6% of the image size from the
+rim and within 3.5% of the dark frame; the frame is the wide dark background
+reaching the image edge, so thin dark lines inside the picture do not count.
+Found during the draft: without that frame rule A2 removed a wedge of dark
+peripheral retina on one image; a test now fails if the rule is missing.
+
+**Validation:** backend full suite on the branch 2274 passed, 69 skipped,
+0 xfail, 0 error, 0 failed; main tree identical, Ruff clean, focused tests on
+main passed. The module output equals the approved draft on all 34 inputs
+(31 unique images), and every mask passes the PRISM evidence contract. No
+frontend change.
+
+**Host:** new folder `deployments/regular-20261031-r04` (only the mask file
+differs from r03), CPU-only identity (`regular/r04-identity.json`): global
+pins, PRISM checkpoints and revision unchanged, PRISM config
+`06c661be...` -> `fab51764...`. Pins `regular/r04-inputs/PRISM_WORKSPACE_PINS.json`
+(sha256 `1c5ece12...`, same file in the workstation private folder
+`regular-20261031-r04/`). Gateway runs from r04 on the same day authority
+`regular/r01/`; r01 to r03 folders kept. Rollback: stop r04 and start r03 with
+`regular/r03-inputs` pins (or older, per the operations note).
+
+**Live (hospital workspace, physician-allowed images, 2 calls, no resend):**
+`00a03b50`: the SE box on the dim rim band under mask A is gone with A2; no
+box on the rim. `8568e67e`: same as mask A (no rim box, no retina removed).
+Clinician grade and annotations unchanged. Private side-by-side files:
+`evidence/mask-a2-live-20261031/` and the draft sheets in
+`evidence/mask-a2-draft-20261031/` (workstation private folder; several images
+carry burned-in patient text, so they are never committed or shared). Boxes on
+eyelids and lashes remain (outside the phase 1 goal). A2 is conservative: some
+images still keep a little dim rim.
+
+**Day totals (Thai day 31 October):** 21 of 1,500 calls admitted (18 done,
+3 failed, none resent), 3 refused before admission (not charged), 4,800 of
+43,200 GPU-seconds, no quarantine, no overrun; GPU1, Ollama, V100 and Podi
+not touched.
+
+**Still open:** batch PRISM on NOT_EVALUATED quality images (host requires
+GRADABLE); per-user Model API principals (single-user commissioning only);
+worktrees `m1-mask-a2-worktree` and `m1-handoff-39-worktree` join the list for
+the owner to remove.
