@@ -26,11 +26,16 @@ FILES = {"manifest.json", "images.csv", "annotations.csv"}
 START = r"(?:^|[\s\"',;=(\[])"
 ABSOLUTE_PATH = re.compile(
     r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]"           # C:\ or C:/
+    + r"|^[A-Za-z]:[^\\/\s]"                      # C:file (drive-relative) as a whole value
     + "|" + START + r"(?:\\\\|//)[^\\/\s]+[\\/]"  # \\server\share or //server/share
+    + "|" + START + r"\\[^\\/\s]+\\"           # \Users\name (rooted on the current drive)
     + r"|file:/"                                   # file: URLs
     + r"|(?:^|[\s\"',;=(\[:])~[\\/]"               # ~/ home-relative
-    + r"|(?:^|[\s\"',;=(\[:])/[^\s/\\\"',;]"       # /etc, /ผู้ป่วย/... (never the // of scheme://)
-)
+    + r"|(?:^|[\"',;=(\[:])/[^\s/\\\"',;]"         # /etc, /ผู้ป่วย/... (never the // of scheme://)
+    + r"|\s/[^\s/\\\"',;]+/"                       # "see /home/x": two segments after a space,
+)                                                  # so plain text such as "MA /HE" is not a path
+IMAGE_BOOLEANS = ("include_in_training", "dr_grade_training_ready", "lesion_training_ready")
+BOOLEAN_TEXT = {"True", "False", ""}
 MAX_FILE_BYTES = 512 * 1024 * 1024
 
 
@@ -91,9 +96,19 @@ def check(folder: Path) -> dict:
     checks["file_list"] = manifest.get("files") == ["manifest.json", "images.csv", "annotations.csv"]
     checks["counts_match"] = (manifest.get("image_count") == len(images)
                               and manifest.get("annotation_count") == len(annotations))
+    # Booleans are written as True/False; any other spelling could hide a training-ready leak.
+    checks["boolean_cells"] = (all(row.get(name) in BOOLEAN_TEXT for row in images for name in IMAGE_BOOLEANS)
+                               and all(row.get("include_in_training") in BOOLEAN_TEXT for row in annotations))
     ready = sum(row.get("include_in_training") == "True" for row in images)
     counts["training_ready_images"] = ready
     checks["training_ready_count"] = manifest.get("training_ready_count") == ready
+    ready_annotations = sum(row.get("include_in_training") == "True" for row in annotations)
+    counts["training_ready_annotations"] = ready_annotations
+    checks["ready_counts_match"] = (
+        manifest.get("dr_grade_ready_count") == sum(row.get("dr_grade_training_ready") == "True" for row in images)
+        and manifest.get("lesion_ready_image_count") == sum(row.get("lesion_training_ready") == "True"
+                                                            for row in images)
+        and manifest.get("lesion_ready_annotation_count") == ready_annotations)
     checks["coordinate_system"] = manifest.get("coordinate_system") == "original_image_pixels"
     checks["ai_rows_not_training_ready"] = all(
         row.get("include_in_training") != "True" for row in annotations if row.get("annotation_source") == "AI")
@@ -107,6 +122,11 @@ def check(folder: Path) -> dict:
     checks["image_ids_unique"] = len({row.get("image_id") for row in images}) == len(images)
     image_ids = {row.get("image_id") for row in images}
     checks["annotations_reference_images"] = all(row.get("image_id") in image_ids for row in annotations)
+    # A training-ready finding needs a lesion-ready, non-TEST_ONLY image.
+    lesion_ready = {row.get("image_id") for row in images
+                    if row.get("lesion_training_ready") == "True" and row.get("label_class") != TEST_ONLY_MARKER}
+    checks["ready_annotations_on_ready_images"] = all(
+        row.get("image_id") in lesion_ready for row in annotations if row.get("include_in_training") == "True")
     values = [*_strings(manifest), *(cell for cells in (image_cells, annotation_cells) for row in cells for cell in row)]
     checks["no_absolute_paths"] = not any(ABSOLUTE_PATH.search(value) for value in values)
     return {"status": "PASS" if all(checks.values()) else "FAIL", "checks": checks, "counts": counts}

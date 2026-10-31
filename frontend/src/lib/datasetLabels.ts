@@ -20,7 +20,13 @@ const READINESS_REASONS: Record<string, string> = {
   AI_ONLY: 'AI suggestion only, not reviewed',
   AI_ONLY_UNVERIFIED: 'AI suggestion only, not reviewed',
   NO_ANNOTATION_CONFIRMATION: 'Findings not finished',
-  NO_EXPLICIT_NEGATIVE_POLICY: 'Reviewed, none found (not a training negative)',
+  NO_EXPLICIT_NEGATIVE_POLICY: 'Not a training negative',
+  INVALID_IMAGE: 'Invalid image',
+  NON_FUNDUS: 'Not a fundus image',
+  DUPLICATE_CONTENT: 'Duplicate image',
+  SOURCE_UNAVAILABLE: 'Source file unavailable',
+  SOURCE_INTEGRITY_FAILED: 'Source file changed',
+  MISSING_SOURCE_IDENTITY: 'Source identity missing',
   REVIEWED_NONE_FOUND_NOT_AUTHORIZED: 'Reviewed, none found (not a training negative)',
 };
 

@@ -7,6 +7,10 @@ describe('dataset readiness labels are plain words, never raw rule codes', () =>
     ['IMAGE_NOT_CONFIRMED', 'Image not confirmed'],
     ['TEST_ONLY_LABEL', 'Test data (not for training)'],
     ['REVIEWED_NONE_FOUND_NOT_AUTHORIZED', 'Reviewed, none found (not a training negative)'],
+    ['NO_EXPLICIT_NEGATIVE_POLICY', 'Not a training negative'],
+    ['NON_FUNDUS', 'Not a fundus image'],
+    ['DUPLICATE_CONTENT', 'Duplicate image'],
+    ['SOURCE_INTEGRITY_FAILED', 'Source file changed'],
     ['SOMETHING_NEW_FROM_THE_SERVER', 'Needs review'],
     [null, 'Needs review'],
   ])('%s', (code, label) => {

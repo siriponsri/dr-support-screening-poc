@@ -166,7 +166,7 @@ describe('single Review UI preparation panel', () => {
   });
   it('never invites a resend when the PRISM outcome is unknown', async () => {
     const plan = { ...makePlan(), submission_binding_enforced: true };
-    const unknown = 'The PRISM result could not be confirmed and nothing was saved. Do not resend this image; the run is kept for the operator to check. Manual review remains available.';
+    const unknown = 'The PRISM result could not be confirmed and nothing was saved. Do not resend this image; the operator can check what happened. Manual review remains available.';
     vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'POST'
       ? ({ ok: false, status: 502, json: async () => ({ detail: unknown }) } as Response)
       : ({ ok: true, arrayBuffer: async () => pngBytes.buffer.slice(0) } as Response));
