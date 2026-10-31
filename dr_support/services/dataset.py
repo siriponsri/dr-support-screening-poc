@@ -313,6 +313,19 @@ def _grade_group(case: dict, admission: dict | None) -> tuple[str, int | None]:
     return "needs_review", None
 
 
+def _ai_grade_group(case: dict, admission: dict | None) -> tuple[str, int | None]:
+    """Archive sorting by the AI-predicted grade only: never a clinical grade or a training label."""
+    if (admission or {}).get("quality_state") == "UNGRADABLE":
+        return "ungradable", None   # A person judged it ungradable; never filed as a grade, never as normal.
+    grade = (case.get("global") or {}).get("grade")
+    if isinstance(grade, int) and not isinstance(grade, bool) and grade in range(5):
+        return f"ai_grade_{grade}", grade
+    return "no_ai_result", None
+
+
+AI_PREDICTED_DIRECTORY = "ai_predicted_unverified"
+
+
 def _grouped_image_bytes(image, output_format: str, quality: int, derivative_service) -> tuple[bytes, str, bool]:
     from PIL import Image
 
@@ -1530,14 +1543,20 @@ class DatasetManifestService:
             "files": ["manifest.json", "images.csv", "annotations.csv"],
         }
 
-    def export_grouped(self, *, image_format: str = "PNG", jpeg_quality: int = 90) -> dict:
+    def export_grouped(self, *, image_format: str = "PNG", jpeg_quality: int = 90, basis: str = "confirmed") -> dict:
+        """Copies into grade folders. ``basis="ai_predicted"`` sorts an archive by the AI grade into a separate,
+        clearly unverified folder; the clinician-confirmed folders are never mixed with it."""
+        if basis not in {"confirmed", "ai_predicted"}:
+            raise DatasetManifestError("Choose confirmed or AI-predicted grade folders.")
+        ai_basis = basis == "ai_predicted"
         workspace = self._workspace()
         if workspace is None:
             raise DatasetManifestError("Open an active Workspace before exporting reviewed images.")
         if image_format not in {"PNG", "JPEG"}:
             raise DatasetManifestError("Choose PNG or JPEG for grouped image export.")
 
-        grouped_root = Path(workspace.output_folder) / "grouped_by_grade"
+        directory_name = AI_PREDICTED_DIRECTORY if ai_basis else "grouped_by_grade"
+        grouped_root = Path(workspace.output_folder) / directory_name
         manifest_dir = grouped_root / "_manifest"
         manifest_path = manifest_dir / "grouped_export_manifest.json"
         csv_path = manifest_dir / "grouped_images.csv"
@@ -1578,8 +1597,8 @@ class DatasetManifestService:
 
         workspace_now = self._workspace()
         for image_id, case, image, admission in snapshots:
-            group, grade = _grade_group(case, admission)
-            if group.startswith("dr_grade_") and label_class(case, admission, workspace_now) == "TEST_ONLY":
+            group, grade = _ai_grade_group(case, admission) if ai_basis else _grade_group(case, admission)
+            if not ai_basis and group.startswith("dr_grade_") and label_class(case, admission, workspace_now) == "TEST_ONLY":
                 group, grade = "test_only", None  # DT-06: never a physician grade folder.
             source_sha256 = image.sha256 if image is not None else (admission or {}).get("source_sha256")
             item = {
@@ -1666,11 +1685,16 @@ class DatasetManifestService:
             for entry in items if entry.get("output_path") and entry.get("export_sha256")
         }
         manifest = {
-            "schema_version": "s1.grouped-grade-export.v1",
+            "schema_version": ("s1.grouped-grade-export.ai-predicted-unverified.v1" if ai_basis
+                               else "s1.grouped-grade-export.v1"),
             "created_at": _utc_now(),
             "workspace_id": workspace.id,
             "workspace_name": workspace.name,
-            "grouping_policy": "final clinician grade; unresolved cases are separated without changing source files",
+            "grouping_policy": ("AI-predicted grade only, NOT reviewed by a person; not a clinical grade and not a "
+                                "training label; ungradable images are never filed as a grade"
+                                if ai_basis else
+                                "final clinician grade; unresolved cases are separated without changing source files"),
+            "basis": "AI_PREDICTED_UNVERIFIED" if ai_basis else "CLINICIAN_CONFIRMED",
             "source_immutability": "copy_only",
             "format": image_format,
             "jpeg_quality": jpeg_quality if image_format == "JPEG" else None,
@@ -1687,7 +1711,7 @@ class DatasetManifestService:
         csv_path.write_bytes(csv_bytes)
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
         return {
-            "directory_name": "grouped_by_grade",
+            "directory_name": directory_name,
             "image_format": image_format,
             "copied_count": copied_count,
             "identical_existing_count": identical_count,

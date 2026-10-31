@@ -416,3 +416,40 @@ def test_corrected_and_removed_ai_rows_keep_original_provenance(tmp_path):
     assert removed_row["verification_status"] == "REMOVED"
     assert removed_row["include_in_training"] is False
     assert removed_row["original_score"] is not None
+
+
+def test_archive_sorting_by_ai_grade_goes_to_a_separate_unverified_folder(tmp_path):
+    app, client, output_folder = _workspace_client(tmp_path)
+    image_id = "SYNTH_001"
+    case = app.state.store.get(image_id)
+    case["global"] = {"grade": 2, "model_id": "uspec-uwf-grading"}
+    app.state.store.put(case)
+    before_case = app.state.store.get(image_id)
+    source_bytes = app.state.images[image_id].data
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+
+    reply = client.post("/v1/dataset/export/ai-predicted-by-grade", json={})
+    assert reply.status_code == 200 and reply.json()["directory_name"] == "ai_predicted_unverified"
+    sorted_root = output_folder / "ai_predicted_unverified"
+    exported = sorted_root / "ai_grade_2" / f"case_{source_sha256[:24]}__ai_grade_2.png"
+    assert exported.is_file()
+    assert not (output_folder / "grouped_by_grade").exists()   # Never mixed with clinician-confirmed folders.
+    manifest = json.loads((sorted_root / "_manifest" / "grouped_export_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["basis"] == "AI_PREDICTED_UNVERIFIED" and "NOT reviewed" in manifest["grouping_policy"]
+    assert app.state.store.get(image_id) == before_case and app.state.images[image_id].data == source_bytes
+
+
+@pytest.mark.parametrize(("global_result", "quality_state", "group"), [
+    (None, None, "no_ai_result"),
+    ({"grade": 0}, "UNGRADABLE", "ungradable"),   # A person's "ungradable" wins over any AI grade.
+])
+def test_archive_sorting_never_files_missing_or_ungradable_results_as_a_grade(tmp_path, global_result, quality_state, group):
+    app, client, output_folder = _workspace_client(tmp_path)
+    case = app.state.store.get("SYNTH_001")
+    case["global"] = global_result
+    app.state.store.put(case)
+    if quality_state:
+        admission = app.state.admissions.get("SYNTH_001") or {}
+        app.state.admissions["SYNTH_001"] = {**admission, "quality_state": quality_state}
+    assert client.post("/v1/dataset/export/ai-predicted-by-grade", json={}).status_code == 200
+    assert {path.name for path in (output_folder / "ai_predicted_unverified").iterdir()} == {"_manifest", group}
