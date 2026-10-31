@@ -1,6 +1,8 @@
 """Referral list and connectors: only signed grader-chosen referrals; FHIR export; nothing leaves unless configured."""
 import json
 
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from dr_support.api import create_app
@@ -71,6 +73,7 @@ def test_nothing_is_sent_until_the_admin_configures_a_connector_then_one_recorde
     sign(clients["doc1"], image_id)
     assert clients["doc1"].post(f"/v1/referrals/{image_id}/send").status_code == 409
     drop = tmp_path / "drop"
+    monkeypatch.setenv("DR_SUPPORT_REFERRAL_DROP_ROOT", str(tmp_path))
     assert clients["doc1"].put("/v1/admin/referral-connector", json={"kind": "file_drop", "folder": str(drop)}).status_code == 403
     assert clients["admin1"].put("/v1/admin/referral-connector", json={"kind": "file_drop", "folder": str(drop)}).status_code == 200
     assert clients["nurse1"].post(f"/v1/referrals/{image_id}/send").status_code == 403
@@ -80,6 +83,7 @@ def test_nothing_is_sent_until_the_admin_configures_a_connector_then_one_recorde
 
 
 def test_webhook_setting_needs_https_and_a_token_variable_name_not_a_token(tmp_path, monkeypatch):
+    monkeypatch.setenv("DR_SUPPORT_REFERRAL_HOSTS", "his.example")
     app, clients, _ = setup(tmp_path, monkeypatch)
     admin = clients["admin1"]
     assert admin.put("/v1/admin/referral-connector", json={"kind": "webhook", "url": "http://his.example/fhir"}).status_code == 422
@@ -99,3 +103,31 @@ def test_a_failed_webhook_is_recorded_and_not_retried():
         raise ConnectionError("down")
     attempt = referral_outbox.deliver({"kind": "webhook", "url": "https://his.example/fhir", "token_env": ""}, referral, post=post)
     assert attempt["status"] == "FAILED" and calls == ["https://his.example/fhir"]
+
+
+
+def test_operator_lists_where_referrals_may_go_and_tokens_must_be_referral_tokens(tmp_path, monkeypatch):
+    monkeypatch.setenv("DR_SUPPORT_REFERRAL_HOSTS", "his.example")
+    monkeypatch.setenv("DR_SUPPORT_REFERRAL_DROP_ROOT", str(tmp_path / "drops"))
+    check = referral_outbox.validate_connector
+    for refused in ({"kind": "webhook", "url": "https://elsewhere.example/fhir"},
+                    {"kind": "webhook", "url": "https://his.example/fhir", "token_env": "REMOTE_MODEL_TOKEN"},
+                    {"kind": "file_drop", "folder": str(tmp_path / "other")}):
+        with pytest.raises(HTTPException):
+            check(refused)
+    assert check({"kind": "file_drop", "folder": str(tmp_path / "drops" / "his")})["kind"] == "file_drop"
+    monkeypatch.setenv("SECRET_VALUE", "do-not-send")
+    seen = {}
+
+    class Reply:
+        status_code = 200
+
+    def post(url, content, headers):
+        seen.update(headers)
+        return Reply()
+
+    referral_outbox.deliver({"kind": "webhook", "url": "https://his.example/fhir", "token_env": "SECRET_VALUE"},
+                            {"image_id": "x" * 64, "decision": "REFER", "refer_to": None, "urgency": None,
+                             "patient_name": "", "hn": "", "right_grade": 2, "left_grade": None, "signed_by": "doc1",
+                             "signed_at": "2026-10-31", "remarks": ""}, post=post)
+    assert "Authorization" not in seen

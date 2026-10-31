@@ -18,6 +18,8 @@ from urllib.parse import urlparse
 
 from fastapi import HTTPException, Request
 
+from dr_support.services.private_files import write_private
+
 MODES = {"hospital_local": "Hospital model server", "team_server": "Team server (dr-train)"}
 WORKSPACE_ID = re.compile(r"[A-Za-z0-9_.-]{1,80}")
 FILE_NAME = "server-mode.json"
@@ -58,6 +60,23 @@ def install_server_mode(app, require_admin, config_dir: Path):
                 "current_model_host": remote, "applies": "at the next start",
                 "updated_by": settings.get("updated_by"), "updated_utc": settings.get("updated_utc")}
 
+    @app.get("/v1/admin/server-mode/test")
+    def test_connection(request: Request):
+        """Is the configured AI server answering? The token stays on the server; only the outcome is returned."""
+        require_admin(request)
+        url = os.environ.get("REMOTE_MODEL_URL", "").rstrip("/")
+        if not url:
+            return {"reachable": False, "message": "No AI server is configured for this app."}
+        import httpx
+        token = os.environ.get("REMOTE_MODEL_TOKEN", "")
+        try:
+            reply = httpx.get(url + "/health", timeout=5, headers={"Authorization": "Bearer " + token} if token else {})
+        except httpx.HTTPError:
+            return {"reachable": False, "host": urlparse(url).hostname, "message": "The AI server did not answer."}
+        message = {200: "The AI server answered.", 401: "The AI server answered (sign-in needed for details)."}
+        return {"reachable": reply.status_code in message, "host": urlparse(url).hostname, "status": reply.status_code,
+                "message": message.get(reply.status_code, "The AI server answered with an error.")}
+
     @app.put("/v1/admin/server-mode")
     def set_mode(request: Request, body: dict):
         acting = require_admin(request)
@@ -70,10 +89,7 @@ def install_server_mode(app, require_admin, config_dir: Path):
             raise HTTPException(422, "Workspace IDs use letters, digits, dot, dash or underscore.")
         record = {"mode": mode, "consented_workspaces": sorted(set(workspaces)),
                   "updated_by": acting.username, "updated_utc": datetime.now(timezone.utc).isoformat()}
-        config_dir.mkdir(parents=True, exist_ok=True)
-        temporary = config_dir / (FILE_NAME + ".tmp")
-        temporary.write_text(json.dumps(record, indent=2), encoding="utf-8")
-        os.replace(temporary, config_dir / FILE_NAME)
+        write_private(config_dir / FILE_NAME, json.dumps(record, indent=2))
         return get_mode(request)
 
 

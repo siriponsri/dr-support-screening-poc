@@ -64,6 +64,14 @@ def test_a_nurse_prepares_and_only_a_physician_signs(tmp_path, monkeypatch):
     record = signed.json()["screening_report"]
     assert record["status"] == "SIGNED" and record["prepared_by"]["role"] == "nurse"
     assert record["signed_by"]["name"] == "doc1"
+    frozen = nurse.put(f"/v1/cases/{image_id}/screening-report",
+                       json={"revision": signed.json()["revision"], "report": FORM})
+    assert frozen.status_code == 403 and "signed" in frozen.json()["detail"]
+    amended = doctor.put(f"/v1/cases/{image_id}/screening-report",
+                         json={"revision": signed.json()["revision"], "report": {**FORM, "decision": "NOT_REFER"},
+                               "sign": True}).json()["screening_report"]
+    assert amended["form"]["decision"] == "NOT_REFER"
+    assert [item["form"]["decision"] for item in amended["amended_versions"]] == ["REFER"]
 
 
 def test_signing_needs_a_decision_and_the_print_page_escapes_what_people_typed(tmp_path, monkeypatch):

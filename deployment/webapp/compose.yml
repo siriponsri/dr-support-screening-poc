@@ -40,6 +40,12 @@ services:
       DR_SUPPORT_WORKSPACE_ID: ${DR_SUPPORT_WORKSPACE_ID:-hospital-workspace}
       # Sign-in is required: hashed accounts in a file on the host (create the first admin with bin/create-admin.sh).
       DR_SUPPORT_AUTH_FILE: /data/config/pilot-users.json
+      # The HTTPS front (Caddy) is the only client on the Compose network; trust its https forwarding header so the
+      # same-origin check compares https with https. The review port itself is published on 127.0.0.1 only.
+      FORWARDED_ALLOW_IPS: "*"
+      # Referral destinations are the operator's choice here, never a web setting (empty = none allowed).
+      DR_SUPPORT_REFERRAL_HOSTS: ${DR_SUPPORT_REFERRAL_HOSTS:-}
+      DR_SUPPORT_REFERRAL_DROP_ROOT: /data/output/referrals
     volumes:
       - ${DR_DATA_DIR:-./data}/config:/data/config
       - ${DR_DATA_DIR:-./data}/state:/data/state

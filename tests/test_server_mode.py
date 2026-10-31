@@ -44,3 +44,22 @@ def test_the_launcher_check_refuses_unmarked_workspaces(tmp_path, capsys):
     assert server_mode.main(["check", "--config-dir", str(tmp_path), "--workspace", "ws_ok"]) == 0
     assert server_mode.main(["check", "--config-dir", str(tmp_path), "--workspace", "ws_hospital"]) == 3
     assert "not marked as public or consented" in capsys.readouterr().err
+
+
+
+def test_connection_check_reports_only_the_outcome_and_needs_the_admin(tmp_path, monkeypatch):
+    app = app_for(tmp_path)
+    monkeypatch.delenv("REMOTE_MODEL_URL", raising=False)
+    assert signed_in(app, "doc1").get("/v1/admin/server-mode/test").status_code == 403
+    reply = signed_in(app, "admin1").get("/v1/admin/server-mode/test").json()
+    assert reply == {"reachable": False, "message": "No AI server is configured for this app."}
+    import httpx
+
+    def down_server(*args, **kwargs):
+        raise httpx.ConnectError("down")
+
+    monkeypatch.setattr(httpx, "get", down_server)
+    monkeypatch.setenv("REMOTE_MODEL_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("REMOTE_MODEL_TOKEN", "secret-token-value-123456789012345")
+    down = signed_in(app, "admin1").get("/v1/admin/server-mode/test").json()
+    assert down["reachable"] is False and "secret-token" not in str(down)

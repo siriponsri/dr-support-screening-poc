@@ -111,13 +111,16 @@ class ControlService:
     """ASGI gateway plus the scheduler/lifecycle step. Every refusal is a fixed code."""
 
     def __init__(self, authority, runtime, *, token, models, operations, discovery_path=None,
-                 monotonic=time.monotonic, principal=PRINCIPAL, principals=None):
+                 monotonic=time.monotonic, principal=PRINCIPAL, principals=None, principals_path=None):
         if not isinstance(token, str) or not 32 <= len(token) <= 1024 or not token.isascii():
             raise ValueError('PRIVATE_TOKEN_CONFIGURATION_REQUIRED')
         self.authority, self.runtime, self.monotonic = authority, runtime, monotonic
         self.expected = b'Bearer ' + token.encode('ascii')
         self.models, self.operations, self._owner_principal = models, operations, principal
         self.principals = dict(principals or {})   # token_sha256 -> personal principal and allowed workstations
+        # A revoke takes effect on the next request: the file is read again whenever it changes.
+        self.principals_path = Path(principals_path) if principals_path else None
+        self.principals_stamp = self._principals_stamp()
         self.discovery_path = Path(discovery_path) if discovery_path else None
         self.discovery = self._load_discovery()
         self.dispatch_lock = asyncio.Lock()
@@ -138,6 +141,23 @@ class ControlService:
         current = _REQUEST.get()
         return current[0] if current else self._owner_principal
 
+    def _principals_stamp(self):
+        try:
+            stat = self.principals_path.stat() if self.principals_path else None
+        except FileNotFoundError:
+            return 'missing'
+        return (stat.st_mtime_ns, stat.st_size) if stat else None
+
+    def _refresh_principals(self):
+        stamp = self._principals_stamp()
+        if stamp is None or stamp == self.principals_stamp:
+            return
+        try:
+            self.principals = load_principals(self.principals_path)
+        except (OSError, ValueError, RuntimeError):
+            self.principals = {}   # A broken or unsafe file admits no personal token until it is fixed.
+        self.principals_stamp = stamp
+
     def caller(self, authorization):
         """(principal, allowed workstations or None) for a valid token, else None."""
         if len(authorization) != 1 or len(authorization[0]) > 2048:
@@ -145,6 +165,7 @@ class ControlService:
         value = authorization[0]
         if compare_digest(value, self.expected):
             return self._owner_principal, None
+        self._refresh_principals()
         if not self.principals or not value.startswith(b'Bearer '):
             return None
         entry = self.principals.get(_hashlib.sha256(value[7:]).hexdigest())
@@ -171,7 +192,12 @@ class ControlService:
             return await self.respond(send, 401, {'detail': 'Unauthorized'}, extra=[(b'www-authenticate', b'Bearer')])
         path, method = scope['path'], scope['method']
         allowed = caller[1]
-        if allowed is not None and (path.startswith(REGULAR) or (method == 'POST' and path in CHARGED)):
+        if allowed is not None and method == 'GET' and not (
+                path in CACHED_GETS or path == '/status' or path.startswith((REGULAR, PRISM_BASE + '/'))):
+            return await self.respond(send, 403, {'detail': 'Not available with a personal token',
+                                                  'code': 'PATH_NOT_ALLOWED_FOR_TOKEN'})
+        if allowed is not None and (path.startswith(REGULAR) or (method == 'POST' and (
+                path in CHARGED or PRISM_CONTROL_POST.fullmatch(path)))):
             if self.one(headers, b'x-dr-workstation', WORKSTATION) not in allowed:
                 return await self.respond(send, 403, {'detail': 'This token is not allowed for this workstation',
                                                       'code': 'WORKSTATION_NOT_ALLOWED_FOR_TOKEN'})
@@ -800,9 +826,11 @@ def serve_main(args):
     runs.mkdir(mode=0o700, exist_ok=True)
     runtime = HostRuntime(deploy=args.deploy, models_path=args.models, prism_pins_path=args.prism_pins,
                           runs=runs, token=token)
-    principals = load_principals(args.principals or (m1_session.PROJECT / 'config/private/regular-principals.json'))
+    principals_path = args.principals or (m1_session.PROJECT / 'config/private/regular-principals.json')
+    principals = load_principals(principals_path)
     service = ControlService(authority, runtime, token=token, models=models, operations=operations,
-                             discovery_path=state / 'discovery.json', principals=principals)
+                             discovery_path=state / 'discovery.json', principals=principals,
+                             principals_path=principals_path)
     recovered = service.recover_after_restart()
 
     class Lifespan:
@@ -853,15 +881,16 @@ def principal_command(args):
         data['principals'] = [entry for entry in entries if entry['name'] != args.name] + [{
             'name': args.name, 'token_sha256': _hashlib.sha256(token.encode('ascii')).hexdigest(),
             'workstations': workstations, 'created_utc': datetime.now(timezone.utc).isoformat()}]
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(data, indent=2), encoding='utf-8')
-    os.chmod(temporary, 0o600)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + '.' + str(os.getpid()) + '.tmp')
+    handle = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)   # Never readable by others.
+    with os.fdopen(handle, 'w', encoding='utf-8') as stream:
+        stream.write(json.dumps(data, indent=2))
     os.replace(temporary, path)
     if token:
         print('Personal token for ' + args.name + ' (shown once; hand it over as TOKEN_DISTRIBUTION.md says):')
         print(token)
-    print('Restart the gateway so it reads the change.')
+    print('The running gateway reads the change on the next request.')
     return 0
 
 

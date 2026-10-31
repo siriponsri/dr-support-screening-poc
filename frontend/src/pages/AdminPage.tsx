@@ -324,6 +324,12 @@ function ServerModePanel() {
     }).catch((reason) => setMessage({ tone: 'error', text: reason instanceof Error ? reason.message : 'Could not load the setting.' }));
   }, []);
   const workspace = state?.current_workspace ?? null;
+  const test = async () => {
+    try {
+      const result = await apiJson<{ reachable: boolean; message: string }>('/v1/admin/server-mode/test');
+      setMessage({ tone: result.reachable ? 'success' : 'error', text: result.message });
+    } catch (reason) { setMessage({ tone: 'error', text: reason instanceof Error ? reason.message : 'The test could not run.' }); }
+  };
   const save = async () => {
     try {
       const value = await apiJson<ServerMode>('/v1/admin/server-mode', {
@@ -353,7 +359,10 @@ function ServerModePanel() {
           <Text fontSize="sm" color="text.secondary">
             Model server in use now: {state?.current_model_host || 'not set'}. A change applies at the next start.
           </Text>
-          <Button alignSelf="flex-start" onClick={() => void save()} isDisabled={!state}>Save AI server</Button>
+          <HStack spacing={3} flexWrap="wrap">
+            <Button onClick={() => void save()} isDisabled={!state}>Save AI server</Button>
+            <Button variant="outline" onClick={() => void test()}>Test connection</Button>
+          </HStack>
         </Stack>
       </Section>
       {message && <Alert status={message.tone} py={2}><AlertIcon /><Text fontSize="sm">{message.text}</Text></Alert>}
@@ -366,6 +375,7 @@ interface Connector { kind: 'none' | 'file_drop' | 'webhook'; folder: string; ur
 
 /** Where signed referrals go. Off by default; sending patient data outside needs the hospital's approval first. */
 function ReferralConnectorPanel() {
+  const t = useT();
   const [form, setForm] = useState<Connector>({ kind: 'none', folder: '', url: '', token_env: '' });
   const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   useEffect(() => {
@@ -404,6 +414,7 @@ function ReferralConnectorPanel() {
                 <Input value={form.token_env} placeholder="REFERRAL_TOKEN" onChange={(event) => setForm({ ...form, token_env: event.target.value })} /></FormControl>
             </SimpleGrid>
           )}
+          <Text fontSize="sm" color="text.secondary">{t('The server operator first lists the allowed webhook addresses and the drop folder area. Other destinations are refused.')}</Text>
           <Button alignSelf="flex-start" onClick={() => void save()}>Save connector</Button>
         </Stack>
       </Section>

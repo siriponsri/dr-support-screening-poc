@@ -529,3 +529,26 @@ def test_an_invalid_principals_file_is_refused(tmp_path):
         os.chmod(bad, 0o600)
     with pytest.raises(RuntimeError):
         rs.load_principals(bad)
+
+
+def test_a_revoked_token_stops_without_a_restart_and_personal_tokens_reach_only_the_service_paths(rig, tmp_path, capsys):
+    import argparse
+    fake, authority, child, _ = rig
+    book_path = tmp_path / "regular-principals.json"
+    service = rs.ControlService(authority, child, token=TOKEN, models=MODELS, operations=ops,
+                                discovery_path=tmp_path / "discovery3.json", monotonic=lambda: fake.mono,
+                                principals_path=book_path)
+    rs.principal_command(argparse.Namespace(command="principal-add", principals=book_path, name="ann",
+                                            workstation=["ann-laptop"]))
+    ann = {"Authorization": "Bearer " + capsys.readouterr().out.splitlines()[1], "X-DR-Workstation": "ann-laptop"}
+
+    async def scenario(expected):
+        async with await client_for(service) as client:
+            assert (await client.get("/v1/regular/status", headers=ann)).status_code == expected
+            if expected == 200:
+                assert (await client.get("/v1/other", headers=ann)).status_code == 403
+                prepare = await client.post("/v1/prism-bound/prepare", headers={**ann, "X-DR-Workstation": "other"})
+                assert prepare.status_code == 403
+    run(scenario(200))   # Added while the gateway runs: no restart needed.
+    rs.principal_command(argparse.Namespace(command="principal-revoke", principals=book_path, name="ann", workstation=None))
+    run(scenario(401))   # Revoked: refused on the next request.

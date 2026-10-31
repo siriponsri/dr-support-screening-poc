@@ -50,6 +50,9 @@ HOST = os.environ.get('DR_HOST') or 'siripon@100.77.149.83'
 SSH_KEY = os.environ.get('DR_KEY') or 'C:/Users/User/.ssh/id_ed25519_dr_train'
 # A personal model token kept in a private local file; when set, the owner's host token is never read.
 PERSONAL_TOKEN_FILE = os.environ.get('DR_TOKEN_FILE') or ''
+# Values from a settings file go into the ssh command line, so they must not look like ssh options.
+if not re.fullmatch(r'[a-z0-9_][a-z0-9_.-]{0,31}@[A-Za-z0-9.:-]{1,253}', HOST) or SSH_KEY.startswith('-'):
+    raise SystemExit('DR_HOST must look like name@address and DR_KEY must be a file path')
 SSH = ['C:/Windows/System32/OpenSSH/ssh.exe', '-T', '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes',
        '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10', '-i', SSH_KEY]
 REMOTE_PROJECT = '/home/siripon/projects/dr-model-api-qa'

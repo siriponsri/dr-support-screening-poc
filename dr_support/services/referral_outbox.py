@@ -26,10 +26,39 @@ from urllib.parse import urlparse
 from fastapi import HTTPException, Request
 from fastapi.responses import Response
 
+from dr_support.services.private_files import write_private
+
 CONNECTORS = {"none": "Off (nothing leaves the app)", "file_drop": "File drop folder", "webhook": "HTTPS webhook"}
 SENDERS = {"physician", "expert", "admin"}
 FILE_NAME = "referral-connector.json"
-ENV_NAME = re.compile(r"[A-Z][A-Z0-9_]{2,63}")
+FORMULA_START = ("=", "+", "-", "@", "\t", "\r", "|")
+ENV_NAME = re.compile(r"REFERRAL_[A-Z0-9_]{2,54}")   # Only referral tokens; never another server secret.
+# Where referrals may go is the operator's choice on the server, not a web setting (audit 2026-10-31):
+# comma-separated webhook host names, and the one folder that drop folders must sit inside.
+HOSTS_ENV, DROP_ROOT_ENV = "DR_SUPPORT_REFERRAL_HOSTS", "DR_SUPPORT_REFERRAL_DROP_ROOT"
+
+
+def _allowed_hosts() -> set[str]:
+    return {item.strip().lower() for item in os.environ.get(HOSTS_ENV, "").split(",") if item.strip()}
+
+
+def _inside_drop_root(folder: str) -> bool:
+    root = os.environ.get(DROP_ROOT_ENV, "").strip()
+    if not root or folder.startswith(("\\", "//")):
+        return False
+    try:
+        Path(folder).resolve().relative_to(Path(root).resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def check_destination(record: dict) -> None:
+    """Refuse a destination the operator has not allowed. Checked when saving and again before each send."""
+    if record["kind"] == "file_drop" and not _inside_drop_root(record["folder"]):
+        raise HTTPException(422, f"The drop folder must be inside the folder the operator allowed ({DROP_ROOT_ENV}).")
+    if record["kind"] == "webhook" and (urlparse(record["url"]).hostname or "").lower() not in _allowed_hosts():
+        raise HTTPException(422, f"This address is not on the operator's list of referral hosts ({HOSTS_ENV}).")
 GRADE_NAMES = {0: "No apparent DR", 1: "Mild NPDR", 2: "Moderate NPDR", 3: "Severe NPDR", 4: "PDR"}
 URGENCY_PRIORITY = {"URGENT": "urgent", "WITHIN_1_MONTH": "asap", "WITHIN_3_MONTHS": "routine", "OTHER": "routine"}
 
@@ -118,8 +147,10 @@ def validate_connector(body: dict) -> dict:
             raise HTTPException(422, "Use an https:// address (plain http only to this machine).")
         token_env = str(body.get("token_env", "")).strip()
         if token_env and not ENV_NAME.fullmatch(token_env):
-            raise HTTPException(422, "The token setting is the NAME of an environment variable, such as REFERRAL_TOKEN.")
+            raise HTTPException(422, "The token setting is the NAME of an environment variable starting with "
+                                     "REFERRAL_, such as REFERRAL_TOKEN.")
         record.update(url=url, token_env=token_env)
+    check_destination(record)
     return record
 
 
@@ -137,7 +168,8 @@ def deliver(connector: dict, referral: dict, *, post=None) -> dict:
             return {**attempt, "status": "WRITTEN", "detail": target.name}
         if connector["kind"] == "webhook":
             headers = {"Content-Type": "application/fhir+json"}
-            token = os.environ.get(connector["token_env"], "") if connector["token_env"] else ""
+            token_env = connector["token_env"]
+            token = os.environ.get(token_env, "") if token_env and ENV_NAME.fullmatch(token_env) else ""
             if token:
                 headers["Authorization"] = "Bearer " + token
             if post is None:
@@ -183,7 +215,8 @@ def install_referral_routes(app):
         writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         for item in referrals():
-            writer.writerow({key: ("'" + value if isinstance(value, str) and value[:1] in "=+-@" else value)
+            writer.writerow({key: ("'" + value if isinstance(value, str) and value.lstrip(" ").startswith(FORMULA_START)
+                                   else value)
                              for key, value in item.items()})   # Spreadsheet formula injection guard.
         return Response(output.getvalue(), media_type="text/csv",
                         headers={"Content-Disposition": "attachment; filename=referrals.csv", "Cache-Control": "no-store"})
@@ -207,16 +240,19 @@ def install_referral_routes(app):
         connector = read_connector(settings_dir())
         if connector["kind"] == "none":
             raise HTTPException(409, "No referral connector is configured. The administrator sets one on the Admin page.")
+        check_destination(connector)   # The operator may have narrowed the list since it was saved.
         cases = store()
         with cases.lock:
             try:
-                case = cases.get(image_id)
+                referral = referral_of(cases.get(image_id))
             except KeyError:
                 raise HTTPException(404, "Image not found.") from None
-            referral = referral_of(case)
-            if referral is None:
-                raise HTTPException(409, "This image has no signed Refer decision.")
-            attempt = {**deliver(connector, referral), "by": getattr(session, "username", None)}
+        if referral is None:
+            raise HTTPException(409, "This image has no signed Refer decision.")
+        # The network call runs outside the case lock so a slow receiver never holds up other people's saves.
+        attempt = {**deliver(connector, referral), "by": getattr(session, "username", None)}
+        with cases.lock:
+            case = cases.get(image_id)
             case.setdefault("referral_delivery", []).append(attempt)
             case["revision"] += 1
             cases.put(case)
@@ -239,7 +275,5 @@ def install_referral_admin(app, require_admin, config_dir: Path):
         acting = require_admin(request)
         record = {**validate_connector(body), "updated_by": acting.username, "updated_utc": _now()}
         config_dir.mkdir(parents=True, exist_ok=True)
-        temporary = config_dir / (FILE_NAME + ".tmp")
-        temporary.write_text(json.dumps(record, indent=2), encoding="utf-8")
-        os.replace(temporary, config_dir / FILE_NAME)
+        write_private(config_dir / FILE_NAME, json.dumps(record, indent=2))
         return {**read_connector(config_dir), "kinds": CONNECTORS}
