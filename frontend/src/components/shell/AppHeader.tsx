@@ -12,6 +12,7 @@
  */
 import {
   Box,
+  Button,
   HStack,
   Spacer,
   Text,
@@ -19,7 +20,8 @@ import {
   useBreakpointValue,
 } from '@chakra-ui/react';
 import { useLocation, NavLink } from 'react-router-dom';
-import { Settings2 as SettingsIcon } from '@/lib/icons';
+import { LogOut, Settings2 as SettingsIcon } from '@/lib/icons';
+import { useAuth } from './AuthGate';
 import { SidebarCollapseControl } from './SidebarCollapseControl';
 import { useRuntimeHealth } from '@/hooks/useRuntimeHealth';
 import { useSidebarState } from './SidebarStateProvider';
@@ -76,7 +78,25 @@ export function AppHeader() {
         {showPermanent && hidden && <HiddenWorkspaceContext />}
         <RuntimePill runtime={runtime} />
         <SettingsShortcut hidden={!showPermanent || (showPermanent && collapsed)} />
+        <SignedInUser compact={!!isCompact} />
       </HStack>
+    </HStack>
+  );
+}
+
+/** Pilot sign-in: who is signed in, a reminder about a short password, and sign out. */
+function SignedInUser({ compact }: { compact: boolean }) {
+  const { user, signOut } = useAuth();
+  if (!user) return null;
+  return (
+    <HStack spacing={2} data-testid="signed-in-user">
+      {user.short_password && !compact && (
+        <Tooltip label="This password is short. Change it in Settings before other people use the app.">
+          <Text fontSize="xs" color="status.warning" fontWeight="semibold">Change password</Text>
+        </Tooltip>
+      )}
+      {!compact && <Text fontSize="sm" color="text.secondary">{user.username}{user.role === 'admin' ? ' (admin)' : ''}</Text>}
+      <Button size="sm" variant="ghost" leftIcon={<LogOut size={15} />} onClick={() => void signOut()}>Sign out</Button>
     </HStack>
   );
 }
