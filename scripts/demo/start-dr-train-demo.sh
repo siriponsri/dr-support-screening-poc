@@ -46,6 +46,11 @@ if [ "$minutes" -lt 360 ] || [ "$minutes" -ge 1315 ]; then
   fail "AI hours are 06:00 to 21:55 Thai time. The AI server only starts inside those hours."
 fi
 
+# Hospital rule: only workspaces the administrator marked as public or consented may use the team server.
+if [ "$DR_IMAGES" = "workspace" ]; then
+  reason=$(cd "$REPO" && "$PY" -m dr_support.services.server_mode check --config-dir "$(cygpath -m "$PRIVATE")"            --workspace "$DR_WORKSPACE" 2>&1 >/dev/null) || fail "$reason"
+fi
+
 say "1/4 Checking the connection to dr-train"
 "${SSH[@]}" true || fail "cannot reach dr-train over SSH. Check the network or VPN."
 

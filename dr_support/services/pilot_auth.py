@@ -379,6 +379,9 @@ def install_pilot_auth(app, auth_file):
 
     from .pilot_admin import install_pilot_admin
     install_pilot_admin(app, admin)
+    from pathlib import Path as _Path
+    from .server_mode import install_server_mode
+    install_server_mode(app, admin, _Path(auth_file).parent)
     return auth
 
 

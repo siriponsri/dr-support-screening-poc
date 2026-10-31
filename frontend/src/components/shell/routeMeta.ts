@@ -29,6 +29,10 @@ export const ROUTE_META: Record<string, RouteMeta> = {
     title: 'Annotation Editor',
     subtitle: 'Create explicit human annotations in original image space',
   },
+  '/gold': {
+    title: 'Gold-100',
+    subtitle: 'Research labels by the ophthalmologist',
+  },
   '/report': {
     title: 'Screening Report',
     subtitle: 'The grader chooses Refer or Not refer; a physician signs',
@@ -65,5 +69,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
   if (pathname.startsWith('/edit/')) return ROUTE_META['/edit'];
   if (pathname.startsWith('/clinician-review/')) return ROUTE_META['/clinician-review'];
   if (pathname.startsWith('/report/')) return ROUTE_META['/report'];
+  if (pathname.startsWith('/gold/')) return ROUTE_META['/gold'];
   return ROUTE_META[pathname] ?? DEFAULT_META;
 }
