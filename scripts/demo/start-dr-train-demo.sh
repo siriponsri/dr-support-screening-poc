@@ -58,8 +58,27 @@ if [ "$minutes" -lt 360 ] || [ "$minutes" -ge 1315 ]; then
 fi
 
 # Hospital rule: only workspaces the administrator marked as public or consented may use the team server.
-if [ "$DR_IMAGES" = "workspace" ]; then
-  reason=$(cd "$REPO" && "$PY" -m dr_support.services.server_mode check --config-dir "$(cygpath -m "$PRIVATE")"            --workspace "$DR_WORKSPACE" 2>&1 >/dev/null) || fail "$reason"
+# The first time, the owner is asked here (the Admin page cannot be opened before the app runs).
+check_team_server() {
+  (cd "$REPO" && "$PY" -m dr_support.services.server_mode check --config-dir "$(cygpath -m "$PRIVATE")" \
+     --workspace "$DR_WORKSPACE" 2>&1 >/dev/null)
+}
+if [ "$DR_IMAGES" = "workspace" ] && ! reason=$(check_team_server); then
+  say "Before the first start, one question (asked only once):"
+  say ""
+  say "  The images in workspace \"$DR_WORKSPACE\" will be sent to the team AI server (dr-train)."
+  say "  Hospital rule: only public images or images with patient consent may go there."
+  say ""
+  say "  Type YES if every image in this workspace is public or consented."
+  say "  Type anything else to stop. (You can change this later on the Admin page, AI server tab.)"
+  printf '> '
+  read -r answer || answer=""
+  [ "$answer" = "YES" ] || [ "$answer" = "yes" ] || fail "nothing was sent. $reason"
+  (cd "$REPO" && "$PY" -m dr_support.services.server_mode confirm --config-dir "$(cygpath -m "$PRIVATE")" \
+     --workspace "$DR_WORKSPACE" --by "${USERNAME:-owner}" >/dev/null) || fail "could not save your answer."
+  reason=$(check_team_server) || fail "$reason"
+  say "  Saved. The team server is used for this workspace from now on."
+  say ""
 fi
 
 say "1/4 Checking the connection to dr-train"

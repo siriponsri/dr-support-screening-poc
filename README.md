@@ -28,7 +28,9 @@ deployment/webapp/bin/start.sh
 deployment/hospital-server/bin/start.sh
 ```
 
-On Windows with Docker Desktop, package 1 starts with `deployment/webapp/start-webapp.bat`.
+On Windows with Docker Desktop, double-click `SETUP_WEB_APP.bat` once: it asks two questions, makes the
+private settings with random passwords, starts package 1, creates the first administrator and adds a desktop
+button.
 Status: package 1 was built and exercised on Docker Desktop; package 2 has not
 yet run on a hospital GPU server. The phase 1 specification is
 [`docs/milestone/phase1/PHASE1_PROGRAM_SPEC.md`](docs/milestone/phase1/PHASE1_PROGRAM_SPEC.md).

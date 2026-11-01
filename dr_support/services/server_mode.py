@@ -93,14 +93,34 @@ def install_server_mode(app, require_admin, config_dir: Path):
         return get_mode(request)
 
 
+def confirm_team_server(config_dir: Path, workspace_id: str, by: str) -> dict:
+    """The owner's own confirmation, typed at the launcher: team server, and this workspace holds only public or
+    consented images. Other consented workspaces are kept. The Admin page shows and can undo it."""
+    if not WORKSPACE_ID.fullmatch(workspace_id or ""):
+        raise ValueError("Workspace IDs use letters, digits, dot, dash or underscore.")
+    settings = read_mode(config_dir)
+    record = {"mode": "team_server",
+              "consented_workspaces": sorted({*settings["consented_workspaces"], workspace_id}),
+              "updated_by": "launcher:" + (re.sub(r"[^A-Za-z0-9_.-]", "", by)[:40] or "owner"),
+              "updated_utc": datetime.now(timezone.utc).isoformat()}
+    write_private(Path(config_dir) / FILE_NAME, json.dumps(record, indent=2))
+    return record
+
+
 def main(argv=None) -> int:
-    """``check --config-dir DIR --workspace ID``: exit 0 when the team server may be used, else 3 with the reason."""
+    """``check --config-dir DIR --workspace ID``: exit 0 when the team server may be used, else 3 with the reason.
+    ``confirm --config-dir DIR --workspace ID --by NAME``: record the owner's typed confirmation (launcher only)."""
     import argparse
     parser = argparse.ArgumentParser(description=main.__doc__)
-    parser.add_argument("command", choices=["check"])
+    parser.add_argument("command", choices=["check", "confirm"])
     parser.add_argument("--config-dir", type=Path, required=True)
     parser.add_argument("--workspace", required=True)
+    parser.add_argument("--by", default="owner")
     args = parser.parse_args(argv)
+    if args.command == "confirm":
+        confirm_team_server(args.config_dir, args.workspace, args.by)
+        print("TEAM_SERVER_CONFIRMED")
+        return 0
     refusal = team_server_refusal(args.config_dir, args.workspace)
     if refusal:
         print(refusal, file=sys.stderr)

@@ -19,15 +19,21 @@ Folders on the host: `config` (accounts file), `state`, `output` (exports and
 grade folders), and the image folder, mounted read-only so originals are never
 changed.
 
-## Windows (Docker Desktop), one click
+## Windows (Docker Desktop): setup in one double-click
 
-1. Install Docker Desktop and start it.
-2. Copy `webapp.env.example` to `%LOCALAPPDATA%\DRScreening\webapp.env` and
-   replace every `REPLACE` value.
-3. Double-click `start-webapp.bat`. It starts the services, waits, and opens
-   `https://localhost/app/`. `stop-webapp.bat` stops them; data is kept.
-4. First time only: create the administrator account (Git Bash):
-   `DR_ENV_FILE="$LOCALAPPDATA/DRScreening/webapp.env" deployment/webapp/bin/create-admin.sh admin`
+1. Install Docker Desktop and start it (wait until it says Running).
+2. Double-click `SETUP_WEB_APP.bat` in the project folder. It asks two questions (image folder, AI server
+   address or Enter for none), makes the private settings file
+   `%LOCALAPPDATA%\DRScreening\webapp.env` with random passwords, builds and starts the app, asks for the
+   first administrator account, puts **DR Screening Web App** on the desktop and opens
+   `https://localhost/app/`.
+3. Next time: the desktop button (`start-webapp.bat`). `stop-webapp.bat` stops the app; data is kept.
+
+Running setup again is safe: the settings file and existing accounts are kept. The browser warns about the
+certificate the first time because it is made on this computer.
+
+Manual route (or Linux): copy `webapp.env.example` to a private file, replace every `REPLACE` value, then
+`bin/start.sh` and `bin/create-admin.sh admin`.
 
 The browser warns about the internal certificate the first time; trust it or
 install Caddy's root certificate from the `dr_screening_webapp_caddy` volume.
