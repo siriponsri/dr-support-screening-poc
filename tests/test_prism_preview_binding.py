@@ -306,7 +306,7 @@ def _actual_save_result(rig):
     from datetime import datetime, timezone
     from uuid import uuid4
     from dr_support.contracts import PrismProcessingEvidence
-    source = (Path(__file__).parents[1] / "dr_support/api/_factory.py").read_text(encoding="utf-8")
+    source = (Path(__file__).parents[1] / "dr_support/api/inference.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
     function = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "save_result")
     # This fixture deliberately compiles the pure saver body. Its actual app
@@ -526,7 +526,7 @@ def test_matching_manually_reviewed_duplicate_source_remains_eligible(rig):
 
 def test_main_factory_wires_binding_and_blocks_legacy_prism_without_executing_factory():
     import ast
-    source = (Path(__file__).parents[1] / "dr_support/api/_factory.py").read_text(encoding="utf-8")
+    source = (Path(__file__).parents[1] / "dr_support/api/inference.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
     infer = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "infer")
     assert isinstance(infer.body[0], ast.If)

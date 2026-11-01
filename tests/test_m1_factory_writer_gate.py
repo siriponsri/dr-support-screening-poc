@@ -214,7 +214,9 @@ def test_inference_admission_repair_is_guarded_before_any_dispatch(tmp_path, mon
     app = _app(tmp_path, monkeypatch, gate)
     app.state.admissions.pop('SYNTH_001')
     original = app.state.images['SYNTH_001'].data
-    monkeypatch.setattr(factory, 'infer_mock', lambda *a: pytest.fail('No inference dispatch permitted'))
+    # infer() moved to api/inference.py with the factory split; patch it where it is looked up.
+    from dr_support.api import inference
+    monkeypatch.setattr(inference, 'infer_mock', lambda *a: pytest.fail('No inference dispatch permitted'))
     permit = _fence(gate)
     response = TestClient(app).post('/v1/infer/global', json={
         'image_id': 'SYNTH_001', 'model_id': 'mock-global', 'modality': 'CFP'})

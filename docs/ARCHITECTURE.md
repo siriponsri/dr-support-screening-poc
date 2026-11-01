@@ -25,7 +25,7 @@ Review app (FastAPI, APP_PROFILE=review, MODEL_RUNTIME=remote)
 | Regular gateway (dr-train) | `scripts/model-server/regular_service.py` | daily authority `regular_authority.py` (calls, GPU-seconds, AI hours, tickets, audit chain) |
 | QA launcher | `scripts/qa/m1_server_app.py` | `serve-regular` (app + SSH tunnel + queue) |
 | One-click demo | `scripts/demo/` | desktop shortcut "DR Screening Demo" |
-| Frontend | `frontend/src/` | `routes.tsx`, pages in `pages/`, API client `lib/api.ts`, i18n `lib/i18n.tsx` |
+| Frontend | `frontend/src/` | `routes.tsx`, pages in `pages/`, API client `lib/api.ts` (re-exports `apiTypes.ts`, `apiClient.ts`, `apiLabels.ts`), i18n `lib/i18n.tsx` |
 | Docker | `deployment/webapp` (package 1), `deployment/hospital-server` (package 2), base `deployment/dual-mode` | `bin/start.sh` |
 
 Runtime profiles fail hard on a wrong combination (no silent fallback): `review`+`remote`,
@@ -37,19 +37,19 @@ entry used only by root smoke tests.
 1. **Admission** (`services/admission.py`): scans the workspace input folder; the content SHA-256 is the
    case identity; originals are never changed; vanished files become `SOURCE_MISSING`.
 2. **Patient and eye** (`services/resolver.py`): filename first; conflicts are never auto-resolved.
-3. **Confirm Image** (`workflow.py`): the person confirms CFP or UWF, quality, patient and eye. AI needs this.
-4. **AI grading**: `_factory.infer()` routes UWF to USPEC and CFP to RETFound (`services/capability_routing.py`);
+3. **Confirm Image** (`workflow_routes/confirm.py`): the person confirms CFP or UWF, quality, patient and eye. AI needs this.
+4. **AI grading**: `infer()` in `api/inference.py` routes UWF to USPEC and CFP to RETFound (`services/capability_routing.py`);
    the analysis image and coordinate mapping come from `imaging/derivatives.py`; geometry stays in original pixels.
 5. **PRISM lesions** (`services/prism_preview*.py`): prepare a one-use receipt, then execute exactly it;
    UWF input uses the rubber-rim mask A2 (`imaging/uwf_rubber_rim_mask.py`). Uncertain calls are never resent.
-6. **Grade and annotations** (`workflow.py`): `POST /v1/cases/{id}/review`, `PUT .../annotations`,
+6. **Grade and annotations** (`workflow_routes/review.py`, `workflow_routes/annotations.py`): `POST /v1/cases/{id}/review`, `PUT .../annotations`,
    AI-ROI decisions appended to `ai_annotation_reviews`; raw model output is never edited.
 7. **Screening report** (`services/screening_report.py`): the grader chooses Refer / Not refer; a nurse
    prepares, a physician signs; print page saves as PDF.
 8. **Referrals** (`services/referral_outbox.py`): signed Refer decisions only; FHIR R4 / CSV export;
    connector off by default (file drop or HTTPS webhook set by the administrator).
 9. **Gold-100** (`services/gold_labels.py`): the expert grades blind; the AI value is revealed only afterwards.
-10. **Export** (`services/dataset.py`): confirmed grade folders `grouped_by_grade/`, AI-predicted folders
+10. **Export** (`services/dataset.py` with `dataset_snapshot.py` and `dataset_grouped.py`): confirmed grade folders `grouped_by_grade/`, AI-predicted folders
     `ai_predicted_unverified/` (never clinical grades), manifests and snapshots.
 
 ## 3. Sign-in and roles

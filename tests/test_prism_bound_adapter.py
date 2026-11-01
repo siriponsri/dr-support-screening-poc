@@ -203,7 +203,8 @@ def test_joint_revalidation_fails_without_redetection_or_forward(rig, review_rig
 
 def test_candidate_not_imported_or_registered_by_default_factory():
     root = Path(__file__).parents[1] / "dr_support"
-    for relative in ["api/_factory.py", "providers/__init__.py", "providers/remote.py"]:
+    for relative in ["api/_factory.py", "api/inference.py", "api/model_connection.py", "api/batches.py",
+                     "providers/__init__.py", "providers/remote.py"]:
         path = root / relative
         if path.exists():
             text = path.read_text(encoding="utf-8")
