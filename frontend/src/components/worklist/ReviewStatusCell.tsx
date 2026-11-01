@@ -1,4 +1,5 @@
 import { Stack, Text } from '@chakra-ui/react';
+import { useT } from '@/lib/i18n';
 import type { CaseRecord } from '@/lib/api';
 import { StatusBadge, type StatusTone } from '@/components/common/StatusBadge';
 import { gradeConfirmed } from '@/lib/caseProgress';
@@ -22,12 +23,13 @@ function nextStep(item: CaseRecord): string | undefined {
 }
 
 export function ReviewStatusCell({ item }: { item: CaseRecord }) {
+  const t = useT();
   const status = reviewStatus(item);
   const detail = nextStep(item);
   return (
     <Stack spacing={0.5} align="flex-start" minW={0} maxW="100%" title={detail ? `${status.label}: ${detail}` : status.label} aria-label={`Review status: ${status.label}${detail ? `. ${detail}` : ''}`}>
       <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
-      {detail && <Text fontSize="xs" color="text.secondary" whiteSpace="normal" overflowWrap="anywhere">{detail}</Text>}
+      {detail && <Text fontSize="xs" color="text.secondary" whiteSpace="normal" overflowWrap="anywhere">{t(detail)}</Text>}
     </Stack>
   );
 }

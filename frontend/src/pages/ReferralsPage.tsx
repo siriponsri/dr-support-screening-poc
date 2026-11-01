@@ -53,15 +53,15 @@ export function ReferralsPage() {
                       <Td>{item.patient_name || <Text as="span" color="text.secondary">{item.image_id.slice(0, 12)}</Text>}</Td>
                       <Td>{item.hn}</Td>
                       <Td>{LABELS[item.decision] ?? item.decision}</Td>
-                      <Td>{item.refer_to ? LABELS[item.refer_to] : ''}</Td>
-                      <Td>{item.urgency ? LABELS[item.urgency] : ''}</Td>
+                      <Td>{item.refer_to ? t(LABELS[item.refer_to] ?? item.refer_to) : ''}</Td>
+                      <Td>{item.urgency ? t(LABELS[item.urgency] ?? item.urgency) : ''}</Td>
                       <Td>{item.signed_by}</Td>
                       <Td>{last ? <Badge colorScheme={last.status === 'FAILED' ? 'red' : 'green'}>{last.status}</Badge> : <Badge>Not sent</Badge>}</Td>
                       <Td>
                         <HStack justify="flex-end" spacing={2}>
                           <Button as="a" size="xs" variant="ghost" href={`/v1/referrals/${encodeURIComponent(item.image_id)}/fhir`} target="_blank" rel="noopener">FHIR</Button>
                           <Button as={Link} size="xs" variant="ghost" to={`/report/${encodeURIComponent(item.image_id)}`}>Report</Button>
-                          <Button size="xs" variant="outline" isDisabled={!canSend} onClick={() => void send(item.image_id)}>Send</Button>
+                          <Button size="xs" variant="outline" isDisabled={!canSend} onClick={() => void send(item.image_id)}>{t('Send')}</Button>
                         </HStack>
                       </Td>
                     </Tr>

@@ -97,33 +97,35 @@ function clinicianResultState(state?: string | null) {
 }
 
 function ResultWarnings({ item }: { item: CaseRecord }) {
+  const t = useT();
   const warnings = [...(item.global?.warnings ?? []), ...(item.lesion?.warnings ?? [])];
   if (warnings.length === 0) return null;
   return (
     <Alert status="warning" mt={4}>
       <AlertIcon />
       <Stack spacing={1}>
-        <Text fontWeight="semibold">Model notes available</Text>
-        <Text fontSize="sm">Technical model notes are available in Models &amp; Audit. Review remains available; confirm the image and human decision.</Text>
+        <Text fontWeight="semibold">{t('Model notes available')}</Text>
+        <Text fontSize="sm">{t('Technical model notes are available in Models & Audit. Review remains available; confirm the image and human decision.')}</Text>
       </Stack>
     </Alert>
   );
 }
 
 function Assessment({ item }: { item: CaseRecord }) {
-  if (!item.global) return <Text color="text.secondary">Not analyzed</Text>;
+  const t = useT();
+  if (!item.global) return <Text color="text.secondary">{t('Not analyzed')}</Text>;
   return (
     <Stack spacing={3}>
       <HStack justify="space-between" align="flex-start">
         <Stack spacing={1}>
-          <Text fontSize="sm" color="text.secondary">System-predicted DR grade</Text>
-          <Heading size="lg">{item.global.grade === null ? clinicianResultState(item.global.state) : (drGradeLabel(item.global.grade) ?? 'Grade available')}</Heading>
+          <Text fontSize="sm" color="text.secondary">{t('System-predicted DR grade')}</Text>
+          <Heading size="lg">{item.global.grade === null ? t(clinicianResultState(item.global.state)) : (drGradeLabel(item.global.grade) ?? t('Grade available'))}</Heading>
         </Stack>
       <StatusBadge tone={item.global.state === 'AI_SUGGESTION' ? 'info' : 'warning'}>{clinicianResultState(item.global.state)}</StatusBadge>
       </HStack>
       {item.global.confidence !== null && (
         <HStack justify="space-between">
-          <Text color="text.secondary">Top model score</Text>
+          <Text color="text.secondary">{t('Top model score')}</Text>
           <Text fontWeight="semibold">{(item.global.confidence * 100).toFixed(1)}%</Text>
         </HStack>
       )}
@@ -133,8 +135,9 @@ function Assessment({ item }: { item: CaseRecord }) {
 }
 
 function LesionSuggestions({ item }: { item: CaseRecord }) {
-  if (!item.lesion) return <Text color="text.secondary">Not analyzed</Text>;
-  if (item.lesion.state === 'UNSUPPORTED') return <Text color="status.warning">Lesion assistance is unavailable for this image. Continue with manual review.</Text>;
+  const t = useT();
+  if (!item.lesion) return <Text color="text.secondary">{t('Not analyzed')}</Text>;
+  if (item.lesion.state === 'UNSUPPORTED') return <Text color="status.warning">{t('Lesion assistance is unavailable for this image. Continue with manual review.')}</Text>;
   const lesions = item.lesion.lesions;
   const counts = lesions.reduce<Record<string, number>>((result, lesion) => {
     result[lesion.canonical_label] = (result[lesion.canonical_label] ?? 0) + 1;
@@ -143,16 +146,16 @@ function LesionSuggestions({ item }: { item: CaseRecord }) {
   return (
     <Stack spacing={3}>
       <HStack justify="space-between">
-        <Text color="text.secondary">AI lesion suggestions</Text>
+        <Text color="text.secondary">{t('AI lesion suggestions')}</Text>
         <Text fontWeight="semibold">{lesions.length}</Text>
       </HStack>
       <Stack spacing={2}>
-        <Text fontSize="sm" color="text.secondary">Suggested classes</Text>
+        <Text fontSize="sm" color="text.secondary">{t('Suggested classes')}</Text>
         {Object.keys(counts).length ? Object.entries(counts).map(([label, count]) => (
           <HStack key={label} justify="space-between"><Text>{LESION_DISPLAY_LABELS[label] ?? label.replace(/_/g, ' ')}</Text><Badge variant="info">{count}</Badge></HStack>
-        )) : <Text color="text.secondary">No AI regions returned. This does not establish absence of lesions.</Text>}
+        )) : <Text color="text.secondary">{t('No AI regions returned. This does not establish absence of lesions.')}</Text>}
       </Stack>
-      <Text fontSize="xs" color="text.muted">Raw AI suggestions by class. Optional visual assistance; no per-detection action is required.</Text>
+      <Text fontSize="xs" color="text.muted">{t('Raw AI suggestions by class. Optional visual assistance; no per-detection action is required.')}</Text>
       <Text fontSize="xs" color="text.muted">AI: {modelDisplayName(item.lesion.model_id)}</Text>
     </Stack>
   );
@@ -197,21 +200,22 @@ function LesionLegend() {
 }
 
 function MaskLegend() {
+  const t = useT();
   return (
     <Stack spacing={1} aria-label="Mask preview key">
-      <Text fontSize="xs" fontWeight="semibold" color="text.primary">Mask preview key</Text>
+      <Text fontSize="xs" fontWeight="semibold" color="text.primary">{t('Mask preview key')}</Text>
       <HStack spacing={3} flexWrap="wrap" fontSize="xs" color="text.secondary">
         <HStack spacing={1}>
           <Box w="9px" h="9px" borderRadius="sm" bg="#127E6A" />
-          <Text>Retained retinal area</Text>
+          <Text>{t('Retained retinal area')}</Text>
         </HStack>
         <HStack spacing={1}>
           <Box w="9px" h="9px" borderRadius="sm" bg="#344054" />
-          <Text>Excluded border / artifact area</Text>
+          <Text>{t('Excluded border / artifact area')}</Text>
         </HStack>
         <HStack spacing={1}>
           <Box w="9px" h="9px" borderWidth="2px" borderColor="#14585C" borderRadius="sm" />
-          <Text>Mask boundary (retained / excluded edge)</Text>
+          <Text>{t('Mask boundary (retained / excluded edge)')}</Text>
         </HStack>
       </HStack>
     </Stack>
@@ -233,6 +237,7 @@ function patientEyeContext(item: CaseRecord) {
 }
 
 function ReviewContextStatus({ item }: { item: CaseRecord }) {
+  const t = useT();
   const messages = [
     item.resolver_ui?.action_required ? 'Patient and eye context needs confirmation.' : null,
     item.admission_ui?.action_required ? 'Image context needs confirmation.' : null,
@@ -241,7 +246,7 @@ function ReviewContextStatus({ item }: { item: CaseRecord }) {
   return (
     <Alert status="warning" variant="subtle" py={2} px={3} alignItems="flex-start">
       <AlertIcon />
-      <Text fontSize="sm">{messages.join(' ')}</Text>
+      <Text fontSize="sm">{messages.map((message) => t(message)).join(' ')}</Text>
     </Alert>
   );
 }
@@ -661,8 +666,8 @@ function ReviewPageSession() {
     return (
       <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
         <PageHeader pathname={pathname} title="Review" />
-        <Section title="Select an admitted case" description="Choose an image from the Worklist to open Review." action={<Button as={Link} to="/worklist">Open Worklist</Button>}>
-          <Text color="text.secondary">No image was selected.</Text>
+        <Section title="Select an admitted case" description="Choose an image from the Worklist to open Review." action={<Button as={Link} to="/worklist">{t('Open Worklist')}</Button>}>
+          <Text color="text.secondary">{t('No image was selected.')}</Text>
         </Section>
       </Box>
     );
@@ -674,8 +679,8 @@ function ReviewPageSession() {
     return (
       <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
         <PageHeader pathname={pathname} title="Review" />
-        <Alert status="error"><AlertIcon /><Text>{error ?? 'Case unavailable.'}</Text></Alert>
-        <Button mt={4} leftIcon={<ArrowLeft size={15} />} onClick={() => navigate('/worklist')}>Back to Worklist</Button>
+        <Alert status="error"><AlertIcon /><Text>{t(error ?? 'Case unavailable.')}</Text></Alert>
+        <Button mt={4} leftIcon={<ArrowLeft size={15} />} onClick={() => navigate('/worklist')}>{t('Back to Worklist')}</Button>
       </Box>
     );
   }
@@ -685,8 +690,8 @@ function ReviewPageSession() {
       <Box data-qa-identifying><PageHeader
         pathname={pathname}
         title="Review"
-        subtitle={`${item.display_name}, image under review`}
-        actions={<Button onClick={() => void leaveToWorklist()} leftIcon={<ArrowLeft size={15} />}>Back to Worklist</Button>}
+        subtitle={`${item.display_name}, ${t('image under review')}`}
+        actions={<Button onClick={() => void leaveToWorklist()} leftIcon={<ArrowLeft size={15} />}>{t('Back to Worklist')}</Button>}
       /></Box>
       <HStack mb={5} spacing={2} aria-label="Patient and eye context">
         <Text fontSize="xs" color="text.secondary" textTransform="uppercase" letterSpacing="0.04em">Patient/Eye</Text>
@@ -729,11 +734,11 @@ function ReviewPageSession() {
             visibleLesionLabels={lesionFilter === 'ALL' ? undefined : [lesionFilter]}
             showHuman={false}
           /></Box> : (
-            <Alert status="error"><AlertIcon /><Text>{item.admission_ui?.note ?? 'This file has no readable image preview.'}</Text></Alert>
+            <Alert status="error"><AlertIcon /><Text>{t(item.admission_ui?.note ?? 'This file has no readable image preview.')}</Text></Alert>
           )}
           {imageView === 'explainability' && <Alert status={item.explainability?.status === 'AVAILABLE' ? 'info' : 'warning'} mt={3}>
             <AlertIcon />
-            <Stack spacing={1}><Text fontWeight="semibold">Explainability</Text><Text fontSize="sm">{item.explainability?.note ?? 'Explainability evidence is unavailable. It is model evidence, not lesion localization or a clinical probability.'}</Text></Stack>
+            <Stack spacing={1}><Text fontWeight="semibold">Explainability</Text><Text fontSize="sm">{t(item.explainability?.note ?? 'Explainability evidence is unavailable. It is model evidence, not lesion localization or a clinical probability.')}</Text></Stack>
           </Alert>}
           {item.spatial_ai_display?.status === 'BLOCKED' && <Alert status="warning" mt={3}><AlertIcon /><Text fontSize="sm">{item.spatial_ai_display.note}</Text></Alert>}
           <Stack spacing={3} mt={4} minW={0}>
@@ -754,10 +759,10 @@ function ReviewPageSession() {
                 {item.modality === 'UWF' && (
                   <Stack spacing={1}>
                     <HStack spacing={2} aria-label="Mask status">
-                      <Text fontSize="sm" color="text.secondary">Mask status</Text>
+                      <Text fontSize="sm" color="text.secondary">{t('Mask status')}</Text>
                       <StatusBadge tone={maskStatus(item).tone}>{maskStatus(item).label}</StatusBadge>
                     </HStack>
-                    <Text id="uwf-analysis-status" fontSize="xs" color="text.secondary">{analysisPreparationNote(item)}</Text>
+                    <Text id="uwf-analysis-status" fontSize="xs" color="text.secondary">{t(analysisPreparationNote(item))}</Text>
                   </Stack>
                 )}
               </Stack>
@@ -770,7 +775,7 @@ function ReviewPageSession() {
                 value={lesionFilter}
                 onChange={(event) => setLesionFilter(event.target.value as LesionLabel | 'ALL')}
               >
-                <option value="ALL">All lesion classes</option>
+                <option value="ALL">{t('All lesion classes')}</option>
                 <option value="MICROANEURYSM">MA: Microaneurysm</option>
                 <option value="HEMORRHAGE">HE: Hemorrhage</option>
                 <option value="HARD_EXUDATE">EX: Hard exudate</option>
@@ -781,9 +786,9 @@ function ReviewPageSession() {
               <Alert status="warning" mt={1}>
                 <AlertIcon />
                 <Stack spacing={1}>
-                  <Text fontWeight="semibold">Mask preview unavailable</Text>
-                  <Text fontSize="sm">A mask preview is unavailable. The original image remains available for review. PRISM submission requires a separately bound input preview.</Text>
-                  <Button alignSelf="flex-start" size="sm" variant="outline" onClick={() => setImageView('original')}>Continue with original</Button>
+                  <Text fontWeight="semibold">{t('Mask preview unavailable')}</Text>
+                  <Text fontSize="sm">{t('A mask preview is unavailable. The original image remains available for review. PRISM submission requires a separately bound input preview.')}</Text>
+                  <Button alignSelf="flex-start" size="sm" variant="outline" onClick={() => setImageView('original')}>{t('Continue with original')}</Button>
                 </Stack>
               </Alert>
             )}
@@ -791,13 +796,13 @@ function ReviewPageSession() {
               <Alert status="warning" mt={1}>
                 <AlertIcon />
                 <Stack spacing={1}>
-                  <Text fontSize="sm">Mask preview unavailable. This candidate could not be loaded for this source. The original image remains available for review.</Text>
-                  <Button alignSelf="flex-start" size="sm" variant="outline" onClick={() => setImageView('original')}>Continue with original</Button>
+                  <Text fontSize="sm">{t('Mask preview unavailable. This candidate could not be loaded for this source. The original image remains available for review.')}</Text>
+                  <Button alignSelf="flex-start" size="sm" variant="outline" onClick={() => setImageView('original')}>{t('Continue with original')}</Button>
                 </Stack>
               </Alert>
             )}
             {(imageView === 'ai-evidence' || (imageView === 'mask-overlay' && maskOverlayAvailable)) && <Text fontSize="xs" color="text.secondary">
-              {imageView === 'ai-evidence' ? `Active overlays ${displayedLesions(item).length} of ${item.lesion_review?.raw_count ?? item.lesion?.lesions.length ?? 0} raw AI suggestions` : 'Mask preview is processing evidence only; it is not a clinical gradability decision or approval of model input.'}
+              {imageView === 'ai-evidence' ? `${t('Active overlays')} ${displayedLesions(item).length} ${t('of')} ${item.lesion_review?.raw_count ?? item.lesion?.lesions.length ?? 0} ${t('raw AI suggestions')}` : t('Mask preview is processing evidence only; it is not a clinical gradability decision or approval of model input.')}
             </Text>}
             {imageView === 'mask-overlay' && <MaskLegend />}
             <LesionLegend />
@@ -810,11 +815,11 @@ function ReviewPageSession() {
         <Stack spacing={5} minW={0}>
           {manualOnly ? (
             <Section title="AI assistance" description={t('AI is a suggestion only. You can always review without it.')}>
-              <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone="warning">AI not available</StatusBadge></HStack>
+              <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">{t('AI status')}</Text><StatusBadge tone="warning">AI not available</StatusBadge></HStack>
               <Alert status="info" variant="subtle">
                 <AlertIcon />
                 <Stack spacing={1}>
-                  <Text fontWeight="semibold">{item.modality === 'UWF' ? 'No ready UWF model capability is connected.' : item.modality === 'UNKNOWN' ? 'Confirm the image type before using model assistance.' : 'Model assistance is unavailable.'}</Text>
+                  <Text fontWeight="semibold">{t(item.modality === 'UWF' ? 'No ready UWF model capability is connected.' : item.modality === 'UNKNOWN' ? 'Confirm the image type before using model assistance.' : 'Model assistance is unavailable.')}</Text>
                   <Text fontSize="sm">{t('You can review this image without AI.')}</Text>
                 </Stack>
               </Alert>
@@ -824,32 +829,32 @@ function ReviewPageSession() {
               <Section
                 title="Analysis"
                 description={t('AI suggests a grade. You confirm or correct it.')}
-                action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText="Analyzing" isDisabled={analyzing || !analysisAllowed}>{prismNeedsPreview ? 'Analyze grading only' : item.global || item.lesion ? 'Analyze again' : 'Analyze'}</Button>}
+                action={<Button variant="solid" leftIcon={<Play size={15} />} onClick={() => void analyze()} isLoading={analyzing} loadingText={t('Analyzing')} isDisabled={analyzing || !analysisAllowed}>{t(prismNeedsPreview ? 'Analyze grading only' : item.global || item.lesion ? 'Analyze again' : 'Analyze')}</Button>}
               >
-                <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">AI status</Text><StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiStatus}</StatusBadge></HStack>
-                {prismNeedsPreview && <Text fontSize="sm" mb={3}>This button runs DR grading. PRISM lesion suggestions run separately from “Preview PRISM input” beside the image.</Text>}
-                {prismUwfResult && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">Experimental PRISM UWF lesion assistance; not validated for UWF. Human review remains authoritative.</Text></Alert>}
-                {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{progress}</Text></HStack>}
-                {modelUnavailable && hasRecordedEvidence && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">New analysis is unavailable. Recorded model evidence remains visible with its provenance and warnings.</Text></Alert>}
-                {analysisError && <Alert status="error"><AlertIcon /><Stack spacing={2}><Text>{analysisError}</Text><Button size="sm" variant="outline" onClick={() => void analyze()}>Retry</Button></Stack></Alert>}
+                <HStack mb={3} aria-label="AI availability"><Text fontSize="sm" color="text.secondary">{t('AI status')}</Text><StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiStatus}</StatusBadge></HStack>
+                {prismNeedsPreview && <Text fontSize="sm" mb={3}>{t('This button runs DR grading. PRISM lesion suggestions run separately from “Preview PRISM input” beside the image.')}</Text>}
+                {prismUwfResult && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">{t('Experimental PRISM UWF lesion assistance; not validated for UWF. Human review remains authoritative.')}</Text></Alert>}
+                {analyzing && <HStack color="status.info" mb={3}><Spinner size="sm" /><Text fontSize="sm">{t(progress)}</Text></HStack>}
+                {modelUnavailable && hasRecordedEvidence && <Alert status="warning" mb={3}><AlertIcon /><Text fontSize="sm">{t('New analysis is unavailable. Recorded model evidence remains visible with its provenance and warnings.')}</Text></Alert>}
+                {analysisError && <Alert status="error"><AlertIcon /><Stack spacing={2}><Text>{t(analysisError)}</Text><Button size="sm" variant="outline" onClick={() => void analyze()}>{t('Retry')}</Button></Stack></Alert>}
                 {item.modality === 'UNKNOWN' && (
-                  <Alert status="warning"><AlertIcon /><Text>Confirm the image type in Worklist before AI analysis. Clinical review can continue.</Text></Alert>
+                  <Alert status="warning"><AlertIcon /><Text>{t('Confirm the image type in Worklist before AI analysis. Clinical review can continue.')}</Text></Alert>
                 )}
                 {!analysisError && !analyzing && item.modality === 'CFP' && !admissionReady && (
                   <Alert status="warning">
                     <AlertIcon />
                     <Stack spacing={2}>
-                      <Text fontWeight="semibold">Needs image review</Text>
-                      <Text fontSize="sm">Resolve this case from the Worklist before analysis.</Text>
-                      <Button as={Link} to="/worklist" size="sm" variant="outline" alignSelf="flex-start">Open Worklist</Button>
+                      <Text fontWeight="semibold">{t('Needs image review')}</Text>
+                      <Text fontSize="sm">{t('Resolve this case from the Worklist before analysis.')}</Text>
+                      <Button as={Link} to="/worklist" size="sm" variant="outline" alignSelf="flex-start">{t('Open Worklist')}</Button>
                     </Stack>
                   </Alert>
                 )}
                 {!analysisError && !analyzing && item.modality === 'CFP' && admissionReady && (
-                  item.global || item.lesion ? <Text fontSize="sm" color="text.secondary">Actual returned results are shown below.</Text> : (
+                  item.global || item.lesion ? <Text fontSize="sm" color="text.secondary">{t('Actual returned results are shown below.')}</Text> : (
                     <HStack spacing={2}>
                       <StatusBadge tone={aiReady ? 'success' : 'warning'}>{aiStatus}</StatusBadge>
-                      <Text fontSize="sm" color="text.secondary">Not analyzed</Text>
+                      <Text fontSize="sm" color="text.secondary">{t('Not analyzed')}</Text>
                     </HStack>
                   )
                 )}
@@ -859,9 +864,9 @@ function ReviewPageSession() {
             </>
           )}
           <Stack spacing={2}>
-            <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid" alignSelf="flex-start">Continue to clinician review</Button>
+            <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} leftIcon={<UserRound size={15} />} variant="solid" alignSelf="flex-start">{t('Continue to clinician review')}</Button>
             <Button as={Link} to={`/report/${encodeURIComponent(item.image_id)}`} variant="outline" alignSelf="flex-start">Screening report</Button>
-            <Text fontSize="xs" color="text.secondary">Nothing is recorded on this page; you confirm the DR grade next.</Text>
+            <Text fontSize="xs" color="text.secondary">{t('Nothing is recorded on this page; you confirm the DR grade next.')}</Text>
           </Stack>
         </Stack>
       </Grid>
@@ -869,29 +874,29 @@ function ReviewPageSession() {
         <Section
           title="Previous exam comparison"
           description="Automatic same-patient, same-eye comparison uses verified private linkage and sequence metadata."
-          action={<Button size="sm" variant="ghost" rightIcon={comparisonOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} aria-expanded={comparisonOpen} aria-controls="comparison-panel" onClick={() => { const next = !comparisonOpen; setComparisonOpen(next); if (next) void loadComparisonCases(); }}>{comparisonOpen ? 'Hide comparison' : 'Show comparison'}</Button>}
+          action={<Button size="sm" variant="ghost" rightIcon={comparisonOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} aria-expanded={comparisonOpen} aria-controls="comparison-panel" onClick={() => { const next = !comparisonOpen; setComparisonOpen(next); if (next) void loadComparisonCases(); }}>{comparisonOpen ? t('Hide comparison') : t('Show comparison')}</Button>}
         >
           <Collapse in={comparisonOpen} animateOpacity>
             <Stack id="comparison-panel" spacing={3}>
               {!comparisonIdentityResolved ? (
-                <Text fontSize="sm" color="text.secondary">Comparison is unavailable until patient and eye are explicitly resolved.</Text>
+                <Text fontSize="sm" color="text.secondary">{t('Comparison is unavailable until patient and eye are explicitly resolved.')}</Text>
               ) : (
                 <>
                   <HStack flexWrap="wrap" spacing={3}>
-                    <Button aria-label="Find previous exam" size="sm" variant="solid" onClick={() => void requestComparison()} isLoading={comparisonLoading}>Find previous exam</Button>
+                    <Button aria-label="Find previous exam" size="sm" variant="solid" onClick={() => void requestComparison()} isLoading={comparisonLoading}>{t('Find previous exam')}</Button>
                     <Text fontSize="xs" color="text.secondary">Current: {item.laterality} / {item.modality} / exam {item.visit_context?.capture_sequence ?? 'unverified'}</Text>
                   </HStack>
                   <HStack align="end" flexWrap="wrap" spacing={3}>
                     <Select aria-label="Comparison visit" maxW="360px" value={comparisonCaseId} onChange={(event) => selectComparison(event.target.value)}>
-                      <option value="">Choose another resolved visit</option>
+                      <option value="">{t('Choose another resolved visit')}</option>
                       {comparisonCases.map((candidate) => <option key={candidate.image_id} value={candidate.image_id}>{candidate.display_name}</option>)}
                     </Select>
-                    <Button aria-label="Compare" size="sm" variant="outline" onClick={() => void requestComparison(comparisonCaseId)} isLoading={comparisonLoading} isDisabled={!comparisonCaseId}>Compare</Button>
+                    <Button aria-label="Compare" size="sm" variant="outline" onClick={() => void requestComparison(comparisonCaseId)} isLoading={comparisonLoading} isDisabled={!comparisonCaseId}>{t('Compare')}</Button>
                   </HStack>
-                  {comparisonCasesLoading && <Text fontSize="sm" role="status">Loading comparison visits…</Text>}
-                  {comparisonCasesError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{comparisonCasesError}</Text></Alert>}
-                  {comparisonError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{comparisonError}</Text></Alert>}
-                  {comparison && !comparison.eligible && <Alert status="warning"><AlertIcon /><Text fontSize="sm">This pair is not eligible for side-by-side review.</Text></Alert>}
+                  {comparisonCasesLoading && <Text fontSize="sm" role="status">{t('Loading comparison visits…')}</Text>}
+                  {comparisonCasesError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{t(comparisonCasesError)}</Text></Alert>}
+                  {comparisonError && <Alert status="error"><AlertIcon /><Text fontSize="sm">{t(comparisonError)}</Text></Alert>}
+                  {comparison && !comparison.eligible && <Alert status="warning"><AlertIcon /><Text fontSize="sm">{t('This pair is not eligible for side-by-side review.')}</Text></Alert>}
                   {comparison?.eligible && comparison.visits && (
                     <Grid templateColumns={{ base: '1fr', tablet: '1fr 1fr' }} gap={3}>
                       {comparison.visits.map((visit) => {
@@ -925,7 +930,7 @@ function ReviewPageSession() {
                                 } : undefined}
                               />
                             ) : (
-                              <Text mt={2} fontSize="sm" color="text.secondary">Retinal image unavailable.</Text>
+                              <Text mt={2} fontSize="sm" color="text.secondary">{t('Retinal image unavailable.')}</Text>
                             )}
                             <Text mt={2} fontSize="xs" color="text.secondary">Native PRISM ROI: {visit.prism_processing ? `${visit.prism_processing.native_roi_status.toLowerCase()}${nativeBbox ? ' / bounding box shown' : ''}` : 'Not recorded for this examination'}. A bounding box is not a verified retinal FOV mask.</Text>
                             <Text mt={2} fontSize="sm">Grade: {visit.grade_status === 'CONFIRMED' && visit.grade != null ? drGradeLabel(visit.grade) : 'Not confirmed'}</Text>
@@ -948,7 +953,7 @@ function ReviewPageSession() {
         <Section
           title="Processing details"
           description="Read-only provenance for the source, derived representation, mapping, and model-domain state."
-          action={<Button size="sm" variant="ghost" rightIcon={processingOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} aria-expanded={processingOpen} aria-controls="processing-details-panel" onClick={() => setProcessingOpen((open) => !open)}>{processingOpen ? 'Hide details' : 'Show details'}</Button>}
+          action={<Button size="sm" variant="ghost" rightIcon={processingOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />} aria-expanded={processingOpen} aria-controls="processing-details-panel" onClick={() => setProcessingOpen((open) => !open)}>{processingOpen ? t('Hide details') : t('Show details')}</Button>}
         >
           <Collapse in={processingOpen} animateOpacity>
             <Box id="processing-details-panel">

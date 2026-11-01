@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { Alert, AlertIcon, Box, Button, HStack, Progress, Stack, Text } from '@chakra-ui/react';
 import { regularApi, type RegularBatch, type RegularStatus } from '@/lib/api';
 
@@ -24,6 +25,7 @@ function hoursLabel(status: RegularStatus): string {
  * queue (the status route is absent).
  */
 export function AiBatchPanel() {
+  const t = useT();
   const [status, setStatus] = useState<RegularStatus | null>(null);
   const [batch, setBatch] = useState<RegularBatch | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,13 +110,13 @@ export function AiBatchPanel() {
             <Text fontWeight="semibold">AI batch</Text>
             {status && (
               <Text fontSize="sm" color="text.secondary" data-testid="ai-batch-status">
-                {hoursLabel(status)}. Analyses left today: {status.invocations_available ?? 0} of {status.invocations_cap ?? 0}.
+                {t(hoursLabel(status))}. {t('Analyses left today:')} {status.invocations_available ?? 0} {t('of')} {status.invocations_cap ?? 0}.
               </Text>
             )}
           </Stack>
           <HStack spacing={2}>
-            {batch?.active && <Button size="sm" variant="outline" onClick={() => void cancel()} isLoading={busy}>Stop waiting images</Button>}
-            {!batch?.active && <Button size="sm" onClick={() => void start()} isLoading={busy}>Run AI on confirmed images</Button>}
+            {batch?.active && <Button size="sm" variant="outline" onClick={() => void cancel()} isLoading={busy}>{t('Stop waiting images')}</Button>}
+            {!batch?.active && <Button size="sm" onClick={() => void start()} isLoading={busy}>{t('Run AI on confirmed images')}</Button>}
           </HStack>
         </HStack>
         {batch && (
@@ -126,7 +128,7 @@ export function AiBatchPanel() {
             {batch.note && <Text fontSize="sm" color="text.secondary">{batch.note}</Text>}
           </Stack>
         )}
-        {error && <Alert status="warning" py={2}><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
+        {error && <Alert status="warning" py={2}><AlertIcon /><Text fontSize="sm">{t(error)}</Text></Alert>}
       </Stack>
     </Box>
   );

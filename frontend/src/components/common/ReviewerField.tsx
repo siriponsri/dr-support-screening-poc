@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { Button, Checkbox, FormControl, FormLabel, HStack, Input, Stack, Text } from '@chakra-ui/react';
 import { useState } from 'react';
 import { getDefaultReviewer } from '@/lib/reviewerPreference';
@@ -25,6 +26,7 @@ export function ReviewerField({
   compact = false,
   isDisabled = false,
 }: ReviewerFieldProps) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   // Summarise only a name already saved on this workstation, never one being typed.
   const remembered = Boolean(value.trim()) && value.trim() === getDefaultReviewer();
@@ -32,23 +34,23 @@ export function ReviewerField({
     return (
       <Stack spacing={1}>
         <HStack spacing={3} align="center">
-          <Text fontSize="sm"><Text as="span" color="text.secondary">Reviewer:</Text> {value.trim()}</Text>
-          <Button type="button" isDisabled={isDisabled} size="xs" variant="ghost" onClick={() => setEditing(true)}>Change</Button>
+          <Text fontSize="sm"><Text as="span" color="text.secondary">{t('Reviewer:')}</Text> {value.trim()}</Text>
+          <Button type="button" isDisabled={isDisabled} size="xs" variant="ghost" onClick={() => setEditing(true)}>{t('Change')}</Button>
         </HStack>
-        {helpText && <Text fontSize="xs" color="text.secondary">{helpText}</Text>}
+        {helpText && <Text fontSize="xs" color="text.secondary">{t(helpText)}</Text>}
       </Stack>
     );
   }
   return (
     <FormControl isRequired={required}>
-      <FormLabel htmlFor={id}>Reviewer name</FormLabel>
+      <FormLabel htmlFor={id}>{t('Reviewer name')}</FormLabel>
       <Stack spacing={2}>
         <Input
           id={id}
           isDisabled={isDisabled}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="Reviewer name"
+          placeholder={t('Reviewer name')}
           autoComplete="name"
         />
         <Checkbox
@@ -56,10 +58,10 @@ export function ReviewerField({
           isChecked={useAsDefault}
           onChange={(event) => onUseAsDefaultChange(event.target.checked)}
         >
-          Use as default reviewer on this workstation
+          {t('Use as default reviewer on this workstation')}
         </Checkbox>
-        {helpText && <Text fontSize="xs" color="text.secondary">{helpText}</Text>}
-        {compact && remembered && <Button type="button" isDisabled={isDisabled} size="xs" variant="ghost" alignSelf="flex-start" onClick={() => setEditing(false)}>Use this reviewer</Button>}
+        {helpText && <Text fontSize="xs" color="text.secondary">{t(helpText)}</Text>}
+        {compact && remembered && <Button type="button" isDisabled={isDisabled} size="xs" variant="ghost" alignSelf="flex-start" onClick={() => setEditing(false)}>{t('Use this reviewer')}</Button>}
       </Stack>
     </FormControl>
   );

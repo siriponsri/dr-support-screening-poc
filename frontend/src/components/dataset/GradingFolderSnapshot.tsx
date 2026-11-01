@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, AlertIcon, Button, HStack, Stack, Text } from '@chakra-ui/react';
 import { Section } from '@/components/common/Section';
@@ -8,6 +9,7 @@ interface Props { workspaceId: string | null; exportAllowed: boolean; refreshTok
 const GROUPS = ['Grade0', 'Grade1', 'Grade2', 'Grade3', 'Grade4', 'UNREVIEWED', 'UNGRADABLE', 'UNDETERMINED', 'TEST_ONLY'];
 
 export function GradingFolderSnapshot({ workspaceId, exportAllowed, refreshToken }: Props) {
+  const t = useT();
   const context = JSON.stringify([workspaceId, exportAllowed, refreshToken]);
   const active = useRef(context);
   active.current = context;
@@ -75,17 +77,17 @@ export function GradingFolderSnapshot({ workspaceId, exportAllowed, refreshToken
 
   return <Section title="Grading-folder snapshot" description="Copy original image bytes into a new canonical snapshot. Originals and earlier snapshots are never moved or updated.">
     <Stack spacing={3}>
-      <Text fontSize="sm">Grade0-4 use current recorded clinician confirmations with matching source provenance. Unreviewed, ungradable and undetermined images stay separate. AI suggestions do not assign folders. Folder membership does not certify clinical roles or lesion-training readiness.</Text>
-      {!available && <Text fontSize="sm" color="status.warning">{workspaceId ? 'Image export is restricted for this Workspace; check source identity and authorization.' : 'Open an authorized Workspace to preview grading folders.'}</Text>}
-      <HStack flexWrap="wrap"><Button variant="outline" onClick={() => void run(false)} isDisabled={!available || busy}>Preview grading folders</Button>
-        <Button onClick={() => void run(true)} isDisabled={!canCreate || busy}>Create grading-folder snapshot</Button></HStack>
-      {busy && <Text role="status" fontSize="sm">Preparing snapshot…</Text>}
-      {message?.context === context && <Alert status={message.error ? 'warning' : 'success'}><AlertIcon /><Text>{message.text}</Text></Alert>}
+      <Text fontSize="sm">{t('Grade0-4 use current recorded clinician confirmations with matching source provenance. Unreviewed, ungradable and undetermined images stay separate. AI suggestions do not assign folders. Folder membership does not certify clinical roles or lesion-training readiness.')}</Text>
+      {!available && <Text fontSize="sm" color="status.warning">{t(workspaceId ? 'Image export is restricted for this Workspace; check source identity and authorization.' : 'Open an authorized Workspace to preview grading folders.')}</Text>}
+      <HStack flexWrap="wrap"><Button variant="outline" onClick={() => void run(false)} isDisabled={!available || busy}>{t('Preview grading folders')}</Button>
+        <Button onClick={() => void run(true)} isDisabled={!canCreate || busy}>{t('Create grading-folder snapshot')}</Button></HStack>
+      {busy && <Text role="status" fontSize="sm">{t('Preparing snapshot…')}</Text>}
+      {message?.context === context && <Alert status={message.error ? 'warning' : 'success'}><AlertIcon /><Text>{t(message.text)}</Text></Alert>}
       {folders && <Stack spacing={2} aria-label="Grading-folder preview counts">
         <HStack flexWrap="wrap" spacing={3}>{GROUPS.map((group) => <Text key={group} fontSize="sm">{group}: {folders.group_counts?.[group] ?? 0}</Text>)}</HStack>
         <Text fontSize="sm">{folders.file_count ?? 0} unique files / {folders.record_count ?? 0} records; {((folders.copy_bytes ?? 0) / 1048576).toFixed(1)} MiB to copy; {folders.skipped_count ?? 0} skipped; {folders.duplicate_record_count ?? 0} duplicate records.</Text>
         {Object.entries(folders.skipped_reasons ?? {}).map(([reason, count]) => <Text key={reason} fontSize="xs" color="status.warning">{reason.replace(/_/g, ' ')}: {count}</Text>)}
-        {folders.status !== 'READY' && <Text fontSize="sm" color="status.warning">No supported, source-verified images can be copied. Manual review and metadata snapshots remain available under their existing authorization rules.</Text>}
+        {folders.status !== 'READY' && <Text fontSize="sm" color="status.warning">{t('No supported, source-verified images can be copied. Manual review and metadata snapshots remain available under their existing authorization rules.')}</Text>}
       </Stack>}
     </Stack>
   </Section>;

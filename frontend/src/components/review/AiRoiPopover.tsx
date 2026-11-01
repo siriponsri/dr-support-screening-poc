@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Box, Button, CloseButton, FormControl, FormLabel, HStack, Select, Stack, Text } from '@chakra-ui/react';
 import type { CaseRecord, LesionLabel } from '@/lib/api';
@@ -113,6 +114,7 @@ export function AiRoiPopover({
   onRemove,
   onClose,
 }: AiRoiPopoverProps) {
+  const t = useT();
   const cardRef = useRef<HTMLDivElement>(null);
   const [cardHeight, setCardHeight] = useState(280);
   useLayoutEffect(() => {
@@ -164,31 +166,31 @@ export function AiRoiPopover({
     >
       <Stack spacing={2}>
         <HStack justify="space-between" align="center">
-          <Text fontWeight="semibold" fontSize="sm">AI suggestion</Text>
-          <CloseButton size="sm" aria-label="Close AI suggestion" onClick={onClose} isDisabled={saving} />
+          <Text fontWeight="semibold" fontSize="sm">{t('AI suggestion')}</Text>
+          <CloseButton size="sm" aria-label={t('Close AI suggestion')} onClick={onClose} isDisabled={saving} />
         </HStack>
         <FormControl>
-          <FormLabel htmlFor="ai-roi-class" fontSize="xs" mb={1}>Lesion class</FormLabel>
+          <FormLabel htmlFor="ai-roi-class" fontSize="xs" mb={1}>{t('Lesion class')}</FormLabel>
           <Select id="ai-roi-class" size="sm" value={label} onChange={(event) => onLabelChange(event.target.value as LesionLabel)} isDisabled={saving}>
             {ROI_LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </Select>
         </FormControl>
         {corrected ? (
-          <Text fontSize="sm" data-testid="roi-score-line"><strong>Model score:</strong> {aiScore.toFixed(2)} <Text as="span" color="text.secondary">for AI class {roiLabelText(aiLabel)}</Text></Text>
+          <Text fontSize="sm" data-testid="roi-score-line"><strong>{t('Model score:')}</strong> {aiScore.toFixed(2)} <Text as="span" color="text.secondary">{t('for AI class')} {roiLabelText(aiLabel)}</Text></Text>
         ) : (
-          <Text fontSize="sm" data-testid="roi-score-line"><strong>Model score:</strong> {aiScore.toFixed(2)}</Text>
+          <Text fontSize="sm" data-testid="roi-score-line"><strong>{t('Model score:')}</strong> {aiScore.toFixed(2)}</Text>
         )}
-        <Text fontSize="sm"><strong>Model:</strong> {modelName}</Text>
+        <Text fontSize="sm"><strong>{t('Model:')}</strong> {modelName}</Text>
         <Text fontSize="xs" color="text.secondary">
           {corrected
-            ? 'Your correction is saved as a human annotation without a model score. The original AI suggestion stays in the record.'
-            : 'Model score, not a clinical probability. Drag or resize the box to correct it.'}
+            ? t('Your correction is saved as a human annotation without a model score. The original AI suggestion stays in the record.')
+            : t('Model score, not a clinical probability. Drag or resize the box to correct it.')}
         </Text>
-        {error && <Text role="alert" fontSize="sm" color="status.danger">{error}</Text>}
+        {error && <Text role="alert" fontSize="sm" color="status.danger">{t(error)}</Text>}
         <HStack spacing={2} pt={1}>
-          <Button size="sm" variant="solid" onClick={onConfirm} isLoading={saving}>Confirm</Button>
-          <Button size="sm" variant="danger" onClick={onRemove} isDisabled={saving}>Remove</Button>
-          <Button size="sm" variant="ghost" onClick={onClose} isDisabled={saving}>Close</Button>
+          <Button size="sm" variant="solid" onClick={onConfirm} isLoading={saving}>{t('Confirm')}</Button>
+          <Button size="sm" variant="danger" onClick={onRemove} isDisabled={saving}>{t('Remove')}</Button>
+          <Button size="sm" variant="ghost" onClick={onClose} isDisabled={saving}>{t('Close')}</Button>
         </HStack>
       </Stack>
     </Box>

@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import {
   Box,
   Button,
@@ -18,6 +19,7 @@ interface WorkspaceCardProps extends FlexProps {
 
 export function WorkspaceCard({ variant = 'full', ...rest }: WorkspaceCardProps) {
   const workspaceState = useWorkspace();
+  const t = useT();
   const { activeWorkspace, status } = workspaceState;
 
   if (variant === 'compact') {
@@ -35,8 +37,8 @@ export function WorkspaceCard({ variant = 'full', ...rest }: WorkspaceCardProps)
         color={activeWorkspace ? 'action.primaryHover' : 'text.secondary'}
         borderWidth="1px"
         borderColor={activeWorkspace ? 'action.primaryBorder' : 'border.subtle'}
-        title={activeWorkspace ? activeWorkspace.name : 'Workspace manager'}
-        aria-label={activeWorkspace ? `Current workspace: ${activeWorkspace.name}` : 'Open workspace manager'}
+        title={activeWorkspace ? activeWorkspace.name : t('Workspace manager')}
+        aria-label={activeWorkspace ? `Current workspace: ${activeWorkspace.name}` : t('Open workspace manager')}
         _hover={{ borderColor: 'border.strong', bg: 'surface.subtle' }}
         _focusVisible={{ boxShadow: 'focus', outline: 'none' }}
       >
@@ -50,7 +52,7 @@ export function WorkspaceCard({ variant = 'full', ...rest }: WorkspaceCardProps)
       <Box aria-label="Loading workspace context" borderRadius="lg" borderWidth="1px" borderColor="border.subtle" bg="surface.subtle" p={3} {...rest}>
         <HStack spacing={2} color="text.secondary">
           <Spinner size="xs" />
-          <Text fontSize="sm">Loading workspace context</Text>
+          <Text fontSize="sm">{t('Loading workspace context')}</Text>
         </HStack>
       </Box>
     );
@@ -87,13 +89,13 @@ export function WorkspaceCard({ variant = 'full', ...rest }: WorkspaceCardProps)
         </Box>
         <VStack align="flex-start" spacing={1} minW={0}>
           <Text fontSize="sm" fontWeight="semibold">
-            {degraded ? 'Workspace unavailable' : 'No workspace open'}
+            {degraded ? t('Workspace unavailable') : t('No workspace open')}
           </Text>
           <Text fontSize="xs" color="text.secondary">
-            {degraded ? 'Check the local API or open Settings to recover.' : 'Choose a workspace before reviewing cases.'}
+            {degraded ? t('Check the local API or open Settings to recover.') : t('Choose a workspace before reviewing cases.')}
           </Text>
           <Button as={Link} to="/settings" size="sm" variant="ghost" px={0} h="28px" color="action.primaryHover">
-            Open workspace manager
+            {t('Open workspace manager')}
           </Button>
         </VStack>
       </HStack>

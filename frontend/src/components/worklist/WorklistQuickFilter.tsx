@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { Box, Button, HStack, Stack, Text } from '@chakra-ui/react';
 import type { CaseRecord } from '@/lib/api';
 import { finalGradeKey, workStatus, type FinalGradeFilter, type StatusFilter } from './worklistModel';
@@ -49,6 +50,7 @@ function Chip({ label, count, selected, onClick }: { label: string; count: numbe
 
 /** Status-first quick filter; done cases can be narrowed by the clinician's final grade. */
 export function WorklistQuickFilter({ cases, status, onStatusChange, finalGrade, onFinalGradeChange }: WorklistQuickFilterProps) {
+  const t = useT();
   const active = cases.filter((item) => workStatus(item) !== 'excluded');
   const statusCount = (value: StatusFilter) => value === 'all' ? cases.length : active.filter((item) => workStatus(item) === value).length;
   const done = active.filter((item) => workStatus(item) === 'done');
@@ -63,7 +65,7 @@ export function WorklistQuickFilter({ cases, status, onStatusChange, finalGrade,
       </HStack>
       {status === 'done' && (
         <HStack role="group" aria-label="Filter done cases by final grade" spacing={2} flexWrap="wrap" pl={{ tablet: 1 }}>
-          <Text fontSize="xs" color="text.secondary" mr={1}>Final grade</Text>
+          <Text fontSize="xs" color="text.secondary" mr={1}>{t('Final grade')}</Text>
           {GRADE_OPTIONS.map((option) => (
             <Chip key={option.value} label={option.label} count={gradeCount(option.value)} selected={finalGrade === option.value}
               onClick={() => onFinalGradeChange(option.value)} />

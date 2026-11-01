@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import {
   AlertDialog,
@@ -29,6 +30,7 @@ interface PendingRequest extends ConfirmDialogOptions {
  * resolve false. The least destructive action receives initial focus.
  */
 export function useConfirmDialog(): [ReactNode, (options: ConfirmDialogOptions) => Promise<boolean>] {
+  const t = useT();
   const [pending, setPending] = useState<PendingRequest | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
@@ -48,13 +50,13 @@ export function useConfirmDialog(): [ReactNode, (options: ConfirmDialogOptions) 
           <AlertDialogHeader fontSize="lg">{pending?.title}</AlertDialogHeader>
           <AlertDialogBody>
             <Stack spacing={2}>
-              {pending?.body.map((line) => <Text key={line} fontSize="sm">{line}</Text>)}
+              {pending?.body.map((line) => <Text key={line} fontSize="sm">{t(line)}</Text>)}
             </Stack>
           </AlertDialogBody>
           <AlertDialogFooter>
             <HStack spacing={2}>
-              <Button ref={cancelRef} variant="outline" onClick={() => finish(false)}>{pending?.cancelLabel}</Button>
-              <Button variant="solid" onClick={() => finish(true)}>{pending?.confirmLabel}</Button>
+              <Button ref={cancelRef} variant="outline" onClick={() => finish(false)}>{pending ? t(pending.cancelLabel) : null}</Button>
+              <Button variant="solid" onClick={() => finish(true)}>{pending ? t(pending.confirmLabel) : null}</Button>
             </HStack>
           </AlertDialogFooter>
         </AlertDialogContent>

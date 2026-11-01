@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useState, type FormEvent } from 'react';
 import {
   Alert,
@@ -63,6 +64,7 @@ function suggestedDatabaseName(path: string | null) {
 }
 
 export function WorkspaceManager() {
+  const t = useT();
   const {
     workspaces,
     activeWorkspace,
@@ -237,12 +239,12 @@ export function WorkspaceManager() {
 
   return (
     <Stack spacing={4}>
-      {feedback && <Alert status={feedback.status} role={feedback.status === 'error' ? 'alert' : undefined}><AlertIcon /><Text fontSize="sm">{feedback.message}</Text></Alert>}
+      {feedback && <Alert status={feedback.status} role={feedback.status === 'error' ? 'alert' : undefined}><AlertIcon /><Text fontSize="sm">{t(feedback.message)}</Text></Alert>}
       {warnings.length > 0 && (
         <Alert status="warning" alignItems="flex-start">
           <AlertIcon mt="2px" />
           <Stack spacing={1}>
-            <Text fontSize="sm" fontWeight="semibold">Workspace service warning</Text>
+            <Text fontSize="sm" fontWeight="semibold">{t('Workspace service warning')}</Text>
             {warnings.map((warning) => <Text key={warning} fontSize="sm">{warning}</Text>)}
           </Stack>
         </Alert>
@@ -251,9 +253,9 @@ export function WorkspaceManager() {
         <Alert status="error" alignItems="flex-start">
           <AlertIcon mt="2px" />
           <Stack spacing={2}>
-            <Text fontSize="sm">{workspaceError}</Text>
+            <Text fontSize="sm">{t(workspaceError)}</Text>
             <Button size="sm" variant="outline" leftIcon={<RefreshCw size={14} />} onClick={() => void refresh()} w="fit-content">
-              Retry
+              {t('Retry')}
             </Button>
           </Stack>
         </Alert>
@@ -265,11 +267,11 @@ export function WorkspaceManager() {
               <Text fontSize="xxs" fontWeight="bold" textTransform="uppercase" letterSpacing="0.12em" color="text.secondary">Current workspace</Text>
               <Text fontSize="lg" fontWeight="semibold">{activeWorkspace.name}</Text>
               {activeWorkspace.note && <Text fontSize="sm" color="text.secondary" noOfLines={2} title={activeWorkspace.note}>{activeWorkspace.note}</Text>}
-              <Text fontSize="sm" color="text.secondary">Opening a workspace changes this process's active review database. It does not move or copy images.</Text>
+              <Text fontSize="sm" color="text.secondary">{t("Opening a workspace changes this process's active review database. It does not move or copy images.")}</Text>
             </Stack>
             <HStack spacing={2} align="center">
               <StatusBadge tone="brand"><CheckCircle2 size={11} aria-hidden="true" /> Active</StatusBadge>
-              <Button size="sm" variant="outline" leftIcon={<Pencil size={14} />} onClick={() => beginEdit(activeWorkspace)}>Edit</Button>
+              <Button size="sm" variant="outline" leftIcon={<Pencil size={14} />} onClick={() => beginEdit(activeWorkspace)}>{t('Edit')}</Button>
             </HStack>
           </HStack>
           {managedStorage ? (
@@ -292,18 +294,18 @@ export function WorkspaceManager() {
           description={managedStorage ? 'Profiles keep local input and output folders together in managed storage.' : 'Profiles keep local folders and the SQLite review database together.'}
           action={
             <Button size="sm" variant="solid" leftIcon={<Plus size={14} />} onClick={beginCreate}>
-              New workspace
+              {t('New workspace')}
             </Button>
           }
         >
           {initialLoading ? (
-            <HStack py={8} justify="center" color="text.secondary"><Spinner size="sm" /><Text fontSize="sm">Loading workspaces</Text></HStack>
+            <HStack py={8} justify="center" color="text.secondary"><Spinner size="sm" /><Text fontSize="sm">{t('Loading workspaces')}</Text></HStack>
           ) : workspaces.length === 0 ? (
             <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" borderRadius="md" bg="surface.subtle" p={5}>
               <Stack spacing={2}>
-                <Text fontWeight="semibold">No workspaces saved</Text>
-                <Text fontSize="sm" color="text.secondary">{managedStorage ? 'Create a profile to choose the local input and output folders for this review station.' : 'Create a profile to choose the local input folder, output folder, and SQLite database for this review station.'}</Text>
-                <Button size="sm" variant="secondary" leftIcon={<Plus size={14} />} onClick={beginCreate} w="fit-content">Create the first workspace</Button>
+                <Text fontWeight="semibold">{t('No workspaces saved')}</Text>
+                <Text fontSize="sm" color="text.secondary">{t(managedStorage ? 'Create a profile to choose the local input and output folders for this review station.' : 'Create a profile to choose the local input folder, output folder, and SQLite database for this review station.')}</Text>
+                <Button size="sm" variant="secondary" leftIcon={<Plus size={14} />} onClick={beginCreate} w="fit-content">{t('Create the first workspace')}</Button>
               </Stack>
             </Box>
           ) : (
@@ -323,7 +325,7 @@ export function WorkspaceManager() {
               ))}
             </Stack>
           )}
-          {status === 'loading' && workspaces.length > 0 && <Text mt={3} fontSize="xs" color="text.secondary">Refreshing workspace catalog…</Text>}
+          {status === 'loading' && workspaces.length > 0 && <Text mt={3} fontSize="xs" color="text.secondary">{t('Refreshing workspace catalog…')}</Text>}
         </Section>
         {editorMode && (
           <Section
@@ -334,21 +336,21 @@ export function WorkspaceManager() {
             <form onSubmit={save}>
               <Stack spacing={4}>
                 <FormControl isRequired>
-                  <FormLabel htmlFor="workspace-name">Workspace name</FormLabel>
+                  <FormLabel htmlFor="workspace-name">{t('Workspace name')}</FormLabel>
                   <Input id="workspace-name" aria-label="Workspace name" value={draft.name} maxLength={120} onChange={(event) => updateDraft('name', event.target.value)} placeholder="e.g. April DR screening" autoFocus />
-                  <FormHelperText>Required; up to 120 characters.</FormHelperText>
+                  <FormHelperText>{t('Required; up to 120 characters.')}</FormHelperText>
                 </FormControl>
                 <FormControl>
-                  <FormLabel htmlFor="workspace-note">Workspace note (optional)</FormLabel>
+                  <FormLabel htmlFor="workspace-note">{t('Workspace note (optional)')}</FormLabel>
                   <Textarea id="workspace-note" aria-label="Workspace note" value={draft.note ?? ''} maxLength={500} onChange={(event) => updateDraft('note', event.target.value)} placeholder="e.g. Mobile screening unit - Sept 2026" resize="vertical" rows={3} />
-                  <FormHelperText>Optional; up to 500 characters. Leave blank to clear it.</FormHelperText>
+                  <FormHelperText>{t('Optional; up to 500 characters. Leave blank to clear it.')}</FormHelperText>
                 </FormControl>
                 <PathField label="Input folder" value={draft.input_folder} onChange={(value) => updateDraft('input_folder', value)} onBrowse={() => void browseFolder('input')} onCopy={() => void copyPath('Input folder', draft.input_folder)} isLoading={pickerLoading === 'input_folder'} />
                 <PathField label="Output folder" value={draft.output_folder} onChange={(value) => updateDraft('output_folder', value)} onBrowse={() => void browseFolder('output')} onCopy={() => void copyPath('Output folder', draft.output_folder)} isLoading={pickerLoading === 'output_folder'} />
                 {managedStorage ? (
                   <Alert status="info" alignItems="flex-start">
                     <AlertIcon mt="2px" />
-                    <Text fontSize="sm">Managed PostgreSQL storage is selected for this workstation. No local database file is required.</Text>
+                    <Text fontSize="sm">{t('Managed PostgreSQL storage is selected for this workstation. No local database file is required.')}</Text>
                   </Alert>
                 ) : (
                   <>
@@ -359,21 +361,21 @@ export function WorkspaceManager() {
                         <IconButton aria-label="Copy SQLite database path" icon={<Copy size={14} />} size="sm" variant="ghost" onClick={() => void copyPath('Database path', draft.database_path ?? '')} isDisabled={!draft.database_path} />
                       </HStack>
                       <HStack mt={2} spacing={2} flexWrap="wrap">
-                        <Button size="sm" variant="outline" leftIcon={<FolderOpen size={14} />} onClick={() => void browseDatabase('open')} isLoading={pickerLoading === 'database-open'} isDisabled={Boolean(pickerLoading)}>Open existing</Button>
-                        <Button size="sm" variant="secondary" leftIcon={<Database size={14} />} onClick={() => void browseDatabase('create')} isLoading={pickerLoading === 'database-create'} isDisabled={Boolean(pickerLoading)}>Choose new database</Button>
+                        <Button size="sm" variant="outline" leftIcon={<FolderOpen size={14} />} onClick={() => void browseDatabase('open')} isLoading={pickerLoading === 'database-open'} isDisabled={Boolean(pickerLoading)}>{t('Open existing')}</Button>
+                        <Button size="sm" variant="secondary" leftIcon={<Database size={14} />} onClick={() => void browseDatabase('create')} isLoading={pickerLoading === 'database-create'} isDisabled={Boolean(pickerLoading)}>{t('Choose new database')}</Button>
                       </HStack>
-                      <FormHelperText>The database is initialized when this workspace is saved; existing case data is preserved.</FormHelperText>
+                      <FormHelperText>{t('The database is initialized when this workspace is saved; existing case data is preserved.')}</FormHelperText>
                     </FormControl>
                     <Alert status="info" alignItems="flex-start">
                       <AlertIcon mt="2px" />
-                      <Text fontSize="sm">Browse uses the local FastAPI process's native dialog. If it is unavailable, enter an absolute local path manually.</Text>
+                      <Text fontSize="sm">{t("Browse uses the local FastAPI process's native dialog. If it is unavailable, enter an absolute local path manually.")}</Text>
                     </Alert>
                   </>
                 )}
                 <HStack justify="flex-end" spacing={2}>
-                  <Button type="button" size="sm" variant="ghost" leftIcon={<X size={14} />} onClick={closeEditor}>Cancel</Button>
+                  <Button type="button" size="sm" variant="ghost" leftIcon={<X size={14} />} onClick={closeEditor}>{t('Cancel')}</Button>
                   <Button type="submit" size="sm" variant="solid" leftIcon={editorMode === 'create' ? <Plus size={14} /> : <Save size={14} />} isLoading={isMutating} isDisabled={Boolean(pickerLoading)}>
-                    {editorMode === 'create' ? 'Create workspace' : 'Save changes'}
+                    {editorMode === 'create' ? t('Create workspace') : t('Save changes')}
                   </Button>
                 </HStack>
               </Stack>
@@ -381,7 +383,7 @@ export function WorkspaceManager() {
           </Section>
         )}
       </SimpleGrid>
-      <Text fontSize="xs" color="text.secondary">Workspace selection changes local review context only. It does not imply that files were moved, copied, uploaded, or sent to a model service.</Text>
+      <Text fontSize="xs" color="text.secondary">{t('Workspace selection changes local review context only. It does not imply that files were moved, copied, uploaded, or sent to a model service.')}</Text>
       <Modal isOpen={Boolean(pendingDelete)} onClose={() => setPendingDelete(null)} isCentered>
         <ModalOverlay />
         <ModalContent>
@@ -390,13 +392,13 @@ export function WorkspaceManager() {
           <ModalBody>
             <Stack spacing={3}>
               <Text>Remove <Text as="span" fontWeight="semibold">{pendingDelete?.name}</Text> from the saved workspace catalog?</Text>
-              <Text fontSize="sm" color="text.secondary">This removes only the workspace profile. Local input/output folders, retinal images, SQLite review data, and model data files will not be deleted.</Text>
+              <Text fontSize="sm" color="text.secondary">{t('This removes only the workspace profile. Local input/output folders, retinal images, SQLite review data, and model data files will not be deleted.')}</Text>
             </Stack>
           </ModalBody>
           <ModalFooter>
             <HStack spacing={2}>
-              <Button variant="ghost" onClick={() => setPendingDelete(null)} isDisabled={isMutating}>Cancel</Button>
-              <Button variant="danger" leftIcon={<Trash2 size={14} />} onClick={() => void removeWorkspace()} isLoading={isMutating}>Delete profile</Button>
+              <Button variant="ghost" onClick={() => setPendingDelete(null)} isDisabled={isMutating}>{t('Cancel')}</Button>
+              <Button variant="danger" leftIcon={<Trash2 size={14} />} onClick={() => void removeWorkspace()} isLoading={isMutating}>{t('Delete profile')}</Button>
             </HStack>
           </ModalFooter>
         </ModalContent>

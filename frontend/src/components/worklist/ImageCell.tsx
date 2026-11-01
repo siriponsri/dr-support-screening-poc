@@ -1,4 +1,5 @@
 import { Box, HStack, Image, Stack, Text } from '@chakra-ui/react';
+import { useT } from '@/lib/i18n';
 import { FileImage } from '@/lib/icons';
 import type { CaseRecord } from '@/lib/api';
 import { StatusBadge, type StatusTone } from '@/components/common/StatusBadge';
@@ -9,6 +10,7 @@ function admissionStatus(item: CaseRecord): { label: string; tone: StatusTone; n
 }
 
 export function ImageCell({ item, onQuickLook }: { item: CaseRecord; onQuickLook?: () => void }) {
+  const t = useT();
   const status = admissionStatus(item);
   const filename = item.filename ?? item.display_name;
   return (
@@ -21,7 +23,7 @@ export function ImageCell({ item, onQuickLook }: { item: CaseRecord; onQuickLook
           type="button"
           onClick={onQuickLook}
           aria-label={`Quick look: ${filename}`}
-          title="Quick look"
+          title={t('Quick look')}
           flexShrink={0}
           borderRadius="sm"
           borderWidth="1px"
@@ -36,7 +38,7 @@ export function ImageCell({ item, onQuickLook }: { item: CaseRecord; onQuickLook
       ) : (
         <Box aria-label="No image preview" w="64px" h="48px" flexShrink={0} bg="surface.subtle" borderRadius="sm" display="flex" alignItems="center" justifyContent="center" flexDirection="column" gap={1}>
           <FileImage size={16} aria-hidden="true" />
-          <Text fontSize="xxs">No preview</Text>
+          <Text fontSize="xxs">{t('No preview')}</Text>
         </Box>
       )}
       <Stack spacing={0.5} minW={0} flex={1}>
@@ -44,7 +46,7 @@ export function ImageCell({ item, onQuickLook }: { item: CaseRecord; onQuickLook
           {filename}
         </Text>
         <StatusBadge tone={item.modality === 'UNKNOWN' ? 'warning' : 'neutral'} maxW="100%" whiteSpace="normal">{item.modality === 'CFP' ? 'CFP' : item.modality === 'UWF' ? 'UWF' : 'Image type needs confirmation'}</StatusBadge>
-        {status && <Stack spacing={0} minW={0} title={status.note}><StatusBadge tone={status.tone} maxW="100%" whiteSpace="normal">{status.label}</StatusBadge><Text fontSize="xxs" color="text.secondary" noOfLines={1}>{status.note}</Text></Stack>}
+        {status && <Stack spacing={0} minW={0} title={status.note}><StatusBadge tone={status.tone} maxW="100%" whiteSpace="normal">{status.label}</StatusBadge><Text fontSize="xxs" color="text.secondary" noOfLines={1}>{t(status.note)}</Text></Stack>}
       </Stack>
     </HStack>
   );

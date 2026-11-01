@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Box, Button, HStack, IconButton, Image, Modal, ModalBody, ModalCloseButton, ModalContent, ModalHeader, ModalOverlay, Stack, Text } from '@chakra-ui/react';
 import type { CaseRecord, HumanAnnotation, Lesion, LesionLabel } from '@/lib/api';
@@ -363,6 +364,7 @@ export function RetinalCanvas({
   const pointerOverViewerRef = useRef(false);
   const shortcutRef = useRef(onShortcut);
   shortcutRef.current = onShortcut;
+  const t = useT();
   const [viewport, setViewport] = useState<ViewportSize>({ width: 0, height: 0 });
   const [view, setView] = useState<ViewerView>({ scale: 1, panX: 0, panY: 0 });
   const [isFit, setIsFit] = useState(true);
@@ -660,7 +662,7 @@ export function RetinalCanvas({
   ));
   const coordinateText = pointerCoordinate
     ? `X ${pointerCoordinate.x.toFixed(1)} - Y ${pointerCoordinate.y.toFixed(1)} px`
-    : 'Move over the image to inspect original-image pixels';
+    : t('Move over the image to inspect original-image pixels');
 
   const viewerStatus = (fullScreen = false) => (
     <HStack
@@ -673,39 +675,39 @@ export function RetinalCanvas({
       aria-live="polite"
     >
       <Text fontWeight="semibold" color="text.primary">Viewer {zoomPercent}%</Text>
-      <Text>{fullScreen ? 'Scroll to zoom - right-drag or Space + drag to pan - double-click to fit' : 'All overlay geometry remains in original image pixels.'}</Text>
-      {isCoordinateInspector && <Text color="text.primary" fontWeight="semibold">Original pixels: {coordinateText}</Text>}
-      {fullScreen && <Text>Geometry: original image pixels</Text>}
-      <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="transparent" borderWidth="2px" borderStyle="dashed" borderColor={LESION_COLORS.MICROANEURYSM} />AI suggestion</Text>
-      <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="text.primary" borderWidth="2px" borderColor="text.primary" opacity={0.3} />Human annotation</Text>
+      <Text>{fullScreen ? t('Scroll to zoom - right-drag or Space + drag to pan - double-click to fit') : t('All overlay geometry remains in original image pixels.')}</Text>
+      {isCoordinateInspector && <Text color="text.primary" fontWeight="semibold">{t('Original pixels:')} {coordinateText}</Text>}
+      {fullScreen && <Text>{t('Geometry: original image pixels')}</Text>}
+      <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="transparent" borderWidth="2px" borderStyle="dashed" borderColor={LESION_COLORS.MICROANEURYSM} />{t('AI suggestion')}</Text>
+      <Text><Box as="span" display="inline-block" w="10px" h="10px" mr={1} bg="text.primary" borderWidth="2px" borderColor="text.primary" opacity={0.3} />{t('Human annotation')}</Text>
     </HStack>
   );
 
   const zoomControls = (fullScreen = false) => (
     <HStack spacing={1} flexWrap="wrap">
       <IconButton
-        aria-label="Zoom out"
-        title="Zoom out"
+        aria-label={t('Zoom out')}
+        title={t('Zoom out')}
         icon={<ZoomOut size={15} />}
         size="sm"
         variant="outline"
         onClick={() => zoomAround(displayView.scale / ZOOM_FACTOR)}
         isDisabled={displayView.scale <= minScale + 0.001}
       />
-      <Button size="sm" variant="outline" onClick={() => setCenteredScale(1)} aria-label="Set zoom to 100 percent">100%</Button>
+      <Button size="sm" variant="outline" onClick={() => setCenteredScale(1)} aria-label={t('Set zoom to 100 percent')}>100%</Button>
       <IconButton
-        aria-label="Zoom in"
-        title="Zoom in"
+        aria-label={t('Zoom in')}
+        title={t('Zoom in')}
         icon={<ZoomIn size={15} />}
         size="sm"
         variant="outline"
         onClick={() => zoomAround(displayView.scale * ZOOM_FACTOR)}
         isDisabled={displayView.scale >= maxScale - 0.001}
       />
-      <Button size="sm" variant="outline" leftIcon={<Maximize2 size={14} />} onClick={() => setIsFit(true)}>Fit</Button>
+      <Button size="sm" variant="outline" leftIcon={<Maximize2 size={14} />} onClick={() => setIsFit(true)}>{t('Fit')}</Button>
       <IconButton
-        aria-label={isCoordinateInspector ? 'Disable coordinate inspector' : 'Enable coordinate inspector'}
-        title={isCoordinateInspector ? 'Disable coordinate inspector' : 'Show original-image coordinates'}
+        aria-label={isCoordinateInspector ? t('Disable coordinate inspector') : t('Enable coordinate inspector')}
+        title={isCoordinateInspector ? t('Disable coordinate inspector') : t('Show original-image coordinates')}
         icon={<Target size={15} />}
         size="sm"
         variant={isCoordinateInspector ? 'solid' : 'outline'}
@@ -717,11 +719,11 @@ export function RetinalCanvas({
         }}
       />
       {fullScreen ? (
-        <Button size="sm" variant="secondary" onClick={() => setIsFullScreen(false)}>Exit full-screen</Button>
+        <Button size="sm" variant="secondary" onClick={() => setIsFullScreen(false)}>{t('Exit full-screen')}</Button>
       ) : (
         <IconButton
-          aria-label="Open full-screen review"
-          title="Open full-screen review"
+          aria-label={t('Open full-screen review')}
+          title={t('Open full-screen review')}
           icon={<Maximize2 size={15} />}
           size="sm"
           variant="outline"
@@ -769,7 +771,7 @@ export function RetinalCanvas({
           borderColor="status.warning"
           borderRadius="md"
         >
-          <Text fontSize="sm" color="white">Preview unavailable. This source could not be decoded for browser display.</Text>
+          <Text fontSize="sm" color="white">{t('Preview unavailable. This source could not be decoded for browser display.')}</Text>
         </Box>
       )}
       <Box
@@ -878,7 +880,7 @@ export function RetinalCanvas({
       {!isFullScreen && (
         <>
           <HStack mb={2} justify="space-between" align="center" flexWrap="wrap" gap={2}>
-            <Text fontSize="xs" color="text.secondary">Scroll to zoom - drag to pan - double-click to fit</Text>
+            <Text fontSize="xs" color="text.secondary">{t('Scroll to zoom - drag to pan - double-click to fit')}</Text>
             {zoomControls()}
           </HStack>
           {viewerViewport()}
@@ -892,17 +894,17 @@ export function RetinalCanvas({
             <ModalHeader px={5} py={3}>
               <HStack justify="space-between" align="center" spacing={4} pr={8}>
                 <Stack spacing={0} minW={0}>
-                  <Text fontSize="md" noOfLines={1}>Full-screen retinal review</Text>
+                  <Text fontSize="md" noOfLines={1}>{t('Full-screen retinal review')}</Text>
                   <Text fontSize="xs" color="text.secondary" noOfLines={1}>{item.display_name} - {item.width} x {item.height}px</Text>
                 </Stack>
                 {zoomControls(true)}
               </HStack>
             </ModalHeader>
-            <ModalCloseButton aria-label="Close full-screen review" />
+            <ModalCloseButton aria-label={t('Close full-screen review')} />
             <ModalBody p={4} pt={0} display="flex" flexDirection="column" gap={3} overflow="hidden">
               {fullScreenControls && (
                 <Box p={2} flexShrink={0} bg="surface.panel" borderWidth="1px" borderColor="border.subtle" borderRadius="md" color="text.primary">
-                  <Text fontSize="xs" color="text.secondary" mb={2}>Annotation controls</Text>
+                  <Text fontSize="xs" color="text.secondary" mb={2}>{t('Annotation controls')}</Text>
                   {fullScreenControls}
                 </Box>
               )}
