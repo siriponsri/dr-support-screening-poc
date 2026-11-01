@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retinal Review Workbench</title>
+<link rel="icon" href="assets/mark.png">
+<link rel="stylesheet" href="vendor/reveal/reset.css">
+<link rel="stylesheet" href="vendor/reveal/reveal.css">
+<link rel="stylesheet" href="vendor/fonts/prompt.css">
+<link rel="stylesheet" href="vendor/fonts/anuphan.css">
+<link rel="stylesheet" href="deck.css">
+</head>
+<body>
+
+<!-- Shared drawing: an illustrated retina (not a patient image) and a check icon. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="fgF" cx="46%" cy="48%" r="58%"><stop offset="0" stop-color="#E58A4C"/><stop offset=".55" stop-color="#C8572C"/><stop offset=".88" stop-color="#93321A"/><stop offset="1" stop-color="#4A160A"/></radialGradient>
+    <radialGradient id="fgD"><stop offset="0" stop-color="#FFF6DA"/><stop offset=".55" stop-color="#F7DB9E"/><stop offset="1" stop-color="#EBB372" stop-opacity="0"/></radialGradient>
+    <radialGradient id="fgM"><stop offset="0" stop-color="#651A0C" stop-opacity=".55"/><stop offset="1" stop-color="#651A0C" stop-opacity="0"/></radialGradient>
+    <clipPath id="fgC"><circle r="100"/></clipPath>
+  </defs>
+  <symbol id="fundus" viewBox="-110 -110 220 220">
+    <circle r="100" fill="url(#fgF)"/>
+    <circle cx="-24" cy="4" r="24" fill="url(#fgM)"/>
+    <g clip-path="url(#fgC)" fill="none" stroke="#8A2111" stroke-linecap="round">
+      <path stroke-width="2.8" d="M40 -10 C20 -42 -20 -56 -72 -50"/><path stroke-width="1.8" d="M12 -38 C-4 -60 -30 -78 -56 -82"/>
+      <path stroke-width="2.8" d="M40 -2 C20 30 -20 50 -74 46"/><path stroke-width="1.8" d="M10 34 C-4 58 -26 74 -52 80"/>
+      <path stroke-width="1.8" d="M46 -14 C60 -40 70 -60 72 -76"/><path stroke-width="1.8" d="M46 2 C62 28 72 50 76 66"/>
+      <path stroke-width="1.4" d="M54 -6 C70 -8 86 -4 98 0"/>
+    </g>
+    <circle cx="40" cy="-6" r="16" fill="url(#fgD)"/>
+  </symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+</svg>
+
+<div class="reveal"><div class="slides">
+
+<!-- 1 TITLE -->
+<section data-tl="title" data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <svg class="k-art" viewBox="-110 -110 220 220" aria-label="Illustrated retina: an AI box is replaced by a human box">
+      <defs>
+        <radialGradient id="kf" cx="46%" cy="48%" r="58%"><stop offset="0" stop-color="#E58A4C"/><stop offset=".55" stop-color="#C8572C"/><stop offset=".88" stop-color="#93321A"/><stop offset="1" stop-color="#4A160A"/></radialGradient>
+        <radialGradient id="kd"><stop offset="0" stop-color="#FFF6DA"/><stop offset=".55" stop-color="#F7DB9E"/><stop offset="1" stop-color="#EBB372" stop-opacity="0"/></radialGradient>
+        <radialGradient id="km"><stop offset="0" stop-color="#651A0C" stop-opacity=".55"/><stop offset="1" stop-color="#651A0C" stop-opacity="0"/></radialGradient>
+        <clipPath id="kc"><circle r="100"/></clipPath>
+      </defs>
+      <g class="eye">
+        <circle r="100" fill="url(#kf)"/>
+        <circle cx="-24" cy="4" r="24" fill="url(#km)"/>
+        <g clip-path="url(#kc)" fill="none" stroke="#8A2111" stroke-linecap="round">
+          <path class="v" stroke-width="2.8" d="M40 -10 C20 -42 -20 -56 -72 -50"/><path class="v" stroke-width="1.8" d="M12 -38 C-4 -60 -30 -78 -56 -82"/>
+          <path class="v" stroke-width="2.8" d="M40 -2 C20 30 -20 50 -74 46"/><path class="v" stroke-width="1.8" d="M10 34 C-4 58 -26 74 -52 80"/>
+          <path class="v" stroke-width="1.8" d="M46 -14 C60 -40 70 -60 72 -76"/><path class="v" stroke-width="1.8" d="M46 2 C62 28 72 50 76 66"/>
+          <path class="v" stroke-width="1.4" d="M54 -6 C70 -8 86 -4 98 0"/>
+        </g>
+        <circle cx="40" cy="-6" r="16" fill="url(#kd)"/>
+      </g>
+      <g class="ai"><rect class="roi-ai" x="-34" y="26" width="16" height="13"/><text class="roi-lab" x="-34" y="22" fill="#06B6D4">AI suggestion</text></g>
+      <g class="hu"><rect class="roi-hu" x="-34" y="26" width="16" height="13"/><text class="roi-lab" x="-34" y="49" fill="#2FD66B">Human</text></g>
+    </svg>
+    <h1 class="k-title">Retinal Review<br><em>Workbench</em></h1>
+    <p class="k-sub">AI ช่วยดู แพทย์เป็นคนตัดสิน</p>
+    <div class="k-meta"><span><b>Phase 1</b> team briefing</span><span>1 November 2026</span><span>Not a diagnostic device</span></div>
+  </div>
+  <aside class="notes">สวัสดีครับ วันนี้จะเล่าภาพรวมทั้งโครงการ Retinal Review Workbench ภาพจอตานี้เป็นภาพประกอบ ไม่ใช่ภาพผู้ป่วย กรอบประของ AI ถูกแทนด้วยกรอบทึบของคน ซึ่งเป็นใจความของทั้งระบบ: AI ช่วยดู แต่คนเป็นผู้ตัดสิน</aside>
+</section>
+
+<!-- 2 PROBLEM AND GOAL -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light">
+    <div class="stack">
+      <div data-h="0"><h2>ภาพจอตารอแพทย์อ่านจำนวนมาก</h2><p>การให้เกรดต้องตรวจย้อนได้ / AI ช่วยได้ แต่ต้องไม่ตัดสินแทน</p></div>
+      <div data-h="1"><h2>พื้นที่ทำงานเดียว แพทย์เป็นคนตัดสิน</h2><p>Retinal Review Workbench: คัดกรองและทำ label วิจัยในที่เดียว</p></div>
+    </div>
+    <div class="lines">
+      <div data-step="1">คัดกรอง DR ด้วย <span class="acc">ICDR grade 0 ถึง 4</span></div>
+      <div data-step="1">เก็บเกรดและ annotation พร้อมที่มา ใช้ต่อในงานวิจัย</div>
+      <div data-step="1">AI เป็นตัวช่วย ปิดได้ ระบบยังทำงานครบ</div>
+    </div>
+    <div class="foot" data-step="2"><span class="pill warn">Screening and research support only</span><span class="pill">Not a diagnostic device</span></div>
+  </div>
+  <aside class="notes">ปัญหาคือภาพจอตาสะสมรอแพทย์อ่าน และงานให้เกรดหรือทำ label ต้องตรวจย้อนได้ว่าใครตัดสินอะไร เป้าหมายคือพื้นที่ทำงานเดียวที่แพทย์เป็นคนตัดสิน AI เป็นตัวช่วยที่ปิดได้ และระบบนี้ไม่ใช่เครื่องมือวินิจฉัย</aside>
+</section>
+
+<!-- 3 ROLES -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="stack"><div data-h="0"><h2>Who uses it: ห้า roles</h2><p>ทุกคนอ่านได้ / server ปฏิเสธการเขียนที่ role ไม่มีสิทธิ์ และบันทึกว่าใครทำอะไร</p></div></div>
+    <div class="roles">
+      <div data-in><h3>Nurse</h3><div class="th">พยาบาล</div><div class="bar"></div><p>นำเข้าภาพ สั่ง AI</p><p>เกรดเบื้องต้นในรายงาน</p></div>
+      <div data-in><h3>Physician</h3><div class="th">แพทย์</div><div class="bar"></div><p>ยืนยันหรือแก้ DR grade</p><p>เลือก Refer / Not refer แล้วเซ็น</p></div>
+      <div data-in><h3>Expert</h3><div class="th">จักษุแพทย์</div><div class="bar"></div><p>ทำได้ทุกอย่างของแพทย์</p><p>Gold-100 แบบ blind</p></div>
+      <div data-in><h3>Researcher</h3><div class="th">นักวิจัย</div><div class="bar"></div><p>research export</p><p>ไม่เห็นชื่อผู้ป่วยและ HN</p></div>
+      <div data-in><h3>Admin</h3><div class="th">ผู้ดูแลระบบ</div><div class="bar"></div><p>บัญชีและนโยบาย sign-in</p><p>AI server และ consent</p></div>
+    </div>
+  </div>
+  <aside class="notes">ผู้ใช้มีห้า role พยาบาลนำเข้าภาพและให้เกรดเบื้องต้น แพทย์ยืนยันเกรดและเซ็นรายงาน จักษุแพทย์ทำ Gold-100 นักวิจัยทำ export แต่ไม่เห็นชื่อและ HN ผู้ดูแลจัดการบัญชี AI server และ consent ทุก role อ่านได้ แต่ server ตรวจสิทธิ์ทุกครั้งที่เขียน</aside>
+</section>
+
+<!-- 4 SYSTEM AT A GLANCE -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light">
+    <div class="stack">
+      <div data-h="0"><h2>System at a glance</h2><p>Browser, review app, PostgreSQL และ AI server</p></div>
+      <div data-h="1"><h2>AI server เลือกได้สองแบบ</h2><p>Hospital model server หรือ team server dr-train / ไม่มี AI ก็ยังให้เกรดเองได้</p></div>
+    </div>
+    <svg class="dia" viewBox="0 0 1700 600" aria-label="Browser to review app; review app to PostgreSQL and one AI server">
+      <g>
+        <path id="s4a" class="wire a draw" d="M320 300 H520"/>
+        <path id="s4b" class="wire draw" d="M940 260 C1060 260 1060 110 1180 110"/>
+        <path id="s4c" class="wire draw" d="M940 340 C1060 340 1060 410 1180 410"/>
+        <circle class="pkt" r="9" data-path="#s4a" data-dur="1.8"/>
+        <circle class="pkt" r="9" data-path="#s4b" data-dur="2" data-delay="0.6"/>
+        <circle class="pkt" r="9" data-path="#s4c" data-dur="2.2" data-delay="1"/>
+        <g data-in data-dim="1"><rect class="nd" x="0" y="230" width="320" height="140" rx="20"/><text class="t1" x="40" y="292">Browser</text><text class="t2" x="40" y="334">React app /app/, EN / TH</text></g>
+        <g data-in><rect class="nd key" x="520" y="200" width="420" height="200" rx="22"/><text class="t1 tk" x="556" y="282">Review app</text><text class="t2 tk2" x="556" y="324">FastAPI / sign-in / workflow</text></g>
+        <g data-in data-dim="1"><rect class="nd" x="1180" y="40" width="520" height="140" rx="20"/><text class="t1" x="1214" y="102">PostgreSQL</text><text class="t2" x="1214" y="144">one JSON document per case</text></g>
+        <g data-in><rect class="nd dash" x="1180" y="260" width="520" height="300" rx="22"/><text class="t3" x="1210" y="302">AI SERVER, ONE OF</text>
+          <rect class="nd" x="1210" y="324" width="460" height="96" rx="16"/><text class="t1" x="1240" y="383" style="font-size:30px">Hospital model server</text>
+          <rect class="nd" x="1210" y="440" width="460" height="96" rx="16"/><text class="t1" x="1240" y="499" style="font-size:30px">Team server dr-train</text></g>
+      </g>
+    </svg>
+  </div>
+  <aside class="notes">ภาพรวมมีสี่ชิ้น: browser, review app ที่เป็น FastAPI, PostgreSQL เก็บหนึ่ง JSON ต่อ case และ AI server ซึ่งเลือกได้ว่าเป็น hospital model server หรือ team server dr-train ถ้าไม่มี AI ระบบยังใช้ให้เกรดเองได้</aside>
+</section>
+
+<!-- 5 REQUEST PATH -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="stack">
+      <div data-h="0"><h2>Request path</h2><p>ทุก request ผ่าน HTTPS และ sign-in ก่อนถึงข้อมูล</p></div>
+      <div data-h="1"><h2>หนึ่ง case คือหนึ่ง JSON document</h2><p>ทุกการเขียนส่ง revision ถ้ามีคนแก้ก่อน จะได้ 409 Case changed; reload</p></div>
+      <div data-h="2"><h2>ไม่มี silent fallback</h2><p>profile ผิดชุด app ไม่ start / PostgreSQL ล่มไม่สลับไป SQLite / ไม่มี AI เข้า manual mode</p></div>
+    </div>
+    <svg class="dia" viewBox="0 0 1700 600" aria-label="Browser, HTTPS front, review app, then PostgreSQL, private config and Model API">
+      <path id="s5a" class="wire a draw" d="M250 300 H330"/>
+      <path id="s5b" class="wire a draw" d="M590 300 H670"/>
+      <path id="s5c" class="wire draw" d="M1110 220 C1180 220 1170 85 1240 85"/>
+      <path id="s5d" class="wire draw" d="M1110 300 H1240"/>
+      <path id="s5e" class="wire draw" d="M1110 380 C1180 380 1170 515 1240 515"/>
+      <path id="s5in" fill="none" stroke="none" d="M125 300 H890"/>
+      <circle class="pkt" r="9" data-path="#s5in" data-dur="2.4"/>
+      <circle class="pkt" r="9" data-path="#s5c" data-dur="1.6" data-delay="1.2"/>
+      <circle class="pkt" r="9" data-path="#s5e" data-dur="1.9" data-delay="1.6"/>
+      <g data-in><rect class="nd" x="0" y="235" width="250" height="130" rx="18"/><text class="t1" x="30" y="292">Browser</text><text class="t2" x="30" y="332">sign-in cookie</text></g>
+      <g data-in><rect class="nd" x="330" y="235" width="260" height="130" rx="18"/><text class="t1" x="360" y="292">HTTPS front</text><text class="t2" x="360" y="332">Caddy, port 443</text></g>
+      <g data-in><rect class="nd key" x="670" y="140" width="440" height="320" rx="22"/><text class="t1 tk" x="700" y="200">Review app</text>
+        <line x1="700" y1="226" x2="1080" y2="226" stroke="#C9D2CB"/><text class="t2 tk" x="700" y="270">Sign-in and roles</text>
+        <line x1="700" y1="294" x2="1080" y2="294" stroke="#C9D2CB"/><text class="t2 tk" x="700" y="338">Workflow + revision check</text>
+        <line x1="700" y1="362" x2="1080" y2="362" stroke="#C9D2CB"/><text class="t2 tk" x="700" y="406">Model client + queue</text></g>
+      <g data-in><rect class="nd" x="1240" y="20" width="460" height="130" rx="18"/><text class="t1" x="1270" y="78">PostgreSQL</text><text class="t2" x="1270" y="118">case JSON + revision</text></g>
+      <g data-in><rect class="nd" x="1240" y="235" width="460" height="130" rx="18"/><text class="t1" x="1270" y="292">Private config</text><text class="t2" x="1270" y="332">accounts, server mode, connector</text></g>
+      <g data-in><rect class="nd" x="1240" y="450" width="460" height="130" rx="18"/><text class="t1" x="1270" y="507">Model API</text><text class="t2" x="1270" y="547">hospital server or dr-train</text></g>
+      <g class="badge" data-step="1"><rect x="1240" y="164" width="460" height="56" rx="28"/><text x="1270" y="200">409 Case changed; reload</text></g>
+      <g class="badge" data-step="2"><rect x="740" y="500" width="380" height="56" rx="28"/><text x="770" y="536">ไม่มี AI: manual mode</text></g>
+    </svg>
+  </div>
+  <aside class="notes">ทุก request ผ่าน HTTPS front และต้อง sign-in ก่อน แต่ละ case คือหนึ่ง JSON document ที่มี revision ถ้ามีคนแก้ก่อนจะได้ 409 จึงไม่มีการเขียนทับกัน และระบบไม่มี silent fallback: ตั้งค่าผิดคือไม่ start, PostgreSQL ล่มไม่สลับไป SQLite, ไม่มี AI ก็เข้า manual mode</aside>
+</section>
+
+<!-- 6 AI ROUTING -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light">
+    <div class="stack">
+      <div data-h="0"><h2>เริ่มจากคนยืนยันชนิดภาพ</h2><p>Confirm Image: CFP หรือ UWF ก่อน AI ทำงาน</p></div>
+      <div data-h="1"><h2>ชนิดภาพเป็นตัวเลือก model</h2><p>UWF ไป USPEC / CFP ไป RETFound</p></div>
+      <div data-h="2"><h2>PRISM รันตาม receipt ครั้งเดียว</h2><p>ช่วยหารอยโรค ไม่ให้ DR grade / ผลไม่แน่นอนไม่ส่งซ้ำ</p></div>
+      <div data-h="3"><h2>AI ให้คำแนะนำ คนตัดสิน</h2><p>คะแนนของ model ไม่ได้ calibrate จึงไม่ใช่ความน่าจะเป็น</p></div>
+    </div>
+    <svg class="dia" viewBox="0 0 1700 640" aria-label="Confirm Image routes UWF to USPEC and CFP to RETFound; PRISM uses a one-use receipt">
+      <g data-cam="2,550,-200|1,0,0|1.4,-669,-408|1,0,0">
+        <path id="s6w1" class="wire draw" data-step="1" d="M300 260 C390 260 400 80 500 80"/>
+        <path id="s6w2" class="wire draw" data-step="1" d="M300 260 C390 260 400 260 500 260"/>
+        <g data-step="1"><text class="t3" x="500" y="20">UWF</text><rect class="nd" x="500" y="30" width="360" height="100" rx="18"/><text class="t1" x="534" y="92">USPEC</text></g>
+        <g data-step="1"><text class="t3" x="500" y="200">CFP</text><rect class="nd" x="500" y="210" width="360" height="100" rx="18"/><text class="t1" x="534" y="272">RETFound</text></g>
+        <path class="wire draw" data-step="1" d="M860 80 C960 80 980 170 1080 170"/>
+        <path class="wire draw" data-step="1" d="M860 260 C960 260 980 170 1080 170"/>
+        <g data-step="1"><rect class="nd key" x="1080" y="100" width="560" height="140" rx="20"/><text class="t1 tk" x="1116" y="162">DR grade suggestion</text><text class="t2 tk2" x="1116" y="204">ICDR 0 ถึง 4</text></g>
+        <g data-step="1"><circle class="pkt" r="10" data-path="#s6w1" data-dur="1.6"/><circle class="pkt" r="10" data-path="#s6w2" data-dur="1.6" data-delay="0.5"/></g>
+        <path id="s6w5" class="wire a draw" data-step="2" d="M300 260 C390 260 400 520 500 520"/>
+        <g data-step="2"><text class="t3" x="500" y="460">PRISM</text><rect class="nd" x="500" y="470" width="300" height="100" rx="18"/><text class="t1" x="534" y="532">Prepare</text></g>
+        <path class="wire a draw" data-step="2" d="M800 520 H900"/>
+        <g data-step="2"><rect class="nd rc" x="900" y="460" width="370" height="120" rx="18"/><text class="t1" x="934" y="514">One-use receipt</text><text class="t2" x="934" y="552">ล็อก input ที่จะส่ง</text></g>
+        <path class="wire a draw" data-step="2" d="M1270 520 H1370"/>
+        <g data-step="2"><rect class="nd" x="1370" y="470" width="270" height="100" rx="18"/><text class="t1" x="1404" y="532">Lesion ROIs</text></g>
+        <g data-step="2"><circle class="pkt" r="10" data-path="#s6w5" data-dur="1.8"/></g>
+        <g data-in><rect class="nd key" x="0" y="190" width="300" height="140" rx="20"/><text class="t1 tk" x="34" y="252">Confirm</text><text class="t1 tk" x="34" y="294">Image</text></g>
+      </g>
+    </svg>
+  </div>
+  <aside class="notes">AI ไม่ทำงานจนกว่าคนจะยืนยันชนิดภาพ ภาพ UWF ไป USPEC ภาพ CFP ไป RETFound ได้ DR grade เป็นคำแนะนำ ส่วน PRISM ช่วยหารอยโรคเท่านั้น ต้องเตรียม receipt ใช้ครั้งเดียว ภาพ UWF ผ่าน mask A2 ก่อน และผลที่ไม่แน่นอนไม่ส่งซ้ำ คะแนนของ model ไม่ได้ calibrate</aside>
+</section>
+
+<!-- 7 COORDINATE MAPPING -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="stack">
+      <div data-h="0"><h2>ทุกกรอบอยู่บน pixel ของภาพต้นฉบับ</h2><p>Original image / source SHA</p></div>
+      <div data-h="1"><h2>model เห็นภาพวิเคราะห์</h2><p>crop, resize หรือ mask แล้วได้ SHA ใหม่</p></div>
+      <div data-h="2"><h2>model วาดกรอบบนภาพวิเคราะห์</h2><p>พิกัดตอนนี้ยังเป็นของภาพวิเคราะห์</p></div>
+      <div data-h="3"><h2>CoordinateMapping แปลงกลับ</h2><p>กรอบจึงอยู่ตรงตำแหน่งเดิมบนภาพต้นฉบับ</p></div>
+    </div>
+    <svg class="dia" viewBox="0 0 1700 600" aria-label="A model box on the analysis image is mapped back to original image pixels">
+      <g data-cam="1.1,388,-30|1,0,0|1.35,-864,-118|1,0,0">
+        <g data-in><rect x="80" y="40" width="680" height="520" rx="12" fill="#040A06" stroke="#2C4635" stroke-width="2"/>
+          <use href="#fundus" x="170" y="50" width="500" height="500"/></g>
+        <g data-step="1">
+          <rect x="160" y="40" width="520" height="520" fill="none" stroke="#2FD66B" stroke-width="3" stroke-dasharray="10 8"/>
+          <path class="wire a draw" d="M770 300 C880 300 950 310 1050 310"/>
+          <rect x="1060" y="100" width="420" height="420" rx="12" fill="#040A06" stroke="#2C4635" stroke-width="2"/>
+          <use href="#fundus" x="1068.1" y="108.1" width="403.8" height="403.8"/>
+          <text class="t2" x="1060" y="560">Analysis image / own SHA</text>
+        </g>
+        <g data-step="2"><rect class="roi ai ma" x="1180" y="200" width="44" height="44"/><text class="t2" x="1236" y="196" style="fill:#7ADCEB">model box</text></g>
+        <g data-step="3">
+          <path id="s7m" class="wire a d draw" d="M1202 196 C1100 0 500 0 336 160"/>
+          <circle class="pkt" r="9" data-path="#s7m" data-dur="1.6"/>
+          <rect class="roi ai ma" x="308.6" y="163.8" width="54.5" height="54.5"/>
+          <text class="t3" x="760" y="40">COORDINATEMAPPING</text>
+        </g>
+      </g>
+    </svg>
+  </div>
+  <aside class="notes">ภาพที่ส่งให้ model เป็นภาพวิเคราะห์ที่ crop, resize หรือ mask แล้ว จึงมี SHA ของตัวเอง กรอบที่ model วาดถูกแปลงกลับด้วย CoordinateMapping ทุกกรอบจึงเก็บเป็น pixel ของภาพต้นฉบับ ภาพต้นฉบับไม่ถูกแก้</aside>
+</section>
+
+<!-- 8 SIGN-IN AND ROLES -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light">
+    <div class="stack"><div data-h="0"><h2>Sign-in and roles</h2><p>เปิดเมื่อมีไฟล์บัญชีผู้ใช้ / server ตรวจสิทธิ์ทุกครั้งที่เขียน</p></div></div>
+    <div class="rows">
+      <div data-in><span class="k mono" style="font-size:44px">/v1/ /v2/</span><span class="v">ทุก route ต้องมี session</span></div>
+      <div data-in><span class="k"><span class="count" data-to="310000">310,000</span></span><span class="v">รอบ PBKDF2 ต่อรหัสผ่าน</span></div>
+      <div data-in><span class="k">5 roles</span><span class="v">physician, nurse, expert, researcher, admin</span></div>
+      <div data-in><span class="k">Audit</span><span class="v">ทุกการแก้ไขบันทึกผู้ใช้และ role ไว้ใน case</span></div>
+    </div>
+  </div>
+  <aside class="notes">sign-in เปิดเมื่อมีไฟล์บัญชีผู้ใช้ ทุก route ใต้ v1 และ v2 ต้องมี session รหัสผ่านเก็บแบบ PBKDF2 สามแสนหนึ่งหมื่นรอบ ผู้ดูแลคนแรกต้องเปลี่ยนรหัสเมื่อเข้าครั้งแรก server ตรวจสิทธิ์ทุกครั้งที่เขียน และบันทึกผู้ใช้กับ role ไว้ใน case</aside>
+</section>
+
+<!-- 9 JOURNEY 1: IMPORT, ADMISSION, PATIENT AND EYE -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark journey">
+    <div class="jbar" data-fill="1,2,3"></div>
+    <div class="stack">
+      <div data-h="0"><h2>นำเข้าภาพจากโฟลเดอร์</h2><p>อ่านเฉพาะโฟลเดอร์ input ชั้นบนสุด / JPEG, PNG, TIFF, DICOM</p></div>
+      <div data-h="1"><h2>SHA-256 คือตัวตนของ case</h2><p>ไฟล์ซ้ำรวมเป็น alias / ต้นฉบับไม่ถูกย้าย ไม่ถูกแก้</p></div>
+      <div data-h="2"><h2>patient key และตาข้างจากชื่อไฟล์</h2><p>ข้อมูลขัดกัน ระบบไม่ตัดสินเอง คนเป็นคนเลือก</p></div>
+    </div>
+    <div class="files">
+      <div class="f" data-in>fundus_0001.jpg<span class="h" data-step="1">9f2c41</span></div>
+      <div class="f" data-in>fundus_0002.tif<span class="h" data-step="1">41ab07</span></div>
+      <div class="f" data-in>fundus_0003.dcm<span class="h" data-step="1">c3d9e2</span></div>
+      <div class="f" data-in data-dim="1">copy_of_0001.jpg<span class="h al" data-step="1">alias of 9f2c41</span></div>
+    </div>
+    <div class="who-eye" data-step="2">
+      <div class="f">P-0001<b>OD</b></div>
+      <div class="f">P-0002<b>OS</b></div>
+      <div class="f">P-0003<span class="pill warn">needs a person</span></div>
+    </div>
+  </div>
+  <aside class="notes">ขั้นที่ 1 ถึง 3: ระบบอ่านเฉพาะโฟลเดอร์ input ของ workspace ไม่เข้าไปค้นที่เก็บข้อมูลของโรงพยาบาล SHA-256 ของเนื้อไฟล์คือตัวตนของ case ไฟล์ซ้ำรวมเป็น alias ไฟล์ที่หายไปเป็น SOURCE_MISSING ไม่ลบ case ส่วน patient key และตาข้างอ่านจากชื่อไฟล์ก่อน ถ้าขัดกันคนเป็นคนเลือก และสแกนใหม่ไม่ทับการตัดสินของคน</aside>
+</section>
+
+<!-- 10 JOURNEY 2: CONFIRM IMAGE, AI GRADE, PHYSICIAN -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light journey">
+    <div class="jbar" data-fill="4,5,6,6"></div>
+    <div class="stack">
+      <div data-h="0"><h2>Confirm Image ก่อน AI ทำงาน</h2><p>คนยืนยันชนิดภาพ คุณภาพ และตาข้าง</p></div>
+      <div data-h="1"><h2>AI ให้ DR grade เป็นคำแนะนำ</h2><p>คะแนนไม่ใช่ความน่าจะเป็นทางคลินิก</p></div>
+      <div data-h="2"><h2>แพทย์เป็นคนตัดสินเกรด</h2><p>Confirm DR Grade: ยอมรับ หรือแก้</p></div>
+      <div data-h="3"><h2>ค่า AI เดิมเก็บไว้</h2><p>ผล AI ที่มาทีหลังไม่ล้างเกรดที่ยืนยันแล้ว</p></div>
+    </div>
+    <div class="confirm">
+      <span class="pill" data-in><svg class="ic"><use href="#i-check"/></svg>CFP</span>
+      <span class="pill" data-in><svg class="ic"><use href="#i-check"/></svg>Gradable</span>
+      <span class="pill" data-in><svg class="ic"><use href="#i-check"/></svg>OD</span>
+    </div>
+    <div class="glabel" data-in>Final DR grade</div>
+    <div class="grades">
+      <div class="chip" data-in><span>0</span></div>
+      <div class="chip" data-in><span>1</span></div>
+      <div class="chip" data-in><i class="ring" data-step="1"></i><span>2</span></div>
+      <div class="chip on" data-in><i class="fill" data-step="2"></i><span>3</span></div>
+      <div class="chip" data-in><span>4</span></div>
+    </div>
+    <div class="ai-tag" data-step="1">AI suggestion: 2</div>
+    <div class="readout" data-step="2"><div class="k">DR grade</div><div class="v"><span class="count" data-from="2" data-to="3">3</span></div><div class="who">Physician confirmed</div></div>
+  </div>
+  <aside class="notes">ขั้นที่ 4 ถึง 6: คนยืนยันชนิดภาพ คุณภาพ และตาข้างก่อน ชนิดภาพเริ่มเป็น UNKNOWN ยังไม่ยืนยัน AI ไม่ทำงาน AI ให้ DR grade 0 ถึง 4 เป็นคำแนะนำ ในตัวอย่างนี้ AI แนะนำ 2 แพทย์แก้เป็น 3 ค่า AI เดิมเก็บไว้ไม่แก้ และผล AI ที่มาทีหลังไม่ล้างเกรดที่ยืนยันแล้ว</aside>
+</section>
+
+<!-- 11 JOURNEY 3: ANNOTATIONS AND FINISH -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark journey">
+    <div class="jbar" data-fill="7,7,8"></div>
+    <div class="stack">
+      <div data-h="0"><h2>AI เสนอกรอบรอยโรค</h2><p>กรอบประคือ AI suggestion ยังไม่ใช่ผลของคน</p></div>
+      <div data-h="1"><h2>คนแก้ ลบ หรือเพิ่มกรอบ</h2><p>ทุกการตัดสินถูกบันทึกต่อท้าย ผล AI ดิบไม่ถูกแก้</p></div>
+      <div data-h="2"><h2>Finish image</h2><p>ไม่มี finding คือ reviewed none found ไม่ใช่ label ว่าไม่มีรอยโรค</p></div>
+    </div>
+    <div class="dec">
+      <div data-in><i class="d"></i>กรอบประ: AI suggestion</div>
+      <div data-step="1"><i></i>กรอบ AI ที่แก้แล้ว กลายเป็นของคน</div>
+      <div data-step="1"><i class="x"></i>กรอบที่ผิด ถูกลบ</div>
+      <div data-step="1"><i></i>กรอบใหม่ที่คนวาดเพิ่ม</div>
+      <div data-step="2"><i style="border-color:#2FD66B"></i>Finish เก็บ hash ของชุด annotation</div>
+    </div>
+    <div class="viewer" data-in style="left:1100px;top:330px;width:680px;height:680px">
+      <svg viewBox="-110 -110 220 220" aria-label="Illustrated retina with AI and human boxes">
+        <g data-cam="1,0,0|1.5,52.5,-7.5|1,0,0">
+          <use href="#fundus" x="-110" y="-110" width="220" height="220"/>
+          <rect class="roi ai ma" data-in data-hide="1" vector-effect="non-scaling-stroke" x="-54" y="-26" width="12" height="12"/>
+          <rect class="roi hu ma" data-step="1" vector-effect="non-scaling-stroke" x="-54" y="-26" width="12" height="12"/>
+          <rect class="roi ai he" data-in vector-effect="non-scaling-stroke" x="-22" y="36" width="16" height="12"/>
+          <rect class="roi ai ex" data-in data-dim="1" vector-effect="non-scaling-stroke" x="12" y="-50" width="14" height="10"/>
+          <path class="roi-x" data-step="1" vector-effect="non-scaling-stroke" d="M12 -50 l14 10 M26 -50 l-14 10"/>
+          <rect class="roi ai ex" data-in vector-effect="non-scaling-stroke" x="-62" y="26" width="12" height="10"/>
+          <rect class="roi hu he" data-step="1" vector-effect="non-scaling-stroke" x="-76" y="-6" width="14" height="12"/>
+        </g>
+      </svg>
+      <div class="banner" data-step="2">Finished: annotation set saved</div>
+      <div class="legend"><span><i class="d"></i>AI suggestion</span><span><i></i>Human</span></div>
+    </div>
+  </div>
+  <aside class="notes">ขั้นที่ 7 และ 8: เริ่มจากเครื่องมือ Box กรอบประคือ AI กรอบทึบคือคน คนแก้ ลบ หรือปล่อยกรอบ AI ไว้ได้ ทุกการตัดสินต่อท้ายใน ai_annotation_reviews ผล AI ดิบไม่ถูกแก้ ระบบบันทึกอัตโนมัติก่อนทุกการตัดสิน Finish เก็บ hash ของชุด annotation ถ้าแก้ทีหลังต้องยืนยันใหม่ ไม่มี finding ก็ Finish ได้ แต่ไม่ใช่ label ว่าไม่มีรอยโรค</aside>
+</section>
+
+<!-- 12 JOURNEY 4: SCREENING REPORT -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light journey">
+    <div class="jbar" data-fill="9,9,9"></div>
+    <div class="stack">
+      <div data-h="0"><h2>Screening report</h2><p>พยาบาลเตรียม (PRELIMINARY) แพทย์ตรวจและเซ็น</p></div>
+      <div data-h="1"><h2>Refer / Not refer: ผู้ให้เกรดเลือก</h2><p>ระบบไม่เลือกไว้ให้ / ใช้ผลของตาข้างที่แย่กว่า</p></div>
+      <div data-h="2"><h2>Print เป็น PDF</h2><p>แก้รายงานที่เซ็นแล้ว ระบบเก็บฉบับเดิมไว้</p></div>
+    </div>
+    <div class="steps4" style="left:140px;top:440px;width:860px">
+      <p data-in>พยาบาลกรอกเกรดเบื้องต้น</p>
+      <p data-step="1">ผู้ให้เกรดเลือก Refer หรือ Not refer</p>
+      <p data-step="2">แพทย์เซ็น แล้ว Print เป็น PDF</p>
+    </div>
+    <div class="a4" data-in style="border:1px solid #D5DCD6">
+      <div class="hd">DR screening report</div>
+      <div class="rw"><span>Patient</span><b>P-0001 (demo)</b></div>
+      <div class="rw"><span>ICDR grade, right eye</span><b>3</b></div>
+      <div class="rw"><span>ICDR grade, left eye</span><b>1</b></div>
+      <div class="rw"><span>Suspected DME</span><b>confirm with OCT</b></div>
+      <div class="rw"><span>AI suggestion</span><b>2 / changed</b></div>
+      <span class="stamp" data-hide="2">PRELIMINARY</span>
+      <div class="choice"><span><i class="box"></i>Not refer</span><span><i class="box"><b data-step="1"></b></i>Refer</span></div>
+      <div class="sign">
+        <svg viewBox="0 0 260 70"><path class="draw" data-step="2" d="M6 50 C30 10 46 64 70 36 S110 8 120 44 S170 60 190 28 S240 30 254 22" fill="none" stroke="#0C1610" stroke-width="2.4" stroke-linecap="round"/></svg>
+        <div class="ln">Signed: physician</div>
+      </div>
+      <span class="pdf" data-step="2">PDF</span>
+    </div>
+  </div>
+  <aside class="notes">ขั้นที่ 9: พยาบาลเตรียมรายงานเป็น PRELIMINARY แพทย์ตรวจและเซ็น ช่อง Refer หรือ Not refer เป็นการตัดสินของผู้ให้เกรด ระบบไม่เลือกไว้ให้ และใช้ผลของตาข้างที่แย่กว่า Print บันทึกเป็น PDF ถ้าแก้รายงานที่เซ็นแล้ว ต้องเป็น role ที่เซ็นได้ และระบบเก็บฉบับเดิมไว้ ข้อมูลในภาพเป็นตัวอย่าง</aside>
+</section>
+
+<!-- 13 JOURNEY 5: REFERRALS OUTBOX -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark journey">
+    <div class="jbar" data-fill="10,10,10"></div>
+    <div class="stack">
+      <div data-h="0"><h2>Referrals outbox</h2><p>เฉพาะรายงานที่เซ็นแล้วและเลือก Refer หรือภาพ ungradable</p></div>
+      <div data-h="1"><h2>Export เป็น FHIR R4 หรือ CSV</h2><p>Patient, ICDR grade รายตา และ ServiceRequest</p></div>
+      <div data-h="2"><h2>Connector ปิดไว้เป็นค่าเริ่มต้น</h2><p>file drop หรือ HTTPS webhook ไป host ที่ผู้ดูแลกำหนด / หนึ่งครั้งต่อการกด Send</p></div>
+    </div>
+    <svg class="dia" viewBox="0 0 1700 600" aria-label="Signed report to outbox, then FHIR R4 or CSV; the connector is off by default">
+      <path id="s13a" class="wire a draw" d="M340 285 H480"/>
+      <circle class="pkt" r="9" data-path="#s13a" data-dur="1.4"/>
+      <g data-in><rect class="nd key" x="0" y="210" width="340" height="150" rx="20"/><text class="t1 tk" x="30" y="274">Signed report</text><text class="t2 tk2" x="30" y="318">Refer or ungradable</text></g>
+      <g data-in><rect class="nd" x="480" y="210" width="320" height="150" rx="20"/><text class="t1" x="510" y="274">Outbox</text><text class="t2" x="510" y="318">Referrals page</text></g>
+      <path id="s13b" class="wire draw" data-step="1" d="M800 260 C870 260 860 130 930 130"/>
+      <path id="s13c" class="wire draw" data-step="1" d="M800 310 C870 310 860 440 930 440"/>
+      <g data-step="1"><rect class="nd" x="930" y="70" width="360" height="120" rx="18"/><text class="t1" x="960" y="124">FHIR R4 bundle</text><text class="t2" x="960" y="162">application/fhir+json</text></g>
+      <g data-step="1"><rect class="nd" x="930" y="380" width="360" height="120" rx="18"/><text class="t1" x="960" y="434">CSV</text><text class="t2" x="960" y="472">referrals.csv</text></g>
+      <g data-step="1"><circle class="pkt" r="9" data-path="#s13b" data-dur="1.5"/><circle class="pkt" r="9" data-path="#s13c" data-dur="1.5" data-delay="0.4"/></g>
+      <path class="wire d draw" data-step="2" d="M1290 130 H1360"/>
+      <g data-step="2"><rect class="nd dash" x="1360" y="60" width="340" height="140" rx="18"/><text class="t1" x="1388" y="116" style="font-size:30px">Hospital system</text><text class="t2" x="1388" y="166">connector</text>
+        <rect x="1510" y="142" width="70" height="36" rx="18" fill="none" stroke="#A8BCAE" stroke-width="2"/><circle cx="1529" cy="160" r="12" fill="#A8BCAE"/><text class="t2" x="1594" y="168">off</text></g>
+    </svg>
+  </div>
+  <aside class="notes">ขั้นที่ 10: เฉพาะรายงานที่เซ็นแล้วและเลือก Refer หรือภาพ ungradable จะเข้า outbox Export ได้เป็น FHIR R4 bundle หรือ CSV connector ปิดไว้เป็นค่าเริ่มต้น ผู้ดูแลเปิดได้เป็น file drop หรือ HTTPS webhook ไปเฉพาะ host ที่ operator กำหนด หนึ่งครั้งต่อการกด Send ไม่ส่งซ้ำเอง</aside>
+</section>
+
+<!-- 14 JOURNEY 6: EXPORT -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light journey">
+    <div class="jbar" data-fill="11,11,11"></div>
+    <div class="stack">
+      <div data-h="0"><h2>Export เป็นสำเนา</h2><p>ภาพต้นฉบับไม่ถูกย้าย / ทุกโฟลเดอร์มี manifest แบบ CSV และ JSON</p></div>
+      <div data-h="1"><h2>grouped_by_grade</h2><p>จัดตามเกรดที่แพทย์ยืนยันแล้ว</p></div>
+      <div data-h="2"><h2>ai_predicted_unverified</h2><p>แยกต่างหาก ไม่ใช่เกรดจริง และไม่ใช่ label ฝึกโมเดล</p></div>
+    </div>
+    <div class="tree" style="left:140px">
+      <div class="r" data-in>output/</div>
+      <div data-step="1"><div class="g i1">grouped_by_grade/</div><div class="i2">dr_grade_0 ถึง dr_grade_4</div><div class="i2">ungradable</div><div class="i2">senior_review</div><div class="i2">needs_review</div><div class="i2 r">manifest (CSV + JSON)</div></div>
+    </div>
+    <div class="tree" style="left:1000px">
+      <div class="r" data-step="2">output/</div>
+      <div data-step="2"><div class="w i1">ai_predicted_unverified/</div><div class="i2">ai_grade_0 ถึง ai_grade_4</div><div class="i2">ungradable</div><div class="i2">no_ai_result</div><div class="i2 r">manifest (CSV + JSON)</div></div>
+    </div>
+    <div class="foot" data-step="2" style="left:1000px"><span class="pill warn">unverified: ไม่ใช่เกรดทางคลินิก</span></div>
+  </div>
+  <aside class="notes">ขั้นที่ 11: export เป็นสำเนาเสมอ ภาพต้นฉบับไม่ถูกย้าย grouped_by_grade จัดตามเกรดที่แพทย์ยืนยัน ส่วน ai_predicted_unverified แยกต่างหาก ติดป้ายว่ายังไม่ยืนยัน ไม่นับเป็นเกรดจริงหรือ label ฝึกโมเดล ไม่มีโฟลเดอร์ low confidence เพราะคะแนนไม่ได้ calibrate</aside>
+</section>
+
+<!-- 15 JOURNEY 7: GOLD-100 -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark journey">
+    <div class="jbar" data-fill="12,12,12"></div>
+    <div class="stack">
+      <div data-h="0"><h2>Gold-100: จักษุแพทย์ให้เกรดก่อน</h2><p>จักษุแพทย์เลือกภาพเอง คำแนะนำของ AI ยังซ่อนอยู่</p></div>
+      <div data-h="1"><h2>แล้วจึงเห็นคำแนะนำของ AI</h2><p>เปลี่ยนเกรดได้ ระบบเก็บทั้งสองค่าพร้อมที่มา</p></div>
+      <div data-h="2"><h2>Your grade is the reference</h2><p>ไม่มีข้อความว่า AI ไม่เห็นด้วย / เก็บแยกจากเกรดคัดกรอง</p></div>
+    </div>
+    <div class="gcard me" data-in><div class="k">Expert grade</div><div class="v">3</div><div class="s">clinician_verified</div></div>
+    <div class="gcard ai" data-in><div data-unblur="1"><div class="k">AI suggestion (optional)</div><div class="v">2</div><div class="s">model_suggestion</div></div></div>
+    <div class="foot" data-step="2"><span class="pill acc">เก็บทั้งสองค่า: expert 3 / AI 2</span></div>
+  </div>
+  <aside class="notes">ขั้นที่ 12: Gold-100 จักษุแพทย์เป็นคนเลือกภาพและให้เกรดก่อนเห็น AI จากนั้นจึงดูคำแนะนำของ AI และเปลี่ยนเกรดได้ ระบบเก็บทั้งสองค่าพร้อมที่มา clinician_verified และ model_suggestion ข้อความในหน้าจอเคารพผู้เชี่ยวชาญ: Your grade is the reference ไม่มีข้อความว่า AI ไม่เห็นด้วย</aside>
+</section>
+
+<!-- 16 SAFETY RULES -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light">
+    <div class="stack"><div data-h="0"><h2>กติกาที่เราไม่เปลี่ยน</h2></div></div>
+    <div class="rules">
+      <div data-in><b>เกรดของคนคือผลจริง</b><span>ผล AI ที่มาทีหลังไม่ล้างเกรดที่ยืนยันแล้ว</span></div>
+      <div data-in><b>AI ไม่เจอ ไม่ได้แปลว่าไม่มีรอยโรค</b><span>ผลว่างหมายถึง "ตรวจแล้ว" เท่านั้น</span></div>
+      <div data-in><b>คะแนน AI ไม่ได้ calibrate</b><span>ไม่แสดงเป็นความน่าจะเป็นทางคลินิก</span></div>
+      <div data-in><b>ไม่มีกฎส่งต่ออัตโนมัติ</b><span>Refer / Not refer เป็นการตัดสินของผู้ให้เกรด</span></div>
+      <div data-in><b>ภาพต้นฉบับไม่ถูกแตะ</b><span>ไม่ย้าย ไม่เปลี่ยนชื่อ ไม่แก้ ไม่ลบ</span></div>
+      <div data-in><b>Ungradable ไม่ใช่ปกติ</b><span>ไม่ถูกรายงานหรือจัดเป็นปกติ</span></div>
+      <div data-in><b>dr-train รับเฉพาะภาพ public หรือมี consent</b><span>งานจริงใช้ hospital package</span></div>
+      <div data-in><b>ไม่มี secret หรือข้อมูลผู้ป่วยหลุด</b><span>ไม่อยู่ใน Git, log, chat หรือ browser</span></div>
+    </div>
+  </div>
+  <aside class="notes">กติกาแปดข้อที่ไม่เปลี่ยน เกรดของคนคือผลจริง ผลว่างของ AI ไม่ได้แปลว่าไม่มีรอยโรค คะแนนไม่ได้ calibrate ไม่มีกฎส่งต่ออัตโนมัติ กฎเดียวที่มีคือ grade 4 จากเกรดที่แพทย์ยืนยัน ภาพต้นฉบับไม่ถูกแตะ ungradable ไม่ใช่ปกติ dr-train รับเฉพาะภาพ public หรือมี consent และไม่มี secret หรือข้อมูลผู้ป่วยหลุด</aside>
+</section>
+
+<!-- 17 ONE-CLICK DEMO -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="stack">
+      <div data-h="0"><h2>One-click demo กับ dr-train</h2><p>เดโมสดจากเครื่องของเจ้าของโครงการ สำหรับพัฒนา เดโม และกรณีฉุกเฉิน</p></div>
+      <div data-h="1"><h2>มีขอบเขตชัดเจน</h2><p>ใช้ GPU0 เท่านั้น / GPU child ปิดเองเมื่อว่างราว 300 วินาที / ไม่พิมพ์ token</p></div>
+    </div>
+    <svg class="dia" viewBox="0 0 1700 200" style="top:420px;height:200px" aria-label="Six steps from the desktop icon to the browser">
+      <path id="s17" fill="none" stroke="none" d="M128 100 H1572"/>
+      <path class="wire a draw" d="M255 100 H289"/><path class="wire a draw" d="M544 100 H578"/><path class="wire a draw" d="M833 100 H867"/>
+      <path class="wire a draw" d="M1122 100 H1156"/><path class="wire a draw" d="M1411 100 H1445"/>
+      <circle class="pkt" r="10" data-path="#s17" data-dur="4"/>
+      <g data-in><rect class="nd key" x="0" y="20" width="255" height="160" rx="18"/><text class="t1 tk" x="127" y="84" text-anchor="middle" style="font-size:28px">Desktop icon</text><text class="t2 tk2" x="127" y="124" text-anchor="middle">DR Screening</text><text class="t2 tk2" x="127" y="152" text-anchor="middle">Demo</text></g>
+      <g data-in><rect class="nd" x="289" y="20" width="255" height="160" rx="18"/><text class="t1" x="416" y="84" text-anchor="middle" style="font-size:28px">First start</text><text class="t2" x="416" y="124" text-anchor="middle">type YES: public</text><text class="t2" x="416" y="152" text-anchor="middle">or consented only</text></g>
+      <g data-in><rect class="nd" x="578" y="20" width="255" height="160" rx="18"/><text class="t1" x="705" y="84" text-anchor="middle" style="font-size:28px">SSH check</text><text class="t2" x="705" y="124" text-anchor="middle">own key, strict</text><text class="t2" x="705" y="152" text-anchor="middle">host key</text></g>
+      <g data-in><rect class="nd" x="867" y="20" width="255" height="160" rx="18"/><text class="t1" x="994" y="84" text-anchor="middle" style="font-size:28px">Gateway</text><text class="t2" x="994" y="124" text-anchor="middle">on dr-train, start</text><text class="t2" x="994" y="152" text-anchor="middle">if not running</text></g>
+      <g data-in><rect class="nd" x="1156" y="20" width="255" height="160" rx="18"/><text class="t1" x="1283" y="84" text-anchor="middle" style="font-size:28px">Review app</text><text class="t2" x="1283" y="124" text-anchor="middle">warms the GPU</text><text class="t2" x="1283" y="152" text-anchor="middle">about 90 s</text></g>
+      <g data-in><rect class="nd key" x="1445" y="20" width="255" height="160" rx="18"/><text class="t1 tk" x="1572" y="84" text-anchor="middle" style="font-size:28px">Browser</text><text class="t2 tk2" x="1572" y="124" text-anchor="middle">app opens</text><text class="t2 tk2" x="1572" y="152" text-anchor="middle">ready</text></g>
+    </svg>
+    <div class="limits" data-step="1">
+      <div><div class="v">06 to 22</div><div class="k">AI hours, Thai time</div></div>
+      <div><div class="v"><span class="count" data-to="1500">1,500</span></div><div class="k">calls per day</div></div>
+      <div><div class="v"><span class="count" data-to="43200">43,200</span></div><div class="k">GPU-seconds per day</div></div>
+    </div>
+  </div>
+  <aside class="notes">ปุ่มเดโมบนเครื่องเจ้าของโครงการ ครั้งแรกถามให้พิมพ์ YES ว่า workspace มีแต่ภาพ public หรือมี consent แล้วเช็ก SSH ด้วย key ที่มีอยู่ เปิด gateway บน dr-train ถ้ายังไม่เปิด เปิด review app ที่ warm GPU ราว 90 วินาที แล้วเปิด browser มีโควตารายวันและ AI hours ใช้ GPU0 เท่านั้น และไม่พิมพ์ token</aside>
+</section>
+
+<!-- 18 WEB APP PACKAGE -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light">
+    <div class="stack">
+      <div data-h="0"><h2>Package 1: web app ใน Docker</h2><p>review, postgres และ https บนเครื่องเดียว / AI server เชื่อมผ่าน URL</p></div>
+      <div data-h="1"><h2>SETUP_WEB_APP.bat</h2><p>Windows + Docker Desktop: ดับเบิลคลิกครั้งเดียว</p></div>
+    </div>
+    <svg class="dia" viewBox="0 0 800 520" style="top:400px;width:900px;height:585px" aria-label="Docker host with https, review and postgres containers and host folders">
+      <rect class="nd dash" x="10" y="10" width="780" height="500" rx="20"/>
+      <text class="t3" x="38" y="52">DOCKER HOST</text>
+      <path id="s18a" class="wire a draw" d="M260 140 H300"/><path class="wire a draw" d="M520 140 H560"/>
+      <path class="wire draw" d="M410 200 C410 260 122 255 122 320"/><path class="wire draw" d="M410 200 C410 260 307 260 307 320"/>
+      <path class="wire draw" d="M410 200 C410 260 492 260 492 320"/><path class="wire draw" d="M410 200 C410 260 682 255 682 320"/>
+      <path id="s18r" fill="none" stroke="none" d="M150 140 H665"/>
+      <circle class="pkt" r="8" data-path="#s18r" data-dur="2.2"/>
+      <g data-in><rect class="nd" x="40" y="80" width="220" height="120" rx="14"/><text class="t1" x="150" y="134" text-anchor="middle">https</text><text class="t2" x="150" y="170" text-anchor="middle">caddy, port 443</text></g>
+      <g data-in><rect class="nd key" x="300" y="80" width="220" height="120" rx="14"/><text class="t1 tk" x="410" y="134" text-anchor="middle">review</text><text class="t2 tk2" x="410" y="170" text-anchor="middle">FastAPI + app</text></g>
+      <g data-in><rect class="nd" x="560" y="80" width="210" height="120" rx="14"/><text class="t1" x="665" y="134" text-anchor="middle">postgres</text><text class="t2" x="665" y="170" text-anchor="middle">version 16</text></g>
+      <g data-in><rect class="nd soft" x="40" y="320" width="165" height="110" rx="12"/><text class="t1" x="122" y="368" text-anchor="middle" style="font-size:26px">config</text><text class="t2" x="122" y="402" text-anchor="middle" style="font-size:19px">accounts</text></g>
+      <g data-in><rect class="nd soft" x="225" y="320" width="165" height="110" rx="12"/><text class="t1" x="307" y="368" text-anchor="middle" style="font-size:26px">state</text><text class="t2" x="307" y="402" text-anchor="middle" style="font-size:19px">app state</text></g>
+      <g data-in><rect class="nd soft" x="410" y="320" width="165" height="110" rx="12"/><text class="t1" x="492" y="368" text-anchor="middle" style="font-size:26px">output</text><text class="t2" x="492" y="402" text-anchor="middle" style="font-size:19px">exports</text></g>
+      <g data-in><rect class="nd rc" x="595" y="320" width="175" height="110" rx="12"/><text class="t1" x="682" y="368" text-anchor="middle" style="font-size:26px">images</text><text class="t2" x="682" y="402" text-anchor="middle" style="font-size:19px">read-only</text></g>
+    </svg>
+    <div class="steps4">
+      <p data-step="1">เปิด Docker Desktop ให้ขึ้น Running</p>
+      <p data-step="1">ตอบสองคำถาม: โฟลเดอร์ภาพ และที่อยู่ AI server</p>
+      <p data-step="1">ระบบสร้างรหัสผ่านสุ่ม เก็บในไฟล์ส่วนตัว</p>
+      <p data-step="1">ตั้งผู้ดูแลคนแรก แล้วเปิด <span class="mono" style="font-size:25px">https://localhost/app/</span></p>
+    </div>
+  </div>
+  <aside class="notes">Package 1 คือ web app ใน Docker มีสาม container: review, postgres และ https โฟลเดอร์ภาพ mount แบบอ่านอย่างเดียว บน Windows ดับเบิลคลิก SETUP_WEB_APP.bat ตอบสองคำถาม ระบบสร้างรหัสผ่านสุ่ม ตั้งผู้ดูแลคนแรก และได้ปุ่มบนเดสก์ท็อป ทดสอบบน Docker Desktop แล้ว Linux ใช้ bin/start.sh และติดตั้งแบบ offline ได้</aside>
+</section>
+
+<!-- 19 HOSPITAL SERVER -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="stack">
+      <div data-h="0"><h2>Package 2: hospital local server</h2><p>ทุกอย่างอยู่ในเครือข่ายโรงพยาบาล ไม่ต้องใช้ internet</p></div>
+      <div data-h="1"><h2>GPU: NVIDIA RTX 3090, 24 GB</h2><p>preflight ของ profile นี้รับเฉพาะ RTX 3090 / weights ตรวจ hash ก่อน start</p></div>
+      <div data-h="2"><h2>IT ติดตั้งด้วย install.sh</h2><p>อ่าน IT_CHECKLIST.md / ถามสี่คำถาม สร้างรหัสผ่านบนเครื่อง เริ่มระบบ และสร้างผู้ดูแล</p></div>
+    </div>
+    <svg class="dia" viewBox="0 0 1700 600" aria-label="Inside the hospital network: browser, HTTPS, review app, database, gateway and three GPU model services">
+      <g data-cam="1,0,0|1.5,-425,-457|1,0,0">
+        <rect class="nd dash" x="4" y="4" width="1692" height="592" rx="22"/>
+        <text class="t3" x="40" y="50">HOSPITAL NETWORK</text>
+        <g data-in><rect class="nd soft" x="40" y="400" width="1620" height="180" rx="18"/><text class="t3" x="64" y="432">RTX 3090, 24 GB</text></g>
+        <path id="s19a" class="wire a draw" d="M300 150 H380"/><path class="wire a draw" d="M620 150 H700"/><path class="wire draw" d="M980 150 H1060"/>
+        <path id="s19g" class="wire draw" d="M840 210 V260"/>
+        <path id="s19m1" class="wire draw" d="M840 370 C840 410 340 410 340 450"/>
+        <path class="wire draw" d="M840 370 V450"/>
+        <path id="s19m3" class="wire draw" d="M840 370 C840 410 1360 410 1360 450"/>
+        <path id="s19p" fill="none" stroke="none" d="M170 150 H840 V300"/>
+        <circle class="pkt" r="9" data-path="#s19p" data-dur="2.6"/>
+        <circle class="pkt" r="9" data-path="#s19m1" data-dur="1.4" data-delay="1.4"/>
+        <circle class="pkt" r="9" data-path="#s19m3" data-dur="1.4" data-delay="1.8"/>
+        <g data-in><rect class="nd" x="40" y="90" width="260" height="120" rx="16"/><text class="t1" x="170" y="144" text-anchor="middle" style="font-size:30px">Hospital PCs</text><text class="t2" x="170" y="182" text-anchor="middle">browser</text></g>
+        <g data-in><rect class="nd" x="380" y="90" width="240" height="120" rx="16"/><text class="t1" x="500" y="144" text-anchor="middle" style="font-size:30px">https</text><text class="t2" x="500" y="182" text-anchor="middle">caddy</text></g>
+        <g data-in><rect class="nd key" x="700" y="90" width="280" height="120" rx="16"/><text class="t1 tk" x="840" y="144" text-anchor="middle" style="font-size:30px">review</text><text class="t2 tk2" x="840" y="182" text-anchor="middle">web app</text></g>
+        <g data-in><rect class="nd" x="1060" y="90" width="260" height="120" rx="16"/><text class="t1" x="1190" y="144" text-anchor="middle" style="font-size:30px">postgres</text><text class="t2" x="1190" y="182" text-anchor="middle">nightly backup</text></g>
+        <g data-in><rect class="nd" x="700" y="260" width="280" height="110" rx="16"/><text class="t1" x="840" y="310" text-anchor="middle" style="font-size:30px">gateway</text><text class="t2" x="840" y="346" text-anchor="middle">model API</text></g>
+        <g data-in>
+          <rect class="nd" x="120" y="450" width="440" height="110" rx="14"/><text class="t1" x="340" y="500" text-anchor="middle" style="font-size:30px">USPEC</text><text class="t2" x="340" y="536" text-anchor="middle">UWF grading</text>
+          <rect class="nd" x="620" y="450" width="440" height="110" rx="14"/><text class="t1" x="840" y="500" text-anchor="middle" style="font-size:30px">RETFound</text><text class="t2" x="840" y="536" text-anchor="middle">CFP grading</text>
+          <rect class="nd" x="1140" y="450" width="440" height="110" rx="14"/><text class="t1" x="1360" y="500" text-anchor="middle" style="font-size:30px">PRISM</text><text class="t2" x="1360" y="536" text-anchor="middle">lesion ROIs</text></g>
+        <g class="badge" data-step="2"><rect x="1060" y="282" width="600" height="56" rx="28" style="stroke:#E0A526"/><text x="1088" y="318">ยังไม่ได้รันบน RTX 3090 หรือ server ของโรงพยาบาล</text></g>
+      </g>
+    </svg>
+  </div>
+  <aside class="notes">Package 2 รวมทุกอย่างไว้ในเครือข่ายโรงพยาบาล: web app, postgres, gateway และสาม model บน GPU ภาพไม่ออกนอกโรงพยาบาล ไม่ต้องใช้ internet preflight ของ profile นี้รับเฉพาะ RTX 3090 weights ตรวจ hash ก่อน start IT ใช้ install.sh ตาม IT_CHECKLIST.md ยังไม่ได้รันบน RTX 3090 หรือ server ของโรงพยาบาล ต้องทดสอบด้วยภาพ public หรือมี consent ก่อน</aside>
+</section>
+
+<!-- 20 TEAM DEMO THROUGH CLOUDFLARE ACCESS -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light">
+    <div class="stack">
+      <div data-h="0"><h2>Team demo ผ่าน Cloudflare Access</h2><p>ทีมเปิดลิงก์บนโดเมนของเจ้าของโครงการ</p></div>
+      <div data-h="1"><h2>เข้าได้เฉพาะอีเมลที่เชิญ</h2><p>Cloudflare ส่งรหัสครั้งเดียวทางอีเมล แล้ว app ยังขอ sign-in ของตัวเอง</p></div>
+      <div data-h="2"><h2>ใช้ภาพ demo เท่านั้น</h2><p>ห้ามภาพผู้ป่วย แม้มี consent / แชร์เฉพาะตอนเปิดหน้าต่าง tunnel</p></div>
+    </div>
+    <svg class="dia" viewBox="0 0 1700 600" aria-label="Team member browser to Cloudflare Access, tunnel, cloudflared on the owner's PC and the demo app">
+      <rect class="nd dash" x="1040" y="110" width="660" height="320" rx="22"/>
+      <text class="t3" x="1066" y="152">OWNER'S PC, OUTGOING ONLY</text>
+      <path class="wire a draw" d="M280 270 H350"/><path class="wire a draw" d="M650 270 H720"/>
+      <path class="wire a draw" d="M980 270 H1070"/><path class="wire a draw" d="M1330 270 H1400"/>
+      <path id="s20" fill="none" stroke="none" d="M140 270 H1540"/>
+      <circle class="pkt" r="10" data-path="#s20" data-dur="3.6"/>
+      <g data-in><rect class="nd" x="0" y="200" width="280" height="140" rx="18"/><text class="t1" x="30" y="262" style="font-size:30px">Team member</text><text class="t2" x="30" y="302">browser</text></g>
+      <g data-in><rect class="nd" x="350" y="200" width="300" height="140" rx="18"/><text class="t1" x="380" y="262" style="font-size:30px">Cloudflare</text><text class="t1" x="380" y="302" style="font-size:30px">Access</text></g>
+      <g data-in><rect class="nd" x="720" y="200" width="260" height="140" rx="18"/><text class="t1" x="750" y="262" style="font-size:30px">Tunnel</text><text class="t2" x="750" y="302">Cloudflare</text></g>
+      <g data-in><rect class="nd" x="1070" y="200" width="260" height="140" rx="18"/><text class="t1" x="1100" y="262" style="font-size:30px">cloudflared</text><text class="t2" x="1100" y="302">started by hand</text></g>
+      <g data-in><rect class="nd key" x="1400" y="200" width="280" height="140" rx="18"/><text class="t1 tk" x="1430" y="262" style="font-size:30px">Demo app</text><text class="t2 tk2" x="1430" y="302">127.0.0.1:8010</text></g>
+      <g class="badge" data-step="1"><rect x="330" y="372" width="340" height="56" rx="28"/><text x="358" y="408">invited emails only</text></g>
+      <g class="badge" data-step="2"><rect x="1360" y="462" width="320" height="56" rx="28"/><text x="1390" y="498">demo images only</text></g>
+    </svg>
+  </div>
+  <aside class="notes">สำหรับเดโมให้ทีม ใช้ Cloudflare Tunnel และ Access ทีมเปิดลิงก์บนโดเมนของเจ้าของ ใส่อีเมลแล้วรับรหัสครั้งเดียว เข้าได้เฉพาะอีเมลที่เชิญ จากนั้น app ยังขอ sign-in ของตัวเอง tunnel ชี้ไปที่ demo app บน 127.0.0.1:8010 เครื่องเจ้าของไม่เปิดพอร์ตรับจาก internet ใช้ภาพ demo เท่านั้น ห้ามภาพผู้ป่วยแม้มี consent รายละเอียดอยู่ใน deployment/cloudflare-access</aside>
+</section>
+
+<!-- 21 WORKING ON THE CODE -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="stack"><div data-h="0"><h2>ทำงานกับโค้ดได้สามระดับ</h2><p class="mono" style="font-size:28px">docs/developer/DR_TRAIN_ACCESS.md</p></div></div>
+    <div class="levels">
+      <div data-in><div class="lv">LEVEL 0 / TODAY</div><h3>ไม่ต้องขอสิทธิ์</h3><p>clone แล้วรัน test แบบ offline</p><p>model ถูก mock ใน test</p><p>รัน app ด้วยภาพ public หรือ Docker package</p></div>
+      <div data-in><div class="lv">LEVEL 1 / PERSONAL</div><h3>สิทธิ์ส่วนตัวไป dr-train</h3><p>Tailscale ไปได้แค่ SSH ของ dr-train</p><p>บัญชีจำกัด forward ได้แค่ gateway</p><p>personal model token เก็บในเครื่องตัวเอง</p></div>
+      <div data-in><div class="lv">LEVEL 2 / GPU</div><h3>ลอง hospital package</h3><p>เครื่อง Linux GPU ที่บัญชีรัน Docker ได้</p><p>ทดสอบด้วยภาพ public หรือมี consent</p></div>
+    </div>
+  </div>
+  <aside class="notes">ทีมทำงานได้สามระดับ ระดับ 0 ไม่ต้องขอสิทธิ์ test ทั้งหมดรัน offline ระดับ 1 คือสิทธิ์ส่วนตัวไป dr-train ผ่าน Tailscale บัญชีจำกัด และ personal model token ซึ่งโค้ดพร้อมแล้ว ระดับ 2 คือรัน hospital package บนเครื่อง Linux GPU ขั้นตอนอยู่ใน docs/developer/DR_TRAIN_ACCESS.md</aside>
+</section>
+
+<!-- 22 SECURITY -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light">
+    <div class="stack"><div data-h="0"><h2>Security audit, 31 October 2026</h2><p>แก้รอบแรกแล้ว ที่เหลือบันทึกพร้อมขั้นต่อไป</p></div></div>
+    <div class="stats">
+      <div data-in><div class="v"><span class="count" data-to="37">37</span></div><div class="k">findings</div></div>
+      <div data-in><div class="v acc"><span class="count" data-to="19">19</span></div><div class="k">แก้แล้วในรอบแรก</div></div>
+      <div data-in><div class="v"><span class="count" data-to="2">2</span></div><div class="k">ปิดโดยเจ้าของ (มี consent)</div></div>
+      <div data-in><div class="v warn"><span class="count" data-to="16">16</span></div><div class="k">ยังเปิด บันทึกไว้แล้ว</div></div>
+    </div>
+    <div class="under">
+      <div data-step="1"><h4>FIXED</h4><p>AI server และ Workspace แก้ได้เฉพาะ admin</p><p>ปลายทาง referral ต้องเป็น host ที่ operator กำหนด</p><p>researcher ไม่เห็นชื่อผู้ป่วยและ HN</p></div>
+      <div data-step="2"><h4>OPEN, NEXT</h4><p>Model API ไม่บังคับ token ถ้าไม่ได้ตั้ง</p><p>backup ยังเป็น plain text</p><p>cookie ยังไม่มี Secure flag</p></div>
+    </div>
+  </div>
+  <aside class="notes">audit วันที่ 31 ตุลาคม พบ 37 ข้อ แก้แล้ว 19 ข้อ เจ้าของปิด 2 ข้อเพราะยืนยัน consent แล้ว ยังเปิด 16 ข้อ บางข้อแก้บางส่วน ที่แก้แล้วเช่น admin เท่านั้นที่เปลี่ยน AI server ได้ ปลายทาง referral จำกัด host และ researcher ไม่เห็นข้อมูลระบุตัวตน ที่ยังเปิดเช่น Model API ที่ไม่ได้ตั้ง token, backup แบบ plain text และ cookie Secure flag</aside>
+</section>
+
+<!-- 23 STATUS -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="stack"><div data-h="0"><h2>Phase 1 ส่งมอบแล้ว</h2><p>ผลทั้งหมดยังเป็น TEST_ONLY / single-user commissioning บน dr-train</p></div></div>
+    <div class="stats">
+      <div data-in><div class="v acc"><span class="count" data-to="2335">2,335</span></div><div class="k">backend tests passed (69 skipped)</div></div>
+      <div data-in><div class="v"><span class="count" data-to="0">0</span></div><div class="k">failed / typecheck 0 / Ruff clean</div></div>
+      <div data-in><div class="v acc"><span class="count" data-to="340">340</span></div><div class="k">frontend tests passed (44 files)</div></div>
+      <div data-in><div class="v"><span class="count" data-to="749">749</span></div><div class="k">Thai text entries, EN / TH ทุกหน้า</div></div>
+    </div>
+    <div class="under">
+      <div data-step="1"><p>One-click demo กับ dr-train</p><p>Docker package 1 และ 2</p><p>Screening report และ Referral outbox</p></div>
+      <div data-step="1"><p>Gold-100 แบบ blind</p><p>Personal model token และ security audit</p><p>SETUP_WEB_APP.bat, install.sh, Cloudflare Access kit</p></div>
+    </div>
+  </div>
+  <aside class="notes">phase 1 ส่งมอบแล้ว ตัวเลข test จาก HANDOFF ตอนปิด phase 1: backend ผ่าน 2,335 ข้าม 69 ไม่มี fail frontend ผ่าน 340 test ใน 44 ไฟล์ typecheck และ Ruff สะอาด ภาษาไทย 749 ข้อความ ทุกผลยังเป็น TEST_ONLY และเป็น single-user commissioning ชุดติดตั้งใหม่ install.sh และ Cloudflare Access kit มาทีหลังตัวเลขชุดนี้</aside>
+</section>
+
+<!-- 24 NEXT -->
+<section data-background-color="#FFFFFF" data-state="light">
+  <div class="page light">
+    <div class="stack"><div data-h="0"><h2>Next steps</h2><p>สิ่งที่ต้องทำต่อ และสิ่งที่เลื่อนไป phase 2</p></div></div>
+    <div class="cols2" style="top:340px">
+      <div data-in><h4>NEXT</h4><p>รัน package 2 บน RTX 3090 จริง ด้วยภาพ public หรือมี consent</p><p>ออกสิทธิ์ dr-train รายบุคคล</p><p>แพทย์ตรวจถ้อยคำไทยใน GradeGuide และฟอร์มรายงาน</p><p>ปิด audit open items</p></div>
+      <div data-step="1"><h4>PHASE 2 (DEFERRED)</h4><p>กฎแนะนำการส่งต่อ (ต้องมีตารางที่ลงนาม)</p><p>Vessel segmentation และ model training</p><p>DME diagnosis</p><p>เชื่อม login ของโรงพยาบาล</p></div>
+    </div>
+  </div>
+  <aside class="notes">งานต่อไป: รัน package 2 บนเครื่อง RTX 3090 จริงด้วยภาพ public หรือมี consent ออกสิทธิ์ dr-train รายบุคคล ให้แพทย์ตรวจถ้อยคำไทย และปิด audit open items ส่วน phase 2 คือกฎแนะนำการส่งต่อซึ่งต้องมีตารางที่ลงนาม vessel segmentation, model training, DME diagnosis และการเชื่อม login ของโรงพยาบาล</aside>
+</section>
+
+<!-- 25 THANK YOU -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <svg class="k-art" data-in viewBox="-110 -110 220 220" aria-hidden="true" style="opacity:.9"><use href="#fundus" x="-110" y="-110" width="220" height="220"/></svg>
+    <h1 class="k-title" data-in style="top:180px">Thank you<br><em>Q&amp;A</em></h1>
+    <div class="docs">
+      <p data-in><span class="mono">README.md</span>เริ่มต้นและติดตั้ง</p>
+      <p data-in><span class="mono">docs/ARCHITECTURE.md</span>ภาพรวมระบบ</p>
+      <p data-in><span class="mono">docs/developer/</span>configuration, dr-train, security</p>
+      <p data-in><span class="mono">deployment/*/README.md</span>web app, hospital, Cloudflare</p>
+    </div>
+  </div>
+  <aside class="notes">ขอบคุณครับ ยินดีรับคำถาม เอกสารที่ควรอ่านต่อ: README.md สำหรับเริ่มต้น docs/ARCHITECTURE.md สำหรับภาพรวม docs/developer สำหรับรายละเอียดฝั่งพัฒนา และ README ในแต่ละ deployment</aside>
+</section>
+
+</div></div>
+
+<script src="vendor/reveal/reveal.js"></script>
+<script src="vendor/reveal/notes.js"></script>
+<script src="vendor/gsap/gsap.min.js"></script>
+<script src="vendor/gsap/DrawSVGPlugin.min.js"></script>
+<script src="vendor/gsap/MotionPathPlugin.min.js"></script>
+<script src="deck.js"></script>
+</body>
+</html>
