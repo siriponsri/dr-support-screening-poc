@@ -18,7 +18,8 @@ from dr_support.services.filesystem_privacy import has_reparse_component, privat
 from scripts.qa.qualify_m1_entry_fence import AUTHORITY, DATABASE, OWNER, PLAN, RUNTIME, checked_local_parameters
 
 
-PRIVATE_DIRECTORY = Path("C:/Users/User/AppData/Local/DRScreening/M1PrivateConfig")
+# The private configuration folder of this Windows account (the same folder the demo launcher uses).
+PRIVATE_DIRECTORY = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData/Local") / "DRScreening/M1PrivateConfig"
 FILES = ("m1_runtime.env", "m1_authority.env", "credentials-staged.json", "credentials-login-proof.json")
 
 

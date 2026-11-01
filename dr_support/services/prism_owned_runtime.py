@@ -1,4 +1,7 @@
-"""Unregistered fixed-session owned-worker candidate. No startup on import.
+"""Fixed-session owned-worker runtime. No startup on import.
+
+Not created by the app: the GPU-host child (`scripts/model-server/m1_session.py`) and the workspace
+executor import it.
 
 Child owns BoundLocalPRISM; parent owns LinuxOwnedChild/WorkerSupervisor. Tests
 inject fake models, child handles and exchanges. This does NOT qualify Linux
@@ -16,7 +19,14 @@ import time
 from types import SimpleNamespace
 
 from dr_support.images import BridgeImage
-from dr_support.services.prism_remote_transport import BASE, BoundTransportHost, Principal, TransportError, canonical, sha
+from dr_support.services.prism_remote_transport import (
+    BASE,
+    BoundTransportHost,
+    Principal,
+    TransportError,
+    canonical,
+    sha,
+)
 from scripts.qa.private_gateway_auth import PrivateGatewayAuth
 from scripts.qa.worker_supervisor import ChildIdentity, WorkerSupervisor
 
@@ -42,7 +52,15 @@ class LoadedPrismExecutor:
     """Use the pinned da164ac adapter API; no custom inference/cropping loop."""
     entry_fence_port = True
 
-    def __init__(self, provider, *, expected_pins, clock=time.monotonic, load_guard=torch_load_forward_guard, demo_authorization=None):
+    def __init__(
+        self,
+        provider,
+        *,
+        expected_pins,
+        clock=time.monotonic,
+        load_guard=torch_load_forward_guard,
+        demo_authorization=None,
+    ):
         from .case16_qualification import checked_authorization
         self.demo_authorization = checked_authorization(demo_authorization)
         self.demo_prepares = self.demo_executions = 0
@@ -169,7 +187,11 @@ def child_application(executor, *, token, issue_id, epoch, clock=time.monotonic,
     from .case16_qualification import Case16Authorization, checked_authorization
     checked_authorization(authorization)
     if authorization is not None:
-        origins = frozenset({authorization.origin}) if type(authorization) is Case16Authorization else authorization.origins
+        origins = (
+            frozenset({authorization.origin})
+            if type(authorization) is Case16Authorization
+            else authorization.origins
+        )
     else:
         origins = frozenset({"SYNTHETIC"})
     principal = Principal('fixed-qa-backend', frozenset({'review-client', 'prepare-source', 'forward-authority'}))
@@ -226,17 +248,38 @@ def child_application(executor, *, token, issue_id, epoch, clock=time.monotonic,
                 from .identity_budget import identity_budget
                 with identity_budget(deadline, cancelled=identity_cancelled.is_set, clock=clock):
                     if scope['method'] == 'GET' and scope['path'] == BASE+'/readiness':
-                        pins = await asyncio.wait_for(asyncio.to_thread(executor.loaded_identity), max(.001, deadline-clock()))
+                        pins = await asyncio.wait_for(
+                            asyncio.to_thread(executor.loaded_identity), max(0.001, deadline - clock())
+                        )
                         status, value = 200, {'state': 'LOADED', 'pins': pins, 'epoch': epoch}
                     else:
                         status, value = await asyncio.wait_for(asyncio.to_thread(host.handle, scope['method'],
                             scope['path'], headers, bytes(body)), max(.001, deadline-clock()))
             except (asyncio.TimeoutError, TransportError) as error:
-                status, value = (error.status, {'error': error.code}) if isinstance(error, TransportError) else (408, {'error': 'ABSOLUTE_CONTROL_DEADLINE_NO_RETRY'})
+                status, value = (
+                    (error.status, {'error': error.code})
+                    if isinstance(error, TransportError)
+                    else (408, {'error': 'ABSOLUTE_CONTROL_DEADLINE_NO_RETRY'})
+                )
             except Exception as error:
                 # No exception text/path/checkpoint details leave this boundary.
                 kind = type(error).__name__
-                safe = kind if kind in {'RuntimeError','ValueError','TypeError','KeyError','OSError','PermissionError','FileNotFoundError','JSONDecodeError','TimeoutExpired'} else 'OTHER'
+                safe = (
+                    kind
+                    if kind
+                    in {
+                        'RuntimeError',
+                        'ValueError',
+                        'TypeError',
+                        'KeyError',
+                        'OSError',
+                        'PermissionError',
+                        'FileNotFoundError',
+                        'JSONDecodeError',
+                        'TimeoutExpired',
+                    }
+                    else 'OTHER'
+                )
                 status, value = 503, {'error': 'CONTROL_IDENTITY_OR_HANDLER_FAILED', 'error_class': safe}
             finally:
                 identity_cancelled.set()
@@ -259,7 +302,12 @@ class OwnedWorkerController:
     caller cannot use a bool or successful port connect as ownership proof.
     """
     def __init__(self, *, spawn, policy, clock=time.monotonic):
-        if policy.model_id != 'prism-dr-5fold' or policy.max_seconds > 270 or policy.drain_seconds > 25 or policy.monitor_seconds > 1:
+        if (
+            policy.model_id != 'prism-dr-5fold'
+            or policy.max_seconds > 270
+            or policy.drain_seconds > 25
+            or policy.monitor_seconds > 1
+        ):
             raise ValueError('FIXED_300_SECOND_POLICY_REQUIRED')
         self.spawn, self.policy, self.clock = spawn, policy, clock
         self.lock = RLock()
@@ -449,8 +497,17 @@ def owned_gateway_application(channel, *, token):
             import json
             headers = {k.lower(): v for k, v in scope['headers']}
             value = json.loads(body) if body else None
-            value = await asyncio.wait_for(asyncio.to_thread(channel.request, scope['method'], scope['path'], value,
-                epoch=headers.get(b'x-prism-epoch', b'').decode() or None, authority=True), max(.001, deadline-time.monotonic()))
+            value = await asyncio.wait_for(
+                asyncio.to_thread(
+                    channel.request,
+                    scope['method'],
+                    scope['path'],
+                    value,
+                    epoch=headers.get(b'x-prism-epoch', b'').decode() or None,
+                    authority=True,
+                ),
+                max(0.001, deadline - time.monotonic()),
+            )
             status = 202 if scope['method'] == 'POST' and scope['path'] == BASE+'/execute' else 200
         except Exception as error:
             channel.quarantined = True
@@ -531,7 +588,9 @@ def linux_owned_controller(argv, *, owner_scope, env, max_jobs=2):
     disk = ProjectDiskMonitor(Path('/home/siripon/projects/dr-model-api-qa'))
     from scripts.qa.gpu_monitor import GPU0Monitor
     gpu_monitor = GPU0Monitor(gpu)
-    resources = LinuxResources(Path('/home/siripon/projects/dr-model-api-qa'), disk_monitor=disk, gpu_monitor=gpu_monitor)
+    resources = LinuxResources(
+        Path('/home/siripon/projects/dr-model-api-qa'), disk_monitor=disk, gpu_monitor=gpu_monitor
+    )
     policy = Policy('prism-dr-5fold', os.getpid(), owner_scope, command_digest(argv), gpu,
                     max_jobs=max_jobs, max_seconds=270, request_seconds=30, drain_seconds=25, monitor_seconds=1)
     def spawn(*, hard_seconds):

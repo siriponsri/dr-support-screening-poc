@@ -1,4 +1,7 @@
-"""Unregistered transport client: mandatory trusted source fence, no model imports.
+"""Transport client with a mandatory trusted source fence; no model imports.
+
+Not in the provider factory: the PRISM preview service and the workspace PRISM transport
+(`providers/prism_workspace_remote.py`) build it explicitly.
 
 9488ab8's before_forward callback alone is insufficient. Authority.acquire must
 run it under a fence covering source/admission/revision/Workspace/provider
@@ -107,8 +110,13 @@ class RemoteBoundTransportCandidate:
         return self.channel.request(method, path, value, epoch=self.capabilities["epoch"], authority=authority)
 
     def _check_status_scope(self, status, binding, ticket, plan_hash, job_id):
-        if (status["job_id"] != job_id or status["epoch"] != self.capabilities["epoch"] or status["plan_sha256"] != plan_hash
-                or status["ticket_id"] != ticket["ticket_id"] or status["pins"] != binding["model_pins"]):
+        if (
+            status["job_id"] != job_id
+            or status["epoch"] != self.capabilities["epoch"]
+            or status["plan_sha256"] != plan_hash
+            or status["ticket_id"] != ticket["ticket_id"]
+            or status["pins"] != binding["model_pins"]
+        ):
             raise TransportError("JOB_CHALLENGE_SCOPE_CHANGED")
 
     def prepare_prism_preview_candidate(self, wire):
@@ -146,19 +154,28 @@ class RemoteBoundTransportCandidate:
 
     @staticmethod
     def _result(value, binding, plan_hash):
-        if value.get("preview_receipt") != {"plan_sha256": plan_hash, "wire_sha256": binding["wire_sha256"],
-                                             "mask_sha256": binding["mask_sha256"], "transform_sha256": binding["transform"]["sha256"]}:
+        if value.get("preview_receipt") != {
+            "plan_sha256": plan_hash,
+            "wire_sha256": binding["wire_sha256"],
+            "mask_sha256": binding["mask_sha256"],
+            "transform_sha256": binding["transform"]["sha256"],
+        }:
             raise TransportError("EXECUTION_RECEIPT_MISMATCH", 502)
         result = LesionResult.model_validate(value["result"])
         pins = binding["model_pins"]
-        if (result.model_id != binding["model_id"] or result.model_version != binding["model_version"]
-                or result.state != "AI_SUGGESTION" or result.modality != binding["modality"]
-                or (result.width, result.height) != (binding["wire_dimensions"]["width"], binding["wire_dimensions"]["height"])
-                or result.provenance.image_sha256 != binding["wire_sha256"]
-                or result.provenance.source_type != binding["admission"]["source_origin"]
-                or result.provenance.source_revision != pins["source_revision"]
-                or result.provenance.checkpoint_sha256 != pins["checkpoint_sha256"]
-                or result.provenance.preprocessing != pins["preprocessing"]):
+        if (
+            result.model_id != binding["model_id"]
+            or result.model_version != binding["model_version"]
+            or result.state != "AI_SUGGESTION"
+            or result.modality != binding["modality"]
+            or (result.width, result.height)
+            != (binding["wire_dimensions"]["width"], binding["wire_dimensions"]["height"])
+            or result.provenance.image_sha256 != binding["wire_sha256"]
+            or result.provenance.source_type != binding["admission"]["source_origin"]
+            or result.provenance.source_revision != pins["source_revision"]
+            or result.provenance.checkpoint_sha256 != pins["checkpoint_sha256"]
+            or result.provenance.preprocessing != pins["preprocessing"]
+        ):
             raise TransportError("RESULT_PROVENANCE_MISMATCH", 502)
         if result.modality == "UWF":
             processing = PrismProcessingEvidence.model_validate(value["processing_evidence"])
@@ -171,14 +188,22 @@ class RemoteBoundTransportCandidate:
                 raise TransportError("FALLBACK_MISMATCH", 502)
             if processing.native_roi_status == "SUCCEEDED" and binding["mask_sha256"]:
                 field = processing.analysis_field
-                if (field is None or not processing.fov_used_for_model_input
-                        or field.mask_sha256 != binding["mask_sha256"] or field.source_rgb_sha256 != binding["wire_rgb_sha256"]):
+                if (
+                    field is None
+                    or not processing.fov_used_for_model_input
+                    or field.mask_sha256 != binding["mask_sha256"]
+                    or field.source_rgb_sha256 != binding["wire_rgb_sha256"]
+                ):
                     raise TransportError("APPLIED_MASK_MISMATCH", 502)
         return value
 
     def infer_bound_prism(self, request, wire, *, mask_png, binding, plan_sha256, before_forward=None):
         # No old-style callback-only mode. No host job/load if the fence port is absent.
-        if self.authority is None or not callable(getattr(self.authority, "acquire", None)) or not callable(before_forward):
+        if (
+            self.authority is None
+            or not callable(getattr(self.authority, "acquire", None))
+            or not callable(before_forward)
+        ):
             raise TransportError("SOURCE_MUTATION_FENCE_REQUIRED", 503)
         binding = deepcopy(binding)
         if sha(canonical(binding)) != plan_sha256:
@@ -204,7 +229,9 @@ class RemoteBoundTransportCandidate:
                     # queue wait have ALREADY completed. Authority must fence
                     # every relevant mutation atomically around this callback.
                     lease = self.authority.acquire(binding, status, before_forward)
-                    if not callable(getattr(lease, "release", None)) or not callable(getattr(lease, "quarantine", None)):
+                    if not callable(getattr(lease, "release", None)) or not callable(
+                        getattr(lease, "quarantine", None)
+                    ):
                         raise TransportError("REAL_FENCE_LEASE_REQUIRED", 503)
                     grant_attempted = True
                     self._request("POST", BASE + "/jobs/" + job_id + "/grant", {

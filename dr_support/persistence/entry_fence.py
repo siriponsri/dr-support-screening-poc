@@ -1,4 +1,7 @@
-"""Unregistered authority-only PostgreSQL fence client, with bounded calls.
+"""Authority-only PostgreSQL fence client, with bounded calls.
+
+Not created by the app factory: the review-app launcher (`scripts/qa/m1_server_app.py`, serve and
+serve-regular) builds it explicitly and hands it to the workspace authority.
 
 The composed app must additionally coordinate all in-memory writers and immutable
 source checks. Neither the SQL functions nor this class authenticates arbitrary

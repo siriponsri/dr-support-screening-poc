@@ -45,17 +45,23 @@ from dr_support.services.filesystem_privacy import has_reparse_component, privat
 from scripts.qa.configure_m1_test_credentials import PRIVATE_DIRECTORY
 from scripts.qa.qualify_m1_entry_fence import AUTHORITY, DATABASE, PLAN, RUNTIME
 
-# Each person's own route (personal access, owner-approved 2026-10-31); the owner's values are the default.
-HOST = os.environ.get('DR_HOST') or 'siripon@100.77.149.83'
-SSH_KEY = os.environ.get('DR_KEY') or 'C:/Users/User/.ssh/id_ed25519_dr_train'
+# Each person's own route (personal access, owner-approved 2026-10-31). There is no default: the
+# private demo.env (see scripts/demo/demo.env.example) sets DR_HOST and DR_KEY, and anything that
+# uses SSH stops with a plain message when they are missing (require_route below).
+HOST = os.environ.get('DR_HOST') or ''
+SSH_KEY = os.environ.get('DR_KEY') or ''
 # A personal model token kept in a private local file; when set, the owner's host token is never read.
 PERSONAL_TOKEN_FILE = os.environ.get('DR_TOKEN_FILE') or ''
 # Values from a settings file go into the ssh command line, so they must not look like ssh options.
-if not re.fullmatch(r'[a-z0-9_][a-z0-9_.-]{0,31}@[A-Za-z0-9.:-]{1,253}', HOST) or SSH_KEY.startswith('-'):
+if (HOST and not re.fullmatch(r'[a-z0-9_][a-z0-9_.-]{0,31}@[A-Za-z0-9.:-]{1,253}', HOST)) or SSH_KEY.startswith('-'):
     raise SystemExit('DR_HOST must look like name@address and DR_KEY must be a file path')
 SSH = ['C:/Windows/System32/OpenSSH/ssh.exe', '-T', '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes',
        '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=10', '-i', SSH_KEY]
-REMOTE_PROJECT = '/home/siripon/projects/dr-model-api-qa'
+# The project folder on dr-train. The deployed gateway lives there, so the existing path is the default;
+# DR_REMOTE_PROJECT overrides it (a plain absolute path, because it reaches a remote shell).
+REMOTE_PROJECT = os.environ.get('DR_REMOTE_PROJECT') or '/home/siripon/projects/dr-model-api-qa'
+if not re.fullmatch(r'/[A-Za-z0-9_./-]+', REMOTE_PROJECT) or '..' in REMOTE_PROJECT:
+    raise SystemExit('DR_REMOTE_PROJECT must be a plain absolute path on dr-train')
 REMOTE_PORT = 7860
 HOST_TOKEN_PATH = REMOTE_PROJECT + '/config/private/model-api.env'
 HOST_TOKEN_READER_PATH = REMOTE_PROJECT + '/deployments/demo-batch-20261022-b03r8/base-q06'
@@ -197,7 +203,15 @@ def session_environment(*, workspace_id=None, model_port=None, token=None, publi
         os.environ.update(previous)
 
 
+def require_route():
+    """Stop with a plain message when the private settings do not name the SSH route."""
+    if not HOST or not SSH_KEY:
+        raise SystemExit('DR_HOST and DR_KEY must be set (the dr-train login name@address and the SSH key '
+                         'file). Put them in your private demo.env; see scripts/demo/demo.env.example.')
+
+
 def ssh(command, *, data=None, timeout=30):
+    require_route()
     completed = subprocess.run([*SSH, HOST, command], input=data, capture_output=True, timeout=timeout)
     require(completed.returncode == 0, 'APPROVED_SSH_COMMAND_FAILED')
     return completed.stdout
@@ -247,6 +261,7 @@ def listener_pid(port):
 def owned_tunnel(port):
     """Our own loopback forward to the host session's loopback listener."""
     require(type(port) is int and 1024 < port < 65536 and port_free(port), 'FREE_LOCAL_TUNNEL_PORT_REQUIRED')
+    require_route()
     process = subprocess.Popen([*SSH, '-N', '-o', 'ExitOnForwardFailure=yes',
                                 '-L', f'127.0.0.1:{port}:127.0.0.1:{REMOTE_PORT}', HOST],
                                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -467,8 +482,13 @@ def serve_regular(args):
 
 def remote_status(run):
     # Server acceptance and PRISM window runs; the strict charset keeps the SSH command fixed.
-    require(re.fullmatch(REMOTE_PROJECT + r'/runs/m1-(?:server|prism|service)-[A-Za-z0-9_-]{1,80}', run) is not None,
-            'APPROVED_REMOTE_RUN_REQUIRED')
+    require(
+        re.fullmatch(
+            re.escape(REMOTE_PROJECT) + r'/runs/m1-(?:server|prism|service)-[A-Za-z0-9_-]{1,80}', run
+        )
+        is not None,
+        'APPROVED_REMOTE_RUN_REQUIRED',
+    )
     return json.loads(ssh(f'cat {run}/STATUS.json'))
 
 
@@ -534,7 +554,8 @@ def verify_persisted(case, entry, models, operations):
         provenance.get('source_revision') == pins['source_revision'],
         not prism or (latest.get('preview_binding') or {}).get('model_pins') == pins,
         # Protected physician state: AI output never sets a final grade or human shapes.
-        case.get('reviewed_grade') is None or case.get('grade_review_source') in {'MANUAL', 'AI_ACCEPTED', 'AI_CORRECTED'},
+        case.get('reviewed_grade') is None
+        or case.get('grade_review_source') in {'MANUAL', 'AI_ACCEPTED', 'AI_CORRECTED'},
         all('score' not in shape for shape in case.get('human_annotations') or []),
     ]
     return latest, all(checks)

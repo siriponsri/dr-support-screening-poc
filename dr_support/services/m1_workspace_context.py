@@ -1,4 +1,7 @@
-"""Unregistered read-only binder for the approved M1 PostgreSQL test scope.
+"""Read-only binder for the approved PostgreSQL workspace scope.
+
+Not created by the app factory: the review-app launcher (`scripts/qa/m1_server_app.py`) builds it and
+`api._factory.create_app` checks its exact type when a workspace authority is passed in.
 
 No app construction, source authorization, RPC, enrichment or database writes.
 Mock connection tests are not evidence of a real authenticated runtime login.
@@ -88,11 +91,23 @@ class WorkspaceContextReader:
 
     def __init__(self, *, role_config: EntryFencePlan, database_name: str,
                  max_source_bytes: int = MAX_BYTES):
-        _require(type(role_config) is EntryFencePlan
-                 and tuple(getattr(role_config, key) for key in
-                           ('application_schema', 'guard_schema', 'owner_role', 'runtime_role', 'authority_role')) == _SCOPE
-                 and type(database_name) is str and database_name == _DATABASE,
-                 'M1_CONTEXT_APPROVED_TEST_SCOPE_REQUIRED')
+        _require(
+            type(role_config) is EntryFencePlan
+            and tuple(
+                getattr(role_config, key)
+                for key in (
+                    'application_schema',
+                    'guard_schema',
+                    'owner_role',
+                    'runtime_role',
+                    'authority_role',
+                )
+            )
+            == _SCOPE
+            and type(database_name) is str
+            and database_name == _DATABASE,
+            'M1_CONTEXT_APPROVED_TEST_SCOPE_REQUIRED',
+        )
         _require(type(max_source_bytes) is int and 0 < max_source_bytes <= MAX_BYTES,
                  'M1_CONTEXT_BOUNDED_SOURCE_REQUIRED')
         self._roles, self._database_name = role_config, database_name

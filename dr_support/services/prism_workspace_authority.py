@@ -1,4 +1,8 @@
-"""Unregistered workspace authority; trusted ports do not qualify a deployment."""
+"""Workspace authority; trusted ports do not qualify a deployment.
+
+Not created by the app factory: the review-app launcher (`scripts/qa/m1_server_app.py`) builds it and
+passes it to `api._factory.create_app`.
+"""
 from copy import deepcopy
 from datetime import datetime
 import json
@@ -79,7 +83,10 @@ class WorkspaceAuthority:
             raise TransportError("EXISTING_UNREDIRECTED_AUTHORITY_PARENT_REQUIRED", 503) from None
         self.directory.mkdir(mode=0o700, exist_ok=True)
         self.owner_path = self.directory / "workspace-authority.owner"
-        self.path, self.pending = self.directory / "workspace-authority.json", self.directory / "workspace-authority.pending"
+        self.path, self.pending = (
+            self.directory / "workspace-authority.json",
+            self.directory / "workspace-authority.pending",
+        )
         try:
             if has_reparse_component(self.directory) or not private_hospital_root(self.directory):
                 raise TransportError("PRIVATE_AUTHORITY_DIRECTORY_REQUIRED", 503)
@@ -156,8 +163,14 @@ class WorkspaceAuthority:
 
     @staticmethod
     def _validate_fence(value):
-        if (not isinstance(value, dict) or set(value) != {*STATUS_KEYS, "fence_id", "source_context_sha256", "local_plan_key"}
-                or any(not _identifier(value[key]) for key in ("epoch", "job_id", "ticket_id", "challenge_id", "fence_id"))):
+        if (
+            not isinstance(value, dict)
+            or set(value) != {*STATUS_KEYS, "fence_id", "source_context_sha256", "local_plan_key"}
+            or any(
+                not _identifier(value[key])
+                for key in ("epoch", "job_id", "ticket_id", "challenge_id", "fence_id")
+            )
+        ):
             raise TransportError("INVALID_DURABLE_AUTHORITY_SCOPE", 503)
         for key in ("plan_sha256", "source_context_sha256", "local_plan_key"):
             require_sha256(value[key])
@@ -240,22 +253,41 @@ class WorkspaceAuthority:
             case, admission = value["case"], value["admission"]
             digest = require_sha256(value["source_sha256"])
             metadata = admission.get("source_metadata") or {}
-            if (not _identifier(value["workspace_id"]) or value["image_id"] != image_id
-                    or value["workspace"].get("workspace_id") != value["workspace_id"]
-                    or case.get("image_id") != image_id or type(case.get("revision")) is not int or case["revision"] < 0
-                    or case.get("admission") != admission or value["preparation_context"] != preparation_context(case)
-                    or not source_allowed_for_model(admission.get("source_origin")) or not is_inference_eligible(admission)
-                    or admission.get("retinal_modality") not in {"CFP", "UWF"}
-                    or source_identity_reason(case, SimpleNamespace(sha256=digest), admission)
-                    or not isinstance(metadata, dict)
-                    or metadata.get("integrity_status") not in {None, "OK", "DUPLICATE_CONTENT"}
-                    or any(item is not None and item != digest for item in
-                           (case.get("source_sha256"), case.get("image_sha256"), metadata.get("source_sha256")))):
+            if (
+                not _identifier(value["workspace_id"])
+                or value["image_id"] != image_id
+                or value["workspace"].get("workspace_id") != value["workspace_id"]
+                or case.get("image_id") != image_id
+                or type(case.get("revision")) is not int
+                or case["revision"] < 0
+                or case.get("admission") != admission
+                or value["preparation_context"] != preparation_context(case)
+                or not source_allowed_for_model(admission.get("source_origin"))
+                or not is_inference_eligible(admission)
+                or admission.get("retinal_modality") not in {"CFP", "UWF"}
+                or source_identity_reason(case, SimpleNamespace(sha256=digest), admission)
+                or not isinstance(metadata, dict)
+                or metadata.get("integrity_status") not in {None, "OK", "DUPLICATE_CONTENT"}
+                or any(
+                    item is not None and item != digest
+                    for item in (
+                        case.get("source_sha256"),
+                        case.get("image_sha256"),
+                        metadata.get("source_sha256"),
+                    )
+                )
+            ):
                 raise ValueError()
             hashes = (case.get("source_sha256") or case.get("image_sha256"), admission.get("source_sha256"),
                       case.get("image_sha256") or metadata.get("source_sha256"))
-            if any(item != digest for item in hashes) or not any(item in {"OK", "DUPLICATE_CONTENT"} for item in
-                    (admission.get("integrity_status"), (admission.get("integrity") or {}).get("status"), metadata.get("integrity_status"))):
+            if any(item != digest for item in hashes) or not any(
+                item in {"OK", "DUPLICATE_CONTENT"}
+                for item in (
+                    admission.get("integrity_status"),
+                    (admission.get("integrity") or {}).get("status"),
+                    metadata.get("integrity_status"),
+                )
+            ):
                 raise ValueError()
             _pins(value["model_pins"])
             identity = objects[1].prism_preview_identity()
@@ -264,9 +296,15 @@ class WorkspaceAuthority:
                     or (admission["source_origin"] == "HOSPITAL_AUTHORIZED" and "HOSPITAL_AUTHORIZED" not in
                         identity["descriptor"].get("authorized_source_origins", []))):
                 raise ValueError()
-            recorded = dict(case_source_sha256=hashes[0], admission_source_sha256=hashes[1], image_recorded_sha256=hashes[2],
-                            integrity_status="OK", source_origin=admission["source_origin"], case_revision=case["revision"],
-                            admission_sha256=sha(canonical(admission)))
+            recorded = dict(
+                case_source_sha256=hashes[0],
+                admission_source_sha256=hashes[1],
+                image_recorded_sha256=hashes[2],
+                integrity_status="OK",
+                source_origin=admission["source_origin"],
+                case_revision=case["revision"],
+                admission_sha256=sha(canonical(admission)),
+            )
             return value, encoded, objects, recorded
         except Exception:
             raise TransportError("FULL_RECORDED_WORKSPACE_CONTEXT_REQUIRED", 503) from None
@@ -288,12 +326,26 @@ class WorkspaceAuthority:
                 if not isinstance(recorded_context, dict):
                     raise TransportError("RECORDED_PREPARE_CONTEXT_REQUIRED")
                 value, encoded, objects, recorded = self._read(wire.image_id)
-                expected = dict(scope=recorded_context.get("scope"), image_id=wire.image_id, case_revision=value["case"]["revision"],
-                                source_sha256=value["source_sha256"], wire_sha256=sha(wire.data),
-                                admission_sha256=recorded["admission_sha256"], recorded_source_identity=recorded,
-                                admission={key: value["admission"].get(key) for key in
-                                           ("source_origin", "retinal_modality", "modality_admission", "quality_state")},
-                                preparation_context=value["preparation_context"], model_pins=value["model_pins"])
+                expected = dict(
+                    scope=recorded_context.get("scope"),
+                    image_id=wire.image_id,
+                    case_revision=value["case"]["revision"],
+                    source_sha256=value["source_sha256"],
+                    wire_sha256=sha(wire.data),
+                    admission_sha256=recorded["admission_sha256"],
+                    recorded_source_identity=recorded,
+                    admission={
+                        key: value["admission"].get(key)
+                        for key in (
+                            "source_origin",
+                            "retinal_modality",
+                            "modality_admission",
+                            "quality_state",
+                        )
+                    },
+                    preparation_context=value["preparation_context"],
+                    model_pins=value["model_pins"],
+                )
                 if (not _identifier(expected["scope"]) or recorded_context != expected
                         or not isinstance(original_bytes, bytes) or not 0 < len(original_bytes) <= 20_000_000
                         or sha(original_bytes) != value["source_sha256"]):
@@ -325,13 +377,23 @@ class WorkspaceAuthority:
                     or not isinstance(binding.get("expires_at"), str) or len(binding["expires_at"]) > 100
                     or expiry is None or expiry.tzinfo is None):
                 raise TransportError("EXACT_FROZEN_WORKSPACE_PLAN_METADATA_REQUIRED")
-            if (sha(canonical(binding)) != plan_hash or not _identifier(binding.get("plan_id"))
-                    or {key: item for key, item in binding.items() if key not in {"plan_id", "generation", "expires_at"}} != frozen
-                    or snapshot.wire != self._stage["wire"] or sha(snapshot.source) != value["source_sha256"]
-                    or snapshot.runtime.store is not self._stage["objects"][0]
-                    or snapshot.runtime.provider is not self._stage["objects"][1]
-                    or any(binding.get(key) != item for key, item in self._stage["recorded"].items())
-                    or self._ready() != generation or generation != self._stage["generation"]):
+            if (
+                sha(canonical(binding)) != plan_hash
+                or not _identifier(binding.get("plan_id"))
+                or {
+                    key: item
+                    for key, item in binding.items()
+                    if key not in {"plan_id", "generation", "expires_at"}
+                }
+                != frozen
+                or snapshot.wire != self._stage["wire"]
+                or sha(snapshot.source) != value["source_sha256"]
+                or snapshot.runtime.store is not self._stage["objects"][0]
+                or snapshot.runtime.provider is not self._stage["objects"][1]
+                or any(binding.get(key) != item for key, item in self._stage["recorded"].items())
+                or self._ready() != generation
+                or generation != self._stage["generation"]
+            ):
                 raise TransportError("WORKSPACE_PLAN_HANDLE_OR_CONTEXT_CHANGED")
             key = sha(canonical(["workspace-plan-id", value["workspace_id"], value["image_id"], binding["plan_id"]]))
             if plan_hash in self._body["consumed"] or key in self._body["consumed"]:
@@ -365,7 +427,11 @@ class WorkspaceAuthority:
                 or type(status.get("forward_started")) is not bool or type(status.get("terminal")) is not bool):
             raise TransportError("MATCHING_AUTHENTICATED_OLD_JOB_REQUIRED")
         if waiting:
-            valid = status.get("state") == "WAITING_SOURCE_FENCE" and not status["forward_started"] and not status["terminal"]
+            valid = (
+                status.get("state") == "WAITING_SOURCE_FENCE"
+                and not status["forward_started"]
+                and not status["terminal"]
+            )
         else:
             valid = (status.get("state") in {"FORWARD_STARTED", "COMPLETE", "FAILED", "ABORTED"}
                      and status["terminal"] == (status["state"] in {"COMPLETE", "FAILED", "ABORTED"})

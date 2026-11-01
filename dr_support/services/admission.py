@@ -1,4 +1,14 @@
-"""Conservative, local-only image discovery and admission rules."""
+"""Conservative, local-only image discovery and admission rules.
+
+What lives here:
+- `inspect_file` / `inspect_bytes`: decode one source (raster or DICOM), hash it and build its
+  admission record (integrity, readable size, quality hints); originals are never changed.
+- `scan_input_folder`: top-level scan of a workspace input folder; the content SHA-256 is the case
+  identity, duplicates become aliases and vanished files become `SOURCE_MISSING`.
+- `scan_authorized_hospital_roots`: the same scan over administrator-approved roots.
+- `legacy_admission`, `is_inference_eligible`, `clinician_view`, `preserve_admission_timestamps`:
+  helpers the workflow uses to gate AI on a confirmed image and to show admission in the UI.
+"""
 
 from __future__ import annotations
 
@@ -819,7 +829,10 @@ def clinician_view(record: dict) -> dict:
     if record.get("retinal_modality") == "UWF":
         return {
             "label": "Image type confirmed",
-            "note": "UWF is confirmed. A compatible model capability is checked at review time; clinical review can continue manually.",
+            "note": (
+                "UWF is confirmed. A compatible model capability is checked at review time; "
+                "clinical review can continue manually."
+            ),
             "tone": "neutral",
             "action_required": False,
         }
@@ -833,14 +846,20 @@ def clinician_view(record: dict) -> dict:
     if record.get("source_origin") == "WORKSPACE":
         return {
             "label": "Manual review only",
-            "note": "This workspace source is not approved for the current model boundary. Clinical review can continue manually.",
+            "note": (
+                "This workspace source is not approved for the current model boundary. "
+                "Clinical review can continue manually."
+            ),
             "tone": "neutral",
             "action_required": False,
         }
     if record.get("source_origin") == HOSPITAL_ORIGIN:
         return {
             "label": "Private project image",
-            "note": "Approved private-project source. Model access and data export remain restricted; clinician review is authoritative.",
+            "note": (
+                "Approved private-project source. Model access and data export remain restricted; "
+                "clinician review is authoritative."
+            ),
             "tone": "neutral",
             "action_required": False,
         }

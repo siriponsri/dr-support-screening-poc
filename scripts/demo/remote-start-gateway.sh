@@ -2,9 +2,12 @@
 # Runs ON dr-train (sent over the existing SSH route by start-dr-train-demo.sh).
 # Starts the regular gateway from an existing deployment if nothing listens on 7860.
 # CPU only: the GPU child starts later, on demand, inside AI hours. Never prints the token.
-# Arguments: <deployment name> <PRISM pins path under the project> <state folder name>
+# Arguments: <deployment name> <PRISM pins path under the project> <state folder name> [project folder]
+# The project folder defaults to the deployed one in the login's home: $HOME/projects/dr-model-api-qa.
 set -eu
-P=/home/siripon/projects/dr-model-api-qa
+P=${4:-$HOME/projects/dr-model-api-qa}
+case "$P" in /*) ;; *) echo "PROJECT_PATH_REJECTED"; exit 2 ;; esac
+case "$P" in *..*|*[!A-Za-z0-9_./-]*) echo "PROJECT_PATH_REJECTED"; exit 2 ;; esac
 DEPLOY_NAME=$1
 PINS_REL=$2
 STATE_NAME=$3
