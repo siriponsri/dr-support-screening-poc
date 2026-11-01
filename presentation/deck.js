@@ -1,228 +1,211 @@
-/* Small offline slide engine for presentation/index.html. No dependencies.
-   Keys: Right / Space / PageDown next, Left / PageUp previous, Home / End, F fullscreen, O overview, H help. */
+/* Motion engine for the team deck: reveal.js handles slides and keys, GSAP draws the motion.
+   Each slide gets one paused GSAP timeline with labels s0..sN. Reveal fragments are invisible
+   "ghost" steps; fragment k plays the timeline to label s(k+1).
+
+   Data attributes on elements inside a slide:
+     data-in            fades and rises in when the slide opens (staggered in DOM order)
+     data-h="n"         headline n of the .stack (crossfaded at step n; 0 is shown on entry)
+     data-step="n"      appears at step n (paths with class .draw are drawn instead)
+     data-dim="n"       dims at step n          data-hide="n"   hides at step n
+     data-unblur="n"    comes into focus at step n
+     data-cam="s,x,y|s,x,y|..."  on an SVG <g>: camera per step (scale and offset in SVG units)
+     data-fill="a,b,c"  on .jbar: journey steps filled on entry and at each step
+     .count data-to / data-from: counts when it becomes visible
+     .pkt data-path="#id" data-dur data-delay: a packet looping along a path while the slide is open
+   A builder in CUSTOM replaces the generic timeline for one slide (data-tl="name"). */
 (function () {
   "use strict";
-  var W = 1920, H = 1080;
-  var stage = document.getElementById("stage");
-  var slides = Array.prototype.slice.call(stage.querySelectorAll(".slide"));
-  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
-  var cur = 0, step = 0, enterT = performance.now(), overview = false;
+  gsap.registerPlugin(DrawSVGPlugin, MotionPathPlugin);
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var E = "expo.out";
   var JOURNEY = ["Import", "Admission", "Patient / eye", "Confirm Image", "AI grade", "Confirm grade",
     "Annotations", "Finish image", "Report", "Referrals", "Export", "Gold-100"];
-
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".reveal .slides > section"));
   function $$(root, sel) { return Array.prototype.slice.call(root.querySelectorAll(sel)); }
-
-  /* Build journey timelines: <div class="timeline" data-map="4:1,5:2,6:3"></div>
-     Nodes before the first mapped node are shown as done. */
-  $$(document, ".timeline").forEach(function (tl) {
-    var map = {};
-    (tl.getAttribute("data-map") || "").split(",").forEach(function (p) {
-      var kv = p.split(":"); if (kv.length === 2) map[+kv[0]] = kv[1];
-    });
-    var first = Math.min.apply(null, Object.keys(map).map(Number));
-    var html = '<div class="track"><div class="tl-fill"></div></div>';
-    JOURNEY.forEach(function (label, i) {
-      var n = i + 1, attr = map[n] ? ' data-f="' + map[n] + '"' : "", cls = n < first ? " done" : "";
-      html += '<div class="tl-node' + cls + '"' + attr + '><div class="dot">' + n + '</div><div class="lbl">' + label + "</div></div>";
-    });
-    tl.innerHTML = html;
-  });
-
-  var maxSteps = slides.map(function (s) {
-    var m = 0; $$(s, "[data-f]").forEach(function (e) { m = Math.max(m, +e.getAttribute("data-f")); }); return m;
-  });
-
-  /* HUD */
-  var progress = document.getElementById("progress");
-  var countEl = document.getElementById("count");
-  var labelEl = document.getElementById("label");
-  var stepsEl = document.getElementById("steps");
-
-  function fit() {
-    var s = Math.min(window.innerWidth / W, window.innerHeight / H);
-    stage.style.transform = "translate(-50%, -50%) scale(" + s + ")";
-  }
-
+  function nums(s) { return String(s || "").split(",").map(Number); }
   function fmt(n) { return Math.round(n).toLocaleString("en-US"); }
 
-  function runCount(el) {
-    var to = +el.getAttribute("data-to");
-    if (reduce.matches || isNaN(to)) { el.textContent = fmt(to); return; }
-    var t0 = performance.now(), dur = +(el.getAttribute("data-dur") || 1400);
-    el.textContent = "0";
-    (function frame(now) {
-      var k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
-      el.textContent = fmt(to * e);
-      if (k < 1) requestAnimationFrame(frame);
-    })(t0);
-  }
+  /* journey bars */
+  $$(document, ".jbar").forEach(function (b) {
+    var h = '<div class="segs">';
+    for (var i = 0; i < 12; i++) h += "<i><b></b></i>";
+    b.innerHTML = h + '</div><div class="jcount">Step <b class="jn">0</b> / 12<span class="jname"></span></div>';
+  });
 
-  function revealed(el) {
-    var host = el.closest("[data-f]");
-    return !host || host.classList.contains("on");
-  }
-
-  function updateTimeline(s) {
-    $$(s, ".timeline").forEach(function (tl) {
-      var nodes = $$(tl, ".tl-node"), last = -1;
-      nodes.forEach(function (n, i) { if (n.classList.contains("done") || n.classList.contains("on")) last = i; });
-      tl.querySelector(".tl-fill").style.width = (last < 0 ? 0 : (last / (nodes.length - 1)) * 100) + "%";
+  function stepCount(sec) {
+    var m = 0;
+    $$(sec, "[data-step],[data-dim],[data-hide],[data-unblur],[data-h]").forEach(function (e) {
+      ["data-step", "data-dim", "data-hide", "data-unblur", "data-h"].forEach(function (a) {
+        if (e.hasAttribute(a)) m = Math.max(m, +e.getAttribute(a));
+      });
     });
+    $$(sec, "[data-cam]").forEach(function (e) { m = Math.max(m, e.getAttribute("data-cam").split("|").length - 1); });
+    $$(sec, ".jbar[data-fill]").forEach(function (e) { m = Math.max(m, nums(e.getAttribute("data-fill")).length - 1); });
+    if (sec.hasAttribute("data-steps")) m = Math.max(m, +sec.getAttribute("data-steps"));
+    return m;
   }
 
-  function applyStep(s, n, animate) {
-    $$(s, "[data-f]").forEach(function (e) {
-      var on = +e.getAttribute("data-f") <= n;
-      if (on === e.classList.contains("on")) return;
-      e.classList.toggle("on", on);
-      if (on) {
-        e._t = performance.now();
-        if (animate) {
-          $$(e, ".count").forEach(runCount);
-          if (e.classList.contains("count")) runCount(e);
-        }
+  /* ghost fragments, added before reveal.js starts */
+  slides.forEach(function (sec) {
+    var n = stepCount(sec), page = sec.querySelector(".page") || sec;
+    for (var i = 0; i < n; i++) {
+      var g = document.createElement("span");
+      g.className = "fragment ghost"; g.setAttribute("data-fragment-index", String(i));
+      page.appendChild(g);
+    }
+  });
+
+  function countTo(tl, el, pos) {
+    var to = +el.getAttribute("data-to"), from = +(el.getAttribute("data-from") || 0), o = { v: from };
+    el.textContent = fmt(from);
+    tl.to(o, { v: to, duration: 1.2, ease: "power2.out", onUpdate: function () { el.textContent = fmt(o.v); } }, pos);
+  }
+  function fillBar(tl, bar, v, pos) {
+    var segs = $$(bar, ".segs b"), jn = bar.querySelector(".jn"), name = bar.querySelector(".jname");
+    var o = { v: +jn.textContent || 0 };
+    tl.to(segs, { scaleX: function (i) { return i < v ? 1 : 0; }, duration: 0.5, stagger: 0.04, ease: "power2.out" }, pos)
+      .to(o, { v: v, duration: 0.6, ease: "power2.out", onUpdate: function () {
+        var r = Math.round(o.v); jn.textContent = r; name.textContent = JOURNEY[r - 1] || "";
+      } }, pos);
+    jn.textContent = String(v);
+  }
+  function camSpec(s) { var p = s.split(",").map(Number); return { scale: p[0], x: p[1], y: p[2] }; }
+
+  function reveal(tl, els, pos) {
+    els.forEach(function (el, i) {
+      var p = pos + i * 0.12;
+      if (el.matches && el.matches("path.draw, line.draw, polyline.draw, rect.draw, circle.draw")) {
+        tl.to(el, { drawSVG: "100%", duration: 0.8, ease: "power2.out" }, p);
+      } else {
+        tl.to(el, { autoAlpha: 1, y: 0, duration: 0.7, ease: E }, p);
+        $$(el, ".draw").forEach(function (d) { tl.to(d, { drawSVG: "100%", duration: 0.8, ease: "power2.out" }, p + 0.1); });
+        $$(el, ".count").forEach(function (c) { countTo(tl, c, p + 0.1); });
       }
     });
-    updateTimeline(s);
   }
 
-  function hud() {
-    progress.style.width = ((cur + (maxSteps[cur] ? step / (maxSteps[cur] + 1) : 0)) / (slides.length - 1 || 1)) * 100 + "%";
-    if (cur === slides.length - 1) progress.style.width = "100%";
-    countEl.innerHTML = "<b>" + (cur + 1) + "</b> / " + slides.length;
-    labelEl.textContent = slides[cur].getAttribute("data-title") || "";
-    var m = maxSteps[cur], h = "";
-    for (var i = 1; i <= m; i++) h += '<i class="' + (i <= step ? "on" : "") + '"></i>';
-    stepsEl.innerHTML = h;
-    document.getElementById("hud").classList.toggle("dark", slides[cur].classList.contains("s-title"));
-  }
-
-  function go(i, n, fromHash) {
-    i = Math.max(0, Math.min(slides.length - 1, i));
-    var changed = i !== cur || !slides[i].classList.contains("current");
-    if (changed) {
-      slides[cur].classList.remove("current");
-      cur = i;
-      var s = slides[cur];
-      // restart CSS entrance animations
-      void s.offsetWidth;
-      s.classList.add("current");
-      enterT = performance.now();
-    }
-    step = Math.max(0, Math.min(maxSteps[cur], n || 0));
-    applyStep(slides[cur], step, false);
-    if (changed) $$(slides[cur], ".count").forEach(function (c) { if (revealed(c)) runCount(c); });
-    hud();
-    if (!fromHash) {
-      var hsh = "#/" + (cur + 1);
-      if (location.hash !== hsh) history.replaceState(null, "", hsh);
-    }
-  }
-
-  function next() {
-    if (overview) return;
-    if (step < maxSteps[cur]) { step++; applyStep(slides[cur], step, true); hud(); }
-    else if (cur < slides.length - 1) go(cur + 1, 0);
-  }
-  function prev() {
-    if (overview) return;
-    if (step > 0) { step--; applyStep(slides[cur], step, false); hud(); }
-    else if (cur > 0) go(cur - 1, maxSteps[cur - 1]);
-  }
-
-  /* Overview grid */
-  function layoutOverview() {
-    var cols = 5, k = 0.18, gx = 22, gy = 22;
-    var tw = W * k, th = H * k, rows = Math.ceil(slides.length / cols);
-    var ox = (W - (cols * tw + (cols - 1) * gx)) / 2, oy = (H - (rows * th + (rows - 1) * gy)) / 2;
-    slides.forEach(function (s, i) {
-      var c = i % cols, r = Math.floor(i / cols);
-      s.style.transform = overview ? "translate(" + (ox + c * (tw + gx)) + "px," + (oy + r * (th + gy)) + "px) scale(" + k + ")" : "";
+  function generic(sec) {
+    var tl = gsap.timeline({ paused: true });
+    var n = stepCount(sec);
+    var stepEls = $$(sec, "[data-step]");
+    var inStep = function (el) { return !!(el.closest && el.closest("[data-step]")); };
+    // initial states
+    stepEls.forEach(function (el) {
+      if (el.matches("path.draw, line.draw, polyline.draw, rect.draw, circle.draw")) gsap.set(el, { drawSVG: 0 });
+      else gsap.set(el, { autoAlpha: 0, y: el.closest("svg") ? 0 : 24 });
     });
-  }
-  function toggleOverview(force) {
-    overview = typeof force === "boolean" ? force : !overview;
-    document.body.classList.toggle("overview", overview);
-    layoutOverview();
-  }
-  slides.forEach(function (s, i) {
-    s.addEventListener("click", function (ev) {
-      if (!overview) return;
-      ev.stopPropagation();
-      toggleOverview(false);
-      go(i, 0);
-    });
-  });
+    $$(sec, "[data-step] .draw").forEach(function (d) { gsap.set(d, { drawSVG: 0 }); });
+    var heads = $$(sec, ".stack > [data-h]");
+    if (heads.length) gsap.set(heads, { autoAlpha: 0 });
+    var cams = $$(sec, "[data-cam]").map(function (g) { return { g: g, specs: g.getAttribute("data-cam").split("|").map(camSpec) }; });
+    cams.forEach(function (c) { gsap.set(c.g, Object.assign({ transformOrigin: "0px 0px" }, c.specs[0])); });
+    var bars = $$(sec, ".jbar[data-fill]").map(function (b) { return { b: b, v: nums(b.getAttribute("data-fill")) }; });
+    bars.forEach(function (o) { o.b.querySelector(".jn").textContent = "0"; });
 
-  function toggleFullscreen() {
-    var d = document;
-    if (!d.fullscreenElement) { if (d.documentElement.requestFullscreen) d.documentElement.requestFullscreen().catch(function () {}); }
-    else if (d.exitFullscreen) d.exitFullscreen();
-  }
+    // entry
+    var h0 = heads.filter(function (h) { return h.getAttribute("data-h") === "0"; });
+    if (h0.length) tl.fromTo(h0, { autoAlpha: 0, y: 28 }, { autoAlpha: 1, y: 0, duration: 0.9, ease: E }, 0);
+    var ins = $$(sec, "[data-in]");
+    if (ins.length) tl.from(ins, { autoAlpha: 0, y: function (i, el) { return el.ownerSVGElement ? 0 : 30; }, duration: 0.9, ease: E, stagger: 0.08 }, 0.15);
+    var draws = $$(sec, ".draw").filter(function (d) { return !d.hasAttribute("data-step") && !inStep(d); });
+    if (draws.length) tl.from(draws, { drawSVG: 0, duration: 1.0, ease: "power2.out", stagger: 0.12 }, 0.3);
+    $$(sec, ".count").filter(function (c) { return !inStep(c); }).forEach(function (c) { countTo(tl, c, 0.4); });
+    bars.forEach(function (o) { fillBar(tl, o.b, o.v[0], 0.1); });
+    tl.addLabel("s0", Math.max(tl.duration(), 0.6));
 
-  document.addEventListener("keydown", function (e) {
-    if (e.altKey || e.ctrlKey || e.metaKey) return;
-    var k = e.key;
-    if (k === "ArrowRight" || k === " " || k === "PageDown" || k === "ArrowDown" || k === "Enter") { e.preventDefault(); next(); }
-    else if (k === "ArrowLeft" || k === "PageUp" || k === "ArrowUp" || k === "Backspace") { e.preventDefault(); prev(); }
-    else if (k === "Home") { e.preventDefault(); go(0, 0); }
-    else if (k === "End") { e.preventDefault(); go(slides.length - 1, maxSteps[slides.length - 1]); }
-    else if (k === "f" || k === "F") { toggleFullscreen(); }
-    else if (k === "o" || k === "O") { toggleOverview(); }
-    else if (k === "Escape" && overview) { toggleOverview(false); }
-    else if (k === "h" || k === "H" || k === "?") { document.body.classList.toggle("show-help"); }
-  });
-
-  /* Click / tap: left third goes back, elsewhere forward. Swipe also works. */
-  var downX = null;
-  document.addEventListener("pointerdown", function (e) { downX = e.clientX; });
-  document.addEventListener("pointerup", function (e) {
-    if (overview || downX === null) return;
-    if (e.target.closest("a, button")) { downX = null; return; }
-    var dx = e.clientX - downX; downX = null;
-    if (Math.abs(dx) > 60) { if (dx < 0) next(); else prev(); return; }
-    if (e.button !== 0) return;
-    if (e.clientX < window.innerWidth / 3) prev(); else next();
-  });
-  document.getElementById("btnPrev").addEventListener("click", function (e) { e.stopPropagation(); prev(); });
-  document.getElementById("btnNext").addEventListener("click", function (e) { e.stopPropagation(); next(); });
-
-  window.addEventListener("resize", fit);
-  window.addEventListener("hashchange", function () { fromHash(); });
-  function fromHash() {
-    var m = /^#\/(\d+)$/.exec(location.hash);
-    if (m) { var i = +m[1] - 1; if (i !== cur || !slides[i].classList.contains("current")) go(i, 0, true); }
-  }
-
-  /* Data packets travelling along SVG paths. <circle class="pkt" data-path="#id" data-dur="2600" data-delay="0"> */
-  function tick(now) {
-    var s = slides[cur];
-    if (s && !overview) {
-      $$(s, ".pkt").forEach(function (p) {
-        if (reduce.matches) { p.style.opacity = 0; return; }
-        var path = s.querySelector(p.getAttribute("data-path"));
-        var host = p.closest("[data-f]");
-        if (!path || (host && !host.classList.contains("on"))) { p.style.opacity = 0; return; }
-        var t0 = (host ? host._t : enterT) + (+(p.getAttribute("data-delay") || 0));
-        var dur = +(p.getAttribute("data-dur") || 2600), el = now - t0;
-        if (el < 0) { p.style.opacity = 0; return; }
-        var k = (el % dur) / dur, L = path.getTotalLength();
-        if (p.hasAttribute("data-reverse")) k = 1 - k;
-        var pt = path.getPointAtLength(L * k);
-        p.setAttribute("cx", pt.x.toFixed(1)); p.setAttribute("cy", pt.y.toFixed(1));
-        var edge = Math.min(k, 1 - k);
-        p.style.opacity = edge < 0.06 ? (edge / 0.06).toFixed(2) : 1;
+    for (var k = 1; k <= n; k++) {
+      var t = tl.duration(), hasCam = false;
+      cams.forEach(function (c) {
+        if (c.specs[k]) { hasCam = true; tl.to(c.g, Object.assign({ duration: 1.4, ease: "power3.inOut" }, c.specs[k]), t); }
       });
+      var hk = heads.filter(function (h) { return +h.getAttribute("data-h") === k; });
+      if (hk.length) {
+        tl.to(heads, { autoAlpha: 0, y: -16, duration: 0.35, ease: "power2.in" }, t);
+        tl.fromTo(hk, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.7, ease: E, immediateRender: false }, t + 0.3);
+      }
+      var rt = t + (hasCam ? 0.8 : 0.25);
+      reveal(tl, stepEls.filter(function (e) { return +e.getAttribute("data-step") === k; }), rt);
+      $$(sec, '[data-dim="' + k + '"]').forEach(function (e) { tl.to(e, { opacity: 0.22, duration: 0.6 }, rt); });
+      $$(sec, '[data-hide="' + k + '"]').forEach(function (e) { tl.to(e, { autoAlpha: 0, duration: 0.4 }, rt); });
+      $$(sec, '[data-unblur="' + k + '"]').forEach(function (e) {
+        tl.fromTo(e, { filter: "blur(16px)" }, { filter: "blur(0px)", duration: 1.0, ease: "power2.out", immediateRender: false }, rt);
+      });
+      bars.forEach(function (o) { if (o.v[k] !== undefined && o.v[k] !== o.v[k - 1]) fillBar(tl, o.b, o.v[k], rt); });
+      tl.addLabel("s" + k, Math.max(tl.duration(), t + 0.5));
     }
-    requestAnimationFrame(tick);
+    $$(sec, "[data-unblur]").forEach(function (e) { gsap.set(e, { filter: "blur(16px)" }); });
+    bars.forEach(function (o) { o.b.querySelector(".jn").textContent = "0"; o.b.querySelector(".jname").textContent = ""; });
+    return tl;
   }
 
-  fit();
-  var m0 = /^#\/(\d+)$/.exec(location.hash);
-  slides[0].classList.remove("current");
-  cur = m0 ? Math.max(0, Math.min(slides.length - 1, +m0[1] - 1)) : 0;
-  go(cur, 0, true);
-  requestAnimationFrame(tick);
-  document.body.classList.add("show-help");
-  setTimeout(function () { document.body.classList.remove("show-help"); }, 4000);
+  var CUSTOM = {
+    title: function (sec) {
+      var q = function (s) { return sec.querySelectorAll(s); };
+      var tl = gsap.timeline({ paused: true });
+      tl.fromTo(q(".eye"), { scale: 1.35, autoAlpha: 0, filter: "blur(18px)", transformOrigin: "50% 50%" },
+                           { scale: 1, autoAlpha: 1, filter: "blur(0px)", duration: 2.2, ease: E }, 0)
+        .from(q(".v"), { drawSVG: 0, duration: 1.4, stagger: 0.07, ease: "power2.out" }, 0.6)
+        .from(q(".k-title"), { yPercent: 18, autoAlpha: 0, duration: 1.2, ease: E }, 0.2)
+        .from(q(".k-sub"), { y: 24, autoAlpha: 0, duration: 1, ease: E }, 0.7)
+        .from(q(".k-meta span"), { autoAlpha: 0, y: 12, stagger: 0.1, duration: 0.8, ease: E }, 1.0)
+        .fromTo(q(".ai"), { autoAlpha: 0, scale: 4, transformOrigin: "50% 50%" }, { autoAlpha: 1, scale: 1, duration: 1.1, ease: E }, 1.8)
+        .fromTo(q(".hu"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6 }, 3.0)
+        .to(q(".ai"), { autoAlpha: 0, duration: 0.6 }, 3.0)
+        .addLabel("s0");
+      return tl;
+    }
+  };
+
+  /* build everything up front so hidden states apply before a slide is shown */
+  var store = new Map();
+  slides.forEach(function (sec) {
+    var tl = (CUSTOM[sec.getAttribute("data-tl")] || generic)(sec);
+    $$(sec, ".pkt").forEach(function (p) { gsap.set(p, { opacity: 0 }); });
+    store.set(sec, { tl: tl, loops: null });
+  });
+
+  /* Packets are built the first time their slide is shown: SVG geometry cannot be measured while hidden. */
+  function makeLoops(sec) {
+    return $$(sec, ".pkt").map(function (p) {
+      var path = sec.querySelector(p.getAttribute("data-path"));
+      var tw = gsap.to(p, { motionPath: { path: path, align: path, alignOrigin: [0.5, 0.5] },
+        duration: +(p.getAttribute("data-dur") || 2.4), repeat: -1, repeatDelay: 0.5, ease: "power1.inOut", paused: true,
+        onStart: function () { gsap.set(p, { opacity: 1 }); } });
+      tw._offset = +(p.getAttribute("data-delay") || 0);
+      return tw;
+    });
+  }
+  var current = null;
+  function labelFor(tl) {
+    var f = Reveal.getIndices().f, n = (typeof f === "number" ? f + 1 : 0);
+    return tl.labels["s" + n] !== undefined ? "s" + n : "s0";
+  }
+  function enter(sec) {
+    if (current && current !== sec) {
+      var old = store.get(current); if (old && old.loops) old.loops.forEach(function (l) { l.pause(); });
+    }
+    current = sec;
+    var o = store.get(sec); if (!o) return;
+    var label = labelFor(o.tl);
+    if (reduce) { o.tl.seek(label); return; }
+    if (!o.loops) o.loops = makeLoops(sec);
+    o.tl.pause(0);
+    if (label === "s0") o.tl.tweenTo("s0"); else o.tl.seek(label);
+    o.loops.forEach(function (l) { l.restart(); l.time(l._offset); });
+  }
+  function step() {
+    var o = store.get(Reveal.getCurrentSlide()); if (!o) return;
+    var label = labelFor(o.tl);
+    if (reduce) o.tl.seek(label); else o.tl.tweenTo(label);
+  }
+
+  Reveal.initialize({
+    width: 1920, height: 1080, margin: 0, minScale: 0.05, maxScale: 4,
+    center: false, controls: false, progress: true, slideNumber: "c/t", hash: true, hashOneBasedIndex: true,
+    transition: "fade", transitionSpeed: "fast", backgroundTransition: "fade",
+    plugins: [RevealNotes]
+  }).then(function () { enter(Reveal.getCurrentSlide()); });
+  Reveal.on("slidechanged", function (e) { enter(e.currentSlide); });
+  Reveal.on("fragmentshown", step);
+  Reveal.on("fragmenthidden", step);
 })();
