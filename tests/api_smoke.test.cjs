@@ -22,7 +22,7 @@ const server = spawn(venvPython, ['-m', 'uvicorn', 'dr_support.api:app', '--port
 const base = 'http://127.0.0.1:8011';
 
 async function until(fn) {
-  for (let i = 0; i < 240; i++) {
+  for (let i = 0; i < 600; i++) {   // up to 30 s for a cold start
     try { if (await fn()) return; } catch {}
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
