@@ -40,12 +40,16 @@ Tests: `test_pilot_auth`, `test_referral_outbox`, `test_screening_report`, `test
 | 14 | Model traffic may use plain http between hosts | allow http only to loopback or tunnels |
 | 15 | No global login rate limit | per-address limit and a cap on the failure table |
 | 16, 17 | Model containers run as root; the app uses the database superuser | non-root images; least-privilege role (`docs/operations/DATABASE_ROLES.md`) |
-| 18 | `HN5071` appears in old receipts and resolver tests | owner to confirm it is synthetic |
 | 21 | Session cookie has no `Secure` flag | set it when served over HTTPS |
 | 29 to 31, 33 | Error text with paths, server-side folder picker, unbounded admission reads, model API body limit | hardening items |
-| 34, 35 | Owner username and paths in examples; team portraits in presentation assets | owner to decide |
+| 34 | Owner username and paths in examples | owner to decide |
 | 37 | With sign-in off, anyone can sign under a typed name | deployments run with sign-in; label or refuse later |
 | 12 (part) | PRISM jobs are not bound to the person who prepared them | job ids are random; binding needs a gateway change |
+
+## Closed by the owner (1 November 2026)
+
+- 18 (`HN5071` in old receipts and tests) and 35 (team portraits): the owner confirmed that consent was
+  obtained for all of them. Kept as they are.
 
 ## Checked and fine
 
