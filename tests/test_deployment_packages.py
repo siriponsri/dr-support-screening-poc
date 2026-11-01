@@ -9,12 +9,17 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1] / "deployment"
 SCRIPTS = sorted((ROOT / "webapp" / "bin").glob("*.sh")) + sorted((ROOT / "hospital-server" / "bin").glob("*.sh"))
 SH = shutil.which("sh") or shutil.which("bash")
+BASH = shutil.which("bash")
 
 
 @pytest.mark.skipif(SH is None, reason="no POSIX shell on this machine")
 @pytest.mark.parametrize("script", SCRIPTS, ids=lambda path: f"{path.parent.parent.name}/{path.name}")
 def test_package_scripts_parse(script):
-    assert subprocess.run([SH, "-n", str(script)], capture_output=True).returncode == 0
+    # Parse each script with the shell its first line names (bash scripts may use arrays and [[ ]]).
+    shell = BASH if "bash" in script.read_text(encoding="utf-8").splitlines()[0] else SH
+    if shell is None:
+        pytest.skip("no bash on this machine")
+    assert subprocess.run([shell, "-n", str(script)], capture_output=True).returncode == 0
 
 
 @pytest.mark.parametrize("template", ["webapp/webapp.env.example", "hospital-server/hospital.env.example"])
