@@ -25,7 +25,7 @@ DR_APP_PORT=${DR_APP_PORT:-8010}
 DR_MODEL_PORT=${DR_MODEL_PORT:-47860}
 DR_IMAGES=${DR_IMAGES:-workspace}
 PY=${DR_PYTHON:-$REPO/.venv/Scripts/python.exe}
-# Personal access: the launcher uses this person's route and token (see docs/operations/TOKEN_DISTRIBUTION.md).
+# Personal access: the launcher uses this person's route and token (see docs/developer/DR_TRAIN_ACCESS.md).
 export DR_HOST DR_KEY
 [ -n "${DR_TOKEN_FILE:-}" ] && export DR_TOKEN_FILE
 for name in DR_DEPLOY DR_PINS_REMOTE DR_STATE DR_PINS_LOCAL DR_WORKSPACE DR_WORKSTATION; do

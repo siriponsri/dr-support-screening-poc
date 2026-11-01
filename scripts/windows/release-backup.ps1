@@ -42,6 +42,6 @@ try {
     & $python @recoveryArguments
     exit $LASTEXITCODE
 } catch {
-    Write-Host "[BLOCKED] Recovery launcher could not continue. Supply the required absolute paths/release, verify the existing private database configuration and project Python, and consult docs/operations/BACKUP_RESTORE.md. No service was started or stopped."
+    Write-Host "[BLOCKED] Recovery launcher could not continue. Supply the required absolute paths/release, verify the existing private database configuration and project Python, and consult docs/developer/BACKUP_RESTORE.md. No service was started or stopped."
     exit 2
 }

@@ -13,8 +13,8 @@ Screening and research support only; not a diagnostic device.
   driver and NVIDIA Container Toolkit. The administrator adds the service
   account to the `docker` group.
 - One GPU with 16 GB or more (24 GB recommended), 12 to 16 CPU cores, 64 GB RAM,
-  a 1 TB system disk and a separate data disk. See
-  `docs/planning/PHASE1_ALL_IN_ONE_PLAN_20261031.md` section 5.3.
+  a 1 TB system disk and a separate data disk (sizing from the phase 1 plan,
+  kept in Git tag `archive/docs-before-cut-20261101`).
 - Verified model assets on the server (they are not in the images or in Git).
   The services check them against the pinned hashes at start and refuse to run
   otherwise.

@@ -48,8 +48,8 @@ Test environment caveats:
 1. *Admission* (`services/admission.py`): scans only the workspace input folder, top level; content SHA-256 is case identity (duplicates collapse to aliases). Manual admission decisions survive rescans; vanished files become `SOURCE_MISSING`, never deleted. `retinal_modality` starts `UNKNOWN` and inference requires clinician-confirmed `CFP`.
 2. *Resolver* (`services/resolver.py`): filename-first patient key/eye; OCR is off by default; conflicts are never auto-resolved; runs once and never overwrites a manual decision.
 3. *Confirm Image* → *Confirm DR Grade* (`ACCEPT`/`CORRECT_GRADE`) → annotations (`PUT` replaces the whole human set) and AI-ROI decisions (append to `ai_annotation_reviews`; raw model output is never modified) → *Finish image* (`CONFIRM_ANNOTATIONS` stores the annotation-set hash; any later change reverts the state to requires-confirmation).
-4. *Inference*: `DerivativeService` builds a deterministic analysis image with its own SHA and a `CoordinateMapping`; all geometry stays in original-image pixels. Source SHA ≠ analysis SHA for TIFF/DICOM/UWF-masked inputs. A later AI result never resets a confirmed human grade. PRISM review requests require a prepared one-use input receipt (see `docs/operations/PRISM_INPUT_PREVIEW.md`).
-5. *Dataset export* (`services/dataset.py`): DR-ready and Lesion-ready are separate; see `docs/reference/DATASET_MANIFEST.md`.
+4. *Inference*: `DerivativeService` builds a deterministic analysis image with its own SHA and a `CoordinateMapping`; all geometry stays in original-image pixels. Source SHA ≠ analysis SHA for TIFF/DICOM/UWF-masked inputs. A later AI result never resets a confirmed human grade. PRISM review requests require a prepared one-use input receipt (see `docs/developer/MODEL_SERVER_OPERATIONS.md` section 3).
+5. *Dataset export* (`services/dataset.py`): DR-ready and Lesion-ready are separate; see `docs/developer/DATASET_MANIFEST.md`.
 
 **Clinical semantics to preserve:** an empty AI detection or empty human set means "reviewed", not "no lesions"; RETFound softmax is uncalibrated; the hospital's own `Refer/Not-refer` label is deliberately not stored in the Workbench; the only referral shown is the owner-confirmed `M1_DR_GRADE_4_REFERRAL` rule in `referral.py` (derived solely from a confirmed physician grade), and no other referral rule may be added without an approved clinical definition; the software never browses hospital storage. Pinned model identities live in `providers/retfound.py`, `providers/prism.py`, `providers/prism_assets.json`; changing them is a provenance change.
 
@@ -57,8 +57,9 @@ Test environment caveats:
 
 ## Where to read before substantial work
 
-- [HANDOFF.md](HANDOFF.md) and [GOAL.md](GOAL.md) (Thai): **read first.** HANDOFF is the latest engineering checkpoint (candidate branches/worktrees not yet in `main`, unfinished WIP, GPU request ledger and limits, things that must not be rerun or reset). GOAL defines the Hospital M1 target (two profiles `QA_SERVER` / `QA_LOCAL`), stable requirement/acceptance IDs, current status matrix, and remaining work. Both state whether engineering is paused and who owns application-code writes; reading them is not authorization to resume. They supersede the AGENTS.md remark that no separate HANDOFF.md exists.
-- `docs/manuals/developer/*.qmd`: authoritative developer guide (repo map, runtime, admission/resolver, inference, review state, API contracts, testing).
-- `docs/milestone/m1/M1_MASTER_PLAN.md` and amendments under `docs/milestone/`: normative M1 requirements and phase status. Milestone receipts are historical evidence, not runbooks.
+- [HANDOFF.md](HANDOFF.md) and [GOAL.md](GOAL.md) (Thai): **read first.** HANDOFF is the short current engineering checkpoint (main state, dr-train state, standing owner rules, open owner decisions, how to resume). GOAL is the current goal: phase 1 done, what remains, phase 2 deferred. Reading them is not authorization to resume paused work, run GPU work or change dr-train.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): system map, case flow, roles, data model, safety rules, which documents to trust, `scripts/` index.
+- `docs/developer/`: configuration, dr-train access, model server operations (regular gateway, Model API, PRISM receipts), security, dataset manifest (export contract), backup and restore.
 - `DESIGN.md`: visual/interaction source of truth.
-- `docs/operations/`: installation, configuration, Model API, security/privacy.
+- `deployment/*/README.md`: Docker packages (web app, hospital server) and other deployment paths.
+- History (full old HANDOFF and GOAL, M1 master plan, milestone specs and receipts, manuals, ADRs): Git tag `archive/docs-before-cut-20261101`. Evidence, not runbooks.

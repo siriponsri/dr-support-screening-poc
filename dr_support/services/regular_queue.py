@@ -7,7 +7,7 @@ done in an httpx transport so the existing providers, contracts and validation
 stay unchanged. Waiting is bounded; a call that never got a READY ticket was
 never sent. The backend token stays in this process; nothing here is exposed to
 the browser beyond the plain status fields of :meth:`RegularGate.public_status`.
-See docs/milestone/m1/M1_REGULAR_SERVICE_DESIGN.md.
+See M1_REGULAR_SERVICE_DESIGN.md (Git tag archive/docs-before-cut-20261101).
 """
 from __future__ import annotations
 

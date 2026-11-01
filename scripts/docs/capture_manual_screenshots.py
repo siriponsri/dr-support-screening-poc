@@ -8,7 +8,7 @@ public HRF samples (`python -m dr_support.fetch_samples`). No hospital root,
 database, model server or token is configured, so AI panels show manual
 review only; AI-dependent figures are not captured here. Uses the installed
 Microsoft Edge through Playwright. Writes PNGs to --out for review before they
-are copied into docs/manuals/clinician/screenshots/.
+are used in the Thai user manual (docs/pdfs/USER_MANUAL_TH.pdf).
 """
 from __future__ import annotations
 

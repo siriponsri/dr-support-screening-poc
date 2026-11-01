@@ -11,7 +11,7 @@ from dr_support.api import create_app
 
 
 ROOT = Path(__file__).resolve().parents[2]
-TARGET = ROOT / "docs" / "DATASET_MANIFEST_V2_EXAMPLE.json"
+TARGET = ROOT / "docs" / "developer" / "DATASET_MANIFEST_V2_EXAMPLE.json"
 
 
 def main() -> None:

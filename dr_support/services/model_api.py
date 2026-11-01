@@ -1,6 +1,6 @@
 """Standalone Remote Model API service (``APP_PROFILE=model_api``).
 
-Implements the provider contract documented in ``docs/operations/MODEL_SERVER.md`` so the
+Implements the provider contract documented in ``docs/developer/MODEL_SERVER_OPERATIONS.md`` so the
 review workstation (``APP_PROFILE=review``) can proxy to this deployment when
 ``MODEL_RUNTIME=remote``. Both profiles share the same Bridge v1 contracts,
 provider classes, and pinned upstream revisions; only the route surface differs.
@@ -78,7 +78,7 @@ log = logging.getLogger('dr_support.model_api')
 
 
 # ---------------------------------------------------------------------------
-# Request envelope (mirrors docs/operations/MODEL_SERVER.md)
+# Request envelope (mirrors docs/developer/MODEL_SERVER_OPERATIONS.md)
 # ---------------------------------------------------------------------------
 
 

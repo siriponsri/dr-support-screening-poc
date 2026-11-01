@@ -39,6 +39,6 @@ try {
     & $python @recoveryArguments
     exit $LASTEXITCODE
 } catch {
-    Write-Host "[BLOCKED] Restore launcher could not continue. Check the approved isolated test database configuration, exact target name and required new directories; consult docs/operations/BACKUP_RESTORE.md. No service was started or stopped."
+    Write-Host "[BLOCKED] Restore launcher could not continue. Check the approved isolated test database configuration, exact target name and required new directories; consult docs/developer/BACKUP_RESTORE.md. No service was started or stopped."
     exit 2
 }

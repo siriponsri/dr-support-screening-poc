@@ -1,6 +1,6 @@
 """One-time recorded source identity projection for an approved M1 workspace.
 
-Part B of docs/milestone/m1/M1_RECORDED_SOURCE_IDENTITY_AMENDMENT.md. Not part of
+Part B of M1_RECORDED_SOURCE_IDENTITY_AMENDMENT.md (Git tag archive/docs-before-cut-20261101). Not part of
 the app, UI or API, and never scheduled.
 
 Commands (all fail closed; no ACL, credential, role or schema change):

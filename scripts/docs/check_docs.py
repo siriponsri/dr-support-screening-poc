@@ -1,392 +1,108 @@
-"""Deterministic documentation QA for the canonical repository layout.
+"""Documentation checks for the cut-down layout (1 November 2026).
 
 Run from the repository root with ``python scripts/docs/check_docs.py``.
-The checker intentionally validates paths and generated-artifact boundaries so
-documentation moves cannot silently reintroduce the retired layout.
+
+Checks:
+1. every required document exists;
+2. relative links in every Markdown file (outside ignored folders) point at existing files;
+3. PDFs live only in docs/pdfs and use one of the three Thai guide names.
+   Missing guides are allowed until REQUIRE_PDFS is switched on.
+
+Older documents are recoverable from the tag ``archive/docs-before-cut-20261101``.
 """
 from __future__ import annotations
 
-import json
-import hashlib
 import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
-REGISTER = DOCS / "clinician" / "sampling" / "REQUIREMENTS_TRACEABILITY.md"
+PDF_DIR = DOCS / "pdfs"
+
 REQUIRED = [
-    DOCS / "README.md",
-    DOCS / "clinician" / "USER_WORKFLOW.md",
-    DOCS / "clinician" / "FEATURE_REFERENCE.md",
-    DOCS / "clinician" / "IMAGE_SELECTION_GUIDE.html",
-    DOCS / "clinician" / "sampling" / "index.qmd",
-    DOCS / "operations" / "INSTALLATION.md",
-    DOCS / "operations" / "MODEL_SERVER.md",
-    DOCS / "developer" / "FEATURE_IMPLEMENTATION_MAP.md",
-    DOCS / "reference" / "DATASET_MANIFEST.md",
-    DOCS / "manuals" / "clinician" / "index.qmd",
-    DOCS / "manuals" / "operator" / "index.qmd",
-    DOCS / "manuals" / "developer" / "index.qmd",
-    DOCS / "adr" / "README.md",
-    DOCS / "adr" / "architecture" / "README.md",
-    DOCS / "presentation" / "hyperframes" / "index.html",
-    DOCS / "presentation" / "README.md",
-    DOCS / "presentation" / "RETINAL_REVIEW_DEMO.html",
-    DOCS / "presentation" / "TECHNICAL_BRIEFING.html",
+    "README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "DESIGN.md",
+    "HANDOFF.md",
+    "GOAL.md",
+    "README_START_HERE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "LICENSE",
+    "docs/README.md",
+    "docs/ARCHITECTURE.md",
+    "docs/developer/CONFIGURATION.md",
+    "docs/developer/DR_TRAIN_ACCESS.md",
+    "docs/developer/MODEL_SERVER_OPERATIONS.md",
+    "docs/developer/SECURITY.md",
+    "docs/developer/DATASET_MANIFEST.md",
+    "docs/developer/BACKUP_RESTORE.md",
 ]
+
+# The three Thai guides. The later PDF step sets REQUIRE_PDFS = True.
 PDF_NAMES = {
-    "CLINICIAN_USER_MANUAL.pdf",
-    "CLINICIAN_IMAGE_SELECTION_GUIDE.pdf",
-    "DEPLOYMENT_OPERATIONS_MANUAL.pdf",
-    "DEVELOPER_TECHNICAL_GUIDE.pdf",
-    "IMAGE_SAMPLING_REQUIREMENTS.pdf",
+    "DEPLOYMENT_GUIDE_TH.pdf",
+    "TEST_REPORT_TH.pdf",
+    "USER_MANUAL_TH.pdf",
 }
-# Owner-provided source material stays at the repository root and is never a
-# published artifact. Keep this allowlist exact so other PDFs cannot drift out
-# of docs/pdfs unnoticed.
-LOCAL_SOURCE_PDFS = {ROOT / "ICOGuidelinesforDiabeticEyeCare.pdf"}
-TEMPORARY = {
-    "CLINICIAN_UI_FLOW_REDESIGN_PATCH.md",
-    "FULL_HYPERFRAMES_OPHTHALMOLOGIST_PRESENTATION_PATCH.md",
-    "PHASE3_SETUP_AND_DOCS_INFORMATION_ARCHITECTURE_PATCH.md",
-    "CLINICIAN_SINGLE_LINE_FLOW_V2_PATCH.md",
-    "FULL_PRESENTATION_REBUILD_MOTION_V2_PATCH.md",
-}
-RETIRED_PATHS = (
-    "docs/demo",
-    "docs\\demo",
-    "docs/image-selection",
-    "docs\\image-selection",
-    "docs/operator-manual",
-    "docs\\operator-manual",
-    "docs/developer-manual",
-    "docs\\developer-manual",
-    "docs/manual/",
-    "docs\\manual\\",
-    "docs/technical/",
-)
-CANONICAL_TOPIC_OWNERS = {
-    "clinician-workflow": DOCS / "manuals" / "clinician" / "index.qmd",
-    "workstation-lifecycle": DOCS / "operations" / "INSTALLATION.md",
-    "model-api": DOCS / "operations" / "MODEL_SERVER.md",
-    "developer-guide": DOCS / "manuals" / "developer" / "index.qmd",
-    "presentations": DOCS / "presentation" / "README.md",
-}
-TOPIC = re.compile(r"<!--\s*canonical-topic:\s*([a-z0-9-]+)\s*-->", re.I)
-STALE_CONSUMERS = (
-    ("py -3.12", "use the uv-managed Python path"),
-    ("pip install -e", "use uv sync"),
-    ("send for senior review", "the current UI requires an explicit final DR grade"),
-    ("senior-review path", "the current UI requires an explicit final DR grade"),
-    ("save & next", "the current UI exposes Save draft and explicit confirmation"),
-    ("edit annotations", "the current UI page is Annotation Editor"),
-    ("use as human annotation", "the AI ROI card exposes only Confirm / Remove / Close"),
-    ("save draft only", "autosave runs in the background; Finish image & next finishes the image"),
-    ("confirm dr grade & next", "Confirm DR Grade continues to the Annotation Editor"),
-    ("confirm final dr grade & next", "Confirm DR Grade continues to the Annotation Editor"),
-)
+REQUIRE_PDFS = False
+
+# Folders that are never part of the published documentation.
+IGNORED_DIRS = {".git", ".archives", "local-state", "node_modules", "dist", ".venv", "__pycache__"}
+
 LINK = re.compile(r"!?\[[^\]]*\]\(([^)\s#]+)(?:#[^)]*)?\)")
-ID = re.compile(r"IMG-SAMP-\d{3}")
+CODE_BLOCK = re.compile(r"```.*?```", flags=re.S)
 
 
-def text_sources() -> list[Path]:
-    files = [ROOT / "README.md", ROOT / "AGENTS.md", *DOCS.rglob("*.md"), *DOCS.rglob("*.qmd")]
-    return sorted({f for f in files if f.exists() and "node_modules" not in f.parts})
-
-
-def path_sources() -> list[Path]:
-    roots = [
-        ROOT / "PRESENT_DEMO.cmd",
-        ROOT / "PRESENT_TECHNICAL.cmd",
-        ROOT / "FIRST_RUN.bat",
-        ROOT / "START_DR_SCREENING.bat",
-        ROOT / "STOP_DR_SCREENING.bat",
-        ROOT / "CHECK_SYSTEM.bat",
-        *((ROOT / "scripts").rglob("*.py") if (ROOT / "scripts").exists() else []),
-        *((ROOT / "scripts").rglob("*.ps1") if (ROOT / "scripts").exists() else []),
-    ]
-    checker = Path(__file__).resolve()
-    return sorted({f for f in [*text_sources(), *roots] if f.exists() and f.resolve() != checker})
+def walk(pattern: str) -> list[Path]:
+    """Files matching ``pattern`` under the repository, skipping ignored folders."""
+    return sorted(
+        path for path in ROOT.rglob(pattern)
+        if path.is_file() and not IGNORED_DIRS.intersection(path.relative_to(ROOT).parts)
+    )
 
 
 def check_required() -> list[str]:
-    return [f"missing canonical document: {path.relative_to(ROOT)}" for path in REQUIRED if not path.exists()]
+    return [f"missing required document: {name}" for name in REQUIRED if not (ROOT / name).exists()]
 
 
 def check_links(files: list[Path]) -> list[str]:
     errors: list[str] = []
     for source in files:
-        text = re.sub(r"```.*?```", "", source.read_text(encoding="utf-8"), flags=re.S)
+        text = CODE_BLOCK.sub("", source.read_text(encoding="utf-8"))
         for target in LINK.findall(text):
             if target.startswith(("http://", "https://", "mailto:", "@")):
                 continue
-            path = (source.parent / target).resolve()
-            if not path.exists():
-                errors.append(f"{source.relative_to(ROOT)}: missing link target {target}")
+            if not (source.parent / target).resolve().exists():
+                errors.append(f"{source.relative_to(ROOT).as_posix()}: missing link target {target}")
     return errors
 
 
-HTML_LINK = re.compile(r"(?:src|href)=\"([^\"]+)\"")
-
-
-def check_html_links(files: list[Path]) -> list[str]:
+def check_pdfs() -> list[str]:
     errors: list[str] = []
-    for source in files:
-        text = source.read_text(encoding="utf-8")
-        for target in HTML_LINK.findall(text):
-            if target.startswith(("http://", "https://", "data:", "mailto:", "#", "javascript:")):
-                continue
-            target_path = target.split("#", 1)[0].split("?", 1)[0]
-            if not target_path:
-                continue
-            path = (source.parent / target_path).resolve()
-            if not path.exists():
-                errors.append(f"{source.relative_to(ROOT)}: missing HTML link target {target}")
+    for pdf in walk("*.pdf"):
+        name = pdf.relative_to(ROOT).as_posix()
+        if pdf.parent != PDF_DIR:
+            errors.append(f"PDF outside docs/pdfs: {name}")
+        elif pdf.name not in PDF_NAMES:
+            errors.append(f"unexpected PDF (allowed: {', '.join(sorted(PDF_NAMES))}): {name}")
+    present = {pdf.name for pdf in PDF_DIR.glob("*.pdf")} if PDF_DIR.exists() else set()
+    for missing in sorted(PDF_NAMES - present):
+        if REQUIRE_PDFS:
+            errors.append(f"missing PDF: docs/pdfs/{missing}")
+        else:
+            print(f"not yet built (allowed for now): docs/pdfs/{missing}")
     return errors
-
-
-def check_ids(files: list[Path]) -> list[str]:
-    if not REGISTER.exists():
-        return [f"missing requirements register: {REGISTER.relative_to(ROOT)}"]
-    defined = set(re.findall(r"^\| (IMG-SAMP-\d{3}) \|", REGISTER.read_text(encoding="utf-8"), flags=re.M))
-    errors: list[str] = []
-    for source in files:
-        for ident in sorted(set(ID.findall(source.read_text(encoding="utf-8")))):
-            if ident not in defined:
-                errors.append(f"{source.relative_to(ROOT)}: unknown requirement {ident}")
-    print(f"requirements register: {len(defined)} IMG-SAMP requirements")
-    return errors
-
-
-def check_paths(files: list[Path]) -> list[str]:
-    errors: list[str] = []
-    for source in files:
-        text = source.read_text(encoding="utf-8")
-        for retired in RETIRED_PATHS:
-            if retired in text:
-                errors.append(f"{source.relative_to(ROOT)}: retired path reference {retired}")
-    return errors
-
-
-def _normalized_words(text: str) -> list[str]:
-    text = re.sub(r"```.*?```", " ", text, flags=re.S)
-    text = re.sub(r"`[^`]*`", " ", text)
-    return re.findall(r"[a-z0-9]+", text.lower())
-
-
-def check_semantic_duplicates(files: list[Path]) -> list[str]:
-    """Catch duplicate canonical topics and near-copy source documents.
-
-    The topic marker gives important sources an explicit owner. The token
-    comparison catches a copied quick reference that has not been marked yet,
-    while ignoring short shared safety notices.
-    """
-    errors: list[str] = []
-    topic_paths: dict[str, list[Path]] = {}
-    documents: list[tuple[Path, list[str], set[tuple[str, ...]]]] = []
-    for source in files:
-        if source.suffix.lower() not in {".md", ".qmd"}:
-            continue
-        text = source.read_text(encoding="utf-8")
-        for topic in TOPIC.findall(text):
-            topic_paths.setdefault(topic.lower(), []).append(source)
-        words = _normalized_words(text)
-        if len(words) >= 80:
-            shingles = set(zip(words, words[1:], words[2:], words[3:], words[4:]))
-            documents.append((source, words, shingles))
-
-    for topic, expected in CANONICAL_TOPIC_OWNERS.items():
-        marked = topic_paths.get(topic, [])
-        expected = expected.resolve()
-        if not marked:
-            errors.append(f"canonical topic has no owner marker: {topic} (expected {expected.relative_to(ROOT)})")
-        elif expected not in [path.resolve() for path in marked]:
-            errors.append(f"canonical topic owner mismatch: {topic} (expected {expected.relative_to(ROOT)})")
-    for topic, paths in topic_paths.items():
-        if len(paths) > 1:
-            errors.append(f"duplicate canonical topic marker {topic}: {', '.join(str(p.relative_to(ROOT)) for p in paths)}")
-
-    for index, (left, left_words, left_shingles) in enumerate(documents):
-        for right, right_words, right_shingles in documents[index + 1:]:
-            if left.parent == right.parent and left.name == "README.md":
-                continue
-            smaller = min(len(left_shingles), len(right_shingles))
-            if smaller < 60:
-                continue
-            overlap = len(left_shingles & right_shingles) / smaller
-            if overlap >= 0.82:
-                errors.append(
-                    f"semantic duplicate source pair ({overlap:.0%} overlap): "
-                    f"{left.relative_to(ROOT)} and {right.relative_to(ROOT)}"
-                )
-    return errors
-
-
-def check_stale_consumers(files: list[Path]) -> list[str]:
-    errors: list[str] = []
-    for source in files:
-        if source.resolve() == (ROOT / "AGENTS.md").resolve():
-            continue
-        text = source.read_text(encoding="utf-8").lower()
-        for phrase, guidance in STALE_CONSUMERS:
-            if phrase in text:
-                errors.append(f"{source.relative_to(ROOT)}: stale consumer '{phrase}' ({guidance})")
-    return errors
-
-
-def check_artifacts() -> list[str]:
-    errors: list[str] = []
-    all_pdfs = list(ROOT.rglob("*.pdf"))
-    for pdf in all_pdfs:
-        if pdf in LOCAL_SOURCE_PDFS:
-            continue
-        if ROOT / "dist" in pdf.parents:
-            continue
-        if pdf.parent != DOCS / "pdfs":
-            errors.append(f"published PDF outside docs/pdfs: {pdf.relative_to(ROOT)}")
-    actual = {path.name for path in (DOCS / "pdfs").glob("*.pdf")} if (DOCS / "pdfs").exists() else set()
-    for expected in sorted(PDF_NAMES - actual):
-        errors.append(f"missing published PDF: docs/pdfs/{expected}")
-    unexpected = actual - PDF_NAMES
-    errors.extend(f"unexpected published PDF: docs/pdfs/{name}" for name in sorted(unexpected))
-    digest_paths: dict[str, list[Path]] = {}
-    # Quarto writes a staging copy under the ignored dist/ tree before this
-    # script copies the canonical published PDF into docs/pdfs. That staging
-    # copy is expected and must not count as a second published artifact.
-    published_pdfs = [
-        path for path in all_pdfs
-        if path not in LOCAL_SOURCE_PDFS and ROOT / "dist" not in path.parents
-    ]
-    for artifact in published_pdfs:
-        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-        digest_paths.setdefault(digest, []).append(artifact)
-    for paths in digest_paths.values():
-        if len(paths) > 1:
-            errors.append("duplicate generated artifact bytes: " + ", ".join(str(path.relative_to(ROOT)) for path in paths))
-    generated_outputs = {
-        DOCS / "presentation" / "RETINAL_REVIEW_DEMO.html": DOCS / "presentation" / "hyperframes" / "index.html",
-        DOCS / "presentation" / "TECHNICAL_BRIEFING.html": DOCS / "presentation" / "src" / "TECHNICAL_BRIEFING.source.html",
-    }
-    for output, source in generated_outputs.items():
-        if not output.exists():
-            continue
-        marker = f"{source.relative_to(ROOT).as_posix()}"
-        if marker not in output.read_text(encoding="utf-8"):
-            errors.append(f"generated output is not tied to its canonical source: {output.relative_to(ROOT)}")
-    for spec in sorted(TEMPORARY):
-        if (ROOT / spec).exists():
-            errors.append(f"temporary execution spec remains: {spec}")
-    return errors
-
-
-def check_presentation(path: Path) -> list[str]:
-    if not path.exists():
-        return [f"missing presentation: {path.relative_to(ROOT)}"]
-    html = path.read_text(encoding="utf-8")
-    errors: list[str] = []
-    if re.search(r'<(script|img|link)[^>]+(?:src|href)="https?:', html):
-        errors.append(f"{path.relative_to(ROOT)}: loads a network resource")
-    if re.search(r'<img[^>]+src="(?!data:)', html):
-        errors.append(f"{path.relative_to(ROOT)}: image is not inlined; rebuild with build_docs.py")
-    if "application/hyperframes-slideshow+json" in html:
-        match = re.search(
-            r'<script[^>]+type="application/hyperframes-slideshow\+json"[^>]*>(.*?)</script>',
-            html,
-            flags=re.S,
-        )
-        if not match:
-            return [f"{path.relative_to(ROOT)}: missing HyperFrames slideshow manifest"]
-        try:
-            manifest = json.loads(match.group(1))
-        except json.JSONDecodeError as exc:
-            return [f"{path.relative_to(ROOT)}: invalid HyperFrames manifest: {exc}"]
-        scenes = {
-            scene_id
-            for scene_id in re.findall(r'data-composition-id="([^"]+)"', html)
-        }
-        refs = [*manifest.get("slides", [])]
-        for sequence in manifest.get("slideSequences", []):
-            refs.extend(sequence.get("slides", []))
-        for ref in refs:
-            if ref.get("sceneId") not in scenes:
-                errors.append(f"{path.relative_to(ROOT)}: manifest references missing scene {ref.get('sceneId')}")
-        if len(manifest.get("slides", [])) < 16:
-            errors.append(f"{path.relative_to(ROOT)}: HyperFrames main line has fewer than 16 slides")
-    return errors
-
-
-def check_offline() -> list[str]:
-    return [error for page in (DOCS / "presentation").glob("*.html") for error in check_presentation(page)]
-
-
-def check_hyperframes_source() -> list[str]:
-    path = DOCS / "presentation" / "hyperframes" / "index.html"
-    if not path.exists():
-        return [f"missing HyperFrames source: {path.relative_to(ROOT)}"]
-    html = path.read_text(encoding="utf-8")
-    errors: list[str] = []
-    match = re.search(
-        r'<script[^>]+type="application/hyperframes-slideshow\+json"[^>]*>(.*?)</script>',
-        html,
-        flags=re.S,
-    )
-    if not match:
-        return [f"{path.relative_to(ROOT)}: missing HyperFrames slideshow manifest"]
-    try:
-        manifest = json.loads(match.group(1))
-    except json.JSONDecodeError as exc:
-        return [f"{path.relative_to(ROOT)}: invalid HyperFrames manifest: {exc}"]
-    scenes = set(re.findall(r'data-composition-id="([^"]+)"', html))
-    refs = [*manifest.get("slides", [])]
-    for sequence in manifest.get("slideSequences", []):
-        refs.extend(sequence.get("slides", []))
-    for ref in refs:
-        if ref.get("sceneId") not in scenes:
-            errors.append(f"{path.relative_to(ROOT)}: manifest references missing scene {ref.get('sceneId')}")
-    if len(manifest.get("slides", [])) < 19:
-        errors.append(f"{path.relative_to(ROOT)}: HyperFrames main line has fewer than 19 scenes")
-    sequences = {sequence.get("id"): sequence for sequence in manifest.get("slideSequences", [])}
-    if len(sequences.get("clinical-questions", {}).get("slides", [])) < 2:
-        errors.append(f"{path.relative_to(ROOT)}: clinical validation branch is incomplete")
-    errors.extend(check_html_links([path]))
-    return errors
-
-
-def report_pdfs() -> list[str]:
-    pdfinfo = shutil.which("pdfinfo")
-    for pdf in sorted((DOCS / "pdfs").glob("*.pdf")):
-        if not pdfinfo:
-            print(f"{pdf.name}: present (pdfinfo not installed)")
-            continue
-        result = subprocess.run([pdfinfo, str(pdf)], capture_output=True, text=True, check=False)
-        pages = next((line.split(":", 1)[1].strip() for line in result.stdout.splitlines() if line.startswith("Pages:")), "?")
-        print(f"{pdf.name}: {pages} pages")
-    return []
 
 
 def main() -> int:
-    files = text_sources()
-    path_files = path_sources()
-    errors = [
-        *check_required(),
-        *check_links(files),
-        *check_html_links(sorted(DOCS.rglob("*.html"))),
-        *check_ids(files),
-        *check_paths(path_files),
-        *check_stale_consumers(path_files),
-        *check_semantic_duplicates(files),
-        *check_artifacts(),
-        *check_offline(),
-        *check_hyperframes_source(),
-        *report_pdfs(),
-    ]
+    markdown = walk("*.md")
+    errors = [*check_required(), *check_links(markdown), *check_pdfs()]
     if errors:
         print("Documentation QA failed:\n- " + "\n- ".join(errors))
         return 1
-    print(f"Documentation QA passed ({len(files)} Markdown/Quarto sources).")
+    print(f"Documentation QA passed ({len(markdown)} Markdown files).")
     return 0
 
 
