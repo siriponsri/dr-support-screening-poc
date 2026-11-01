@@ -1,6 +1,7 @@
-"""Windows tools for a bounded Hospital M1 QA_SERVER acceptance run.
+"""Review-app launcher for the one-click demo (behind scripts/demo/start-dr-train-demo.sh).
 
-This is not the installed persistent hospital service or its restart manager.
+Formerly scripts/qa/m1_server_app.py; the demo uses `serve-regular`. This is not the installed
+persistent hospital service or its restart manager.
 
 Commands (all fail closed; no ACL, credential, role or schema change):
 
@@ -43,7 +44,7 @@ from psycopg.conninfo import conninfo_to_dict
 
 from dr_support.services.filesystem_privacy import has_reparse_component, private_hospital_root
 from scripts.qa.configure_m1_test_credentials import PRIVATE_DIRECTORY
-from scripts.qa.qualify_m1_entry_fence import AUTHORITY, DATABASE, PLAN, RUNTIME
+from scripts.demo.database_settings import AUTHORITY, DATABASE, PLAN, RUNTIME
 
 # Each person's own route (personal access, owner-approved 2026-10-31). There is no default: the
 # private demo.env (see scripts/demo/demo.env.example) sets DR_HOST and DR_KEY, and anything that
@@ -326,7 +327,7 @@ def compose(workspace_id, prism_pins, model_port, token, regular_gate=None, publ
     from dr_support.persistence.entry_fence import PostgresEntryFence
     from dr_support.providers.prism_remote_bound import ExplicitHttpChannel
     from dr_support.providers.prism_workspace_remote import WorkspaceRemotePRISM, WorkspaceStatusReader
-    from dr_support.services.m1_workspace_context import WorkspaceContextReader
+    from dr_support.services.workspace_context import WorkspaceContextReader
     from dr_support.services.prism_workspace_authority import WorkspaceAuthority
     transport = httpx.HTTPTransport(retries=0)
     if regular_gate is not None:

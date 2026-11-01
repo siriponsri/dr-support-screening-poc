@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts.qa import m1_server_app as launcher
+from scripts.demo import server_app as launcher
 
 
 @pytest.fixture

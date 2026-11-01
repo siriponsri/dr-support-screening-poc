@@ -36,7 +36,7 @@ from dr_support.providers.remote import (
 )
 
 from ..imaging import DerivativeError, DerivativePayloadTooLargeError, map_lesion_result_to_review
-from ..phase3_registry import capability_descriptors, descriptor_for
+from ..capability_registry import capability_descriptors, descriptor_for
 from ..services.admission import is_inference_eligible, legacy_admission
 from ..services.capability_routing import CapabilityRoutingError, route_capability
 from ..services.prism_preview import PrismPreviewService, install_prism_preview_routes

@@ -28,7 +28,7 @@ class SyntheticFenceAuthority:
     new host epoch or missing old job cannot clear quarantine. No TTL exists.
     """
     def __init__(self, directory, *, authenticated_status_reader, demo_authorization=None):
-        from .case16_qualification import checked_authorization
+        from .qualification_attestation import checked_authorization
         self.demo_authorization = checked_authorization(demo_authorization)
         if self.demo_authorization is not None and Path(directory).exists():
             raise TransportError("FRESH_CASE16_JOURNAL_REQUIRED")

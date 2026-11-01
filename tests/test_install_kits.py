@@ -238,7 +238,7 @@ def _raw_request(port, method, path, headers, body=b""):
 
 @pytest.fixture
 def demo_app_server(tmp_path, monkeypatch):
-    """The review app served exactly like scripts/qa/m1_server_app.py does: uvicorn.run(app, host=127.0.0.1)."""
+    """The review app served exactly like scripts/demo/server_app.py does: uvicorn.run(app, host=127.0.0.1)."""
     import uvicorn
     from dr_support.api._factory import create_app
     from dr_support.services.pilot_auth import UserStore

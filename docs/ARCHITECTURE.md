@@ -23,14 +23,26 @@ Review app (FastAPI, APP_PROFILE=review, MODEL_RUNTIME=remote)
 | Review app | `dr_support/` | `dr_support/run.py` -> `dr_support/app.py:create_app` -> `api/_factory.py:create_app` |
 | Model API (GPU) | same package, `APP_PROFILE=model_api` | `services/model_api.py` |
 | Regular gateway (dr-train) | `scripts/model-server/regular_service.py` | daily authority `regular_authority.py` (calls, GPU-seconds, AI hours, tickets, audit chain) |
-| QA launcher | `scripts/qa/m1_server_app.py` | `serve-regular` (app + SSH tunnel + queue) |
+| Demo launcher | `scripts/demo/server_app.py` | `serve-regular` (app + SSH tunnel + queue); database names in `scripts/demo/database_settings.py` |
 | One-click demo | `scripts/demo/` | desktop shortcut "DR Screening Demo" |
 | Frontend | `frontend/src/` | `routes.tsx`, pages in `pages/`, API client `lib/api.ts` (re-exports `apiTypes.ts`, `apiClient.ts`, `apiLabels.ts`), i18n `lib/i18n.tsx` |
 | Docker | `deployment/webapp` (package 1), `deployment/hospital-server` (package 2), base `deployment/dual-mode` | `bin/start.sh` |
 
+Backend layout (`dr_support/`):
+
+| Area | Files |
+| --- | --- |
+| App composition | `api/_factory.py:create_app`; `api/model_connection.py` (Model API connection, model lists), `api/inference.py` (`infer()`, PRISM preview, `/v1` and `/v2` inference), `api/batches.py` (daily batch) |
+| Review workflow | `workflow.py` (shared case helpers, request contracts) and `workflow_routes/` (`cases`, `images`, `review`, `confirm`, `annotations`, `cvat`) |
+| Export | `services/dataset.py` (rows and manifest) with `dataset_common.py`, `dataset_snapshot.py`, `dataset_grouped.py` |
+| Contracts and registry | `contracts/` (`model_context.py` holds the `/v2` envelope classes), `capability_registry.py` |
+| Old names | `contracts/phase3.py`, `phase3_registry.py`, `services/m1_workspace_context.py`, `services/case16_qualification.py` only point at the renamed modules |
+
+The legacy static page at `/ui` and its `web/` folder were removed; the React app at `/app/` is the only UI.
+
 Runtime profiles fail hard on a wrong combination (no silent fallback): `review`+`remote`,
 `model_api`+`local` (CUDA required), `full`+`local` (dev/demo only). `dr_support.api:app` is a legacy
-entry used only by root smoke tests.
+entry used only by the root API smoke test.
 
 ## 2. Case flow
 
@@ -103,9 +115,9 @@ When code and a document disagree, the code and its tests win; fix the document.
 | Folder | Live entry points | Notes |
 | --- | --- | --- |
 | `scripts/windows/` | `release-*.ps1` behind the root `*.bat` launchers | no-code workstation start, stop, check, backup, restore |
-| `scripts/demo/` | one-click "DR Screening Demo" (`start-dr-train-demo.*`, `remote-start-gateway.sh`) | owner workstation only |
-| `scripts/model-server/` | `regular_service.py`, `regular_authority.py` (dr-train gateway); `setup.sh`, `start.sh`, `healthcheck.sh` (GPU host); `admin/create-restricted-user.sh` | `m1_session.py` is the GPU child the gateway starts; the other `m1_*.py` and `demo_session.py` come from the closed M1 GPU windows but are still imported or tested, so check imports before removing |
-| `scripts/qa/` | `m1_server_app.py` (`serve-regular` review app launcher), `check_export_folder.py` | the monitors and supervisor are used by the gateway; `qualify_*`, `batch_runtime/`, `m1_local_acceptance.py`, `m1_recorded_source_projection.py` are historical M1 evidence tools |
+| `scripts/demo/` | one-click "DR Screening Demo" (`start-dr-train-demo.*`, `remote-start-gateway.sh`), review-app launcher `server_app.py` (`serve-regular`), `database_settings.py` | owner workstation only; DR_HOST and DR_KEY come from the private `demo.env` |
+| `scripts/model-server/` | `regular_service.py`, `regular_authority.py` (dr-train gateway); `setup.sh`, `start.sh`, `healthcheck.sh` (GPU host); `admin/create-restricted-user.sh` | a pinned deployment copied to dr-train: leave the content alone. `m1_session.py` is the GPU child the gateway starts (it imports `m1_watchdog.py`, `m1_operations.py`); `m1_proposal.py` and `demo_session.py` come from the closed M1 GPU windows and are still tested |
+| `scripts/qa/` | `configure_m1_test_credentials.py` (test database logins), `configure_local_runtime_role.py` (used by `release-common.ps1`) | `worker_supervisor.py`, `linux_owned_child.py`, `gpu_monitor.py`, `disk_monitor.py`, `private_gateway_auth.py` are used by the gateway and GPU child; `batch_runtime/` is pinned like `scripts/model-server/`. The one-off M1 qualification and acceptance tools were removed (archive tag) |
 | `scripts/release/` | `build_release.py` (workstation and Model API ZIPs) | see its README |
-| `scripts/audit/` | `check_repo_hygiene.py`, deployment and Gold plan validators | offline checks used by tests |
+| `scripts/audit/` | `check_repo_hygiene.py` | offline check used by tests |
 | `scripts/docs/` | `check_docs.py`, `capture_manual_screenshots.py`, `generate_manifest_example.py` | the Thai PDF builder comes in a later step (the old Quarto `build_docs.py` is in the archive tag) |

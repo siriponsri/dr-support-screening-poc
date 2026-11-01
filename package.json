@@ -1,12 +1,8 @@
 {
-  "name": "dr-support-screening-poc-ui-tests",
+  "name": "dr-support-screening-poc-smoke-tests",
   "private": true,
-  "description": "Retinal Review Workbench release smoke tests",
+  "description": "Retinal Review Workbench root API smoke test",
   "scripts": {
-    "test": "node tests/overlay.test.cjs && node tests/api_hardening.test.cjs && node tests/ui.test.cjs",
-    "test:overlay": "node tests/overlay.test.cjs"
-  },
-  "devDependencies": {
-    "jsdom": "26.1.0"
+    "test": "node tests/api_smoke.test.cjs"
   }
 }

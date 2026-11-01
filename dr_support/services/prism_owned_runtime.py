@@ -61,7 +61,7 @@ class LoadedPrismExecutor:
         load_guard=torch_load_forward_guard,
         demo_authorization=None,
     ):
-        from .case16_qualification import checked_authorization
+        from .qualification_attestation import checked_authorization
         self.demo_authorization = checked_authorization(demo_authorization)
         self.demo_prepares = self.demo_executions = 0
         required = ('_runtime_identity', 'load', 'prepare_prism_preview_candidate', 'infer_remote_fenced_prism')
@@ -184,7 +184,7 @@ def child_application(executor, *, token, issue_id, epoch, clock=time.monotonic,
     if not 0 < load_seconds <= 120:
         raise ValueError('BOUNDED_CHILD_STARTUP_REQUIRED')
     authorization = getattr(executor, "demo_authorization", None)
-    from .case16_qualification import Case16Authorization, checked_authorization
+    from .qualification_attestation import Case16Authorization, checked_authorization
     checked_authorization(authorization)
     if authorization is not None:
         origins = (

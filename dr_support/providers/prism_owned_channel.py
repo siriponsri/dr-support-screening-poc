@@ -1,6 +1,6 @@
 """Fixed-session transport; reuses an existing injected backend token.
 
-Not in the provider factory. Only the historical QA profile `scripts/qa/prism_owned_profile.py` builds it.
+Not in the provider factory and not used by the app; kept because the owned-runtime tests use it.
 """
 import json
 import re

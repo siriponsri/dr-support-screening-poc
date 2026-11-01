@@ -18,7 +18,6 @@ COPY deployment/dual-mode/review-requirements.lock /tmp/review-requirements.lock
 RUN python -m pip install --no-cache-dir --disable-pip-version-check \
       --require-hashes --only-binary=:all: --no-deps -r /tmp/review-requirements.lock
 COPY dr_support ./dr_support
-COPY web ./web
 COPY --from=frontend-build /src/frontend/dist ./frontend/dist
 # Run the copied module directly; avoid an unlocked build-isolation install.
 RUN useradd --uid 10001 --create-home review \

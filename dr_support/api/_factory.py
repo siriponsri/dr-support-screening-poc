@@ -146,7 +146,7 @@ def _workspace_composition(function):
         if authority is None and provider is None:
             return function(*args, **kwargs)
         from ..providers.prism_workspace_remote import WorkspaceRemotePRISM
-        from ..services.m1_workspace_context import WorkspaceContextReader
+        from ..services.workspace_context import WorkspaceContextReader
         from ..services.prism_workspace_authority import WorkspaceAuthority
         if (type(authority) is not WorkspaceAuthority or type(provider) is not WorkspaceRemotePRISM
                 or provider.authority is not authority or type(authority.context_reader) is not WorkspaceContextReader):
@@ -599,10 +599,8 @@ def create_app(
 
     @app.get('/')
     def home():
-        return RedirectResponse('/app/' if (root / 'frontend/dist/index.html').exists()
-                                else '/ui/index.html')
+        return RedirectResponse('/app/')
 
-    app.mount('/ui', StaticFiles(directory=str(root / 'web')), name='ui')
     frontend_dist = root / 'frontend/dist'
     if frontend_dist.is_dir() and (frontend_dist / 'index.html').is_file():
         class SPAStaticFiles(StaticFiles):

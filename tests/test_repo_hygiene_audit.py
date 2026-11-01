@@ -18,7 +18,7 @@ def test_private_and_unrelated_paths_cannot_enter_review_context(path):
     assert not review_context_allowed(path)
 
 
-@pytest.mark.parametrize('path', ['dr_support/workflow.py', 'dr_support/providers/retfound_lock.json', 'frontend/src/main.tsx', 'frontend/package-lock.json', 'web/app.js', 'uv.lock', 'deployment/dual-mode/review-requirements.lock', 'frontend/public/prism-uwf-fov-preview/field-mask.png'])
+@pytest.mark.parametrize('path', ['dr_support/workflow.py', 'dr_support/providers/retfound_lock.json', 'frontend/src/main.tsx', 'frontend/package-lock.json', 'uv.lock', 'deployment/dual-mode/review-requirements.lock', 'frontend/public/prism-uwf-fov-preview/field-mask.png'])
 def test_required_review_source_and_explicit_synthetic_asset_remain_available(path):
     assert review_context_allowed(path)
 

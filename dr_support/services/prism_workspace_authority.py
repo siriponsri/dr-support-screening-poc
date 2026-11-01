@@ -1,6 +1,6 @@
 """Workspace authority; trusted ports do not qualify a deployment.
 
-Not created by the app factory: the review-app launcher (`scripts/qa/m1_server_app.py`) builds it and
+Not created by the app factory: the review-app launcher (`scripts/demo/server_app.py`) builds it and
 passes it to `api._factory.create_app`.
 """
 from copy import deepcopy

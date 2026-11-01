@@ -1,6 +1,6 @@
 """Workspace PRISM transport; no model or factory load.
 
-Not in the provider factory: the review-app launcher (`scripts/qa/m1_server_app.py`) composes it with
+Not in the provider factory: the review-app launcher (`scripts/demo/server_app.py`) composes it with
 the workspace authority and passes both to `api._factory.create_app`, which checks their exact types.
 """
 from copy import deepcopy

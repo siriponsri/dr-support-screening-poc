@@ -15,7 +15,7 @@ from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
 from dr_support.services.filesystem_privacy import has_reparse_component, private_hospital_root
-from scripts.qa.qualify_m1_entry_fence import AUTHORITY, DATABASE, OWNER, PLAN, RUNTIME, checked_local_parameters
+from scripts.demo.database_settings import AUTHORITY, DATABASE, OWNER, PLAN, RUNTIME, checked_local_parameters
 
 
 # The private configuration folder of this Windows account (the same folder the demo launcher uses).

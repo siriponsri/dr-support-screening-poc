@@ -66,7 +66,7 @@ from dr_support.contracts import (
     Provenance,
 )
 from dr_support.model_assets import verify_assets
-from dr_support.phase3_registry import capability_descriptors, descriptor_for
+from dr_support.capability_registry import capability_descriptors, descriptor_for
 from dr_support.providers.prism import PRISM, REVISION as PRISM_REVISION
 from dr_support.providers.retfound import RETFound, REVISION as RETFOUND_REVISION
 from dr_support.providers.uspec import USPEC

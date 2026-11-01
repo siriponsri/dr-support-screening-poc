@@ -14,16 +14,16 @@ This package exposes the clinician workstation surface:
 - ``PUT /v1/cases/{id}/annotations`` save explicit human annotations
 - ``POST /v1/cases/{id}/cvat/{send,sync}`` CVAT Online round-trip
 - ``POST /v1/cases/{id}/manual-sync`` manual CVAT sync fallback
-- ``GET /ui/index.html``     V2 clinician UI (static)
+- ``GET /app/``              React clinician UI (built ``frontend/dist``)
 
 The model_api profile uses a different surface; see
 ``dr_support.services.model_api``.
 
 The single ``create_app`` factory preserves the historical behaviour used by
-the V2 UI and the existing tests.
+the existing tests.
 
 For backward compatibility with ``uvicorn dr_support.api:app`` invocations
-(the historical single-server entrypoint used by the JS UI smoke test), a
+(the historical single-server entrypoint used by the root API smoke test), a
 module-level ``app`` instance is exposed. Production
 deployments that need strict profile/runtime invariants should instead use
 ``dr_support.app:app_factory`` and set ``APP_PROFILE`` explicitly.

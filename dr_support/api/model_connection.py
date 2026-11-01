@@ -15,7 +15,7 @@ from dr_support.contracts import ModelConnectionInput, ModelConnectionResponse
 from dr_support.providers.remote import RemoteModelProvider, provider_from_descriptor
 from dr_support.runtime import runtime_snapshot
 
-from ..phase3_registry import capability_descriptors
+from ..capability_registry import capability_descriptors
 from ..services.deployment_profile import DeploymentProfileError, validate_deployment_environment
 from ..services.model_gateway import ModelConnection, ModelGatewayProbe, _model_summary, response_payload
 from ..services.source_mutation_gate import guard_writes, writer_scope

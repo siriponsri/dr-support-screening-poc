@@ -5,8 +5,6 @@
 !uv.lock
 !dr_support/
 !dr_support/**
-!web/
-!web/**
 !frontend/
 !frontend/package.json
 !frontend/package-lock.json

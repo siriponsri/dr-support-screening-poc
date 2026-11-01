@@ -74,7 +74,7 @@ class FixedQASession(SyntheticFenceAuthority):
     writers are outside session ownership; detected drift fails closed.
     """
     def __init__(self, directory, *, store, images, admissions, provider, authenticated_status_reader, demo_authorization=None):
-        from .case16_qualification import checked_authorization, QualificationMemoryStore
+        from .qualification_attestation import checked_authorization, QualificationMemoryStore
         authorization = checked_authorization(demo_authorization)
         origin = "SYNTHETIC" if authorization is None else authorization.origin
         if authorization is not None:

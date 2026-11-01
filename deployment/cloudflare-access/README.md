@@ -100,7 +100,7 @@ believes it is served at (`same_origin` middleware in `dr_support/api/_factory.p
 with `request.base_url`). Sign-in is a POST to `/v1/auth/login`, so this decides whether anyone can sign in.
 
 - **Demo app on `http://127.0.0.1:8010` (chosen).** It runs under uvicorn with the default proxy settings
-  (`scripts/qa/m1_server_app.py`: `uvicorn.run(app, host='127.0.0.1', ...)`), which trust
+  (`scripts/demo/server_app.py`: `uvicorn.run(app, host='127.0.0.1', ...)`), which trust
   `X-Forwarded-Proto` from `127.0.0.1`. cloudflared on the same PC connects from `127.0.0.1`, keeps the
   public `Host` (when the HTTP Host Header setting is empty) and passes Cloudflare's
   `X-Forwarded-Proto: https`. The app therefore sees `https://dr-demo.<your-domain>/`, which equals the

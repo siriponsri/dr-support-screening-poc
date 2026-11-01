@@ -110,7 +110,7 @@ fi
 say "3/4 Starting the web app and warming up the AI (this can take a few minutes)"
 mkdir -p "$PRIVATE/demo-logs"
 LOG="$PRIVATE/demo-logs/app-$(date +%Y%m%d-%H%M%S).log"
-args=(-m scripts.qa.m1_server_app serve-regular --allow-remote-token-read
+args=(-m scripts.demo.server_app serve-regular --allow-remote-token-read
       --workspace-id "$DR_WORKSPACE" --prism-pins "$DR_PINS_LOCAL" --workstation "$DR_WORKSTATION"
       --app-port "$DR_APP_PORT" --model-port "$DR_MODEL_PORT")
 case "$DR_IMAGES" in
