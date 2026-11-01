@@ -18,17 +18,17 @@ Setup: `uv sync --python 3.12 --extra test --extra dicom --extra browser-test`, 
 .\.venv\Scripts\python.exe -m pytest -q                                   # backend
 .\.venv\Scripts\python.exe -m pytest -q tests\test_workflow.py -k <name>  # single test
 .\.venv\Scripts\python.exe -m ruff check dr_support tests                 # rules E9,F; line length 110
-npm.cmd test                                   # root Node smoke tests (tests/*.test.cjs)
+npm.cmd test                                   # root API smoke test (tests/api_smoke.test.cjs)
 .\.venv\Scripts\python.exe scripts\docs\check_docs.py                     # docs link/ID checks
 git diff --check
 ```
 
-Frontend (in `frontend/`): `npm.cmd test` (Vitest, jsdom), `npx vitest run tests/review.test.tsx` for one file, `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run dev` (Vite on 5173, proxies `/v1`, `/ui`, `/health` to `127.0.0.1:8000`).
+Frontend (in `frontend/`): `npm.cmd test` (Vitest, jsdom), `npx vitest run tests/review.test.tsx` for one file, `npm.cmd run typecheck`, `npm.cmd run build`, `npm.cmd run dev` (Vite on 5173, proxies `/v1`, `/health` to `127.0.0.1:8000`).
 
 Run the app: `.\START_DR_SCREENING.bat` (→ `http://127.0.0.1:8000/app/`), stop with `.\STOP_DR_SCREENING.bat`. It runs `python -m dr_support.run` with `APP_PROFILE=review`, `MODEL_RUNTIME=remote`, and needs a prebuilt `frontend/dist`.
 
 Test environment caveats:
-- `tests/ui.test.cjs` boots legacy `dr_support.api:app` and expects 11 cases; fetch public samples first with `python -m dr_support.fetch_samples` or it times out.
+- `tests/api_smoke.test.cjs` boots legacy `dr_support.api:app` and walks the synthetic case through AI and a grade correction over HTTP.
 - PostgreSQL tests skip unless `DR_SUPPORT_TEST_DATABASE_URL` and a matching `DR_SUPPORT_TEST_DATABASE_NAME` (must contain a `test` token) are set; fixtures create/drop only a `dr_support_test_*` schema.
 - Frontend build warns about a >500 kB chunk; expected.
 
@@ -38,9 +38,9 @@ Test environment caveats:
 - `review` + `MODEL_RUNTIME=remote` — clinician workstation; model calls go to `REMOTE_MODEL_URL`.
 - `model_api` + `local` — GPU host (`scripts/model-server/start.sh`), serves `/v1/predict/*`; CUDA enforced; refuses unverified assets.
 - `full` + `local` — dev/demo only, includes synthetic fixtures and public samples.
-- `dr_support.api:app` is a legacy entry point that skips these invariants (used only by root smoke tests).
+- `dr_support.api:app` is a legacy entry point that skips these invariants (used only by the root API smoke test).
 
-**Backend layout.** `api/_factory.py` builds the review API (incl. `infer()` and `apply_scan`); `workflow.py` holds case/review/Confirm Image/annotation/AI-ROI/CVAT routes; `services/` holds domain logic (admission, resolver, dataset export, workspaces, model gateway, PRISM preparation/binding, M1 workspace context); `contracts/` holds Pydantic contracts; `imaging/` holds integrity, DICOM, derivatives and coordinate mapping; `providers/` holds RETFound, PRISM, remote HTTP clients and `mock` (synthetic only); `presentation.py` derives the bounded lesion-review view and `annotation_set_hash`.
+**Backend layout.** `api/_factory.py:create_app` is the composition root (incl. `apply_scan`); it installs `api/model_connection.py` (Model API connection, model lists), `api/inference.py` (`infer()`, PRISM preview, `/v1` and `/v2` inference) and `api/batches.py` (daily batch); `workflow.py` builds the shared case helpers and installs the route groups in `workflow_routes/` (cases, images, review, confirm, annotations, cvat) in order; `services/` holds domain logic (admission, resolver, dataset export, workspaces, model gateway, PRISM preparation/binding, M1 workspace context); `contracts/` holds Pydantic contracts; `imaging/` holds integrity, DICOM, derivatives and coordinate mapping; `providers/` holds RETFound, PRISM, remote HTTP clients and `mock` (synthetic only); `presentation.py` derives the bounded lesion-review view and `annotation_set_hash`.
 
 **Persistence.** Each case is one JSON document with a `revision`; every mutation sends the client revision and a mismatch returns `409 Case changed; reload`. Normal operation is PostgreSQL JSONB scoped by `workspace_id` (`DR_SUPPORT_CASE_STORE=postgres`, `DR_SUPPORT_DATABASE_URL`), with forward-only checksummed migrations in `persistence/` (`SchemaMigrator`); a changed or gapped history fails rather than being rewritten. Legacy SQLite (`store.py`) remains for compatibility tests and fixtures. New case fields are added as JSON defaults (additive), not table rewrites. PostgreSQL unavailability never falls back to SQLite. Workspace FK is `ON DELETE RESTRICT`: profile removal never cascades into review data.
 
@@ -49,11 +49,11 @@ Test environment caveats:
 2. *Resolver* (`services/resolver.py`): filename-first patient key/eye; OCR is off by default; conflicts are never auto-resolved; runs once and never overwrites a manual decision.
 3. *Confirm Image* → *Confirm DR Grade* (`ACCEPT`/`CORRECT_GRADE`) → annotations (`PUT` replaces the whole human set) and AI-ROI decisions (append to `ai_annotation_reviews`; raw model output is never modified) → *Finish image* (`CONFIRM_ANNOTATIONS` stores the annotation-set hash; any later change reverts the state to requires-confirmation).
 4. *Inference*: `DerivativeService` builds a deterministic analysis image with its own SHA and a `CoordinateMapping`; all geometry stays in original-image pixels. Source SHA ≠ analysis SHA for TIFF/DICOM/UWF-masked inputs. A later AI result never resets a confirmed human grade. PRISM review requests require a prepared one-use input receipt (see `docs/developer/MODEL_SERVER_OPERATIONS.md` section 3).
-5. *Dataset export* (`services/dataset.py`): DR-ready and Lesion-ready are separate; see `docs/developer/DATASET_MANIFEST.md`.
+5. *Dataset export* (`services/dataset.py`, with `dataset_common.py`, `dataset_snapshot.py`, `dataset_grouped.py`): DR-ready and Lesion-ready are separate; see `docs/developer/DATASET_MANIFEST.md`.
 
 **Clinical semantics to preserve:** an empty AI detection or empty human set means "reviewed", not "no lesions"; RETFound softmax is uncalibrated; the hospital's own `Refer/Not-refer` label is deliberately not stored in the Workbench; the only referral shown is the owner-confirmed `M1_DR_GRADE_4_REFERRAL` rule in `referral.py` (derived solely from a confirmed physician grade), and no other referral rule may be added without an approved clinical definition; the software never browses hospital storage. Pinned model identities live in `providers/retfound.py`, `providers/prism.py`, `providers/prism_assets.json`; changing them is a provenance change.
 
-**Frontend.** `frontend/src/routes.tsx` defines the pages (Worklist, Review, Clinician Review, Annotation Editor `/edit/:imageId`, Datasets, Models, Settings) under `AppShell` with `NavigationGuardProvider` and `WorkspaceProvider`. `@` aliases `src`. API client and UI-only preferences live in `src/lib/`; tokens in `src/theme/` must follow `DESIGN.md`. The annotation editor autosaves (900 ms debounce) and flushes drafts before any ROI decision or Finish so revisions don't race. `web/` is the legacy static UI at `/ui/`.
+**Frontend.** `frontend/src/routes.tsx` defines the pages (Worklist, Review, Clinician Review, Annotation Editor `/edit/:imageId`, Datasets, Models, Settings) under `AppShell` with `NavigationGuardProvider` and `WorkspaceProvider`. `@` aliases `src`. API client and UI-only preferences live in `src/lib/`; tokens in `src/theme/` must follow `DESIGN.md`. The annotation editor autosaves (900 ms debounce) and flushes drafts before any ROI decision or Finish so revisions don't race.
 
 ## Where to read before substantial work
 

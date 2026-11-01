@@ -128,7 +128,7 @@ def test_drafted_plan_has_exact_allocations_unique_identities_and_supported_pair
 
 def server_app():
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    return importlib.import_module('scripts.qa.m1_server_app')
+    return importlib.import_module('scripts.demo.server_app')
 
 
 def persisted_global(models, *, status='APPLIED', timestamp='2026-10-23T12:00:10+00:00', grade=2):

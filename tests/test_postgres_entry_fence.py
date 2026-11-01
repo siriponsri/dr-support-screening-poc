@@ -1,7 +1,7 @@
 """Opt-in isolated real PostgreSQL controls; no model/native-entry qualification.
 
 No provisioning occurs in these tests. Three fresh roles and a new DB must have
-been explicitly approved/provisioned by qualify_m1_entry_fence.py. Connections
+been explicitly approved/provisioned (see scripts/demo/database_settings.py). Connections
 use SET SESSION AUTHORIZATION, not newly authenticated runtime credentials.
 """
 from contextlib import contextmanager
@@ -15,7 +15,7 @@ from psycopg.conninfo import conninfo_to_dict
 from psycopg.types.json import Jsonb
 import pytest
 
-from scripts.qa.qualify_m1_entry_fence import AUTHORITY, DATABASE, RUNTIME
+from scripts.demo.database_settings import AUTHORITY, DATABASE, RUNTIME
 
 
 @pytest.fixture(scope="module")

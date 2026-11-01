@@ -1,4 +1,7 @@
-"""Unregistered ordinary-workspace executor; no startup or model work on import."""
+"""Ordinary-workspace executor; no startup or model work on import.
+
+Runs inside the GPU-host child (`scripts/model-server/m1_session.py`), not inside the review app.
+"""
 from __future__ import annotations
 
 from copy import deepcopy

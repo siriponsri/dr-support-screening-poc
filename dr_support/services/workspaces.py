@@ -1,4 +1,4 @@
-"""Catalog persistence and active-store switching for S2 workspaces."""
+"""Workspace profile catalog persistence and active case-store switching."""
 
 from __future__ import annotations
 
@@ -127,7 +127,8 @@ class WorkspaceCatalog:
                 with self.db:
                     self.db.execute(
                         "INSERT INTO workspaces "
-                        "(id, name, input_folder, output_folder, database_path, note, created_at, updated_at, last_opened) "
+                        "(id, name, input_folder, output_folder, database_path, note, created_at, updated_at, "
+                        "last_opened) "
                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         (
                             profile.id,

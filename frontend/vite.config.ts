@@ -133,10 +133,6 @@ export default defineConfig({
         // Keep the browser origin visible to the API's same-origin guard.
         changeOrigin: false,
       },
-      '/ui': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: false,
-      },
       '/health': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: false,

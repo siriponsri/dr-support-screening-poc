@@ -46,7 +46,7 @@ cd frontend; npm.cmd ci; npm.cmd run build; cd ..
 .\.venv\Scripts\python.exe -m pytest -q                      # backend (offline, models mocked)
 .\.venv\Scripts\python.exe -m ruff check dr_support tests
 cd frontend; npm.cmd test; npm.cmd run typecheck; cd ..      # frontend
-npm.cmd test                                                 # root smoke tests
+npm.cmd test                                                 # root API smoke test
 .\.venv\Scripts\python.exe scripts\docs\check_docs.py        # docs links
 ```
 

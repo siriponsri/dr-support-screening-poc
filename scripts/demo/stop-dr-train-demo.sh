@@ -15,6 +15,10 @@ else
 fi
 rm -f "$PID_FILE"
 if [ "${1:-}" = "--gateway" ]; then
-  tr -d '\r' < "$HERE/remote-stop-gateway.sh" | ssh -i "${DR_KEY:-C:/Users/User/.ssh/id_ed25519_dr_train}" \
-      -o StrictHostKeyChecking=yes -o BatchMode=yes "${DR_HOST:-siripon@100.77.149.83}" 'sh -s'
+  if [ -z "${DR_HOST:-}" ] || [ -z "${DR_KEY:-}" ]; then
+    echo "DR_HOST and DR_KEY must be set in $CONFIG to stop the AI server on dr-train."
+    exit 1
+  fi
+  tr -d '\r' < "$HERE/remote-stop-gateway.sh" | ssh -i "$DR_KEY" \
+      -o StrictHostKeyChecking=yes -o BatchMode=yes "$DR_HOST" 'sh -s'
 fi

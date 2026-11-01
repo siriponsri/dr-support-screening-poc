@@ -110,10 +110,10 @@ service, not a final release, not accepted by a hospital.
    discard unexpected work.
 4. Validate before handoff:
    ```powershell
-   .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider     # about 10 to 14 minutes; 69 skips are normal
+   .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider     # about 10 to 14 minutes; about 71 skips are normal
    .\.venv\Scripts\python.exe -m ruff check dr_support tests
    cd frontend; npm.cmd test; npm.cmd run typecheck; npm.cmd run build; cd ..
-   npm.cmd test                                                     # needs python -m dr_support.fetch_samples first
+   npm.cmd test                                                     # root API smoke test (synthetic case)
    .\.venv\Scripts\python.exe scripts\docs\check_docs.py
    git diff --check
    ```

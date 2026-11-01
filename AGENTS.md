@@ -4,7 +4,6 @@
 
 - `dr_support/`: Python/FastAPI backend.
 - `frontend/`: React/Vite clinician UI.
-- `web/`: legacy static UI.
 - `tests/`: backend/API/browser/root smoke tests.
 - `docs/`: normative specs, runbooks, architecture notes.
 - `local-state/`: runtime state only; never treat as source data.

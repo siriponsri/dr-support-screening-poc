@@ -407,7 +407,7 @@ def test_regular_routes_create_run_and_report_a_batch_through_the_existing_infer
 def test_the_regular_launcher_refuses_before_any_ssh_or_token_read(monkeypatch):
     from types import SimpleNamespace
 
-    from scripts.qa import m1_server_app as launcher
+    from scripts.demo import server_app as launcher
     monkeypatch.setattr(launcher, "ssh", lambda *a, **k: pytest.fail("no SSH before opt-in"))
     args = SimpleNamespace(allow_remote_token_read=False, model_port=47860, workstation="ws-a")
     with pytest.raises(launcher.SessionError, match="REMOTE_TOKEN_READ_REQUIRES_EXPLICIT_OPT_IN"):
@@ -420,7 +420,7 @@ def test_the_regular_launcher_refuses_before_any_ssh_or_token_read(monkeypatch):
 def test_the_launcher_waits_for_the_model_server_only_inside_ai_hours():
     from types import SimpleNamespace
 
-    from scripts.qa import m1_server_app as launcher
+    from scripts.demo import server_app as launcher
     states = iter(["STOPPED", "STARTING", "READY"])
     warmed = []
     gate = SimpleNamespace(status=lambda: {"ai_open": True, "model_server": next(states), "quarantined": False},
@@ -435,7 +435,7 @@ def test_the_launcher_waits_for_the_model_server_only_inside_ai_hours():
 def test_public_commissioning_sets_no_hospital_lane(monkeypatch):
     import os
 
-    from scripts.qa import m1_server_app as launcher
+    from scripts.demo import server_app as launcher
     monkeypatch.setattr(launcher, "runtime_values", lambda: {})
     monkeypatch.setattr(launcher, "roots", lambda: pytest.fail("public commissioning must not read hospital roots"))
     with launcher.session_environment(workspace_id="ws_m1_x", model_port=47860, token="t" * 40, public_samples=True):
@@ -449,7 +449,7 @@ def test_public_commissioning_sets_no_hospital_lane(monkeypatch):
 def test_the_launcher_and_queue_ride_out_a_brief_gateway_pause():
     from types import SimpleNamespace
 
-    from scripts.qa import m1_server_app as launcher
+    from scripts.demo import server_app as launcher
     replies = iter([{"ai_open": True, "model_server": "STOPPED"}, RegularQueueError("QUEUE_UNREACHABLE"),
                     {"ai_open": True, "model_server": "READY"}])
 
@@ -502,7 +502,7 @@ def test_the_gate_releases_only_by_a_valid_image_key():
 
 
 def test_a_public_demo_folder_needs_public_mode_and_a_local_real_folder(tmp_path):
-    from scripts.qa import m1_server_app as launcher
+    from scripts.demo import server_app as launcher
     assert launcher.public_demo_folder(None, False) is None
     assert launcher.public_demo_folder(tmp_path, True) == tmp_path
     with pytest.raises(launcher.SessionError, match="REQUIRES_PUBLIC_SAMPLES_MODE"):

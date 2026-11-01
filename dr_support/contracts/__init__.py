@@ -26,7 +26,7 @@ from .model_gateway import (
     ModelConnectionModel,
     ModelConnectionResponse,
 )
-from .phase3 import (
+from .model_context import (
     Phase3Explanation,
     PrismAnalysisFieldEvidence,
     PrismProcessingEvidence,

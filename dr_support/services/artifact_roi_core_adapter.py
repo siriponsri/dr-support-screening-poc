@@ -1,4 +1,6 @@
-"""Explicit, unregistered adapter for task-2's unchanged technical-frame core.
+"""Adapter for the unchanged technical-frame core (`artifact_core_v01.py`).
+
+Not selected by default: `artifact_roi_assist` uses it only when this provider is injected.
 
 Empty host registry is the default: no real rubber-rim effect is claimed.
 Empirical rim proposals remain a separate shadow adapter/review checkpoint.

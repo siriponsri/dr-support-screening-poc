@@ -6,14 +6,12 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
   AlertIcon,
-  Badge,
   Box,
   Button,
   Code,
   Center,
   Collapse,
   Grid,
-  Heading,
   HStack,
   SimpleGrid,
   Select,
@@ -24,12 +22,27 @@ import {
 import { PageHeader } from '@/components/common/PageHeader';
 import { Section } from '@/components/common/Section';
 import { StatusBadge } from '@/components/common/StatusBadge';
-import { RetinalCanvas, LESION_COLORS } from '@/components/review/RetinalCanvas';
+import { RetinalCanvas } from '@/components/review/RetinalCanvas';
 import { PrismAnalysisFieldOverlay } from '@/components/review/PrismAnalysisFieldOverlay';
 import { PrismInputPreview } from '@/components/review/PrismInputPreview';
 import { ArtifactFieldPreview } from '@/components/review/ArtifactFieldPreview';
 import { validatedQaBatchContext, type QaBatchContext } from '@/lib/qaBatchReview';
 import { displayedLesions } from '@/components/review/lesionPresentation';
+import { Assessment, LesionLegend, LesionSuggestions, MaskLegend, ResultWarnings, ReviewContextStatus } from '@/components/review/ReviewSummaryPanels';
+import {
+  admissionAllowsAnalysis,
+  analysisPreparationNote,
+  analysisTransformLabel,
+  caseOrigin,
+  maskStatus,
+  modelDomainWarningLabel,
+  modelTransformLabel,
+  patientEyeContext,
+  processingAudit,
+  selectedMaskLabel,
+  selectedModel,
+  sourceOriginLabel,
+} from '@/components/review/reviewCaseLabels';
 import { CaseNavigation } from '@/components/common/CaseNavigation';
 import { GuideHint } from '@/components/common/GuideHint';
 import {
@@ -39,12 +52,10 @@ import {
   type LesionLabel,
   type ModelDescriptor,
 } from '@/lib/api';
-import { isModelUsable } from '@/lib/modelCapabilities';
 import { requiresPrismPreview } from '@/lib/prismInputPreview';
 import { ArrowLeft, ChevronDown, ChevronUp, Play, UserRound } from '@/lib/icons';
 import { LEAVE_CASE_DIALOG, useConfirmDialog } from '@/components/common/ConfirmDialog';
 import { caseComplete } from '@/lib/caseProgress';
-import { hasInternalPatientKey, patientLabel } from '@/lib/patientPresentation';
 
 type ComparisonResponse = {
   eligible: boolean;
@@ -75,264 +86,28 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : 'The request could not be completed.';
 }
 
-/** Plain clinician-facing model names; ids and versions stay in Processing details. */
-const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  'retfound-aptos5': 'RETFound (CFP grading)',
-  'uspec-uwf-grading': 'USPEC (UWF grading)',
-  'prism-dr-5fold': 'PRISM (lesion suggestions)',
-};
 
-function modelDisplayName(modelId: string): string {
-  return MODEL_DISPLAY_NAMES[modelId] ?? modelId;
-}
 
-function clinicianResultState(state?: string | null) {
-  switch (state) {
-    case 'AI_SUGGESTION': return 'Model suggestion';
-    case 'UNCERTAIN': return 'Uncertain result';
-    case 'UNGRADABLE': return 'Image not gradable';
-    case 'UNSUPPORTED': return 'Unsupported input';
-    default: return state ? 'Result available' : 'Not analyzed';
-  }
-}
 
-function ResultWarnings({ item }: { item: CaseRecord }) {
-  const t = useT();
-  const warnings = [...(item.global?.warnings ?? []), ...(item.lesion?.warnings ?? [])];
-  if (warnings.length === 0) return null;
-  return (
-    <Alert status="warning" mt={4}>
-      <AlertIcon />
-      <Stack spacing={1}>
-        <Text fontWeight="semibold">{t('Model notes available')}</Text>
-        <Text fontSize="sm">{t('Technical model notes are available in Models & Audit. Review remains available; confirm the image and human decision.')}</Text>
-      </Stack>
-    </Alert>
-  );
-}
 
-function Assessment({ item }: { item: CaseRecord }) {
-  const t = useT();
-  if (!item.global) return <Text color="text.secondary">{t('Not analyzed')}</Text>;
-  return (
-    <Stack spacing={3}>
-      <HStack justify="space-between" align="flex-start">
-        <Stack spacing={1}>
-          <Text fontSize="sm" color="text.secondary">{t('System-predicted DR grade')}</Text>
-          <Heading size="lg">{item.global.grade === null ? t(clinicianResultState(item.global.state)) : (drGradeLabel(item.global.grade) ?? t('Grade available'))}</Heading>
-        </Stack>
-      <StatusBadge tone={item.global.state === 'AI_SUGGESTION' ? 'info' : 'warning'}>{clinicianResultState(item.global.state)}</StatusBadge>
-      </HStack>
-      {item.global.confidence !== null && (
-        <HStack justify="space-between">
-          <Text color="text.secondary">{t('Top model score')}</Text>
-          <Text fontWeight="semibold">{(item.global.confidence * 100).toFixed(1)}%</Text>
-        </HStack>
-      )}
-      <Text fontSize="xs" color="text.muted">AI: {modelDisplayName(item.global.model_id)}</Text>
-    </Stack>
-  );
-}
 
-function LesionSuggestions({ item }: { item: CaseRecord }) {
-  const t = useT();
-  if (!item.lesion) return <Text color="text.secondary">{t('Not analyzed')}</Text>;
-  if (item.lesion.state === 'UNSUPPORTED') return <Text color="status.warning">{t('Lesion assistance is unavailable for this image. Continue with manual review.')}</Text>;
-  const lesions = item.lesion.lesions;
-  const counts = lesions.reduce<Record<string, number>>((result, lesion) => {
-    result[lesion.canonical_label] = (result[lesion.canonical_label] ?? 0) + 1;
-    return result;
-  }, {});
-  return (
-    <Stack spacing={3}>
-      <HStack justify="space-between">
-        <Text color="text.secondary">{t('AI lesion suggestions')}</Text>
-        <Text fontWeight="semibold">{lesions.length}</Text>
-      </HStack>
-      <Stack spacing={2}>
-        <Text fontSize="sm" color="text.secondary">{t('Suggested classes')}</Text>
-        {Object.keys(counts).length ? Object.entries(counts).map(([label, count]) => (
-          <HStack key={label} justify="space-between"><Text>{LESION_DISPLAY_LABELS[label] ?? label.replace(/_/g, ' ')}</Text><Badge variant="info">{count}</Badge></HStack>
-        )) : <Text color="text.secondary">{t('No AI regions returned. This does not establish absence of lesions.')}</Text>}
-      </Stack>
-      <Text fontSize="xs" color="text.muted">{t('Raw AI suggestions by class. Optional visual assistance; no per-detection action is required.')}</Text>
-      <Text fontSize="xs" color="text.muted">AI: {modelDisplayName(item.lesion.model_id)}</Text>
-    </Stack>
-  );
-}
 
-const LESION_DISPLAY_LABELS: Record<string, string> = {
-  MICROANEURYSM: 'Microaneurysm',
-  HEMORRHAGE: 'Hemorrhage',
-  HARD_EXUDATE: 'Hard exudate',
-  SOFT_EXUDATE: 'Soft exudate',
-};
 
-type AnalysisTask = 'global' | 'lesion-roi';
 
-function caseOrigin(item: CaseRecord | null): string {
-  return item ? (item.source_origin ?? 'UNKNOWN') : '';
-}
 
-function selectedModel(
-  models: ModelDescriptor[],
-  task: AnalysisTask,
-  modality: CaseRecord['modality'] | undefined,
-  sourceOrigin: string,
-): ModelDescriptor | undefined {
-  const selected = models
-    .filter((model) => model.task === task && isModelUsable(model, modality, sourceOrigin))
-    .sort((left, right) => Number(left.model_id.startsWith('mock-')) - Number(right.model_id.startsWith('mock-')))[0];
-  return selected;
-}
 
-function LesionLegend() {
-  return (
-    <HStack spacing={3} flexWrap="wrap" fontSize="xs" color="text.secondary">
-      {Object.entries(LESION_COLORS).map(([label, color]) => (
-        <HStack key={label} spacing={1}>
-          <Box w="9px" h="9px" borderRadius="sm" bg={color} />
-          <Text>{LESION_DISPLAY_LABELS[label] ?? label.replace(/_/g, ' ')}</Text>
-        </HStack>
-      ))}
-    </HStack>
-  );
-}
 
-function MaskLegend() {
-  const t = useT();
-  return (
-    <Stack spacing={1} aria-label="Mask preview key">
-      <Text fontSize="xs" fontWeight="semibold" color="text.primary">{t('Mask preview key')}</Text>
-      <HStack spacing={3} flexWrap="wrap" fontSize="xs" color="text.secondary">
-        <HStack spacing={1}>
-          <Box w="9px" h="9px" borderRadius="sm" bg="#127E6A" />
-          <Text>{t('Retained retinal area')}</Text>
-        </HStack>
-        <HStack spacing={1}>
-          <Box w="9px" h="9px" borderRadius="sm" bg="#344054" />
-          <Text>{t('Excluded border / artifact area')}</Text>
-        </HStack>
-        <HStack spacing={1}>
-          <Box w="9px" h="9px" borderWidth="2px" borderColor="#14585C" borderRadius="sm" />
-          <Text>{t('Mask boundary (retained / excluded edge)')}</Text>
-        </HStack>
-      </HStack>
-    </Stack>
-  );
-}
 
-function admissionAllowsAnalysis(item: CaseRecord | null) {
-  return Boolean(
-    item?.admission
-      && item.admission.modality_admission === 'FUNDUS_ACCEPTED'
-      && (item.admission.quality_state === 'GRADABLE' || item.admission.quality_state === 'NOT_EVALUATED'),
-  );
-}
 
-function patientEyeContext(item: CaseRecord) {
-  const patient = hasInternalPatientKey(item) ? patientLabel(item) : item.patient_key ?? item.patient_candidate ?? item.display_name;
-  const eye = item.laterality === 'LEFT' ? 'Left' : item.laterality === 'RIGHT' ? 'Right' : 'Eye not confirmed';
-  return `${patient} / ${eye}`;
-}
 
-function ReviewContextStatus({ item }: { item: CaseRecord }) {
-  const t = useT();
-  const messages = [
-    item.resolver_ui?.action_required ? 'Patient and eye context needs confirmation.' : null,
-    item.admission_ui?.action_required ? 'Image context needs confirmation.' : null,
-  ].filter((message): message is string => Boolean(message));
-  if (messages.length === 0) return null;
-  return (
-    <Alert status="warning" variant="subtle" py={2} px={3} alignItems="flex-start">
-      <AlertIcon />
-      <Text fontSize="sm">{messages.map((message) => t(message)).join(' ')}</Text>
-    </Alert>
-  );
-}
 
-function sourceOriginLabel(sourceOrigin: CaseRecord['source_origin']): string {
-  if (sourceOrigin === 'PUBLIC') return 'Public source';
-  if (sourceOrigin === 'SYNTHETIC') return 'Synthetic fixture';
-  if (sourceOrigin === 'WORKSPACE') return 'Workspace input';
-  if (sourceOrigin === 'HOSPITAL_AUTHORIZED') return 'Approved hospital source';
-  return 'Not recorded';
-}
 
-function processingAudit(item: CaseRecord) {
-  return item.analysis_preparation?.derivative ?? item.analysis_derivative;
-}
 
-function selectedMaskLabel(item: CaseRecord): string {
-  const preparation = item.analysis_preparation;
-  const audit = processingAudit(item);
-  if (preparation?.status === 'NEEDS_REVIEW') {
-    return preparation.candidate_mask_sha256
-      ? 'Candidate mask recorded for inspection only; analysis not approved'
-      : 'Unavailable - mask needs review; Original/manual review only';
-  }
-  if (preparation?.status === 'FAILED') {
-    return 'Mask preparation failed; Original remains available; PRISM input is not established';
-  }
-  if (audit?.retinal_field_status === 'READY' && audit.valid_retina_mask_sha256) {
-    return 'Retinal-field mask recorded; applied status is not established';
-  }
-  if (audit?.retinal_field_status === 'NOT_APPLICABLE') {
-    return 'No mask recorded; source representation used';
-  }
-  if (item.modality === 'UWF') {
-    return 'Unavailable - no mask record; Original/manual review only';
-  }
-  return 'Not applicable for this case';
-}
 
-function analysisPreparationNote(item: CaseRecord): string {
-  switch (item.analysis_preparation?.status) {
-    case 'READY':
-      if (processingAudit(item)?.retinal_field_status === 'NOT_APPLICABLE') {
-        return 'No mask was recorded; the source representation is the analysis area. Original remains immutable.';
-      }
-      return 'Analysis area is a versioned, derived view; Original remains immutable.';
-    case 'NEEDS_REVIEW':
-      return item.analysis_preparation.candidate_mask_sha256
-        ? 'A candidate mask is available in Mask preview for inspection only; it is not approved model input.'
-        : 'No candidate mask is available; Original and manual review remain available.';
-    case 'FAILED':
-      return 'Mask preparation failed; Original remains available. A bound preview is required before PRISM submission.';
-    default:
-      return 'No recorded analysis-area or mask representation is available; Original remains the review source.';
-  }
-}
 
-function maskStatus(item: CaseRecord): { label: string; tone: 'success' | 'warning' } {
-  if (item.analysis_preparation?.status === 'READY' && processingAudit(item)?.valid_retina_mask_sha256) {
-    return { label: 'Ready', tone: 'success' };
-  }
-  if (item.analysis_preparation?.status === 'NEEDS_REVIEW' && item.analysis_preparation.candidate_mask_sha256) {
-    return { label: 'Candidate - review only', tone: 'warning' };
-  }
-  return { label: 'Unavailable', tone: 'warning' };
-}
 
-function analysisTransformLabel(item: CaseRecord): string {
-  return processingAudit(item)?.transform_description ?? 'Unavailable - no transform recorded';
-}
 
-function modelTransformLabel(item: CaseRecord): string {
-  const preprocessing = item.global?.provenance?.preprocessing ?? item.lesion?.provenance?.preprocessing;
-  if (preprocessing) return preprocessing;
-  return item.global || item.lesion
-    ? 'Unavailable - model transform not reported'
-    : 'Unavailable - no model result recorded';
-}
 
-function modelDomainWarningLabel(item: CaseRecord): string {
-  const warnings = [...(item.global?.warnings ?? []), ...(item.lesion?.warnings ?? [])].filter(Boolean);
-  if (warnings.length > 0) return warnings.join(' ');
-  return item.global || item.lesion
-    ? 'No model/domain warning recorded'
-    : 'Unavailable - no model result recorded';
-}
 
 /** How often the open Review page re-reads model availability. */
 export const MODEL_STATUS_REFRESH_MS = 30_000;

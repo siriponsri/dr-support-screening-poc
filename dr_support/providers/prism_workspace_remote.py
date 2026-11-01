@@ -1,4 +1,8 @@
-"""Explicit, unregistered workspace PRISM transport; no model or factory load."""
+"""Workspace PRISM transport; no model or factory load.
+
+Not in the provider factory: the review-app launcher (`scripts/demo/server_app.py`) composes it with
+the workspace authority and passes both to `api._factory.create_app`, which checks their exact types.
+"""
 from copy import deepcopy
 import re
 
@@ -149,7 +153,11 @@ class WorkspaceRemotePRISM(RemoteBoundTransportCandidate):
 
     def _descriptor(self, ready):
         pins = self._expected_pins
-        origins = [] if not ready else sorted(set(self.capabilities['workspace_runtime']['authorized_source_origins']) & _ORIGINS)
+        origins = (
+            []
+            if not ready
+            else sorted(set(self.capabilities['workspace_runtime']['authorized_source_origins']) & _ORIGINS)
+        )
         return dict(model_id=self.model_id, provider_id='prism', capability_id=self.capability_id,
                     task=self.task, revision=pins['source_revision'], model_version=pins['source_revision'],
                     status='LOADED' if ready else 'AUTHENTICATED_LOAD_REQUIRED', ready=ready,

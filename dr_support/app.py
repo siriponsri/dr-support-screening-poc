@@ -86,7 +86,7 @@ def _merge_apps(review: FastAPI, model_api: FastAPI, profile: str) -> FastAPI:
 
     Both child apps already have title/version metadata. We assemble a new
     top-level FastAPI app and graft their routes on top. ``Mount`` entries
-    (e.g. the static UI under ``/ui``) are transferred verbatim; route
+    (e.g. the React app under ``/app``) are transferred verbatim; route
     handlers keep their original docstrings.
     """
     app = FastAPI(title='Retinal Review Workbench', version='0.7.0')

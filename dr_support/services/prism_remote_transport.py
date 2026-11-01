@@ -126,7 +126,7 @@ class BoundTransportHost:
         if not (0 < ticket_seconds <= 300 and 0 < job_seconds <= 120):
             raise ValueError("INVALID_DEADLINE")
         self.executor, self.authenticate, self.issue_id = executor, authenticate, issue_id
-        from .case16_qualification import checked_authorization
+        from .qualification_attestation import checked_authorization
         self.demo_authorization = checked_authorization(getattr(executor, "demo_authorization", None))
         self.epoch, self.clock = epoch, clock
         self.ticket_seconds, self.job_seconds = ticket_seconds, job_seconds
@@ -273,7 +273,7 @@ class BoundTransportHost:
                 raise TransportError("MEDIA_TYPE_MISMATCH", 422)
         # CFP is opt-in for the exact batch or additive workspace executor.
         # Existing synthetic/case16 fixed-session paths stay UWF-only.
-        from .case16_qualification import Case16Authorization
+        from .qualification_attestation import Case16Authorization
         batch_authorized = self.demo_authorization is not None and type(self.demo_authorization) is not Case16Authorization
         workspace_enabled = self._workspace_enabled()
         if (value["wire_sha256"] != sha(wire)

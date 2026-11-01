@@ -1,4 +1,7 @@
-"""Unregistered fixed-session transport; reuse existing injected backend token."""
+"""Fixed-session transport; reuses an existing injected backend token.
+
+Not in the provider factory and not used by the app; kept because the owned-runtime tests use it.
+"""
 import json
 import re
 import time
@@ -89,7 +92,24 @@ class DeadlineHttpExchange:
             if response.status_code not in {200, 202}:
                 error = TransportError(result.get('error', 'OWNED_RPC_REJECTED'), response.status_code)
                 kind = result.get('error_class')
-                error.remote_error_class = kind if type(kind) is str and kind in {'RuntimeError','ValueError','TypeError','KeyError','OSError','PermissionError','FileNotFoundError','JSONDecodeError','TimeoutExpired','OTHER'} else None
+                error.remote_error_class = (
+                    kind
+                    if type(kind) is str
+                    and kind
+                    in {
+                        'RuntimeError',
+                        'ValueError',
+                        'TypeError',
+                        'KeyError',
+                        'OSError',
+                        'PermissionError',
+                        'FileNotFoundError',
+                        'JSONDecodeError',
+                        'TimeoutExpired',
+                        'OTHER',
+                    }
+                    else None
+                )
                 error.http_status = response.status_code
                 raise error
             return result

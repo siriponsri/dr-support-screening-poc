@@ -153,7 +153,7 @@ describe('Datasets page', () => {
     expect(await screen.findByText('Digest dddddddddddd')).toBeInTheDocument();
     await user.click(await screen.findByRole('button', { name: 'Details' }));
     await user.click(await screen.findByRole('tab', { name: 'Processing' }));
-    expect(await screen.findByText('Processing details are recorded evidence only; Phase 4 does not recompute model results.')).toBeInTheDocument();
+    expect(await screen.findByText('Processing details are recorded evidence only; this page does not recompute model results.')).toBeInTheDocument();
   });
 
   it('keeps backend exception details out of the clinician surface', async () => {

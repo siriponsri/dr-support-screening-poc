@@ -18,7 +18,7 @@ Neither is a clinical service or a final release.
 | Control gateway (CPU) | dr-train, `127.0.0.1:7860` | current deployment folder `deployments/regular-20261031-r05` (identity equal to r04, so the r04 PRISM pins stay in use) |
 | Daily authority | dr-train, `regular/r01/` | one lineage since 31 October; reopened by later deployments, never reset |
 | GPU child (on demand) | dr-train, `127.0.0.1:7861`, GPU0 only | reviewed `m1_session` worker, pins checked by a CPU identity check per deployment (`regular/r0N-identity.json`) |
-| Review app | the owner's workstation, `127.0.0.1:8010` | `scripts.qa.m1_server_app serve-regular`, own PostgreSQL workspace, backend-held token |
+| Review app | the owner's workstation, `127.0.0.1:8010` | `scripts.demo.server_app serve-regular`, own PostgreSQL workspace, backend-held token |
 
 Limits enforced by the authority: 1,500 admitted calls and 43,200 GPU-seconds per Thai day; AI hours 06:00
 to 22:00 Asia/Bangkok (no new admission after 21:55); one running call; 300 s funded segments, charged in
@@ -66,7 +66,7 @@ stops with a plain message.
 ### Review app by hand (workstation)
 
 ```powershell
-.\.venv\Scripts\python.exe -m scripts.qa.m1_server_app serve-regular --allow-remote-token-read `
+.\.venv\Scripts\python.exe -m scripts.demo.server_app serve-regular --allow-remote-token-read `
   --workspace-id <ws_m1_...> --prism-pins <M1PrivateConfig>\regular-20261031-r04\PRISM_WORKSPACE_PINS.json `
   --workstation <simple-name> [--public-samples] --app-port 8010 --model-port 47860
 ```

@@ -40,7 +40,6 @@ def test_review_profile_is_default_and_routes_cases(monkeypatch, tmp_path):
     paths = _collect_paths(app)
     assert '/v1/cases' in paths
     assert '/v1/infer/global' in paths
-    assert '/ui' in paths or '/ui/index.html' in paths  # static mount or route
     # The standalone model_api routes must NOT be present in review profile.
     assert '/v1/predict/dr' not in paths
     assert '/v1/predict/lesions' not in paths

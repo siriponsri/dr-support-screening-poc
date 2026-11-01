@@ -40,7 +40,7 @@ def review_context_allowed(path):
         return False
     if p.suffix.lower() in IMAGE_SUFFIXES:
         return path in PREVIEW_ASSETS
-    return path in CONTEXT_FILES or path.startswith(('dr_support/', 'web/', 'frontend/src/'))
+    return path in CONTEXT_FILES or path.startswith(('dr_support/', 'frontend/src/'))
 
 
 def template_findings(text):

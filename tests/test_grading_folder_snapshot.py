@@ -13,7 +13,7 @@ from PIL import Image
 import pytest
 
 from dr_support.images import BridgeImage
-from dr_support.services import dataset
+from dr_support.services import dataset, dataset_snapshot
 from dr_support.services.dataset import DatasetManifestService
 from dr_support.services.dataset import DatasetManifestError
 
@@ -68,8 +68,9 @@ def test_snapshot_collision_preserves_existing_owner_directory(rig, monkeypatch)
         @staticmethod
         def now(tz=None):
             return datetime(2026, 10, 21, tzinfo=timezone.utc)
-    monkeypatch.setattr(dataset, "datetime", FixedTime)
-    monkeypatch.setattr(dataset, "uuid4", lambda: SimpleNamespace(hex="f" * 32))
+    # Snapshot export moved to services/dataset_snapshot.py; patch the names where it looks them up.
+    monkeypatch.setattr(dataset_snapshot, "datetime", FixedTime)
+    monkeypatch.setattr(dataset_snapshot, "uuid4", lambda: SimpleNamespace(hex="f" * 32))
     existing = rig.output / "dataset-snapshot-20261021T000000Z-ffffffff"
     existing.mkdir()
     keep = existing / "owner.txt"
@@ -348,7 +349,7 @@ def test_output_preflight_fails_before_any_snapshot_is_created(rig, monkeypatch,
     if failure == "space":
         monkeypatch.setattr(dataset.shutil, "disk_usage", lambda root: SimpleNamespace(free=0))
     elif failure == "redirect":
-        monkeypatch.setattr(dataset, "has_reparse_component", lambda root: True)
+        monkeypatch.setattr(dataset_snapshot, "has_reparse_component", lambda root: True)
     else:
         rig.app.state.workspace_manager.active_workspace.input_folder = str(rig.output)
     with pytest.raises(DatasetManifestError):
