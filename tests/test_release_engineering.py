@@ -29,11 +29,20 @@ def test_workstation_package_includes_recovery_entrypoints_and_instructions():
     required = {
         "BACKUP_DR_SCREENING.bat", "RESTORE_DR_SCREENING.bat",
         "scripts/windows/release-backup.ps1", "scripts/windows/release-restore.ps1",
-        "docs/operations/BACKUP_RESTORE.md",
+        "docs/developer/BACKUP_RESTORE.md",
     }
     assert required <= selected
     assert all((ROOT / item).is_file() and not builder.forbidden(item) for item in required)
     assert "dr_support" in selected  # includes the actual controller, not launchers alone
+
+
+def test_release_documentation_allowlists_name_existing_files():
+    import scripts.release.build_release as builder
+
+    for selected in (builder.workstation_allowlist(), builder.model_api_allowlist()):
+        docs = [item for item in selected if item.startswith(("docs/", "deployment/")) or item.endswith(".md")]
+        assert docs
+        assert [item for item in docs if not (ROOT / item).exists()] == []
 
 
 def test_windows_launcher_owns_local_postgres_and_reports_manual_mode_safely():

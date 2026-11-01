@@ -1,47 +1,25 @@
-# Documentation Portal
+# Documentation
 
-Canonical documentation for the Retinal Review Workbench:
+Older documents (manuals, milestone receipts, plans, presentations) were removed on 1 November 2026. They stay
+recoverable from the Git tag `archive/docs-before-cut-20261101`.
 
-## Start here (phase 1)
+## Guides in Thai (PDF)
 
-- [Architecture for the team](ARCHITECTURE.md)
-- [Phase 1 specification](milestone/phase1/PHASE1_PROGRAM_SPEC.md)
-- [Team access to dr-train](operations/TEAM_ACCESS_DR_TRAIN.md) and [personal tokens](operations/TOKEN_DISTRIBUTION.md)
-- [Docker package 1: web app](../deployment/webapp/README.md) and [package 2: hospital server](../deployment/hospital-server/README.md)
-- [Regular service operations and one-click demo](operations/REGULAR_SERVICE_OPERATIONS.md)
+| Guide | For | File |
+| --- | --- | --- |
+| Deployment guide | hospital IT and the operator | `docs/pdfs/DEPLOYMENT_GUIDE_TH.pdf` (coming in the next step) |
+| Test report | the owner and reviewers | `docs/pdfs/TEST_REPORT_TH.pdf` (coming in the next step) |
+| User manual, step by step with screenshots | physicians and nurses, no code | `docs/pdfs/USER_MANUAL_TH.pdf` (coming in the next step) |
 
-## Current operating and deployment guides
+## For developers
 
-- [No-code workstation quick start](../README_START_HERE.md)
-- [Installation](operations/INSTALLATION.md)
-- [Deployment topology](operations/DEPLOYMENT.md)
-- [Model API operations](operations/MODEL_SERVER.md)
-- [Troubleshooting](operations/TROUBLESHOOTING.md)
-- [Security and privacy](operations/SECURITY_PRIVACY.md)
-- [Security audit, 31 October 2026](audit/SECURITY_AUDIT_20261031.md) (fixed and open findings)
-
-- [Clinician manual](manuals/clinician/index.qmd)
-- [Operator manual](operations/INSTALLATION.md)
-- [Developer guide](manuals/developer/index.qmd)
-- [Operations](operations/)
-- [Reference](reference/)
-- [Milestone plans](milestone/m1/M1_MASTER_PLAN.md)
-- [Release checklist](release/)
-
-## Planning drafts
-
-- [Hospital local QA findings and inferred minimum/maximum hardware spec (Thai, draft)](planning/HOSPITAL_LOCAL_QA_MIN_MAX_DRAFT_TH_20261023.md) — evidence-based planning; not hospital load-test, deployment, or clinical acceptance.
-
-## Handoff snapshots
-
-- [Pepo GPT Dot handoff, 23 October 2026](developer/PEPO_GPT_DOT_HANDOFF_20261023.md) — current evidence, blockers, ownership and next actions; does not replace operating guides or normative specifications.
-
-The milestone documents under `milestone/` and architecture decisions under
-`adr/` preserve historical requirements, decisions, and closeout evidence.
-They should not be used as the daily workstation runbook unless an operating
-guide links to them explicitly.
-
-Use the clinician manual for workflow instructions, the developer guide for
-contracts and tests, and the operations/reference folders for deployment and
-data details. Source documentation is authoritative for the corresponding
-product surface; generated PDFs and screenshots are supporting artifacts.
+- [Architecture](ARCHITECTURE.md): system map, case flow, roles, data model, safety rules. Start here.
+- [Configuration](developer/CONFIGURATION.md): environment variables and runtime profiles.
+- [dr-train access](developer/DR_TRAIN_ACCESS.md): working with or without the team GPU server, personal tokens.
+- [Model server operations](developer/MODEL_SERVER_OPERATIONS.md): regular gateway, Model API, PRISM receipts.
+- [Security and privacy](developer/SECURITY.md): rules and the 31 October 2026 audit.
+- [Dataset manifest](developer/DATASET_MANIFEST.md): the export contract.
+- [Backup and restore](developer/BACKUP_RESTORE.md): recovery contract and procedures.
+- Deployment packages: [web app](../deployment/webapp/README.md), [hospital server](../deployment/hospital-server/README.md).
+- Repository rules: [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md), [DESIGN.md](../DESIGN.md).
+- Current state: [HANDOFF.md](../HANDOFF.md) (English) and [GOAL.md](../GOAL.md) (Thai).

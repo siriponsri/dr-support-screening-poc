@@ -173,11 +173,8 @@ def workstation_allowlist() -> list[str]:
         "scripts/windows/release-backup.ps1", "scripts/windows/release-restore.ps1",
         "FIRST_RUN.bat", "START_DR_SCREENING.bat", "STOP_DR_SCREENING.bat", "CHECK_SYSTEM.bat",
         "BACKUP_DR_SCREENING.bat", "RESTORE_DR_SCREENING.bat",
-        "docs/operations/INSTALLATION.md", "docs/operations/CONFIGURATION.md",
-        "docs/operations/BACKUP_RESTORE.md",
-        "docs/operations/DATABASE_ROLES.md",
-        "docs/operations/TROUBLESHOOTING.md", "docs/operations/SECURITY_PRIVACY.md",
-        "docs/manuals/clinician", "docs/reference/DATASET_MANIFEST.md",
+        "docs/developer/CONFIGURATION.md", "docs/developer/BACKUP_RESTORE.md",
+        "docs/developer/SECURITY.md", "docs/developer/DATASET_MANIFEST.md",
     ]
 
 
@@ -190,8 +187,8 @@ def model_api_allowlist() -> list[str]:
         "scripts/release/model-api-check.sh",
         "scripts/release/model-api-verify.sh",
         "scripts/release/README.md",
-        "docs/operations/MODEL_SERVER.md", "docs/operations/DEPLOYMENT.md",
-        "docs/operations/SECURITY_PRIVACY.md",
+        "docs/developer/MODEL_SERVER_OPERATIONS.md", "docs/developer/CONFIGURATION.md",
+        "docs/developer/SECURITY.md", "deployment/model-api/README.md",
     ]
 
 

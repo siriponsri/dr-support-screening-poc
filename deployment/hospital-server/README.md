@@ -44,8 +44,8 @@ hand them over separately (layout in IT_CHECKLIST.md, section 6).
   plugin and NVIDIA Container Toolkit (the installer can install the last two).
 - The hospital profile's start check accepts only an NVIDIA RTX 3090. 12 to 16
   CPU cores, 64 GB RAM, a 1 TB system disk and a separate data disk are
-  recommended. See IT_CHECKLIST.md and
-  `docs/planning/PHASE1_ALL_IN_ONE_PLAN_20261031.md` section 5.3.
+  recommended. See IT_CHECKLIST.md (the original sizing note is kept in Git tag
+  `archive/docs-before-cut-20261101`).
 - Verified model assets on the server (they are not in the images or in Git).
   The services check them against the pinned hashes at start and refuse to run
   otherwise.

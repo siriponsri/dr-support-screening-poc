@@ -3,7 +3,7 @@
 Retinal Review Workbench: a clinician-controlled DR screening, review and research-labelling app.
 AI is optional assistance; the person's grade is always authoritative. Not a diagnostic device.
 Start here, then read [`AGENTS.md`](../AGENTS.md) (binding rules), [`CLAUDE.md`](../CLAUDE.md)
-(commands and architecture notes) and the latest [`HANDOFF.md`](../HANDOFF.md) sections.
+(commands and architecture notes) and [`HANDOFF.md`](../HANDOFF.md) (current state).
 
 ## 1. System at a glance
 
@@ -81,7 +81,7 @@ checksummed in `dr_support/persistence/migrations.py`.
 
 ## 6. Run and test
 
-See [`README.md`](../README.md) and [`docs/operations/TEAM_ACCESS_DR_TRAIN.md`](operations/TEAM_ACCESS_DR_TRAIN.md).
+See [`README.md`](../README.md) and [`developer/DR_TRAIN_ACCESS.md`](developer/DR_TRAIN_ACCESS.md).
 Backend `pytest -q` (offline, mocked models), `ruff check dr_support tests`; frontend `npm test`,
 `npm run typecheck`; root smoke `npm test`; docs `python scripts/docs/check_docs.py`. Work on a
 `feat/`, `fix/` or `docs/` branch in its own worktree; never on `main` (AGENTS.md lifecycle).
@@ -90,6 +90,22 @@ Backend `pytest -q` (offline, mocked models), `ruff check dr_support tests`; fro
 
 | Kind | Documents |
 | --- | --- |
-| Current, authoritative | `AGENTS.md`, `CLAUDE.md`, `README.md`, `DESIGN.md`, `docs/milestone/phase1/PHASE1_PROGRAM_SPEC.md`, HANDOFF sections 37 onward, `docs/operations/REGULAR_SERVICE_OPERATIONS.md`, `TEAM_ACCESS_DR_TRAIN.md`, `TOKEN_DISTRIBUTION.md`, `PRISM_INPUT_PREVIEW.md`, `SECURITY_PRIVACY.md`, `BACKUP_RESTORE.md`, `docs/reference/DATASET_MANIFEST.md`, `deployment/*/README.md` |
-| Detailed guides (written before phase 1; check against code) | `docs/manuals/developer/*.qmd`, `docs/operations/CONFIGURATION.md`, `INSTALLATION.md`, `DEPLOYMENT.md` |
-| Historical evidence, not runbooks | `docs/milestone/m1/*` receipts and amendments, `docs/milestone/regular/`, `docs/planning/*_2026102x.md`, HANDOFF sections 1 to 36 |
+| Binding rules | `AGENTS.md`, `CLAUDE.md`, `DESIGN.md` |
+| Current state | `HANDOFF.md` (English), `GOAL.md` (Thai) |
+| Developer reference | this file, `docs/developer/*.md`, `deployment/*/README.md`, `scripts/release/README.md` |
+| End users and IT | the three Thai PDFs in `docs/pdfs/` (see [`README.md`](README.md)) |
+| History | Git tag `archive/docs-before-cut-20261101`: old manuals, milestone specs and receipts, plans, ADRs, full HANDOFF and GOAL. Evidence, not runbooks. |
+
+When code and a document disagree, the code and its tests win; fix the document.
+
+## 8. scripts/ index
+
+| Folder | Live entry points | Notes |
+| --- | --- | --- |
+| `scripts/windows/` | `release-*.ps1` behind the root `*.bat` launchers | no-code workstation start, stop, check, backup, restore |
+| `scripts/demo/` | one-click "DR Screening Demo" (`start-dr-train-demo.*`, `remote-start-gateway.sh`) | owner workstation only |
+| `scripts/model-server/` | `regular_service.py`, `regular_authority.py` (dr-train gateway); `setup.sh`, `start.sh`, `healthcheck.sh` (GPU host); `admin/create-restricted-user.sh` | `m1_session.py` is the GPU child the gateway starts; the other `m1_*.py` and `demo_session.py` come from the closed M1 GPU windows but are still imported or tested, so check imports before removing |
+| `scripts/qa/` | `m1_server_app.py` (`serve-regular` review app launcher), `check_export_folder.py` | the monitors and supervisor are used by the gateway; `qualify_*`, `batch_runtime/`, `m1_local_acceptance.py`, `m1_recorded_source_projection.py` are historical M1 evidence tools |
+| `scripts/release/` | `build_release.py` (workstation and Model API ZIPs) | see its README |
+| `scripts/audit/` | `check_repo_hygiene.py`, deployment and Gold plan validators | offline checks used by tests |
+| `scripts/docs/` | `check_docs.py`, `capture_manual_screenshots.py`, `generate_manifest_example.py` | the Thai PDF builder comes in a later step (the old Quarto `build_docs.py` is in the archive tag) |

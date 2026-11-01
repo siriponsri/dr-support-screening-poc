@@ -9,7 +9,7 @@
 - `docs/`: normative specs, runbooks, architecture notes.
 - `local-state/`: runtime state only; never treat as source data.
 
-Read the current README, DESIGN.md, and the relevant operational or user manual source before substantial work. There is no separate HANDOFF.md source.
+Read the current README.md, DESIGN.md, docs/ARCHITECTURE.md and HANDOFF.md before substantial work.
 
 ## Skills
 
