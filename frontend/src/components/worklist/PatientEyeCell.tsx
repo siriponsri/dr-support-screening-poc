@@ -1,10 +1,12 @@
 import { Button, IconButton, Stack, Text } from '@chakra-ui/react';
+import { useT } from '@/lib/i18n';
 import type { CaseRecord } from '@/lib/api';
 import { StatusBadge, type StatusTone } from '@/components/common/StatusBadge';
 import { Pencil } from '@/lib/icons';
 import { patientLabel } from '@/lib/patientPresentation';
 
 export function PatientEyeCell({ item, onResolve }: { item: CaseRecord; onResolve: () => void }) {
+  const t = useT();
   const ui = item.resolver_ui;
   const patient = patientLabel(item);
   const eyeLabel = item.laterality && item.laterality !== 'UNKNOWN' ? (item.laterality === 'LEFT' ? 'Left' : 'Right') : ui?.laterality.label ?? 'Eye not confirmed';
@@ -32,15 +34,15 @@ export function PatientEyeCell({ item, onResolve }: { item: CaseRecord; onResolv
               size="xs"
               variant="ghost"
               icon={<Pencil size={14} />}
-              aria-label="Edit patient and eye assignment"
-              title="Edit patient and eye assignment"
+              aria-label={t('Edit patient and eye assignment')}
+              title={t('Edit patient and eye assignment')}
               onClick={onResolve}
             />
           </Stack>
         </>
       )}
       {(patientNeedsAction || eyeNeedsAction) && (
-        <Button size="sm" variant="outline" alignSelf="flex-start" onClick={onResolve} aria-label={actionLabel}>{actionLabel}</Button>
+        <Button size="sm" variant="outline" alignSelf="flex-start" onClick={onResolve} aria-label={actionLabel}>{t(actionLabel)}</Button>
       )}
     </Stack>
   );

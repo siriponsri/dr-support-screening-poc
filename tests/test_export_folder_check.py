@@ -77,7 +77,7 @@ def set_manifest_note(folder, value):
 
 @pytest.mark.parametrize("leak", ["/etc", "/ผู้ป่วย/image.png", "/患者/image.png", "path:/home/u/a.png",
                                   "file:///home/u/a.png", "~/a.png", "//server/share/a.png", "(/data/a.png)"])
-def test_audit_counterexample_paths_fail(exported, leak):  # docs/audit/20261031-local-web-real-api/CHECKER_PROBES.json
+def test_audit_counterexample_paths_fail(exported, leak):  # docs/milestone/regular/owner-audit-20261031/CHECKER_PROBES.json
     set_manifest_note(exported, leak)
     assert check(exported)["checks"]["no_absolute_paths"] is False
 

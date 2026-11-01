@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useEffect, useState } from 'react';
 import { Box, Button, Flex, Text } from '@chakra-ui/react';
 import {
@@ -21,6 +22,7 @@ function GuideMessage({ offer, onTurnOff, onDismiss }: {
   onTurnOff: () => void;
   onDismiss: () => void;
 }) {
+  const t = useT();
   return (
     <Flex
       data-testid="guide-hint"
@@ -32,15 +34,16 @@ function GuideMessage({ offer, onTurnOff, onDismiss }: {
       py={1}
     >
       <Text flex="1 1 240px" minW={0} fontSize="sm" color="text.secondary">
-        {offer ? 'First review complete. Turn off Guide mode?' : null}
+        {offer ? t('First review complete. Turn off Guide mode?') : null}
       </Text>
-      {offer && <Button size="xs" variant="ghost" onClick={onDismiss}>Not now</Button>}
-      <Button size="xs" variant="ghost" onClick={onTurnOff}>Turn off Guide mode</Button>
+      {offer && <Button size="xs" variant="ghost" onClick={onDismiss}>{t('Not now')}</Button>}
+      <Button size="xs" variant="ghost" onClick={onTurnOff}>{t('Turn off Guide mode')}</Button>
     </Flex>
   );
 }
 
 export function GuideHint({ step, offerOnly = false }: { step: GuideStep; offerOnly?: boolean }) {
+  const t = useT();
   const [enabled, setEnabled] = useState(() => getGuideModeEnabled());
   const [offer, setOffer] = useState(() => getGuideOfferPending());
 
@@ -79,8 +82,8 @@ export function GuideHint({ step, offerOnly = false }: { step: GuideStep; offerO
       rowGap={1}
       py={1}
     >
-      <Text flex="1 1 240px" minW={0} fontSize="sm" color="text.secondary">{STEP_HINTS[step]}</Text>
-      <Button size="xs" variant="ghost" onClick={turnOff}>Turn off Guide mode</Button>
+      <Text flex="1 1 240px" minW={0} fontSize="sm" color="text.secondary">{t(STEP_HINTS[step])}</Text>
+      <Button size="xs" variant="ghost" onClick={turnOff}>{t('Turn off Guide mode')}</Button>
     </Flex>
   );
 }

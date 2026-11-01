@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
@@ -38,6 +39,7 @@ export function GoldPage() {
 
 function GoldList() {
   const { pathname } = useLocation();
+  const t = useT();
   const [cases, setCases] = useState<CaseRecord[] | null>(null);
   const [states, setStates] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -53,7 +55,7 @@ function GoldList() {
   const done = Object.values(states).filter((value) => value === 'Done').length;
   return (
     <Box as="main" maxW="1200px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
-      <PageHeader pathname={pathname} subtitle={`${done} of ${cases?.length ?? 0} images labelled`} />
+      <PageHeader pathname={pathname} subtitle={`${done} ${t('of')} ${cases?.length ?? 0} ${t('images labelled')}`} />
       <Section title="Images" description="Open an image to grade it. Your grade is the reference; the AI suggestion stays hidden until you save it.">
         <Box overflowX="auto">
           <Table size="sm">
@@ -64,7 +66,7 @@ function GoldList() {
                   <Td fontFamily="mono">{item.image_id.slice(0, 12)}</Td>
                   <Td>{item.modality}</Td>
                   <Td><Badge colorScheme={states[item.image_id] === 'Done' ? 'green' : 'gray'}>{states[item.image_id] ?? '...'}</Badge></Td>
-                  <Td textAlign="right"><Button as={Link} size="sm" variant="outline" to={`/gold/${encodeURIComponent(item.image_id)}`}>Open</Button></Td>
+                  <Td textAlign="right"><Button as={Link} size="sm" variant="outline" to={`/gold/${encodeURIComponent(item.image_id)}`}>{t('Open')}</Button></Td>
                 </Tr>
               ))}
             </Tbody>
@@ -78,6 +80,7 @@ function GoldList() {
 function GoldLabel({ imageId }: { imageId: string }) {
   const { pathname } = useLocation();
   const { user } = useAuth();
+  const t = useT();
   const url = `/v1/cases/${encodeURIComponent(imageId)}/gold-label`;
   const started = useRef(Date.now());
   const [state, setState] = useState<GoldState | null>(null);
@@ -113,23 +116,23 @@ function GoldLabel({ imageId }: { imageId: string }) {
   return (
     <Box as="main" maxW="1400px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader pathname={pathname} subtitle={`Status: ${status(record)}`} />
-      {!canWrite && <Alert status="info" mb={4}><AlertIcon /><Text fontSize="sm">Gold labels are entered by the ophthalmologist (expert) account.</Text></Alert>}
+      {!canWrite && <Alert status="info" mb={4}><AlertIcon /><Text fontSize="sm">{t('Gold labels are entered by the ophthalmologist (expert) account.')}</Text></Alert>}
       <Grid templateColumns={{ base: '1fr', desktop: 'minmax(0, 1.3fr) minmax(0, 1fr)' }} gap={5} alignItems="start">
-        {imageUrl ? <Image src={imageUrl} alt="Retinal image for grading" borderRadius="md" bg="black" w="100%" />
+        {imageUrl ? <Image src={imageUrl} alt={t('Retinal image for grading')} borderRadius="md" bg="black" w="100%" />
           : <Box bg="surface.subtle" borderRadius="md" minH="320px" />}
         <Stack spacing={4}>
           <Section title="Your grade" description="Your grade is the reference. Only the grade and gradability are needed.">
             <Stack spacing={3}>
               <RadioGroup value={gradable == null ? '' : String(gradable)} onChange={(value) => setGradable(value === 'true')} isDisabled={locked || !canWrite}>
-                <HStack spacing={4}><Radio value="true">Gradable</Radio><Radio value="false">Ungradable</Radio></HStack>
+                <HStack spacing={4}><Radio value="true">{t('Gradable')}</Radio><Radio value="false">{t('Ungradable')}</Radio></HStack>
               </RadioGroup>
               <RadioGroup value={grade == null ? '' : String(grade)} onChange={(value) => setGrade(Number(value))} isDisabled={locked || !canWrite || gradable === false}>
                 <Stack spacing={1}>{GRADES.map((text, index) => <Radio key={index} value={String(index)}>{text}</Radio>)}</Stack>
               </RadioGroup>
               <RadioGroup value={confidence ?? ''} onChange={setConfidence} isDisabled={locked || !canWrite}>
-                <HStack spacing={4}><Text fontSize="sm">Confidence (optional):</Text><Radio value="SURE">Sure</Radio><Radio value="UNSURE">Unsure</Radio></HStack>
+                <HStack spacing={4}><Text fontSize="sm">{t('Confidence (optional):')}</Text><Radio value="SURE">{t('Sure')}</Radio><Radio value="UNSURE">{t('Unsure')}</Radio></HStack>
               </RadioGroup>
-              <Text fontSize="sm" fontWeight="semibold">Signs by quadrant (optional)</Text>
+              <Text fontSize="sm" fontWeight="semibold">{t('Signs by quadrant (optional)')}</Text>
               <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={2}>
                 {QUADRANTS.map((quadrant) => (
                   <Stack key={quadrant} spacing={1} borderWidth="1px" borderColor="border.subtle" borderRadius="md" p={2}>
@@ -143,35 +146,35 @@ function GoldLabel({ imageId }: { imageId: string }) {
                 ))}
               </SimpleGrid>
               <RadioGroup value={reason ?? ''} onChange={setReason} isDisabled={locked || !canWrite}>
-                <HStack spacing={3} flexWrap="wrap"><Text fontSize="sm">Why chosen (optional):</Text>
-                  {[['TYPICAL', 'Typical'], ['HARD', 'Hard'], ['SEVERE', 'Severe'], ['RARE', 'Rare']].map(([key, label]) => <Radio key={key} value={key}>{label}</Radio>)}</HStack>
+                <HStack spacing={3} flexWrap="wrap"><Text fontSize="sm">{t('Why chosen (optional):')}</Text>
+                  {[['TYPICAL', 'Typical'], ['HARD', 'Hard'], ['SEVERE', 'Severe'], ['RARE', 'Rare']].map(([key, label]) => <Radio key={key} value={key}>{t(label)}</Radio>)}</HStack>
               </RadioGroup>
-              {!user && <FormControl maxW="320px"><FormLabel fontSize="sm">Your name</FormLabel><Input value={reviewer} onChange={(event) => setReviewer(event.target.value)} /></FormControl>}
+              {!user && <FormControl maxW="320px"><FormLabel fontSize="sm">{t('Your name')}</FormLabel><Input value={reviewer} onChange={(event) => setReviewer(event.target.value)} /></FormControl>}
               <Button alignSelf="flex-start" isDisabled={locked || !canWrite || gradable == null || (gradable && grade == null)}
                 onClick={() => void run(() => put(`${url}/blind`, {
                   revision: state?.revision, reviewer, seconds_spent: seconds(),
                   label: { gradable, grade: gradable ? grade : null, confidence, quadrant_signs: quadrantSigns, selection_reason: reason },
-                }), 'Your grade is saved.')}>Save my grade</Button>
+                }), 'Your grade is saved.')}>{t('Save my grade')}</Button>
             </Stack>
           </Section>
           <Section title="AI suggestion (optional)" description="Shown only after your own grade is saved. Your saved grade stays as it is.">
             {state?.ai_grade ? (
               <Stack spacing={3}>
-                <Text fontSize="sm">AI suggestion: {state.ai_grade.grade == null ? 'no AI result' : GRADES[state.ai_grade.grade]}</Text>
+                <Text fontSize="sm">{t('AI suggestion:')} {state.ai_grade.grade == null ? t('no AI result') : GRADES[state.ai_grade.grade]}</Text>
                 <RadioGroup value={finalGrade == null ? '' : String(finalGrade)} onChange={(value) => setFinalGrade(Number(value))} isDisabled={!canWrite}>
-                  <Stack spacing={1}><Text fontSize="sm">Your final grade (the same or changed):</Text>
+                  <Stack spacing={1}><Text fontSize="sm">{t('Your final grade (the same or changed):')}</Text>
                     {GRADES.map((text, index) => <Radio key={index} value={String(index)}>{text}</Radio>)}</Stack>
                 </RadioGroup>
                 <Button alignSelf="flex-start" variant="outline" isDisabled={!canWrite || finalGrade == null}
-                  onClick={() => void run(() => put(`${url}/final`, { revision: state?.revision, grade: finalGrade, reviewer, seconds_spent: seconds() }), 'Final grade saved. Thank you.')}>Save final grade</Button>
+                  onClick={() => void run(() => put(`${url}/final`, { revision: state?.revision, grade: finalGrade, reviewer, seconds_spent: seconds() }), 'Final grade saved. Thank you.')}>{t('Save final grade')}</Button>
               </Stack>
             ) : (
               <Button alignSelf="flex-start" variant="ghost" isDisabled={!record?.blind || !canWrite}
-                onClick={() => void run(() => put(`${url}/reveal-ai`, { revision: state?.revision, reviewer }, 'POST'), 'AI suggestion shown.')}>Show AI suggestion</Button>
+                onClick={() => void run(() => put(`${url}/reveal-ai`, { revision: state?.revision, reviewer }, 'POST'), 'AI suggestion shown.')}>{t('Show AI suggestion')}</Button>
             )}
           </Section>
-          {message && <Alert status={message.tone} py={2}><AlertIcon /><Text fontSize="sm">{message.text}</Text></Alert>}
-          <Button as={Link} to="/gold" variant="ghost" alignSelf="flex-start">Back to the list</Button>
+          {message && <Alert status={message.tone} py={2}><AlertIcon /><Text fontSize="sm">{t(message.text)}</Text></Alert>}
+          <Button as={Link} to="/gold" variant="ghost" alignSelf="flex-start">{t('Back to the list')}</Button>
         </Stack>
       </Grid>
     </Box>

@@ -51,8 +51,9 @@ The administrator account keeps every permission because it is also the owner's 
 (implementation 31 October 2026). Reads stay open to every signed-in role; the server refuses the writes a
 role may not make, with a plain message.
 
-A nurse's grade is shown as "Preliminary, waiting for physician confirmation"
-until a physician confirms it; the report shows both names.
+A nurse records the preliminary grade in the screening report (status PRELIMINARY); the
+clinical grade confirmation (`/review`) stays with physicians, experts and the administrator, and the
+report shows who prepared and who signed it (as built 31 October 2026).
 
 ### 3.2 Language
 
@@ -65,8 +66,10 @@ English. No middle dot or em dash in UI text.
 Entry A, new patient: import one patient's images, confirm image type, AI
 suggestion, grade per eye, report.
 Entry B, archive: choose a folder, batch AI, grade folders as copies:
-`ai_predicted_unverified/{grade_0..4,ungradable,low_confidence}/` and
-`confirmed/{grade_0..4,ungradable}/`, each with a CSV manifest.
+`ai_predicted_unverified/{ai_grade_0..4,ungradable,no_ai_result}/` (as built) and the existing
+confirmed export `grouped_by_grade/{dr_grade_0..4,ungradable,senior_review,needs_review}/`, each with a
+CSV and JSON manifest. No `low_confidence` folder: model scores are not calibrated, so no honest cut-off exists
+yet.
 
 ### 3.4 Screening report (PDF)
 

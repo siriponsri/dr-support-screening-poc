@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { usePageNavigationGuard } from '@/components/shell/NavigationGuard';
 import { useActiveCaseSession } from '@/hooks/useActiveCaseSession';
 import { localTiming } from '@/lib/localTiming';
@@ -310,6 +311,7 @@ function MoreToolsPopover({
   inspectorActive: boolean;
   fullscreen?: boolean;
 }) {
+  const t = useT();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -398,7 +400,7 @@ function MoreToolsPopover({
         onClick={() => onOpenChange(!open)}
         isDisabled={disabled}
       >
-        More tools
+        {t('More tools')}
       </Button>
       {/* Keep the popup in the owning Modal subtree so focus lock remains local. */}
       {open && (
@@ -406,7 +408,7 @@ function MoreToolsPopover({
           id={popupId}
           ref={popupRef}
           role="dialog"
-          aria-label="Annotation tools"
+          aria-label={t('Annotation tools')}
           position="fixed"
           top={`${popupPosition.top}px`}
           left={`${popupPosition.left}px`}
@@ -450,6 +452,7 @@ function AnnotationEditorPageSession() {
   const { pathname } = location;
   const navigate = useNavigate();
   const { imageId } = useParams<{ imageId: string }>();
+  const t = useT();
   const [item, setItem] = useState<CaseRecord | null>(null);
   const [draft, setDraft] = useState<HumanAnnotation[]>([]);
   const [history, setHistory] = useState<HumanAnnotation[][]>([]);
@@ -1023,27 +1026,27 @@ function AnnotationEditorPageSession() {
         <ToolButton active={tool === 'select'} onClick={() => activateTool('select')} isDisabled={isCoordinateInspector || roiSaving || readOnly}><MousePointer2 size={14} /> Select</ToolButton>
         <ToolButton active={tool === 'rectangle'} onClick={() => activateTool('rectangle')} isDisabled={isCoordinateInspector || roiSaving || readOnly}><Square size={14} /> Box</ToolButton>
         <MoreToolsPopover open={moreToolsOpen} onOpenChange={setMoreToolsOpen} tool={tool} onToolChange={setTool} onActivate={activateTool} disabled={readOnly || roiSaving} inspectorActive={isCoordinateInspector} />
-        <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={isCoordinateInspector || roiSaving || readOnly || history.length === 0}>Undo</Button>
-        <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedShapeId}>Delete selected</Button>
+        <Button size="sm" leftIcon={<Undo2 size={14} />} onClick={undo} isDisabled={isCoordinateInspector || roiSaving || readOnly || history.length === 0}>{t('Undo')}</Button>
+        <Button size="sm" leftIcon={<Trash2 size={14} />} onClick={deleteSelected} isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedShapeId}>{t('Delete selected')}</Button>
         <Button
           size="sm"
           leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />}
           onClick={toggleSelectedLock}
           isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedAnnotation}
-          aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}
+          aria-label={selectedIsLocked ? t('Unlock selected human annotation') : t('Lock selected human annotation')}
         >
-          {selectedIsLocked ? 'Unlock selected' : 'Lock selected'}
+          {selectedIsLocked ? t('Unlock selected') : t('Lock selected')}
         </Button>
         <FormControl width={{ base: '100%', tablet: '180px' }} flexShrink={0}>
-          <FormLabel htmlFor="new-annotation-class" fontSize="xs" mb={1}>Finding class</FormLabel>
+          <FormLabel htmlFor="new-annotation-class" fontSize="xs" mb={1}>{t('Finding class')}</FormLabel>
           <Select id="new-annotation-class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel | '')} isDisabled={readOnly || roiSaving}>
-            <option value="">Choose finding...</option>
+            <option value="">{t('Choose finding...')}</option>
             {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </Select>
         </FormControl>
         {selectedAnnotation && (
           <FormControl width={{ base: '100%', tablet: '180px' }} flexShrink={0}>
-            <FormLabel htmlFor="selected-annotation-class" fontSize="xs" mb={1}>Selected annotation class</FormLabel>
+            <FormLabel htmlFor="selected-annotation-class" fontSize="xs" mb={1}>{t('Selected annotation class')}</FormLabel>
             <Select id="selected-annotation-class" size="sm" value={selectedAnnotation.label} onChange={(event) => changeSelectedLabel(event.target.value as LesionLabel)} isDisabled={selectedIsLocked || readOnly || roiSaving}>
               {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </Select>
@@ -1053,8 +1056,8 @@ function AnnotationEditorPageSession() {
         <Button size="sm" variant={showHuman ? 'secondary' : 'outline'} onClick={() => setShowHuman((visible) => !visible)} aria-pressed={showHuman}>Human {showHuman ? 'on' : 'off'}</Button>
       </HStack>
       <HStack spacing={2} flexWrap="wrap" fontSize="xs" color="text.secondary" aria-live="polite">
-        <Text fontWeight="semibold">Active tool: {TOOL_LABELS[tool]}</Text>
-        <Text>{TOOL_GUIDANCE[tool]}</Text>
+        <Text fontWeight="semibold">{t('Active tool:')} {TOOL_LABELS[tool]}</Text>
+        <Text>{t(TOOL_GUIDANCE[tool])}</Text>
       </HStack>
     </Stack>
   );
@@ -1069,21 +1072,21 @@ function AnnotationEditorPageSession() {
           <Square size={14} /><Box display={{ base: 'none', tablet: 'inline' }}>Box</Box>
         </ToolButton>
         <MoreToolsPopover open={fullScreenMoreToolsOpen} onOpenChange={setFullScreenMoreToolsOpen} tool={tool} onToolChange={setTool} onActivate={activateTool} disabled={readOnly || roiSaving} inspectorActive={isCoordinateInspector} fullscreen />
-        <Button size="sm" leftIcon={<Undo2 size={14} />} aria-label="Undo annotation change" onClick={undo} isDisabled={isCoordinateInspector || roiSaving || readOnly || history.length === 0}>Undo</Button>
-        <Button size="sm" leftIcon={<Trash2 size={14} />} aria-label="Delete selected annotation" onClick={deleteSelected} isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedShapeId}>Delete</Button>
-        <Button size="sm" leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />} onClick={toggleSelectedLock} isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedAnnotation} aria-label={selectedIsLocked ? 'Unlock selected human annotation' : 'Lock selected human annotation'}>
-          {selectedIsLocked ? 'Unlock' : 'Lock'}
+        <Button size="sm" leftIcon={<Undo2 size={14} />} aria-label={t('Undo annotation change')} onClick={undo} isDisabled={isCoordinateInspector || roiSaving || readOnly || history.length === 0}>{t('Undo')}</Button>
+        <Button size="sm" leftIcon={<Trash2 size={14} />} aria-label={t('Delete selected annotation')} onClick={deleteSelected} isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedShapeId}>{t('Delete')}</Button>
+        <Button size="sm" leftIcon={selectedIsLocked ? <Unlock size={14} /> : <Lock size={14} />} onClick={toggleSelectedLock} isDisabled={isCoordinateInspector || roiSaving || readOnly || !selectedAnnotation} aria-label={selectedIsLocked ? t('Unlock selected human annotation') : t('Lock selected human annotation')}>
+          {selectedIsLocked ? t('Unlock') : t('Lock')}
         </Button>
-        <Select aria-label="Finding class" size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel | '')} maxW={{ base: '150px', tablet: '190px' }} isDisabled={readOnly || roiSaving}>
-          <option value="">Choose finding...</option>
+        <Select aria-label={t('Finding class')} size="sm" value={label} onChange={(event) => setLabel(event.target.value as LesionLabel | '')} maxW={{ base: '150px', tablet: '190px' }} isDisabled={readOnly || roiSaving}>
+          <option value="">{t('Choose finding...')}</option>
           {LABEL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </Select>
         <Button size="sm" variant={showAi ? 'secondary' : 'outline'} onClick={() => setShowAi((visible) => !visible)} aria-pressed={showAi}>AI {showAi ? 'on' : 'off'}</Button>
         <Button size="sm" variant={showHuman ? 'secondary' : 'outline'} onClick={() => setShowHuman((visible) => !visible)} aria-pressed={showHuman}>Human {showHuman ? 'on' : 'off'}</Button>
       </HStack>
       <HStack spacing={2} flexWrap="wrap" fontSize="xs" color="text.secondary" aria-live="polite">
-        <Text fontWeight="semibold">Active tool: {TOOL_LABELS[tool]}</Text>
-        <Text>{TOOL_GUIDANCE[tool]}</Text>
+        <Text fontWeight="semibold">{t('Active tool:')} {TOOL_LABELS[tool]}</Text>
+        <Text>{t(TOOL_GUIDANCE[tool])}</Text>
       </HStack>
     </Stack>
   );
@@ -1236,7 +1239,7 @@ function AnnotationEditorPageSession() {
     toast({
       id: 'case-complete',
       status: 'success',
-      title: nextId ? 'Case complete: opening next image' : 'Case complete: every Worklist image is complete',
+      title: nextId ? t('Case complete: opening next image') : t('Case complete: every Worklist image is complete'),
       duration: 3500,
       position: 'top',
       isClosable: true,
@@ -1367,10 +1370,10 @@ function AnnotationEditorPageSession() {
     return () => window.removeEventListener('beforeunload', guard);
   }, [draftStatus]);
 
-  if (!imageId) return <Center minH="360px"><Text>Select an image from the Worklist.</Text></Center>;
+  if (!imageId) return <Center minH="360px"><Text>{t('Select an image from the Worklist.')}</Text></Center>;
   if (loading && !item) return <Center minH="360px"><Spinner color="action.primary" /></Center>;
   if (error || !item) {
-    return <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={6}><Alert status="error"><AlertIcon /><Text>{error ?? 'Case unavailable.'}</Text></Alert><Button mt={4} onClick={() => navigate('/worklist')}>Back to Worklist</Button></Box>;
+    return <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={6}><Alert status="error"><AlertIcon /><Text>{t(error ?? 'Case unavailable.')}</Text></Alert><Button mt={4} onClick={() => navigate('/worklist')}>{t('Back to Worklist')}</Button></Box>;
   }
 
   return (
@@ -1378,22 +1381,22 @@ function AnnotationEditorPageSession() {
       <PageHeader
         pathname={pathname}
         title="Annotation Editor"
-        subtitle={`${item.display_name} - human annotations are separate from AI suggestions`}
-        actions={<HStack><Button onClick={() => void leaveTo(`/review/${encodeURIComponent(item.image_id)}`)} leftIcon={<ArrowLeft size={15} />} variant="ghost">Back to Review</Button><Button onClick={() => void leaveTo('/worklist')}>Back to Worklist</Button></HStack>}
+        subtitle={`${item.display_name} - ${t('human annotations are separate from AI suggestions')}`}
+        actions={<HStack><Button onClick={() => void leaveTo(`/review/${encodeURIComponent(item.image_id)}`)} leftIcon={<ArrowLeft size={15} />} variant="ghost">{t('Back to Review')}</Button><Button onClick={() => void leaveTo('/worklist')}>{t('Back to Worklist')}</Button></HStack>}
       />
       <HStack mb={3} spacing={2} fontSize="sm" aria-label="DR grade status" color={hasConfirmedGrade ? 'text.secondary' : 'status.warning'}>
         {hasConfirmedGrade ? <CheckCircle2 size={16} color="var(--chakra-colors-status-success)" /> : null}
-        <Text>{hasConfirmedGrade ? `DR grade confirmed: ${drGradeLabel(item.clinician_review?.final_grade) ?? 'Grade confirmed'}` : 'DR grade not confirmed'}</Text>
+        <Text>{hasConfirmedGrade ? `${t('DR grade confirmed:')} ${drGradeLabel(item.clinician_review?.final_grade) ?? t('Grade confirmed')}` : t('DR grade not confirmed')}</Text>
       </HStack>
       {Boolean((location.state as { gradingComplete?: boolean } | null)?.gradingComplete) && hasConfirmedGrade && (
-          <Alert status="success" mb={4}><AlertIcon /><Text><strong>Grading complete.</strong> Correct AI regions only where you disagree, then finish this image.</Text></Alert>
+          <Alert status="success" mb={4}><AlertIcon /><Text><strong>{t('Grading complete.')}</strong> {t('Correct AI regions only where you disagree, then finish this image.')}</Text></Alert>
       )}
       {!hasConfirmedGrade && (
         <Alert status="warning" mb={4}>
           <AlertIcon />
           <Stack spacing={2}>
-            <Text><strong>Confirm the DR grade first.</strong> Annotation review follows Clinician Review for this image. Your annotation draft is kept.</Text>
-            <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} size="sm" variant="outline" alignSelf="flex-start">Open Clinician Review</Button>
+            <Text><strong>{t('Confirm the DR grade first.')}</strong> {t('Annotation review follows Clinician Review for this image. Your annotation draft is kept.')}</Text>
+            <Button as={Link} to={`/clinician-review/${encodeURIComponent(item.image_id)}`} size="sm" variant="outline" alignSelf="flex-start">{t('Open Clinician Review')}</Button>
           </Stack>
         </Alert>
       )}
@@ -1401,9 +1404,9 @@ function AnnotationEditorPageSession() {
         <Alert status="info" mb={4}>
           <AlertIcon />
           <Stack spacing={1}>
-            <Text fontWeight="semibold">Annotations confirmed</Text>
-            {item.annotation_confirmation?.reviewer && <Text fontSize="sm">Reviewer: {item.annotation_confirmation.reviewer}</Text>}
-            {item.annotation_confirmation?.timestamp && <Text fontSize="sm">Confirmed at: {formatTimestamp(item.annotation_confirmation.timestamp)}</Text>}
+            <Text fontWeight="semibold">{t('Annotations confirmed')}</Text>
+            {item.annotation_confirmation?.reviewer && <Text fontSize="sm">{t('Reviewer:')} {item.annotation_confirmation.reviewer}</Text>}
+            {item.annotation_confirmation?.timestamp && <Text fontSize="sm">{t('Confirmed at:')} {formatTimestamp(item.annotation_confirmation.timestamp)}</Text>}
           </Stack>
         </Alert>
       )}
@@ -1428,7 +1431,7 @@ function AnnotationEditorPageSession() {
               if (isActive() && saved.image_id === imageId) setItem((current) =>
                 current && current.revision <= saved.revision ? saved : current);
             }} />
-          {artifactOverlayFailed && <Alert status="warning"><AlertIcon />Artifact overlay unavailable; all suggestions retained.</Alert>}
+          {artifactOverlayFailed && <Alert status="warning"><AlertIcon />{t('Artifact overlay unavailable; all suggestions retained.')}</Alert>}
           <RetinalCanvas
             item={item}
             aiLesionsOverride={annotationAssistLesions(item, showFilteredArtifacts, artifactOverlayFailed, previewArtifactProposals)}
@@ -1479,8 +1482,8 @@ function AnnotationEditorPageSession() {
             {previewShape(preview)}
           </RetinalCanvas>
           <HStack mt={4} spacing={3} flexWrap="wrap" fontSize="sm">
-            <Text fontWeight="semibold">{draft.length} human annotation{draft.length === 1 ? '' : 's'}</Text>
-            <Text aria-live="polite" color={draftStatus === 'failed' ? 'status.danger' : 'text.secondary'}>{draftStatusText}</Text>
+            <Text fontWeight="semibold">{draft.length} {t(draft.length === 1 ? 'human annotation' : 'human annotations')}</Text>
+            <Text aria-live="polite" color={draftStatus === 'failed' ? 'status.danger' : 'text.secondary'}>{t(draftStatusText)}</Text>
           </HStack>
         </Section>
         <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={3} fontSize="sm">
@@ -1488,19 +1491,19 @@ function AnnotationEditorPageSession() {
         </SimpleGrid>
         </Stack>
         <Stack minW={0} spacing={5}>
-          <Section title={completedReview ? 'Review complete' : 'Complete review'} description={hasRecordedFindings ? `${recordedFindingCount} finding${recordedFindingCount === 1 ? '' : 's'} recorded.` : 'No Core findings recorded.'}>
+          <Section title={completedReview ? 'Review complete' : 'Complete review'} description={hasRecordedFindings ? `${recordedFindingCount} ${t(recordedFindingCount === 1 ? 'finding recorded.' : 'findings recorded.')}` : 'No Core findings recorded.'}>
             <Stack spacing={3}>
               {!completedReview && <GuideHint step="findings" />}
-              {!hasRecordedFindings && !annotationConfirmed && <Text fontSize="sm" color="text.secondary">Finishing confirms Core findings were reviewed and none were found.{unacceptedAiCount > 0 ? ' AI suggestions you did not accept are not recorded as findings.' : ''}</Text>}
+              {!hasRecordedFindings && !annotationConfirmed && <Text fontSize="sm" color="text.secondary">{t('Finishing confirms Core findings were reviewed and none were found.')}{unacceptedAiCount > 0 ? ` ${t('AI suggestions you did not accept are not recorded as findings.')}` : ''}</Text>}
               {!completedReview && <ReviewerField compact id="annotation-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />}
-              {saveError && <Alert status="error" aria-live="assertive"><AlertIcon /><Text fontSize="sm">{saveError}</Text></Alert>}
+              {saveError && <Alert status="error" aria-live="assertive"><AlertIcon /><Text fontSize="sm">{t(saveError)}</Text></Alert>}
               {readOnly && hasConfirmedGrade && !completing ? (
                 <HStack spacing={2} flexWrap="wrap">
-                  <Button variant="solid" onClick={() => void openNextImage(item.image_id)}>Open next image</Button>
-                  <Button variant="outline" onClick={() => void beginAnnotationEdit()}>Edit confirmed annotations</Button>
+                  <Button variant="solid" onClick={() => void openNextImage(item.image_id)}>{t('Open next image')}</Button>
+                  <Button variant="outline" onClick={() => void beginAnnotationEdit()}>{t('Edit confirmed annotations')}</Button>
                 </HStack>
               ) : (
-                <Button variant="solid" onClick={() => void completeCase()} isLoading={completing || saving || Boolean(completenessSaving)} loadingText="Finishing" isDisabled={!hasConfirmedGrade || roiSaving} whiteSpace="normal" h="auto" minH="36px" py={2}>{finishLabel}</Button>
+                <Button variant="solid" onClick={() => void completeCase()} isLoading={completing || saving || Boolean(completenessSaving)} loadingText={t('Finishing')} isDisabled={!hasConfirmedGrade || roiSaving} whiteSpace="normal" h="auto" minH="36px" py={2}>{finishLabel}</Button>
               )}
             </Stack>
           </Section>
@@ -1514,11 +1517,11 @@ function AnnotationEditorPageSession() {
                   aria-controls="advanced-findings-review"
                   onClick={() => setAdvancedOpen((open) => !open)}
                 >
-                  Advanced findings (optional)
+                  {t('Advanced findings (optional)')}
                 </Button>
                 <Collapse in={advancedOpen} animateOpacity>
                   <Stack id="advanced-findings-review" spacing={2} mt={2}>
-                    <Text fontSize="sm" color="text.secondary">Advanced findings are optional and deferred to a later phase. Complete the Core review above before finishing this image.</Text>
+                    <Text fontSize="sm" color="text.secondary">{t('Advanced findings are optional and deferred to a later phase. Complete the Core review above before finishing this image.')}</Text>
                   </Stack>
               </Collapse>
               </Box>

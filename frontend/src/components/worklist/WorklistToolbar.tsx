@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import {
   Button,
   ButtonGroup,
@@ -45,6 +46,7 @@ function FilterSection({ title, children }: { title: string; children: ReactNode
 }
 
 export function WorklistToolbar({ search, onSearchChange, filters, onFiltersChange, sort, onSortChange, viewMode, onViewModeChange }: WorklistToolbarProps) {
+  const t = useT();
   const activeFilterCount = Object.values(filters).filter((value) => value !== 'all').length;
   const updateFilter = <Key extends keyof WorklistFilters>(key: Key, value: WorklistFilters[Key]) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -55,12 +57,12 @@ export function WorklistToolbar({ search, onSearchChange, filters, onFiltersChan
       <HStack spacing={2} align="stretch" flexWrap="wrap">
         <InputGroup size="sm" flex={{ base: '1 1 100%', tablet: '1 1 260px' }} maxW={{ tablet: '360px' }}>
           <InputLeftElement pointerEvents="none"><Search size={15} aria-hidden="true" /></InputLeftElement>
-          <Input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search image or patient label" aria-label="Search worklist" pl={9} />
+          <Input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder={t('Search image or patient label')} aria-label="Search worklist" pl={9} />
         </InputGroup>
         <Popover placement="bottom-start" closeOnBlur>
           <PopoverTrigger>
             <Button size="sm" variant="outline" leftIcon={<Filter size={15} />} aria-label="Open filters">
-              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              {t('Filters')}{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </Button>
           </PopoverTrigger>
           <PopoverContent width="280px" maxH={{ base: '60vh', tablet: 'calc(100vh - 24px)' }}>
@@ -101,7 +103,7 @@ export function WorklistToolbar({ search, onSearchChange, filters, onFiltersChan
                   <Stack spacing={2}><Radio value="all">All</Radio><Radio value="manual-only">Manual only</Radio><Radio value="model-available">Model available</Radio><Radio value="ai-suggestion">AI suggestion present</Radio></Stack>
                 </RadioGroup>
               </FilterSection>
-              {activeFilterCount > 0 && <Button size="sm" variant="ghost" alignSelf="flex-start" onClick={() => onFiltersChange({ readiness: 'all', review: 'all', ai: 'all', modality: 'all', grade: 'all', lesionReview: 'all' })}>Clear filters</Button>}
+              {activeFilterCount > 0 && <Button size="sm" variant="ghost" alignSelf="flex-start" onClick={() => onFiltersChange({ readiness: 'all', review: 'all', ai: 'all', modality: 'all', grade: 'all', lesionReview: 'all' })}>{t('Clear filters')}</Button>}
             </Stack></PopoverBody>
           </PopoverContent>
         </Popover>
@@ -116,7 +118,7 @@ export function WorklistToolbar({ search, onSearchChange, filters, onFiltersChan
           <Button variant={viewMode === 'patients' ? 'solid' : 'outline'} aria-pressed={viewMode === 'patients'} onClick={() => onViewModeChange('patients')}>Patients</Button>
         </ButtonGroup>
       </HStack>
-      <Text color="text.secondary" fontSize="sm">Search by image filename or patient label.</Text>
+      <Text color="text.secondary" fontSize="sm">{t('Search by image filename or patient label.')}</Text>
     </Stack>
   );
 }

@@ -9,6 +9,7 @@
  * Collapsed mode hides labels and the workspace card text; only a compact
  * workspace chip remains. Sidebar widths adapt to viewport tier.
  */
+import { useT } from '@/lib/i18n';
 import {
   Box,
   Divider,
@@ -61,11 +62,12 @@ export function Sidebar({
     : user ? secondaryNavProp.filter((item) => !ADMIN_ONLY_PATHS.has(item.to)) : secondaryNavProp;
   const { collapsed: collapsedState } = useSidebarState();
   const collapsed = collapsedProp ?? collapsedState;
+  const t = useT();
   const runtime = useRuntimeHealth();
   const lane = (runtime.raw as { lane?: string } | undefined)?.lane;
   const dataScope = lane === 'PRIVATE_AUTHORIZED_RESEARCH_BRIDGE'
-    ? 'Authorized private evaluation'
-    : lane === 'PUBLIC_SYNTHETIC_BRIDGE' ? 'Public & synthetic only' : 'Data scope unavailable';
+    ? t('Authorized private evaluation')
+    : lane === 'PUBLIC_SYNTHETIC_BRIDGE' ? t('Public & synthetic only') : t('Data scope unavailable');
 
   return (
     <Flex
@@ -143,7 +145,7 @@ export function Sidebar({
               <Text fontWeight="bold" color="text.primary">
                 {dataScope}
               </Text>
-                <Text>Use only approved research data</Text>
+                <Text>{t('Use only approved research data')}</Text>
             </VStack>
           </HStack>
         </>

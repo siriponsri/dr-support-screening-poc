@@ -10,7 +10,7 @@
  * the page-level title via their own PageHeader component (this header
  * still owns the chrome controls).
  */
-import { LanguageSwitch } from '@/lib/i18n';
+import { LanguageSwitch, useT } from '@/lib/i18n';
 import {
   Box,
   Button,
@@ -89,16 +89,17 @@ export function AppHeader() {
 /** Pilot sign-in: who is signed in, a reminder about a short password, and sign out. */
 function SignedInUser({ compact }: { compact: boolean }) {
   const { user, signOut } = useAuth();
+  const t = useT();
   if (!user) return null;
   return (
     <HStack spacing={2} data-testid="signed-in-user">
       {user.short_password && !compact && (
-        <Tooltip label="This password is short. Change it in Settings before other people use the app.">
-          <Text fontSize="xs" color="status.warning" fontWeight="semibold">Change password</Text>
+        <Tooltip label={t('This password is short. Change it in Settings before other people use the app.')}>
+          <Text fontSize="xs" color="status.warning" fontWeight="semibold">{t('Change password')}</Text>
         </Tooltip>
       )}
       {!compact && <Text fontSize="sm" color="text.secondary">{user.username}{user.role === 'admin' ? ' (admin)' : ''}</Text>}
-      <Button size="sm" variant="ghost" leftIcon={<LogOut size={15} />} onClick={() => void signOut()}>Sign out</Button>
+      <Button size="sm" variant="ghost" leftIcon={<LogOut size={15} />} onClick={() => void signOut()}>{t('Sign out')}</Button>
     </HStack>
   );
 }
@@ -106,8 +107,9 @@ function SignedInUser({ compact }: { compact: boolean }) {
 /** Keeps workspace context visible while the sidebar (and its card) is hidden. */
 function HiddenWorkspaceContext() {
   const { activeWorkspace, status } = useWorkspace();
+  const t = useT();
   const degraded = status === 'error' || status === 'degraded';
-  const label = activeWorkspace ? activeWorkspace.name : degraded ? 'Workspace unavailable' : 'No workspace open';
+  const label = activeWorkspace ? activeWorkspace.name : degraded ? t('Workspace unavailable') : t('No workspace open');
   return (
     <Box
       as={NavLink}

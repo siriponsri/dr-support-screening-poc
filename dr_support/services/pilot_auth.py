@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 import hashlib
 from hmac import compare_digest
 import json
-import os
 from pathlib import Path
 import re
 import secrets
@@ -24,6 +23,8 @@ import time
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
+
+from dr_support.services.private_files import write_private
 
 COOKIE = "dr_session"
 ROLES = {"admin", "physician", "nurse", "expert", "researcher"}
@@ -40,11 +41,22 @@ _REVIEW_CONFIRM = re.compile(r"/v1/cases/[^/]+/review")
 _EXPORTS = ("/v1/dataset/", "/v2/dataset/")
 _SETTINGS = ("/v1/model-connection",)
 _CVAT = re.compile(r"/v1/cases/[^/]+/(cvat/|manual-sync)")
+# Changes only the administrator makes (audit 2026-10-31): where images are sent and which folders are read.
+_WORKSPACE_OPEN = re.compile(r"/v1/workspaces/[^/]+/open")
+# Patient names and HNs: not for research accounts, which read de-identified exports.
+_PATIENT_DETAIL = re.compile(r"/v1/referrals.*|/v1/cases/[^/]+/screening-report.*")
 
 
 def role_denial(role: str, method: str, path: str) -> str | None:
     """A plain refusal message when this role may not make this change, else None."""
-    if method in ("GET", "HEAD", "OPTIONS") or path.startswith("/v1/auth/") or role in ("admin", "physician", "expert"):
+    if role == "researcher" and _PATIENT_DETAIL.fullmatch(path):
+        return "A researcher account cannot open patient details."
+    if method in ("GET", "HEAD", "OPTIONS") or path.startswith("/v1/auth/") or role == "admin":
+        return None
+    if path.startswith(_SETTINGS) or (path.startswith("/v1/workspaces") and not (
+            role in ("physician", "expert") and _WORKSPACE_OPEN.fullmatch(path))):
+        return "Only the administrator can change this."
+    if role in ("physician", "expert"):
         return None
     if role == "nurse":
         if _REVIEW_CONFIRM.fullmatch(path):
@@ -110,10 +122,7 @@ class UserStore:
         return json.loads(self.path.read_text(encoding="utf-8"))
 
     def _save(self, data: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(data, indent=1, sort_keys=True), encoding="utf-8")
-        os.replace(temporary, self.path)
+        write_private(self.path, json.dumps(data, indent=1, sort_keys=True))
 
     def policy(self) -> dict:
         with self.lock:
@@ -156,7 +165,8 @@ class UserStore:
             data = self._load()
             previous = data["users"].get(username, {})
             data["users"][username] = {"role": role, "salt": salt.hex(), "hash": _hash(password, salt),
-                                       "iterations": ITERATIONS, "must_change": must_change, "disabled": False,
+                                       "iterations": ITERATIONS, "must_change": must_change,
+                                       "disabled": previous.get("disabled", False),   # A reset never re-enables.
                                        "short_password": bool(problems),
                                        "created_utc": previous.get("created_utc", _now()), "updated_utc": _now()}
             self._save(data)
@@ -250,6 +260,8 @@ class Authenticator:
             raise AuthError("Choose a password different from the current one.")
         self.store.set_user(session.username, new, role=session.role, must_change=False)
         with self.lock:
+            for other in [key for key, value in self.sessions.items() if value.username == session.username and key != token]:
+                self.sessions.pop(other)   # A new password ends the person's other sign-ins.
             updated = Session(session.username, session.role, False, session.expires, False)
             self.sessions[token] = updated
             return updated
@@ -352,6 +364,10 @@ def install_pilot_auth(app, auth_file):
                     auth.end_sessions_of(username)
             else:
                 # New user or password reset: by policy, the person chooses their own at the next sign-in.
+                current_role = next((user["role"] for user in store.list_users() if user["username"] == username), None)
+                if (current_role == "admin" and normalize_role(str(body.get("role", "user"))) != "admin"
+                        and store.admin_count() <= 1):
+                    raise AuthError("Keep at least one administrator account.")
                 store.set_user(username, str(body.get("password", "")), role=str(body.get("role", "user")),
                                must_change=store.policy()["first_sign_in_change"])
                 auth.end_sessions_of(username)
@@ -382,6 +398,8 @@ def install_pilot_auth(app, auth_file):
     from pathlib import Path as _Path
     from .server_mode import install_server_mode
     install_server_mode(app, admin, _Path(auth_file).parent)
+    from .referral_outbox import install_referral_admin
+    install_referral_admin(app, admin, _Path(auth_file).parent)
     return auth
 
 

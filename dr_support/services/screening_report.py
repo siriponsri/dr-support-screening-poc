@@ -107,6 +107,8 @@ def install_screening_report_routes(app):
                 raise HTTPException(409, "Case changed; reload before saving the report.")
             now = datetime.now(timezone.utc).isoformat()
             previous = case.get("screening_report") or {}
+            if previous.get("status") == "SIGNED" and role not in SIGNING_ROLES:
+                raise HTTPException(403, "This report is signed. Only a physician can amend it.")
             record = {
                 "form": update.report.model_dump(mode="json"),
                 "prepared_by": previous.get("prepared_by") or {"name": name, "role": role, "timestamp": now},
@@ -115,6 +117,9 @@ def install_screening_report_routes(app):
                 "signed_by": {"name": name, "role": role, "timestamp": now} if update.sign else None,
                 "decision_source": "GRADER_SELECTED",   # Never derived by the software (owner decision D1).
             }
+            if previous.get("status") == "SIGNED":   # Amending a signed report keeps the signed version.
+                earlier = {key: value for key, value in previous.items() if key != "amended_versions"}
+                record["amended_versions"] = [*previous.get("amended_versions", []), earlier]
             case["screening_report"] = record
             case["revision"] += 1
             case.setdefault("events", []).append({"action": "SCREENING_REPORT_SAVED", "status": record["status"],

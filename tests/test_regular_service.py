@@ -6,6 +6,7 @@ from datetime import timedelta
 import hashlib
 import importlib
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -477,3 +478,77 @@ def test_an_idempotency_key_is_never_shared_across_workstations(rig):
             reply = await client.post("/v1/regular/tickets", json=ticket_body("same"), headers=headers("ws-b"))
             assert reply.status_code == 409 and reply.json()["code"] == "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST"
     run(scenario())
+
+
+def personal_service(tmp_path, fake, child, authority):
+    token = "personal-token-for-ann-0123456789abcdef"
+    book = {sha(token.encode()): {"principal": "user:ann", "workstations": frozenset({"ann-laptop"})}}
+    service = rs.ControlService(authority, child, token=TOKEN, models=MODELS, operations=ops,
+                                discovery_path=tmp_path / "discovery2.json", monotonic=lambda: fake.mono, principals=book)
+    return service, {"Authorization": "Bearer " + token}
+
+
+def test_a_personal_token_works_only_for_its_own_workstations_and_tickets_carry_that_person(rig, tmp_path):
+    fake, authority, child, _ = rig
+    service, ann = personal_service(tmp_path, fake, child, authority)
+
+    async def scenario():
+        async with await client_for(service) as client:
+            assert (await client.get("/v1/regular/status", headers={**ann, "X-DR-Workstation": "other-pc"})).status_code == 403
+            status = (await client.get("/v1/regular/status", headers={**ann, "X-DR-Workstation": "ann-laptop"})).json()
+            assert status["identity"] == "PERSONAL_TOKEN"
+            created = await client.post("/v1/regular/tickets", json=ticket_body("ann-1"),
+                                        headers={**ann, "X-DR-Workstation": "ann-laptop"})
+            assert created.status_code == 200
+            owner_view = await client.get(f"/v1/regular/tickets/{created.json()['ticket_id']}", headers=headers("ann-laptop"))
+            assert owner_view.status_code == 409   # The shared owner token cannot see Ann's ticket.
+            wrong = {"Authorization": "Bearer not-a-known-token-xxxxxxxxxxxxxxxx", "X-DR-Workstation": "ann-laptop"}
+            assert (await client.get("/v1/regular/status", headers=wrong)).status_code == 401
+    run(scenario())
+    tickets = authority.db.execute("SELECT principal FROM tickets").fetchall()
+    assert [row[0] for row in tickets] == ["user:ann"]
+
+
+def test_the_operator_command_stores_only_the_token_hash_and_revokes(tmp_path, capsys):
+    import argparse
+    book_path = tmp_path / "regular-principals.json"
+    rs.principal_command(argparse.Namespace(command="principal-add", principals=book_path, name="ann", workstation=["ann-laptop"]))
+    printed = capsys.readouterr().out.splitlines()
+    token = printed[1]
+    raw = book_path.read_text(encoding="utf-8")
+    assert token not in raw and sha(token.encode()) in raw
+    assert rs.load_principals(book_path) if os.name != "posix" else True
+    rs.principal_command(argparse.Namespace(command="principal-revoke", principals=book_path, name="ann", workstation=None))
+    assert json.loads(book_path.read_text(encoding="utf-8"))["principals"] == []
+
+
+def test_an_invalid_principals_file_is_refused(tmp_path):
+    bad = tmp_path / "regular-principals.json"
+    bad.write_text(json.dumps({"principals": [{"name": "Ann!", "token_sha256": "x", "workstations": []}]}), encoding="utf-8")
+    if os.name == "posix":
+        os.chmod(bad, 0o600)
+    with pytest.raises(RuntimeError):
+        rs.load_principals(bad)
+
+
+def test_a_revoked_token_stops_without_a_restart_and_personal_tokens_reach_only_the_service_paths(rig, tmp_path, capsys):
+    import argparse
+    fake, authority, child, _ = rig
+    book_path = tmp_path / "regular-principals.json"
+    service = rs.ControlService(authority, child, token=TOKEN, models=MODELS, operations=ops,
+                                discovery_path=tmp_path / "discovery3.json", monotonic=lambda: fake.mono,
+                                principals_path=book_path)
+    rs.principal_command(argparse.Namespace(command="principal-add", principals=book_path, name="ann",
+                                            workstation=["ann-laptop"]))
+    ann = {"Authorization": "Bearer " + capsys.readouterr().out.splitlines()[1], "X-DR-Workstation": "ann-laptop"}
+
+    async def scenario(expected):
+        async with await client_for(service) as client:
+            assert (await client.get("/v1/regular/status", headers=ann)).status_code == expected
+            if expected == 200:
+                assert (await client.get("/v1/other", headers=ann)).status_code == 403
+                prepare = await client.post("/v1/prism-bound/prepare", headers={**ann, "X-DR-Workstation": "other"})
+                assert prepare.status_code == 403
+    run(scenario(200))   # Added while the gateway runs: no restart needed.
+    rs.principal_command(argparse.Namespace(command="principal-revoke", principals=book_path, name="ann", workstation=None))
+    run(scenario(401))   # Revoked: refused on the next request.

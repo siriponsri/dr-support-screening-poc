@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { Alert, AlertIcon, Button, HStack, Modal, ModalBody, ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalOverlay, Stack, Text } from '@chakra-ui/react';
 import type { AdmissionReviewAction, CaseRecord } from '@/lib/api';
 import { admissionApi } from '@/lib/api';
@@ -29,6 +30,7 @@ function actionsFor(item: CaseRecord): Array<{ action: AdmissionReviewAction; la
 }
 
 export function ReadinessDialog({ item, onClose, onSaved }: ReadinessDialogProps) {
+  const t = useT();
   const [reviewer, setReviewer] = useState('');
   const [useAsDefault, setUseAsDefault] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,13 +74,13 @@ export function ReadinessDialog({ item, onClose, onSaved }: ReadinessDialogProps
       <ModalOverlay /><ModalContent>
         <ModalHeader>Resolve image readiness</ModalHeader><ModalCloseButton />
         <ModalBody><Stack spacing={4}>
-          {error && <Alert status="error"><AlertIcon /><Text>{error}</Text></Alert>}
-          <Stack spacing={1}><Text fontWeight="semibold">{item?.filename ?? item?.display_name}</Text><Text fontSize="sm" color="text.secondary">{item?.admission_ui?.note ?? 'Confirm whether this image can be used for analysis.'}</Text></Stack>
-          {actions.length === 0 && <Text fontSize="sm" color="text.secondary">No corrective action is available for this case.</Text>}
+          {error && <Alert status="error"><AlertIcon /><Text>{t(error)}</Text></Alert>}
+          <Stack spacing={1}><Text fontWeight="semibold">{item?.filename ?? item?.display_name}</Text><Text fontSize="sm" color="text.secondary">{t(item?.admission_ui?.note ?? 'Confirm whether this image can be used for analysis.')}</Text></Stack>
+          {actions.length === 0 && <Text fontSize="sm" color="text.secondary">{t('No corrective action is available for this case.')}</Text>}
           <ReviewerField compact id="worklist-readiness-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
-          {actions.length > 0 && <Text fontSize="xs" color="text.secondary">The selected action is recorded in the existing admission history.</Text>}
+          {actions.length > 0 && <Text fontSize="xs" color="text.secondary">{t('The selected action is recorded in the existing admission history.')}</Text>}
         </Stack></ModalBody>
-        <ModalFooter><HStack spacing={2} flexWrap="wrap" justify="flex-end"><Button variant="ghost" onClick={onClose} isDisabled={Boolean(savingAction)}>Cancel</Button>{actions.map((entry) => <Button key={entry.action} variant="solid" onClick={() => void save(entry.action)} isLoading={savingAction === entry.action} isDisabled={Boolean(savingAction) && savingAction !== entry.action}>{entry.label}</Button>)}</HStack></ModalFooter>
+        <ModalFooter><HStack spacing={2} flexWrap="wrap" justify="flex-end"><Button variant="ghost" onClick={onClose} isDisabled={Boolean(savingAction)}>{t('Cancel')}</Button>{actions.map((entry) => <Button key={entry.action} variant="solid" onClick={() => void save(entry.action)} isLoading={savingAction === entry.action} isDisabled={Boolean(savingAction) && savingAction !== entry.action}>{t(entry.label)}</Button>)}</HStack></ModalFooter>
       </ModalContent>
     </Modal>
   );

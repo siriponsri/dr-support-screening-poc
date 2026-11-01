@@ -12,6 +12,7 @@
 import {
   Activity,
   BadgeCheck,
+  Send,
   Database,
   Eye,
   LayoutDashboard,
@@ -41,6 +42,7 @@ export const PRIMARY_NAV: NavSection = {
     { to: '/today',    label: 'Today',    icon: LayoutDashboard },
     { to: '/worklist', label: 'Worklist', icon: ListChecks },
     { to: '/review',   label: 'Review',   icon: Eye },
+    { to: '/referrals', label: 'Referrals', icon: Send },
     { to: '/gold',     label: 'Gold-100', icon: BadgeCheck },
   ],
 };

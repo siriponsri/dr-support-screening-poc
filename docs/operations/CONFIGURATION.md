@@ -14,6 +14,10 @@ Copy `.env.example` into a private environment file or configure variables throu
 | `DR_SUPPORT_STATE` | review | empty; compatibility path only | no |
 | `DR_SUPPORT_WORKSPACE_CATALOG` | review | empty; compatibility path only | no |
 | `DR_SUPPORT_CASE_STORE` | review | `postgres` | no |
+| `DR_SUPPORT_AUTH_FILE` | review | path of the private accounts file; sign-in and roles are on when set (server mode and referral connector settings live beside it) | file holds password hashes only |
+| `DR_SUPPORT_REFERRAL_HOSTS` | review | comma-separated host names a referral webhook may send to; empty means no webhook | no |
+| `DR_SUPPORT_REFERRAL_DROP_ROOT` | review | folder that every referral drop folder must sit inside; unset means no drop folder | no |
+| `DR_HOST`, `DR_KEY`, `DR_TOKEN_FILE` | QA launcher (personal access) | the person's dr-train route, private key path and personal token file; see TOKEN_DISTRIBUTION.md | key and token are **yes** |
 | `DR_SUPPORT_WORKSPACE_ID` | PostgreSQL case store | optional bootstrap workspace identifier | no |
 | `DR_SUPPORT_DATABASE_URL` | PostgreSQL foundation | empty for the project-owned local Docker path; set a private external URL when required | **yes** |
 | `DR_SUPPORT_DATABASE_SCHEMA` | PostgreSQL foundation | `dr_support` | no |

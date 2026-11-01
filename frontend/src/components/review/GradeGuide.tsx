@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useState } from 'react';
 import {
   Box,
@@ -52,6 +53,7 @@ export const DR_GRADE_GUIDE: GradeGuideEntry[] = [
 ];
 
 export function GradeGuide() {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   return (
@@ -64,7 +66,7 @@ export function GradeGuide() {
         aria-haspopup="dialog"
         onClick={() => setOpen((current) => !current)}
       >
-        Grade guide
+        {t('Grade guide')}
       </Button>
       <Modal isOpen={open} onClose={() => setOpen(false)} isCentered size="lg" scrollBehavior="inside">
         <ModalOverlay />
@@ -78,13 +80,13 @@ export function GradeGuide() {
                   <Text fontWeight="semibold" fontSize="sm">
                     {entry.grade} - {drGradeLabel(entry.grade) ?? entry.name}
                   </Text>
-                  <Text fontSize="sm" color="text.secondary">{entry.summary}</Text>
-                  {entry.detail && <Text mt={1} fontSize="xs" color="text.secondary">{entry.detail}</Text>}
+                  <Text fontSize="sm" color="text.secondary">{t(entry.summary)}</Text>
+                  {entry.detail && <Text mt={1} fontSize="xs" color="text.secondary">{t(entry.detail)}</Text>}
                 </Box>
               ))}
               <HStack align="flex-start" spacing={2} pt={3} borderTopWidth="1px" borderColor="border.subtle">
                 <Text fontSize="xs" color="text.secondary">
-                  Ungradable and Needs Second Review are workflow states outside the 0-4 severity grades. DME is a separate classification from DR grade.
+                  {t('Ungradable and Needs Second Review are workflow states outside the 0-4 severity grades. DME is a separate classification from DR grade.')}
                 </Text>
               </HStack>
             </Stack>

@@ -25,10 +25,21 @@ DR_APP_PORT=${DR_APP_PORT:-8010}
 DR_MODEL_PORT=${DR_MODEL_PORT:-47860}
 DR_IMAGES=${DR_IMAGES:-workspace}
 PY=${DR_PYTHON:-$REPO/.venv/Scripts/python.exe}
+# Personal access: the launcher uses this person's route and token (see docs/operations/TOKEN_DISTRIBUTION.md).
+export DR_HOST DR_KEY
+[ -n "${DR_TOKEN_FILE:-}" ] && export DR_TOKEN_FILE
 for name in DR_DEPLOY DR_PINS_REMOTE DR_STATE DR_PINS_LOCAL DR_WORKSPACE DR_WORKSTATION; do
   [ -n "${!name:-}" ] || fail "$name is not set in $CONFIG"
 done
 [ -x "$PY" ] || fail "Python environment not found at $PY"
+# These values reach ssh and a remote shell, so only plain names and paths are accepted.
+printf '%s' "$DR_HOST" | grep -Eqx '[a-z0-9_][a-z0-9_.-]{0,31}@[A-Za-z0-9.:-]{1,253}' \
+  || fail "DR_HOST must look like name@address"
+case "$DR_KEY" in -*) fail "DR_KEY must be a file path" ;; esac
+for name in DR_DEPLOY DR_PINS_REMOTE DR_STATE; do
+  printf '%s' "${!name}" | grep -Eqx '[A-Za-z0-9_./-]+' && ! printf '%s' "${!name}" | grep -q '\.\.' \
+    || fail "$name must be a plain path on dr-train"
+done
 SSH=(ssh -i "$DR_KEY" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15 "$DR_HOST")
 APP_URL="http://127.0.0.1:$DR_APP_PORT/app/"
 
@@ -52,8 +63,16 @@ if [ "$DR_IMAGES" = "workspace" ]; then
 fi
 
 say "1/4 Checking the connection to dr-train"
-"${SSH[@]}" true || fail "cannot reach dr-train over SSH. Check the network or VPN."
+code=0
+"${SSH[@]}" true || code=$?
+# A personal account may only forward a port (its command is /bin/false), so exit code 1 still means connected.
+if [ "$code" -ne 0 ] && { [ -z "${DR_TOKEN_FILE:-}" ] || [ "$code" -ne 1 ]; }; then
+  fail "cannot reach dr-train over SSH. Check the network or VPN."
+fi
 
+if [ -n "${DR_TOKEN_FILE:-}" ]; then
+  say "2/4 Personal access: the AI server is kept running by the operator"
+else
 say "2/4 Starting the AI server on dr-train (if it is not running)"
 result=$(tr -d '\r' < "$HERE/remote-start-gateway.sh" | "${SSH[@]}" "sh -s -- '$DR_DEPLOY' '$DR_PINS_REMOTE' '$DR_STATE'") \
   || fail "the AI server did not start: $result"
@@ -62,6 +81,7 @@ case "$result" in
   *GATEWAY_STARTED*) say "    started" ;;
   *) fail "unexpected answer from dr-train: $result" ;;
 esac
+fi
 
 say "3/4 Starting the web app and warming up the AI (this can take a few minutes)"
 mkdir -p "$PRIVATE/demo-logs"

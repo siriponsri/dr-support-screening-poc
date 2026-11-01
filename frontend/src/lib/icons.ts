@@ -17,6 +17,7 @@ export {
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
+  Send,
   Beaker,
   Bell,
   Calendar,

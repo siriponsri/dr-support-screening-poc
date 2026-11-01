@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { Alert, AlertIcon, Button, FormControl, FormLabel, HStack, Input, Modal, ModalBody, ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalOverlay, Select, Stack, Text } from '@chakra-ui/react';
 import type { CaseRecord, Laterality } from '@/lib/api';
 import { resolverApi } from '@/lib/api';
@@ -7,6 +8,7 @@ import { hasInternalPatientKey, patientLabel } from '@/lib/patientPresentation';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 
 export function ResolverDialog({ item, onClose, onSaved }: { item: CaseRecord | null; onClose: () => void; onSaved: (item: CaseRecord) => void }) {
+  const t = useT();
   const [patientKey, setPatientKey] = useState('');
   const [replacePatient, setReplacePatient] = useState(false);
   const [unlinkPatient, setUnlinkPatient] = useState(false);
@@ -56,16 +58,16 @@ export function ResolverDialog({ item, onClose, onSaved }: { item: CaseRecord | 
     <Modal isOpen={Boolean(item)} onClose={onClose} isCentered>
       <ModalOverlay /><ModalContent><ModalHeader>Resolve patient and eye</ModalHeader><ModalCloseButton />
       <ModalBody><Stack spacing={4}>
-        {error && <Alert status="error"><AlertIcon /><Text>{error}</Text></Alert>}
-        <Text fontSize="sm" color="text.secondary">Changes are recorded in the existing patient and eye review history.</Text>
-        {item && hasInternalPatientKey(item) && !replacePatient ? <Stack spacing={2}><Text>{patientLabel(item)} / workspace label</Text><Text fontSize="sm">The existing patient link will be kept.</Text><Button variant="outline" onClick={() => setReplacePatient(true)}>Change patient link</Button></Stack> : <>
-        <FormControl><FormLabel htmlFor="worklist-patient-key">Pseudonymous patient key</FormLabel><Input id="worklist-patient-key" value={patientKey} onChange={(event) => { setPatientKey(event.target.value.toUpperCase()); setUnlinkPatient(false); }} placeholder="PAT0001" /></FormControl>
-        {item && hasInternalPatientKey(item) && <><Text fontSize="sm">Enter an approved pseudonymous key to replace the link. A blank replacement keeps the current link. Workspace labels are not replacement keys.</Text><Button variant="outline" onClick={() => { setPatientKey(''); setUnlinkPatient(false); setReplacePatient(false); }}>Keep current patient link</Button><Button variant="ghost" onClick={() => { setPatientKey(''); setUnlinkPatient(true); }}>Leave this image unlinked</Button>{unlinkPatient && <Text fontSize="sm" color="status.warning">This image will be left unlinked when you save.</Text>}</>}
+        {error && <Alert status="error"><AlertIcon /><Text>{t(error)}</Text></Alert>}
+        <Text fontSize="sm" color="text.secondary">{t('Changes are recorded in the existing patient and eye review history.')}</Text>
+        {item && hasInternalPatientKey(item) && !replacePatient ? <Stack spacing={2}><Text>{patientLabel(item)} / workspace label</Text><Text fontSize="sm">{t('The existing patient link will be kept.')}</Text><Button variant="outline" onClick={() => setReplacePatient(true)}>{t('Change patient link')}</Button></Stack> : <>
+        <FormControl><FormLabel htmlFor="worklist-patient-key">{t('Pseudonymous patient key')}</FormLabel><Input id="worklist-patient-key" value={patientKey} onChange={(event) => { setPatientKey(event.target.value.toUpperCase()); setUnlinkPatient(false); }} placeholder="PAT0001" /></FormControl>
+        {item && hasInternalPatientKey(item) && <><Text fontSize="sm">{t('Enter an approved pseudonymous key to replace the link. A blank replacement keeps the current link. Workspace labels are not replacement keys.')}</Text><Button variant="outline" onClick={() => { setPatientKey(''); setUnlinkPatient(false); setReplacePatient(false); }}>{t('Keep current patient link')}</Button><Button variant="ghost" onClick={() => { setPatientKey(''); setUnlinkPatient(true); }}>{t('Leave this image unlinked')}</Button>{unlinkPatient && <Text fontSize="sm" color="status.warning">{t('This image will be left unlinked when you save.')}</Text>}</>}
         </>}
-        <FormControl><FormLabel htmlFor="worklist-eye">Eye</FormLabel><Select id="worklist-eye" value={laterality} onChange={(event) => setLaterality(event.target.value as Laterality)}><option value="LEFT">Left</option><option value="RIGHT">Right</option><option value="UNKNOWN">Unknown</option></Select></FormControl>
+        <FormControl><FormLabel htmlFor="worklist-eye">{t('Eye')}</FormLabel><Select id="worklist-eye" value={laterality} onChange={(event) => setLaterality(event.target.value as Laterality)}><option value="LEFT">{t('Left')}</option><option value="RIGHT">{t('Right')}</option><option value="UNKNOWN">{t('Unknown')}</option></Select></FormControl>
         <ReviewerField compact id="worklist-reviewer" value={reviewer} useAsDefault={useAsDefault} onChange={setReviewer} onUseAsDefaultChange={setUseAsDefault} />
       </Stack></ModalBody>
-      <ModalFooter><HStack spacing={2}><Button variant="ghost" onClick={onClose} isDisabled={saving}>Cancel</Button><Button variant="solid" onClick={() => void save()} isLoading={saving}>Save patient / eye</Button></HStack></ModalFooter>
+      <ModalFooter><HStack spacing={2}><Button variant="ghost" onClick={onClose} isDisabled={saving}>{t('Cancel')}</Button><Button variant="solid" onClick={() => void save()} isLoading={saving}>{t('Save patient / eye')}</Button></HStack></ModalFooter>
       </ModalContent>
     </Modal>
   );

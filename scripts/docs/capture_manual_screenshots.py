@@ -126,7 +126,6 @@ def capture(base: str, out: Path) -> dict:
         def open_worklist():
             page.goto(base + "/app/#/worklist")
             page.get_by_role("button", name="Confirm image").first.wait_for(timeout=20000)
-        shot("01-worklist-start", action=open_worklist)
 
         def open_confirm():
             page.get_by_role("button", name="Confirm image").first.click()

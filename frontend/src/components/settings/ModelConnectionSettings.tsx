@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useEffect, useState } from 'react';
 import { Alert, AlertIcon, Box, Button, FormControl, FormLabel, HStack, Input, SimpleGrid, Spinner, Stack, Text } from '@chakra-ui/react';
 import { CheckCircle2, Save, TestTube2 } from '@/lib/icons';
@@ -37,13 +38,14 @@ function ModelCapabilityRow({ model }: { model: ModelConnectionModel }) {
   const modalities = isCfpOnlyModel(model.model_id)
     ? 'CFP only'
     : (model.modalities ?? []).map(modalityLabel).join(', ') || 'No image type advertised';
+  const t = useT();
   const release = releaseStatusView(model.release_status);
   return (
     <Box borderWidth="1px" borderColor="border.subtle" p={3}>
       <HStack justify="space-between" align="flex-start" spacing={3}>
         <Stack spacing={1} minW={0}>
           <Text fontFamily="mono" fontSize="sm" wordBreak="break-word">{model.model_id}</Text>
-          <Text fontSize="xs" color="text.secondary">{taskLabel(model.task)} / {modalities}</Text>
+          <Text fontSize="xs" color="text.secondary">{t(taskLabel(model.task))} / {t(modalities)}</Text>
           <StatusBadge tone={release.tone}>Release: {release.label}</StatusBadge>
         </Stack>
         <StatusBadge tone={model.ready ? 'success' : 'warning'}>{model.ready ? 'Ready' : 'Unavailable'}</StatusBadge>
@@ -53,6 +55,7 @@ function ModelCapabilityRow({ model }: { model: ModelConnectionModel }) {
 }
 
 export function ModelConnectionSettings() {
+  const t = useT();
   const [connection, setConnection] = useState<ModelConnectionResponse | null>(null);
   const [name, setName] = useState('Model API');
   const [url, setUrl] = useState('');
@@ -97,30 +100,30 @@ export function ModelConnectionSettings() {
   const managed = connection?.managed_by_operator === true;
   return (
     <Section title="AI Model Connection" description="Optional provider-neutral connection for a hospital LAN GPU server or local GPU API." action={<StatusBadge tone={status.tone}><CheckCircle2 size={11} aria-hidden="true" /> {status.label}</StatusBadge>}>
-      {loading ? <HStack color="text.secondary"><Spinner size="sm" /><Text fontSize="sm">Loading connection settings</Text></HStack> : (
+      {loading ? <HStack color="text.secondary"><Spinner size="sm" /><Text fontSize="sm">{t('Loading connection settings')}</Text></HStack> : (
         <Stack spacing={4}>
-          {feedback && <Alert status={feedback.status}><AlertIcon /><Text fontSize="sm">{feedback.message}</Text></Alert>}
+          {feedback && <Alert status={feedback.status}><AlertIcon /><Text fontSize="sm">{t(feedback.message)}</Text></Alert>}
           {managed && <Stack spacing={1} data-testid="model-connection-managed">
-            <Text fontSize="sm"><strong>Connection:</strong> {connection?.name ?? 'Model API'}</Text>
-            <Text fontSize="sm"><strong>Access token:</strong> {connection?.token_configured ? 'configured by the operator' : 'not configured'}</Text>
-            <Text fontSize="xs" color="text.secondary">This connection is set up by the operator on the server. It cannot be changed here.</Text>
+            <Text fontSize="sm"><strong>{t('Connection:')}</strong> {connection?.name ?? 'Model API'}</Text>
+            <Text fontSize="sm"><strong>{t('Access token:')}</strong> {connection?.token_configured ? t('configured by the operator') : t('not configured')}</Text>
+            <Text fontSize="xs" color="text.secondary">{t('This connection is set up by the operator on the server. It cannot be changed here.')}</Text>
           </Stack>}
           {!managed && <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={4}>
-            <FormControl isRequired><FormLabel htmlFor="model-connection-name">Connection name</FormLabel><Input id="model-connection-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Model API" /></FormControl>
+            <FormControl isRequired><FormLabel htmlFor="model-connection-name">{t('Connection name')}</FormLabel><Input id="model-connection-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Model API" /></FormControl>
             <FormControl isRequired><FormLabel htmlFor="model-connection-url">Model API URL</FormLabel><Input id="model-connection-url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://model-api.example" inputMode="url" /></FormControl>
           </SimpleGrid>}
-          {!managed && <FormControl><FormLabel htmlFor="model-connection-token">Access token (optional)</FormLabel><Input id="model-connection-token" type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder={connection?.token_configured ? 'Token configured; leave blank to keep it' : 'Enter only when required'} autoComplete="new-password" /><Text mt={1} fontSize="xs" color="text.secondary">Stored only by the running backend connection. It is never returned to this page or written to Workspace storage.</Text></FormControl>}
+          {!managed && <FormControl><FormLabel htmlFor="model-connection-token">{t('Access token (optional)')}</FormLabel><Input id="model-connection-token" type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder={connection?.token_configured ? t('Token configured; leave blank to keep it') : t('Enter only when required')} autoComplete="new-password" /><Text mt={1} fontSize="xs" color="text.secondary">{t('Stored only by the running backend connection. It is never returned to this page or written to Workspace storage.')}</Text></FormControl>}
           {connection && <Stack spacing={3}>
-            <Text fontSize="sm" color="text.secondary">{connection.message}</Text>
+            <Text fontSize="sm" color="text.secondary">{t(connection.message)}</Text>
             <Alert status={connection.capabilities_ready ? 'success' : 'info'} alignItems="flex-start">
               <AlertIcon />
-              <Text fontSize="sm">{connection.capabilities_ready ? 'Compatible model capabilities are available for routing.' : 'Manual review remains available. Model assistance is optional and may be unavailable for the selected image type.'}</Text>
+              <Text fontSize="sm">{t(connection.capabilities_ready ? 'Compatible model capabilities are available for routing.' : 'Manual review remains available. Model assistance is optional and may be unavailable for the selected image type.')}</Text>
             </Alert>
-            {connection.models.length > 0 && <Stack spacing={2}><Text fontSize="sm" fontWeight="semibold">Discovered capabilities</Text>{connection.models.map((model) => <ModelCapabilityRow key={model.model_id} model={model} />)}</Stack>}
+            {connection.models.length > 0 && <Stack spacing={2}><Text fontSize="sm" fontWeight="semibold">{t('Discovered capabilities')}</Text>{connection.models.map((model) => <ModelCapabilityRow key={model.model_id} model={model} />)}</Stack>}
           </Stack>}
           {!managed && <HStack justify="flex-end" spacing={2}>
-            <Button variant="outline" leftIcon={<TestTube2 size={15} />} onClick={() => void test()} isLoading={working === 'test'} isDisabled={working !== null || !name.trim() || !url.trim()}>Test connection</Button>
-            <Button variant="solid" leftIcon={<Save size={15} />} onClick={() => void save()} isLoading={working === 'save'} isDisabled={working !== null || !name.trim() || !url.trim()}>Save</Button>
+            <Button variant="outline" leftIcon={<TestTube2 size={15} />} onClick={() => void test()} isLoading={working === 'test'} isDisabled={working !== null || !name.trim() || !url.trim()}>{t('Test connection')}</Button>
+            <Button variant="solid" leftIcon={<Save size={15} />} onClick={() => void save()} isLoading={working === 'save'} isDisabled={working !== null || !name.trim() || !url.trim()}>{t('Save')}</Button>
           </HStack>}
         </Stack>
       )}

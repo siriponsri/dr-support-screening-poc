@@ -47,3 +47,12 @@ def test_scripts_never_read_or_print_the_model_token():
 def test_example_settings_hold_no_real_workspace():
     text = (DEMO / "demo.env.example").read_text(encoding="utf-8")
     assert "DR_WORKSPACE=ws_m1_xxxxxxxxxxxxxxxxxxxx" in text
+
+
+
+def test_the_admin_account_script_parses_and_only_allows_forwarding_to_the_gateway():
+    script = DEMO.parent / "model-server" / "admin" / "create-restricted-user.sh"
+    assert subprocess.run([SH, "-n", str(script)], capture_output=True).returncode == 0
+    text = script.read_text(encoding="utf-8")
+    assert 'restrict,port-forwarding,permitopen="127.0.0.1:7860",command="/bin/false"' in text
+    assert "nologin" in text

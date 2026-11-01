@@ -5,6 +5,7 @@
  * Pages render their own PageHeader so in-content copy can grow
  * without crowding the chrome.
  */
+import { useT } from '@/lib/i18n';
 import { Box, Heading, HStack, Stack, Text } from '@chakra-ui/react';
 import type { ReactNode } from 'react';
 import { getRouteMeta } from '@/components/shell/routeMeta';
@@ -29,7 +30,9 @@ export function PageHeader({
 }: PageHeaderProps) {
   const meta = getRouteMeta(pathname ?? '');
   const resolvedTitle = title ?? meta.title;
-  const resolvedSubtitle = subtitle ?? meta.subtitle;
+  const t = useT();
+  const rawSubtitle = subtitle ?? meta.subtitle;
+  const resolvedSubtitle = rawSubtitle === undefined ? undefined : t(rawSubtitle);
   const resolvedKicker = kicker ?? meta.kicker;
 
   return (

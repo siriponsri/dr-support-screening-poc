@@ -277,3 +277,30 @@ def test_unknown_roles_are_refused_and_the_role_list_is_exact():
     assert pilot_auth.ROLES == {"admin", "physician", "nurse", "expert", "researcher"}
     with pytest.raises(AuthError):
         UserStore.__new__(UserStore).set_user("someone", TEST_PASSWORD, role="superuser", must_change=False)
+
+
+
+def test_only_the_admin_changes_the_ai_address_and_folders_and_researchers_see_no_patient_details():
+    from dr_support.services.pilot_auth import role_denial
+    for role in ("physician", "expert", "nurse"):
+        assert role_denial(role, "PUT", "/v1/model-connection")
+        assert role_denial(role, "POST", "/v1/model-connection/test")
+        assert role_denial(role, "POST", "/v1/workspaces")
+        assert role_denial(role, "PUT", "/v1/workspaces/abc")
+    assert role_denial("physician", "POST", "/v1/workspaces/abc/open") is None
+    assert role_denial("nurse", "POST", "/v1/workspaces/abc/open")
+    assert role_denial("admin", "PUT", "/v1/model-connection") is None
+    assert role_denial("researcher", "GET", "/v1/referrals.csv")
+    assert role_denial("researcher", "GET", "/v1/cases/abc/screening-report/print")
+    assert role_denial("researcher", "GET", "/v1/cases") is None
+    assert role_denial("nurse", "POST", "/v1/admissions/scan") is None
+
+
+def test_last_admin_stays_and_a_reset_keeps_a_disabled_account_disabled(tmp_path):
+    from dr_support.services.pilot_auth import UserStore
+    store = UserStore(tmp_path / "users.json")
+    store.set_user("admin1", "synthetic-pass-7", role="admin", must_change=False, enforce_policy=False)
+    store.set_user("nurse1", "synthetic-pass-7", role="nurse", must_change=False, enforce_policy=False)
+    store.set_disabled("nurse1", True)
+    store.set_user("nurse1", "synthetic-pass-8", role="nurse", must_change=True, enforce_policy=False)
+    assert next(user for user in store.list_users() if user["username"] == "nurse1")["disabled"] is True

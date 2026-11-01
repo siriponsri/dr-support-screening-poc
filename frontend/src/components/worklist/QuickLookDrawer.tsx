@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import {
   Button,
   Drawer,
@@ -43,6 +44,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 /** Read-only look at one Worklist image without leaving the list. */
 export function QuickLookDrawer({ item, onClose }: { item: CaseRecord | null; onClose: () => void }) {
+  const t = useT();
   const [showAi, setShowAi] = useState(true);
   const [showHuman, setShowHuman] = useState(true);
   useEffect(() => { setShowAi(true); setShowHuman(true); }, [item?.image_id]);
@@ -70,21 +72,21 @@ export function QuickLookDrawer({ item, onClose }: { item: CaseRecord | null; on
               <Stack spacing={4}>
                 <RetinalCanvas item={item} showAi={showAi && hasAi} showHuman={showHuman} />
                 <HStack spacing={5} flexWrap="wrap">
-                  <HStack as="label" spacing={2}><Switch isChecked={showAi && hasAi} isDisabled={!hasAi} onChange={(event) => setShowAi(event.target.checked)} /><Text fontSize="sm">AI suggestions{hasAi ? '' : ' (none shown)'}</Text></HStack>
-                  <HStack as="label" spacing={2}><Switch isChecked={showHuman} onChange={(event) => setShowHuman(event.target.checked)} /><Text fontSize="sm">Clinician findings</Text></HStack>
+                  <HStack as="label" spacing={2}><Switch isChecked={showAi && hasAi} isDisabled={!hasAi} onChange={(event) => setShowAi(event.target.checked)} /><Text fontSize="sm">{t('AI suggestions')}{hasAi ? '' : ` ${t('(none shown)')}`}</Text></HStack>
+                  <HStack as="label" spacing={2}><Switch isChecked={showHuman} onChange={(event) => setShowHuman(event.target.checked)} /><Text fontSize="sm">{t('Clinician findings')}</Text></HStack>
                 </HStack>
                 <SimpleGrid columns={{ base: 1, tablet: 2 }} spacing={4} borderTopWidth="1px" borderColor="border.subtle" pt={4}>
-                  <Fact label="Final DR grade" value={gradeText} />
-                  <Fact label="Findings" value={findingsSummary(item)} />
-                  <Fact label="Reviewer" value={item.clinician_review?.reviewer ?? 'Not recorded'} />
-                  <Fact label="Image type" value={item.modality === 'UNKNOWN' ? 'Not confirmed' : item.modality} />
+                  <Fact label={t('Final DR grade')} value={t(gradeText)} />
+                  <Fact label={t('Findings')} value={t(findingsSummary(item))} />
+                  <Fact label={t('Reviewer')} value={item.clinician_review?.reviewer ?? t('Not recorded')} />
+                  <Fact label={t('Image type')} value={item.modality === 'UNKNOWN' ? t('Not confirmed') : item.modality} />
                 </SimpleGrid>
-                <Text fontSize="xs" color="text.muted">View only. AI suggestions are optional evidence; the clinician record is authoritative.</Text>
+                <Text fontSize="xs" color="text.muted">{t('View only. AI suggestions are optional evidence; the clinician record is authoritative.')}</Text>
               </Stack>
             </DrawerBody>
             <DrawerFooter gap={2}>
-              <Button variant="ghost" onClick={onClose}>Close</Button>
-              {item.queue_state !== 'EXCLUDED' && <Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} variant="solid">Open review</Button>}
+              <Button variant="ghost" onClick={onClose}>{t('Close')}</Button>
+              {item.queue_state !== 'EXCLUDED' && <Button as={Link} to={`/review/${encodeURIComponent(item.image_id)}`} variant="solid">{t('Open review')}</Button>}
             </DrawerFooter>
           </>
         )}

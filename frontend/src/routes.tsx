@@ -12,6 +12,7 @@ import { AdminPage } from '@/pages/AdminPage';
 import { TodayPage } from '@/pages/TodayPage';
 import { ReportPage } from '@/pages/ReportPage';
 import { GoldPage } from '@/pages/GoldPage';
+import { ReferralsPage } from '@/pages/ReferralsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { NavigationGuardProvider } from '@/components/shell/NavigationGuard';
 import { WorkspaceProvider } from '@/components/shell/workspace';
@@ -53,6 +54,7 @@ export function AppRoutes({ forceTier }: AppRoutesProps = {}) {
           <Route path="/edit/:imageId" element={<AnnotationEditorPage />} />
           <Route path="/clinician-review/:imageId" element={<ClinicianReviewPage />} />
           <Route path="/report/:imageId" element={<ReportPage />} />
+          <Route path="/referrals" element={<ReferralsPage />} />
           <Route path="/gold" element={<GoldPage />} />
           <Route path="/gold/:imageId" element={<GoldPage />} />
           <Route path="/models" element={<ModelsPage />} />

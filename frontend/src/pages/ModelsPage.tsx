@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
@@ -112,7 +113,8 @@ function CaseLineage({ item }: { item: CaseRecord }) {
 }
 
 function ScoreBars({ result }: { result: GlobalResult }) {
-  if (!result.probabilities.length) return <Text color="text.secondary">No model score distribution returned.</Text>;
+  const t = useT();
+  if (!result.probabilities.length) return <Text color="text.secondary">{t('No model score distribution returned.')}</Text>;
   return (
     <Stack spacing={2}>
       {result.probabilities.map((probability, grade) => (
@@ -141,7 +143,8 @@ function ModelDescriptorGrid({ models }: { models: ModelDescriptor[] }) {
 }
 
 function LesionEvidence({ item, result }: { item: CaseRecord; result: LesionResult | null }) {
-  if (!result) return <Text color="text.secondary">No lesion result is available for this case.</Text>;
+  const t = useT();
+  if (!result) return <Text color="text.secondary">{t('No lesion result is available for this case.')}</Text>;
   const bounded = item.lesion_review?.lesions ?? result.lesions;
   const counts = bounded.reduce<Record<string, number>>((all, lesion) => {
     all[lesion.canonical_label] = (all[lesion.canonical_label] ?? 0) + 1;
@@ -154,8 +157,8 @@ function LesionEvidence({ item, result }: { item: CaseRecord; result: LesionResu
         <Stack spacing={2}><Text color="text.secondary">Raw lesion count</Text><Text fontSize="2xl" fontWeight="semibold">{result.lesions.length}</Text></Stack>
         <Stack spacing={2}><Text color="text.secondary">Bounded review count</Text><Text fontSize="2xl" fontWeight="semibold">{item.lesion_review?.suggestion_count ?? bounded.length}</Text></Stack>
       </SimpleGrid>
-      <Stack spacing={2}><Text fontSize="sm" color="text.secondary">Lesion count by class</Text>{Object.keys(counts).length ? Object.entries(counts).map(([label, count]) => <HStack key={label} justify="space-between"><Text>{label}</Text><Badge variant="info">{count}</Badge></HStack>) : <Text color="text.secondary">No localized lesions.</Text>}</Stack>
-      <Stack spacing={2}><Text fontSize="sm" color="text.secondary">Score information</Text><Text fontSize="sm">{scores.length ? `Bounded score range ${(Math.min(...scores) * 100).toFixed(1)}-${(Math.max(...scores) * 100).toFixed(1)}%` : 'No lesion scores returned.'}</Text></Stack>
+      <Stack spacing={2}><Text fontSize="sm" color="text.secondary">Lesion count by class</Text>{Object.keys(counts).length ? Object.entries(counts).map(([label, count]) => <HStack key={label} justify="space-between"><Text>{label}</Text><Badge variant="info">{count}</Badge></HStack>) : <Text color="text.secondary">{t('No localized lesions.')}</Text>}</Stack>
+      <Stack spacing={2}><Text fontSize="sm" color="text.secondary">Score information</Text><Text fontSize="sm">{scores.length ? `Bounded score range ${(Math.min(...scores) * 100).toFixed(1)}-${(Math.max(...scores) * 100).toFixed(1)}%` : t('No lesion scores returned.')}</Text></Stack>
       <Box><Text fontSize="sm" color="text.secondary" mb={2}>Localized visual evidence</Text><RetinalCanvas item={item} showAi humanAnnotations={[]} showHuman={false} /></Box>
       <Warnings warnings={result.warnings} />
     </Stack>
@@ -164,6 +167,7 @@ function LesionEvidence({ item, result }: { item: CaseRecord; result: LesionResu
 
 export function ModelsPage() {
   const { pathname } = useLocation();
+  const t = useT();
   const [models, setModels] = useState<ModelDescriptor[]>([]);
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -188,7 +192,7 @@ export function ModelsPage() {
   return (
     <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader pathname={pathname} title="Models & Audit" subtitle="Read-only model metadata, case results, and bounded visual evidence" />
-      {error && <Alert status="error" mb={5}><AlertIcon /><Text>{error}</Text></Alert>}
+      {error && <Alert status="error" mb={5}><AlertIcon /><Text>{t(error)}</Text></Alert>}
       <Stack spacing={5} minW={0}>
         <Section title="Model readiness" description="Capability metadata and unavailable/deferred states are shown honestly; no registry state implies clinical qualification.">
           <ModelDescriptorGrid models={models} />
@@ -206,7 +210,7 @@ export function ModelsPage() {
                   <HStack justify="space-between"><Text color="text.secondary">Top model score</Text><Text fontWeight="semibold">{item.global.confidence === null ? 'Not returned' : `${(item.global.confidence * 100).toFixed(1)}%`}</Text></HStack>
                   <Box><Text fontSize="sm" color="text.secondary" mb={2}>Model score distribution - Grades 0-4</Text><ScoreBars result={item.global} /></Box>
                   <Warnings warnings={globalWarnings} />
-                </> : <Text color="text.secondary">Not analyzed for this case.</Text>}
+                </> : <Text color="text.secondary">{t('Not analyzed for this case.')}</Text>}
               </Stack>
             </Section>
             <Section title="Lesion capability - localized visual evidence" description="Bounded lesion suggestions remain model evidence and do not mean that an empty result is negative.">
@@ -216,7 +220,7 @@ export function ModelsPage() {
           </SimpleGrid>
         )}
         {item && <CaseLineage item={item} />}
-        <Alert status="info"><AlertIcon /><Text fontSize="sm">AI outputs support clinician review and are not ground truth.</Text></Alert>
+        <Alert status="info"><AlertIcon /><Text fontSize="sm">{t('AI outputs support clinician review and are not ground truth.')}</Text></Alert>
       </Stack>
     </Box>
   );

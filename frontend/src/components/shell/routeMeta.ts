@@ -29,6 +29,10 @@ export const ROUTE_META: Record<string, RouteMeta> = {
     title: 'Annotation Editor',
     subtitle: 'Create explicit human annotations in original image space',
   },
+  '/referrals': {
+    title: 'Referrals',
+    subtitle: 'Signed Refer decisions, ready to export or send',
+  },
   '/gold': {
     title: 'Gold-100',
     subtitle: 'Research labels by the ophthalmologist',

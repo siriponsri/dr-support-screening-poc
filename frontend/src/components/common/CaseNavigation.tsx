@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useNavigationGuard } from '@/components/shell/NavigationGuard';
 import { Button, HStack, Text } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +25,7 @@ interface CaseNavigationProps {
  */
 export function CaseNavigation({ imageId, guarded = false, confirm, onBeforeSwitch }: CaseNavigationProps) {
   const navigate = useNavigate();
+  const t = useT();
   const navigationGuard = useNavigationGuard();
   const { previousId, nextId, previousImageConfirmed, nextImageConfirmed, position, total, loading, error, retry } = useCaseNeighbors(imageId);
 
@@ -51,12 +53,12 @@ export function CaseNavigation({ imageId, guarded = false, confirm, onBeforeSwit
         isDisabled={loading || !previousId}
         aria-label="Previous case"
       >
-        Previous
+        {t('Previous')}
       </Button>
       <Text fontSize="sm" color="text.secondary" aria-live="polite">
-        {error ? 'Worklist unavailable' : loading ? 'Loading cases…' : position && total ? `Image ${position} of ${total}` : 'Case'}
+        {error ? t('Worklist unavailable') : loading ? t('Loading cases…') : position && total ? `${t('Image')} ${position} ${t('of')} ${total}` : t('Case')}
       </Text>
-      {error && <Button size="sm" variant="outline" onClick={retry}>Retry Worklist</Button>}
+      {error && <Button size="sm" variant="outline" onClick={retry}>{t('Retry Worklist')}</Button>}
       <Button
         size="sm"
         variant="ghost"
@@ -65,7 +67,7 @@ export function CaseNavigation({ imageId, guarded = false, confirm, onBeforeSwit
         isDisabled={loading || !nextId}
         aria-label="Next case"
       >
-        Next
+        {t('Next')}
       </Button>
     </HStack>
   );

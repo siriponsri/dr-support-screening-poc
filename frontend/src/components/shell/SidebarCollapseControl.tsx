@@ -6,6 +6,7 @@
  * In mobile mode the same affordance opens the navigation drawer instead
  * of toggling collapse so the chrome stays predictable across breakpoints.
  */
+import { useT } from '@/lib/i18n';
 import { HStack, IconButton, type IconButtonProps, Tooltip } from '@chakra-ui/react';
 import { useEffect, useRef } from 'react';
 import { Menu, PanelLeftClose, PanelLeftDashed, PanelLeftOpen } from '@/lib/icons';
@@ -18,6 +19,7 @@ export function SidebarCollapseControl(props: Partial<Variant>) {
   // Hide and Show swap buttons; keep keyboard focus on the replacement.
   const showRef = useRef<HTMLButtonElement>(null);
   const hideRef = useRef<HTMLButtonElement>(null);
+  const t = useT();
   const moveFocus = useRef(false);
   useEffect(() => {
     if (!moveFocus.current) return;
@@ -28,13 +30,13 @@ export function SidebarCollapseControl(props: Partial<Variant>) {
   // of evaluating `useBreakpointValue` a second time. The provider already
   // makes this decision once for the whole shell.
   const isMobile = tier === 'mobile';
-  const desktopTooltip = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  const desktopTooltip = collapsed ? t('Expand sidebar') : t('Collapse sidebar');
 
   if (isMobile) {
     return (
-      <Tooltip label="Open navigation" placement="bottom" hasArrow openDelay={120}>
+      <Tooltip label={t('Open navigation')} placement="bottom" hasArrow openDelay={120}>
         <IconButton
-          aria-label="Open navigation"
+          aria-label={t('Open navigation')}
           icon={<Menu size={18} strokeWidth={2.25} />}
           variant="ghost"
           size="md"
@@ -47,10 +49,10 @@ export function SidebarCollapseControl(props: Partial<Variant>) {
 
   if (hidden) {
     return (
-      <Tooltip label="Show sidebar" placement="bottom" hasArrow openDelay={120}>
+      <Tooltip label={t('Show sidebar')} placement="bottom" hasArrow openDelay={120}>
         <IconButton
           ref={showRef}
-          aria-label="Show sidebar"
+          aria-label={t('Show sidebar')}
           icon={<PanelLeftOpen size={18} strokeWidth={2.25} />}
           variant="ghost"
           size="md"
@@ -81,10 +83,10 @@ export function SidebarCollapseControl(props: Partial<Variant>) {
           {...props}
         />
       </Tooltip>
-      <Tooltip label="Hide sidebar" placement="bottom" hasArrow openDelay={120}>
+      <Tooltip label={t('Hide sidebar')} placement="bottom" hasArrow openDelay={120}>
         <IconButton
           ref={hideRef}
-          aria-label="Hide sidebar"
+          aria-label={t('Hide sidebar')}
           icon={<PanelLeftDashed size={18} strokeWidth={2.25} />}
           variant="ghost"
           size="md"

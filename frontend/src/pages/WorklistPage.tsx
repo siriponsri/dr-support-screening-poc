@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useT } from '@/lib/i18n';
 import { Alert, AlertIcon, Box, Button, Center, HStack, Spinner, Stack, Text, VStack } from '@chakra-ui/react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -21,6 +22,7 @@ export function WorklistPage() {
   const location = useLocation();
   const { pathname } = location;
   const navigate = useNavigate();
+  const t = useT();
   const flowState = location.state as { caseComplete?: string; openConfirmImage?: string | null } | null;
   const [completedNotice, setCompletedNotice] = useState<{ nextId: string | null } | null>(() => (
     flowState?.caseComplete ? { nextId: flowState.openConfirmImage ?? null } : null
@@ -101,34 +103,34 @@ export function WorklistPage() {
     <Box as="main" maxW="1440px" mx="auto" px={{ base: 4, tablet: 5, laptop: 7 }} py={{ base: 5, tablet: 6 }}>
       <PageHeader pathname={pathname} subtitle="Admitted retinal images for clinician review" />
       <GuideCompletionOffer />
-      <Section title="Worklist" description="Review admitted images, resolve patient and eye identity, and keep AI assistance separate from the clinician decision." action={<HStack spacing={2} width={{ base: '100%', tablet: 'auto' }} justifyContent={{ base: 'flex-start', tablet: 'flex-end' }} flexWrap="wrap"><Button leftIcon={<ScanLine size={15} />} onClick={() => void scanInput()} isLoading={scanning}>Scan input folder</Button><Button variant="outline" leftIcon={<RefreshCw size={15} />} onClick={() => void loadCases()} isLoading={loading}>Refresh</Button></HStack>}>
+      <Section title="Worklist" description="Review admitted images, resolve patient and eye identity, and keep AI assistance separate from the clinician decision." action={<HStack spacing={2} width={{ base: '100%', tablet: 'auto' }} justifyContent={{ base: 'flex-start', tablet: 'flex-end' }} flexWrap="wrap"><Button leftIcon={<ScanLine size={15} />} onClick={() => void scanInput()} isLoading={scanning}>{t('Scan input folder')}</Button><Button variant="outline" leftIcon={<RefreshCw size={15} />} onClick={() => void loadCases()} isLoading={loading}>{t('Refresh')}</Button></HStack>}>
         {completedNotice && (
           <Alert status="success" mb={4} role="status">
             <AlertIcon />
-            <Text><strong>Case complete.</strong> {completedNotice.nextId ? 'Opening the next Worklist image.' : 'Every Worklist image is complete.'}</Text>
+            <Text><strong>{t('Case complete.')}</strong> {completedNotice.nextId ? t('Opening the next Worklist image.') : t('Every Worklist image is complete.')}</Text>
           </Alert>
         )}
         <AiBatchPanel />
-        {error && <Alert status="error" mb={4}><AlertIcon /><Text>{error}</Text></Alert>}
+        {error && <Alert status="error" mb={4}><AlertIcon /><Text>{t(error)}</Text></Alert>}
         {scanNotice && <Alert status="info" mb={4}><AlertIcon /><Text>{scanNotice}</Text></Alert>}
         {loading && cases.length === 0 ? (
-          <Center py={12}><VStack spacing={3}><Spinner color="action.primary" /><Text color="text.secondary">Loading cases...</Text></VStack></Center>
+          <Center py={12}><VStack spacing={3}><Spinner color="action.primary" /><Text color="text.secondary">{t('Loading cases...')}</Text></VStack></Center>
         ) : cases.length === 0 ? (
-          <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Stack spacing={1}><Text fontWeight="semibold">No images in this workspace</Text><Text fontSize="sm" color="text.secondary">Add images to the input folder, then scan the folder.</Text></Stack></Box>
+          <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Stack spacing={1}><Text fontWeight="semibold">{t('No images in this workspace')}</Text><Text fontSize="sm" color="text.secondary">{t('Add images to the input folder, then scan the folder.')}</Text></Stack></Box>
         ) : (
           <>
             <WorklistToolbar search={search} onSearchChange={setSearch} filters={filters} onFiltersChange={setFilters} sort={sort} onSortChange={setSort} viewMode={viewMode} onViewModeChange={setViewMode} />
             <WorklistQuickFilter cases={searchedCases} status={status} onStatusChange={setStatus} finalGrade={finalGrade} onFinalGradeChange={setFinalGrade} />
-            <Text fontSize="sm" color="text.secondary" mb={3}>{filteredCases.length} {filteredCases.length === 1 ? 'case' : 'cases'} shown</Text>
+            <Text fontSize="sm" color="text.secondary" mb={3}>{filteredCases.length} {filteredCases.length === 1 ? t('case shown') : t('cases shown')}</Text>
             {filteredCases.length === 0 ? (
-              <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Stack spacing={2}><Text fontWeight="semibold">No cases match these filters.</Text><Button size="sm" variant="outline" alignSelf="flex-start" onClick={() => { setSearch(''); setFilters(DEFAULT_FILTERS); setStatus('all'); setFinalGrade('all'); }}>Clear filters</Button></Stack></Box>
+              <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Stack spacing={2}><Text fontWeight="semibold">{t('No cases match these filters.')}</Text><Button size="sm" variant="outline" alignSelf="flex-start" onClick={() => { setSearch(''); setFilters(DEFAULT_FILTERS); setStatus('all'); setFinalGrade('all'); }}>{t('Clear filters')}</Button></Stack></Box>
             ) : (
             <WorklistTable cases={filteredCases} groups={patientGroups} models={models} onResolve={setResolverCase} onReadiness={setReadinessCase} onConfirmImage={setConfirmImageCase} onQueueAction={(item, action) => void updateQueue(item, action)} onQuickLook={setQuickLookCase} />
             )}
           </>
         )}
       </Section>
-      <HStack mt={4} spacing={2} color="text.muted" fontSize="xs"><Text>AI suggestions are optional visual evidence; clinician review remains authoritative.</Text></HStack>
+      <HStack mt={4} spacing={2} color="text.muted" fontSize="xs"><Text>{t('AI suggestions are optional visual evidence; clinician review remains authoritative.')}</Text></HStack>
       <QuickLookDrawer item={quickLookCase} onClose={() => setQuickLookCase(null)} />
       <ResolverDialog item={resolverCase} onClose={() => setResolverCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />
       <ReadinessDialog item={readinessCase} onClose={() => setReadinessCase(null)} onSaved={(saved) => setCases((current) => current.map((entry) => entry.image_id === saved.image_id ? saved : entry))} />

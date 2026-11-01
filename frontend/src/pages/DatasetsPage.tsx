@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
@@ -90,8 +91,9 @@ function readinessLabel(row: DatasetImageRow, kind: 'dr' | 'lesion'): string {
 }
 
 function WorkspaceDataTable({ records, onSelect }: { records: DatasetImageRow[]; onSelect: (imageId: string) => void }) {
+  const t = useT();
   if (records.length === 0) {
-    return <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Text color="text.secondary">No records match this view.</Text></Box>;
+    return <Box borderWidth="1px" borderStyle="dashed" borderColor="border.default" bg="surface.subtle" p={5}><Text color="text.secondary">{t('No records match this view.')}</Text></Box>;
   }
   return (
     <TableContainer overflowX="auto" maxW="100%">
@@ -104,8 +106,8 @@ function WorkspaceDataTable({ records, onSelect }: { records: DatasetImageRow[];
             <Td><StatusBadge tone={(row.dr_grade_training_ready ?? row.include_in_training) ? 'success' : 'warning'}>{readinessLabel(row, 'dr')}</StatusBadge></Td>
             <Td><Stack spacing={1} fontSize="xs"><Text>{annotationSummary(row)}</Text><Text color="text.secondary">{readinessLabel(row, 'lesion')}</Text></Stack></Td>
             <Td><Stack spacing={0.5} fontSize="xs"><Text>{completenessLabel(row.core_completeness_state, 'Core not reviewed')}</Text><Text color="text.secondary">Advanced: {completenessLabel(row.advanced_completeness_state)}</Text></Stack></Td>
-            <Td><Stack spacing={0.5} fontSize="xs"><Text>{sourceOriginLabel(row.source_origin)}{row.source_available === false ? ' - source unavailable' : ''}</Text><Text color={row.export_authorization?.startsWith('BLOCKED_') ? 'status.warning' : 'text.secondary'}>{exportAuthorizationLabel(row.export_authorization)}</Text></Stack></Td>
-            <Td><Button size="xs" variant="outline" leftIcon={<Eye size={13} />} onClick={() => onSelect(row.image_id)}>Details</Button></Td>
+            <Td><Stack spacing={0.5} fontSize="xs"><Text>{t(sourceOriginLabel(row.source_origin))}{row.source_available === false ? ` - ${t('source unavailable')}` : ''}</Text><Text color={row.export_authorization?.startsWith('BLOCKED_') ? 'status.warning' : 'text.secondary'}>{t(exportAuthorizationLabel(row.export_authorization))}</Text></Stack></Td>
+            <Td><Button size="xs" variant="outline" leftIcon={<Eye size={13} />} onClick={() => onSelect(row.image_id)}>{t('Details')}</Button></Td>
           </Tr>
         ))}</Tbody>
       </Table>
@@ -114,20 +116,21 @@ function WorkspaceDataTable({ records, onSelect }: { records: DatasetImageRow[];
 }
 
 function DetailModal({ detail, onClose }: { detail: WorkspaceDataDetail | null; onClose: () => void }) {
+  const t = useT();
   return (
     <Modal isOpen={Boolean(detail)} onClose={onClose} size="xl" scrollBehavior="inside">
       <ModalOverlay /><ModalContent>
         <ModalHeader>{detail?.record.filename ?? 'Workspace record'}</ModalHeader><ModalCloseButton />
         <ModalBody pb={6}>
           {detail && <Stack spacing={4}>
-            <Stack spacing={1}><Text fontSize="sm" color="text.secondary">Case ID</Text><Code>{detail.record.image_id}</Code><Text fontSize="sm">Revision {detail.record.case_revision ?? 0} / {sourceOriginLabel(detail.record.source_origin)} / {detail.record.source_available === false ? 'Source unavailable' : 'Source available'}</Text></Stack>
+            <Stack spacing={1}><Text fontSize="sm" color="text.secondary">Case ID</Text><Code>{detail.record.image_id}</Code><Text fontSize="sm">Revision {detail.record.case_revision ?? 0} / {t(sourceOriginLabel(detail.record.source_origin))} / {detail.record.source_available === false ? t('Source unavailable') : t('Source available')}</Text></Stack>
             <Tabs variant="line" isLazy>
               <TabList><Tab>Review</Tab><Tab>Processing</Tab><Tab>AI evidence</Tab><Tab>Eligibility</Tab></TabList>
               <TabPanels>
-                <TabPanel px={0}><Stack spacing={3}>{detail.completeness.map((item) => <Box key={item.group} borderWidth="1px" borderColor="border.subtle" p={3}><Text fontWeight="semibold">{item.group}</Text><Text fontSize="sm">{completenessLabel(item.state)}</Text><Text fontSize="xs" color="text.secondary">{item.reviewer ?? 'No reviewer recorded'}{item.timestamp ? ` / ${item.timestamp}` : ''}</Text>{item.state === 'REVIEWED_NONE_FOUND' && <Text fontSize="xs" color="status.warning">Training negative: not authorized by current policy.</Text>}</Box>)}</Stack></TabPanel>
-                <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>Status: {String(detail.processing.status ?? 'UNAVAILABLE')}</Text><Text>Source SHA-256: {String(detail.processing.source_sha256 ?? 'Unavailable')}</Text><Text>Analysis SHA-256: {String(detail.processing.analysis_sha256 ?? 'Unavailable')}</Text><Text>Representation: {String(detail.processing.representation_version ?? 'Unavailable')}</Text><Text color="text.secondary">Processing details are recorded evidence only; Phase 4 does not recompute model results.</Text></Stack></TabPanel>
-                <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>Status: {detail.explainability.status}</Text><Text>Evidence identity: {detail.explainability.evidence_identity ?? 'Unavailable'}</Text><Text>AI evidence items: {detail.ai_evidence_counts.items} / unresolved {detail.ai_evidence_counts.unresolved}</Text><Text color="text.secondary">AI evidence is separate from gold labels and does not establish clinical accuracy.</Text></Stack></TabPanel>
-                <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>DR: {readinessLabel(detail.record, 'dr')}</Text><Text>Lesion-positive: {readinessLabel(detail.record, 'lesion')}</Text><Text>Gold DR rows: {detail.gold_label_counts.dr_grade}</Text><Text>Gold lesion rows: {detail.gold_label_counts.lesion_positive}</Text><Text>Training negatives: not authorized</Text><Text>Source authorization: {exportAuthorizationLabel(detail.record.export_authorization)}</Text></Stack></TabPanel>
+                <TabPanel px={0}><Stack spacing={3}>{detail.completeness.map((item) => <Box key={item.group} borderWidth="1px" borderColor="border.subtle" p={3}><Text fontWeight="semibold">{item.group}</Text><Text fontSize="sm">{completenessLabel(item.state)}</Text><Text fontSize="xs" color="text.secondary">{item.reviewer ?? t('No reviewer recorded')}{item.timestamp ? ` / ${item.timestamp}` : ''}</Text>{item.state === 'REVIEWED_NONE_FOUND' && <Text fontSize="xs" color="status.warning">{t('Training negative: not authorized by current policy.')}</Text>}</Box>)}</Stack></TabPanel>
+                <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>Status: {String(detail.processing.status ?? 'UNAVAILABLE')}</Text><Text>Source SHA-256: {String(detail.processing.source_sha256 ?? 'Unavailable')}</Text><Text>Analysis SHA-256: {String(detail.processing.analysis_sha256 ?? 'Unavailable')}</Text><Text>Representation: {String(detail.processing.representation_version ?? 'Unavailable')}</Text><Text color="text.secondary">{t('Processing details are recorded evidence only; Phase 4 does not recompute model results.')}</Text></Stack></TabPanel>
+                <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>Status: {detail.explainability.status}</Text><Text>Evidence identity: {detail.explainability.evidence_identity ?? 'Unavailable'}</Text><Text>AI evidence items: {detail.ai_evidence_counts.items} / unresolved {detail.ai_evidence_counts.unresolved}</Text><Text color="text.secondary">{t('AI evidence is separate from gold labels and does not establish clinical accuracy.')}</Text></Stack></TabPanel>
+                <TabPanel px={0}><Stack spacing={2} fontSize="sm"><Text>DR: {readinessLabel(detail.record, 'dr')}</Text><Text>Lesion-positive: {readinessLabel(detail.record, 'lesion')}</Text><Text>Gold DR rows: {detail.gold_label_counts.dr_grade}</Text><Text>Gold lesion rows: {detail.gold_label_counts.lesion_positive}</Text><Text>{t('Training negatives: not authorized')}</Text><Text>Source authorization: {t(exportAuthorizationLabel(detail.record.export_authorization))}</Text></Stack></TabPanel>
               </TabPanels>
             </Tabs>
           </Stack>}
@@ -139,6 +142,7 @@ function DetailModal({ detail, onClose }: { detail: WorkspaceDataDetail | null; 
 
 export function DatasetsPage() {
   const { pathname } = useLocation();
+  const t = useT();
   const [manifest, setManifest] = useState<DatasetManifestResponse | null>(null);
   const [data, setData] = useState<WorkspaceDataResponse | null>(null);
   const [filter, setFilter] = useState<DatasetFilter>('all');
@@ -246,8 +250,8 @@ export function DatasetsPage() {
 
   const pageActions = (
     <>
-      <Button leftIcon={<RefreshCw size={15} />} onClick={() => void load()} isLoading={loading}>Refresh</Button>
-      <Button leftIcon={<Download size={15} />} onClick={() => void createSnapshot()} isLoading={snapshotting} isDisabled={loading || !manifest?.can_export}>Create canonical snapshot</Button>
+      <Button leftIcon={<RefreshCw size={15} />} onClick={() => void load()} isLoading={loading}>{t('Refresh')}</Button>
+      <Button leftIcon={<Download size={15} />} onClick={() => void createSnapshot()} isLoading={snapshotting} isDisabled={loading || !manifest?.can_export}>{t('Create canonical snapshot')}</Button>
     </>
   );
 
@@ -258,14 +262,14 @@ export function DatasetsPage() {
         <HStack w="full" flexWrap="wrap">{pageActions}</HStack>
       </Box>
       <Stack spacing={4}>
-        {error && <Alert status="error"><AlertIcon /><Text>{error}</Text></Alert>}
+        {error && <Alert status="error"><AlertIcon /><Text>{t(error)}</Text></Alert>}
         {notice && <Alert status="success"><AlertIcon /><Text>{notice}</Text></Alert>}
-        {loading && !data ? <Center py={12}><Stack align="center" spacing={3}><Spinner color="action.primary" /><Text color="text.secondary">Loading Workspace Data...</Text></Stack></Center> : data && manifest ? <Section title="Workspace Data" description="Use filters to inspect bounded pages of persisted review records. No review actions are available here." action={<HStack fontSize="sm" color="text.secondary"><Text>{data.workspace_name ?? 'No active Workspace'}</Text><Text>{data.total} records</Text><Text>Digest {data.source_state_digest?.slice(0, 12) ?? 'unavailable'}</Text></HStack>}>
+        {loading && !data ? <Center py={12}><Stack align="center" spacing={3}><Spinner color="action.primary" /><Text color="text.secondary">{t('Loading Workspace Data...')}</Text></Stack></Center> : data && manifest ? <Section title="Workspace Data" description="Use filters to inspect bounded pages of persisted review records. No review actions are available here." action={<HStack fontSize="sm" color="text.secondary"><Text>{data.workspace_name ?? t('No active Workspace')}</Text><Text>{data.total} {t('records')}</Text><Text>Digest {data.source_state_digest?.slice(0, 12) ?? 'unavailable'}</Text></HStack>}>
           <Stack spacing={4}>
             <HStack spacing={3} flexWrap="wrap" align="end">
-              <FormControl maxW="220px"><FormLabel htmlFor="workspace-data-search" fontSize="sm">Case search</FormLabel><HStack><Input id="workspace-data-search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="ID or filename" /><Search size={16} /></HStack></FormControl>
-              <FormControl maxW="150px"><FormLabel htmlFor="workspace-data-laterality" fontSize="sm">Eye</FormLabel><Select id="workspace-data-laterality" value={laterality} onChange={(event) => { setLaterality(event.target.value); setPage(1); }}><option value="">All eyes</option><option value="LEFT">Left</option><option value="RIGHT">Right</option><option value="UNKNOWN">Unknown</option></Select></FormControl>
-              <FormControl maxW="170px"><FormLabel htmlFor="workspace-data-origin" fontSize="sm">Source origin</FormLabel><Select id="workspace-data-origin" value={sourceOrigin} onChange={(event) => { setSourceOrigin(event.target.value); setPage(1); }}><option value="">All origins</option><option value="SYNTHETIC">Synthetic</option><option value="PUBLIC">Public</option><option value="WORKSPACE">Workspace</option><option value="HOSPITAL_AUTHORIZED">Approved hospital</option><option value="UNKNOWN">Unknown</option></Select></FormControl>
+              <FormControl maxW="220px"><FormLabel htmlFor="workspace-data-search" fontSize="sm">{t('Case search')}</FormLabel><HStack><Input id="workspace-data-search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder={t('ID or filename')} /><Search size={16} /></HStack></FormControl>
+              <FormControl maxW="150px"><FormLabel htmlFor="workspace-data-laterality" fontSize="sm">{t('Eye')}</FormLabel><Select id="workspace-data-laterality" value={laterality} onChange={(event) => { setLaterality(event.target.value); setPage(1); }}><option value="">{t('All eyes')}</option><option value="LEFT">{t('Left')}</option><option value="RIGHT">{t('Right')}</option><option value="UNKNOWN">{t('Unknown')}</option></Select></FormControl>
+              <FormControl maxW="170px"><FormLabel htmlFor="workspace-data-origin" fontSize="sm">{t('Source origin')}</FormLabel><Select id="workspace-data-origin" value={sourceOrigin} onChange={(event) => { setSourceOrigin(event.target.value); setPage(1); }}><option value="">{t('All origins')}</option><option value="SYNTHETIC">{t('Synthetic')}</option><option value="PUBLIC">{t('Public')}</option><option value="WORKSPACE">Workspace</option><option value="HOSPITAL_AUTHORIZED">{t('Approved hospital')}</option><option value="UNKNOWN">{t('Unknown')}</option></Select></FormControl>
             </HStack>
             <Tabs index={['all', 'dr-ready', 'lesion-positive-ready', 'needs-review', 'excluded'].indexOf(filter)} onChange={(index) => { setFilter(['all', 'dr-ready', 'lesion-positive-ready', 'needs-review', 'excluded'][index] as DatasetFilter); setPage(1); }} variant="line" isLazy>
               <TabList aria-label="Workspace Data views" maxW="100%" minW={0} overflowX="auto" whiteSpace="nowrap">
@@ -273,16 +277,16 @@ export function DatasetsPage() {
               </TabList>
               <TabPanels><TabPanel px={0} pt={4}><WorkspaceDataTable records={data.records} onSelect={(id) => void openDetail(id)} /></TabPanel><TabPanel px={0} pt={4}><WorkspaceDataTable records={data.records} onSelect={(id) => void openDetail(id)} /></TabPanel><TabPanel px={0} pt={4}><WorkspaceDataTable records={data.records} onSelect={(id) => void openDetail(id)} /></TabPanel><TabPanel px={0} pt={4}><WorkspaceDataTable records={data.records} onSelect={(id) => void openDetail(id)} /></TabPanel><TabPanel px={0} pt={4}><WorkspaceDataTable records={data.records} onSelect={(id) => void openDetail(id)} /></TabPanel></TabPanels>
             </Tabs>
-            <HStack justify="space-between"><Text fontSize="sm" color="text.secondary">Page {data.page} of {Math.max(1, Math.ceil(data.total / data.limit))}</Text><HStack><Button size="sm" variant="outline" leftIcon={<ChevronLeft size={14} />} onClick={() => setPage((value) => Math.max(1, value - 1))} isDisabled={page <= 1}>Previous</Button><Button size="sm" variant="outline" rightIcon={<ChevronRight size={14} />} onClick={() => setPage((value) => value + 1)} isDisabled={!data.has_next}>Next</Button></HStack></HStack>
+            <HStack justify="space-between"><Text fontSize="sm" color="text.secondary">{t('Page')} {data.page} {t('of')} {Math.max(1, Math.ceil(data.total / data.limit))}</Text><HStack><Button size="sm" variant="outline" leftIcon={<ChevronLeft size={14} />} onClick={() => setPage((value) => Math.max(1, value - 1))} isDisabled={page <= 1}>{t('Previous')}</Button><Button size="sm" variant="outline" rightIcon={<ChevronRight size={14} />} onClick={() => setPage((value) => value + 1)} isDisabled={!data.has_next}>{t('Next')}</Button></HStack></HStack>
           </Stack>
         </Section> : null}
         <GradingFolderSnapshot workspaceId={manifest?.workspace_id ?? null} exportAllowed={manifest?.can_export === true} refreshToken={manifest?.created_at} />
         <Section title="Legacy export tools" description="Metadata-only canonical snapshots do not copy images. The older grouped-image export updates a shared folder; use Grading-folder snapshot for a new immutable copy.">
           <Stack spacing={3} align="flex-start">
-            {!manifest?.can_export && <Text fontSize="sm" color="status.warning">{manifest?.workspace_id ? 'Export is restricted for this Workspace. Review source identity and authorization.' : 'Open an active Workspace to export a dataset manifest.'}</Text>}
-            <HStack flexWrap="wrap"><Button leftIcon={<Download size={15} />} onClick={() => void createExport()} isLoading={exporting} isDisabled={!manifest?.can_export}>Export manifest</Button><Button variant="outline" onClick={() => void createGroupedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export}>Export grouped images</Button><Button variant="ghost" onClick={() => void createAiSortedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export}>Sort by AI grade (unverified)</Button></HStack>
+            {!manifest?.can_export && <Text fontSize="sm" color="status.warning">{t(manifest?.workspace_id ? 'Export is restricted for this Workspace. Review source identity and authorization.' : 'Open an active Workspace to export a dataset manifest.')}</Text>}
+            <HStack flexWrap="wrap"><Button leftIcon={<Download size={15} />} onClick={() => void createExport()} isLoading={exporting} isDisabled={!manifest?.can_export}>Export manifest</Button><Button variant="outline" onClick={() => void createGroupedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export}>{t('Export grouped images')}</Button><Button variant="ghost" onClick={() => void createAiSortedExport()} isLoading={exportingGrouped} isDisabled={!manifest?.can_export}>{t('Sort by AI grade (unverified)')}</Button></HStack>
             <HStack role="group" aria-label="Grouped export image format" spacing={1}>{(['PNG', 'JPEG'] as const).map((format) => <Button key={format} size="sm" variant={groupedFormat === format ? 'solid' : 'outline'} aria-pressed={groupedFormat === format} onClick={() => setGroupedFormat(format)}>{format}</Button>)}</HStack>
-            {groupedFormat === 'JPEG' && <FormControl maxW="180px"><FormLabel htmlFor="grouped-jpeg-quality" fontSize="sm">JPEG quality</FormLabel><Input id="grouped-jpeg-quality" type="number" min={1} max={100} step={1} value={jpegQuality} onChange={(event) => setJpegQuality(event.target.value)} /></FormControl>}
+            {groupedFormat === 'JPEG' && <FormControl maxW="180px"><FormLabel htmlFor="grouped-jpeg-quality" fontSize="sm">{t('JPEG quality')}</FormLabel><Input id="grouped-jpeg-quality" type="number" min={1} max={100} step={1} value={jpegQuality} onChange={(event) => setJpegQuality(event.target.value)} /></FormControl>}
           </Stack>
         </Section>
       </Stack>
