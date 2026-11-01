@@ -2,7 +2,7 @@ import { useT } from '@/lib/i18n';
 import { usePageNavigationGuard } from '@/components/shell/NavigationGuard';
 import { useActiveCaseSession } from '@/hooks/useActiveCaseSession';
 import { localTiming } from '@/lib/localTiming';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Alert,
@@ -43,41 +43,31 @@ import {
   humanAnnotationApi,
   lesionReviewApi,
   type AnnotationGeometry,
-  type AnnotationType,
   type CaseRecord,
   type HumanAnnotation,
   type LesionLabel,
   type AnnotationCompletenessState,
 } from '@/lib/api';
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Circle, CircleDot, Lock, MousePointer2, Pentagon, Square, Trash2, Undo2, Unlock } from '@/lib/icons';
+import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock, MousePointer2, Square, Trash2, Undo2, Unlock } from '@/lib/icons';
 import { getDefaultReviewer, setDefaultReviewer } from '@/lib/reviewerPreference';
 import { markGuideFirstFlowCompleted } from '@/lib/hintPreference';
+import { useAnnotationDraft } from '@/hooks/useAnnotationDraft';
+import {
+  annotation,
+  annotationLocked,
+  editRoiRectangle,
+  pointFromEvent,
+  resizeRectangleGeometry,
+  sameRectangle,
+  translateAnnotationGeometry,
+  type Point,
+  type RoiRectangle,
+  type Tool,
+} from '@/components/annotation/annotationGeometry';
+import { LABEL_OPTIONS, MoreToolsPopover, previewShape, RoiCorrectionBox, TOOL_GUIDANCE, TOOL_LABELS, ToolButton } from '@/components/annotation/AnnotationTools';
 
-type Tool = 'select' | 'rectangle' | 'polygon' | 'point' | 'circle';
-type Point = [number, number];
-
-const MIN_RESIZE_SIZE = 4;
-const TOOL_LABELS: Record<Tool, string> = {
-  select: 'Select',
-  rectangle: 'Box',
-  polygon: 'Polygon',
-  point: 'Point',
-  circle: 'Circle',
-};
-const TOOL_GUIDANCE: Record<Tool, string> = {
-  select: 'Select a finding to edit.',
-  rectangle: 'Drag to draw a box.',
-  polygon: 'Click points; double-click to finish.',
-  point: 'Click to place a point.',
-  circle: 'Drag to size a circle.',
-};
-
-const LABEL_OPTIONS: Array<{ value: LesionLabel; label: string }> = [
-  { value: 'MICROANEURYSM', label: 'Microaneurysm' },
-  { value: 'HEMORRHAGE', label: 'Hemorrhage' },
-  { value: 'HARD_EXUDATE', label: 'Hard exudate' },
-  { value: 'SOFT_EXUDATE', label: 'Soft exudate' },
-];
+// The geometry helpers moved to components/annotation; tests and other code still import them from here.
+export { editRoiRectangle, pointFromEvent, resizeRectangleGeometry, translateAnnotationGeometry };
 
 function coreFinishState(record: CaseRecord): Exclude<AnnotationCompletenessState, 'NOT_REVIEWED'> {
   const findingCount = (record.human_annotations?.length ?? 0) + (record.annotations?.length ?? 0);
@@ -86,359 +76,6 @@ function coreFinishState(record: CaseRecord): Exclude<AnnotationCompletenessStat
 
 function errorText(err: unknown) {
   return err instanceof Error ? err.message : 'The request could not be completed.';
-}
-
-export function pointFromEvent(event: ReactPointerEvent<SVGSVGElement>, item: Pick<CaseRecord, 'width' | 'height'>): Point {
-  const bounds = event.currentTarget.getBoundingClientRect();
-  // The image and SVG share the transformed stage, so the transformed bounds
-  // map pointer coordinates back to the original-image viewBox.
-  const clientX = Number.isFinite(event.clientX) ? event.clientX : bounds.left;
-  const clientY = Number.isFinite(event.clientY) ? event.clientY : bounds.top;
-  return [
-    Math.max(0, Math.min(item.width, ((clientX - bounds.left) / Math.max(bounds.width, 1)) * item.width)),
-    Math.max(0, Math.min(item.height, ((clientY - bounds.top) / Math.max(bounds.height, 1)) * item.height)),
-  ];
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function boundedDelta(delta: Point, minX: number, maxX: number, minY: number, maxY: number): Point {
-  return [clamp(delta[0], minX, maxX), clamp(delta[1], minY, maxY)];
-}
-
-export function translateAnnotationGeometry(
-  annotation: HumanAnnotation,
-  delta: Point,
-  item: Pick<CaseRecord, 'width' | 'height'>,
-): AnnotationGeometry {
-  const geometry = annotation.geometry;
-  if (annotation.type === 'rectangle' && 'width' in geometry) {
-    const [dx, dy] = boundedDelta(delta, -geometry.x, item.width - geometry.x - geometry.width, -geometry.y, item.height - geometry.y - geometry.height);
-    return { ...geometry, x: geometry.x + dx, y: geometry.y + dy };
-  }
-  if (annotation.type === 'polygon' && 'points' in geometry) {
-    const minX = Math.min(...geometry.points.map(([x]) => x));
-    const maxX = Math.max(...geometry.points.map(([x]) => x));
-    const minY = Math.min(...geometry.points.map(([, y]) => y));
-    const maxY = Math.max(...geometry.points.map(([, y]) => y));
-    const [dx, dy] = boundedDelta(delta, -minX, item.width - maxX, -minY, item.height - maxY);
-    return { points: geometry.points.map(([x, y]) => [x + dx, y + dy]) };
-  }
-  if (annotation.type === 'point' && 'x' in geometry && !('width' in geometry)) {
-    const [dx, dy] = boundedDelta(delta, -geometry.x, item.width - geometry.x, -geometry.y, item.height - geometry.y);
-    return { x: geometry.x + dx, y: geometry.y + dy };
-  }
-  if (annotation.type === 'circle' && 'radius' in geometry) {
-    const [dx, dy] = boundedDelta(delta, -geometry.cx + geometry.radius, item.width - geometry.cx - geometry.radius, -geometry.cy + geometry.radius, item.height - geometry.cy - geometry.radius);
-    return { ...geometry, cx: geometry.cx + dx, cy: geometry.cy + dy };
-  }
-  return geometry;
-}
-
-export function resizeRectangleGeometry(
-  annotation: HumanAnnotation,
-  handle: RectangleResizeHandle,
-  point: Point,
-  item: Pick<CaseRecord, 'width' | 'height'>,
-): AnnotationGeometry {
-  const geometry = annotation.geometry;
-  if (annotation.type !== 'rectangle' || !('width' in geometry)) return geometry;
-
-  const minWidth = Math.min(MIN_RESIZE_SIZE, item.width);
-  const minHeight = Math.min(MIN_RESIZE_SIZE, item.height);
-  let x = geometry.x;
-  let y = geometry.y;
-  let width = geometry.width;
-  let height = geometry.height;
-
-  if (handle.includes('w')) {
-    x = clamp(point[0], 0, geometry.x + geometry.width - minWidth);
-    width = geometry.x + geometry.width - x;
-  } else if (handle.includes('e')) {
-    width = clamp(point[0] - geometry.x, minWidth, item.width - geometry.x);
-  }
-  if (handle.includes('n')) {
-    y = clamp(point[1], 0, geometry.y + geometry.height - minHeight);
-    height = geometry.y + geometry.height - y;
-  } else if (handle.includes('s')) {
-    height = clamp(point[1] - geometry.y, minHeight, item.height - geometry.y);
-  }
-
-  return { x, y, width, height };
-}
-
-type RoiRectangle = [number, number, number, number];
-
-/** Move (handle = null) or resize the in-place ROI correction box in original pixels. */
-export function editRoiRectangle(
-  base: RoiRectangle,
-  handle: RectangleResizeHandle | null,
-  start: Point,
-  point: Point,
-  item: Pick<CaseRecord, 'width' | 'height'>,
-): RoiRectangle {
-  const asAnnotation = {
-    shape_id: 'roi-edit', type: 'rectangle' as const, label: 'MICROANEURYSM' as const, source: 'HUMAN' as const, reviewer: '', created_at: '',
-    geometry: { x: base[0], y: base[1], width: base[2] - base[0], height: base[3] - base[1] },
-  };
-  const geometry = handle
-    ? resizeRectangleGeometry(asAnnotation, handle, point, item)
-    : translateAnnotationGeometry(asAnnotation, [point[0] - start[0], point[1] - start[1]], item);
-  if (!('width' in geometry)) return base;
-  return [geometry.x, geometry.y, geometry.x + geometry.width, geometry.y + geometry.height];
-}
-
-const ROI_HANDLES: RectangleResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
-const HANDLE_CURSORS: Record<RectangleResizeHandle, string> = {
-  nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize',
-};
-
-function handlePoint(rect: RoiRectangle, handle: RectangleResizeHandle): Point {
-  const [x1, y1, x2, y2] = rect;
-  const x = handle.includes('w') ? x1 : handle.includes('e') ? x2 : (x1 + x2) / 2;
-  const y = handle.includes('n') ? y1 : handle.includes('s') ? y2 : (y1 + y2) / 2;
-  return [x, y];
-}
-
-function RoiCorrectionBox({ rect, scale }: { rect: RoiRectangle; scale: number }) {
-  const [x1, y1, x2, y2] = rect;
-  const safeScale = Math.max(scale, 0.01);
-  const screenSize = Math.min(x2 - x1, y2 - y1) * safeScale;
-  // Small lesions keep only corner handles, sized so the lesion stays visible.
-  const compact = screenSize < 44;
-  const size = (compact ? 7 : 10) / safeScale;
-  const handles = compact ? ROI_HANDLES.filter((handle) => handle.length === 2) : ROI_HANDLES;
-  const offset = compact ? size / 2 : 0;
-  return (
-    <g data-roi-correction="true">
-      <rect
-        data-roi-edit="body"
-        x={x1}
-        y={y1}
-        width={x2 - x1}
-        height={y2 - y1}
-        fill="var(--chakra-colors-text-primary)"
-        fillOpacity={0.08}
-        stroke="var(--chakra-colors-text-primary)"
-        strokeWidth={2.5}
-        vectorEffect="non-scaling-stroke"
-        style={{ cursor: 'move' }}
-      />
-      {handles.map((handle) => {
-        const [hx, hy] = handlePoint(rect, handle);
-        // Compact corner handles sit just outside the box instead of over the lesion.
-        const x = hx + (handle.includes('w') ? -offset : handle.includes('e') ? offset : 0);
-        const y = hy + (handle.includes('n') ? -offset : handle.includes('s') ? offset : 0);
-        return (
-          <rect
-            key={handle}
-            data-roi-edit="handle"
-            data-roi-handle={handle}
-            x={x - size / 2}
-            y={y - size / 2}
-            width={size}
-            height={size}
-            fill="var(--chakra-colors-text-inverse)"
-            stroke="var(--chakra-colors-text-primary)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
-            style={{ cursor: HANDLE_CURSORS[handle] }}
-          />
-        );
-      })}
-    </g>
-  );
-}
-
-function sameRectangle(left: RoiRectangle, right: RoiRectangle) {
-  return left.every((value, index) => Math.abs(value - right[index]) < 0.01);
-}
-
-function annotationLocked(annotation: HumanAnnotation) {
-  // Records written before lock persistence have no field and are protected by default.
-  return annotation.locked !== false;
-}
-
-function makeId() {
-  return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function annotation(type: AnnotationType, label: LesionLabel, geometry: AnnotationGeometry): HumanAnnotation {
-  return { shape_id: makeId(), type, label, geometry, locked: false, source: 'HUMAN', reviewer: '', created_at: '' };
-}
-
-function previewShape(preview: { type: Tool; geometry: AnnotationGeometry } | null) {
-  if (!preview) return null;
-  const { type, geometry } = preview;
-  const color = 'var(--chakra-colors-text-primary)';
-  if (type === 'rectangle' && 'width' in geometry) {
-    return <rect x={geometry.x} y={geometry.y} width={geometry.width} height={geometry.height} fill={color} fillOpacity={0.1} stroke={color} strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />;
-  }
-  if (type === 'circle' && 'radius' in geometry) {
-    return <circle cx={geometry.cx} cy={geometry.cy} r={geometry.radius} fill={color} fillOpacity={0.1} stroke={color} strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />;
-  }
-  if (type === 'point' && 'x' in geometry) {
-    return <circle cx={geometry.x} cy={geometry.y} r={8} fill={color} fillOpacity={0.2} stroke={color} strokeWidth={3} vectorEffect="non-scaling-stroke" />;
-  }
-  if (type === 'polygon' && 'points' in geometry) {
-    return <polyline points={geometry.points.map((point) => point.join(',')).join(' ')} fill={color} fillOpacity={0.1} stroke={color} strokeWidth={3} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" />;
-  }
-  return null;
-}
-
-function ToolButton({ active, onClick, children, ariaLabel, isDisabled = false }: { active?: boolean; onClick: () => void; children: React.ReactNode; ariaLabel?: string; isDisabled?: boolean }) {
-  return <Button size="sm" variant={active ? 'secondary' : 'outline'} onClick={onClick} aria-label={ariaLabel} aria-pressed={active} isDisabled={isDisabled}>{children}</Button>;
-}
-
-function MoreToolsPopover({
-  open,
-  onOpenChange,
-  tool,
-  onToolChange,
-  onActivate,
-  disabled,
-  inspectorActive,
-  fullscreen = false,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  tool: Tool;
-  onToolChange: (tool: Tool) => void;
-  onActivate: (tool: Tool) => void;
-  disabled: boolean;
-  inspectorActive: boolean;
-  fullscreen?: boolean;
-}) {
-  const t = useT();
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
-  const [popupPosition, setPopupPosition] = useState({ top: 12, left: 12 });
-  const close = useCallback((restoreFocus = true) => {
-    onOpenChange(false);
-    if (restoreFocus) window.setTimeout(() => triggerRef.current?.focus(), 0);
-  }, [onOpenChange]);
-  const choose = (nextTool: Tool) => {
-    onActivate(nextTool);
-    onToolChange(nextTool);
-    close();
-  };
-
-  const popupId = fullscreen ? 'fullscreen-more-tools' : 'annotation-more-tools';
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKeyDownCapture = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      close();
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !containerRef.current?.contains(event.target) && !popupRef.current?.contains(event.target)) {
-        const clickedControl = event.target instanceof Element
-          && Boolean(event.target.closest('button, a, input, select, textarea, [role="button"], [role="link"], [role="checkbox"], [role="combobox"], [role="menuitem"], [role="option"], [role="switch"], [role="tab"], [contenteditable="true"]'));
-        close(!clickedControl);
-      }
-    };
-    // Capture before Chakra's Modal handler so Escape only closes this popup.
-    document.addEventListener('keydown', onKeyDownCapture, true);
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDownCapture, true);
-      document.removeEventListener('pointerdown', onPointerDown);
-    };
-  }, [close, open]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const frame = window.requestAnimationFrame(() => {
-      popupRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [open]);
-
-  useLayoutEffect(() => {
-    if (!open) return undefined;
-    const updatePlacement = () => {
-      const trigger = triggerRef.current?.getBoundingClientRect();
-      const popup = popupRef.current;
-      if (!trigger || !popup) return;
-      const popupRect = popup.getBoundingClientRect();
-      const popupWidth = popupRect.width || 240;
-      const popupHeight = popupRect.height || 56;
-      const maxLeft = Math.max(12, window.innerWidth - popupWidth - 12);
-      const left = Math.min(Math.max(12, trigger.left), maxLeft);
-      const below = trigger.bottom + 6;
-      const above = trigger.top - popupHeight - 6;
-      const preferredTop = below + popupHeight > window.innerHeight - 12 && above >= 12 ? above : below;
-      const maxTop = Math.max(12, window.innerHeight - popupHeight - 12);
-      const top = Math.min(Math.max(12, preferredTop), maxTop);
-      setPopupPosition({ top, left });
-    };
-    const frame = window.requestAnimationFrame(updatePlacement);
-    window.addEventListener('resize', updatePlacement);
-    window.addEventListener('scroll', updatePlacement, true);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener('resize', updatePlacement);
-      window.removeEventListener('scroll', updatePlacement, true);
-    };
-  }, [open]);
-
-  return (
-    <Box ref={containerRef} position="relative" display="inline-flex">
-      <Button
-        ref={triggerRef}
-        size="sm"
-        variant="outline"
-        rightIcon={<ChevronDown size={14} aria-hidden="true" />}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-controls={open ? popupId : undefined}
-        onClick={() => onOpenChange(!open)}
-        isDisabled={disabled}
-      >
-        {t('More tools')}
-      </Button>
-      {/* Keep the popup in the owning Modal subtree so focus lock remains local. */}
-      {open && (
-        <Box
-          id={popupId}
-          ref={popupRef}
-          role="dialog"
-          aria-label={t('Annotation tools')}
-          position="fixed"
-          top={`${popupPosition.top}px`}
-          left={`${popupPosition.left}px`}
-          width="max-content"
-          maxW="calc(100vw - 24px)"
-          maxH="calc(100vh - 24px)"
-          overflowY="auto"
-          bg="surface.panel"
-          borderWidth="1px"
-          borderColor="border.default"
-          borderRadius="md"
-          boxShadow="md"
-          zIndex="popover"
-          p={2}
-        >
-          <HStack spacing={2} flexWrap="wrap">
-            <ToolButton ariaLabel={fullscreen ? 'Polygon tool' : 'Polygon'} active={tool === 'polygon'} onClick={() => choose('polygon')} isDisabled={inspectorActive || disabled}>
-              <Pentagon size={14} aria-hidden="true" /><Box>Polygon</Box>
-            </ToolButton>
-            <ToolButton ariaLabel={fullscreen ? 'Point tool' : 'Point'} active={tool === 'point'} onClick={() => choose('point')} isDisabled={inspectorActive || disabled}>
-              <CircleDot size={14} aria-hidden="true" /><Box>Point</Box>
-            </ToolButton>
-            <ToolButton ariaLabel={fullscreen ? 'Circle tool' : 'Circle'} active={tool === 'circle'} onClick={() => choose('circle')} isDisabled={inspectorActive || disabled}>
-              <Circle size={14} aria-hidden="true" /><Box>Circle</Box>
-            </ToolButton>
-          </HStack>
-        </Box>
-      )}
-    </Box>
-  );
 }
 
 export function AnnotationEditorPage() {
@@ -922,13 +559,6 @@ function AnnotationEditorPageSession() {
 
   const roiReviewer = () => reviewer.trim();
 
-  /** Flush any pending draft so ROI decisions never race the autosave revision. */
-  const flushedCase = async (): Promise<CaseRecord | null> => {
-    if (!item) return null;
-    if (draftStatus === 'saved') return item;
-    return persistDraft(true);
-  };
-
   const confirmRoi = async () => {
     if (!item || readOnly || !roiEdit || !rawSelectedLesion || roiSaving || actionBusyRef.current || interactionRef.current) return;
     const reviewerName = roiReviewer();
@@ -1349,26 +979,11 @@ function AnnotationEditorPageSession() {
     }
   };
 
-  useEffect(() => {
-    if (skipAutosaveRef.current) {
-      skipAutosaveRef.current = false;
-      return;
-    }
-    if (completing || saving || roiSaving || actionBusyRef.current || draftStatus !== 'unsaved' || interactionRef.current || !reviewer.trim()) return;
-    const timer = window.setTimeout(() => { void persistDraft(); }, 900);
-    return () => window.clearTimeout(timer);
-  }, [completing, saving, roiSaving, draft, draftStatus, reviewer]);
-
-  useEffect(() => {
-    const guard = (event: BeforeUnloadEvent) => {
-      if (actionBusyRef.current || savingRef.current || draftStatus === 'unsaved' || draftStatus === 'saving' || draftStatus === 'failed') {
-        event.preventDefault();
-        event.returnValue = '';
-      }
-    };
-    window.addEventListener('beforeunload', guard);
-    return () => window.removeEventListener('beforeunload', guard);
-  }, [draftStatus]);
+  // Autosave (900 ms), flush-before-ROI-decision/Finish and the leave-page guard; same place, same order.
+  const { flushedCase } = useAnnotationDraft({
+    item, draft, draftStatus, reviewer, completing, saving, roiSaving, persistDraft,
+    skipAutosaveRef, actionBusyRef, interactionRef, savingRef,
+  });
 
   if (!imageId) return <Center minH="360px"><Text>{t('Select an image from the Worklist.')}</Text></Center>;
   if (loading && !item) return <Center minH="360px"><Spinner color="action.primary" /></Center>;
