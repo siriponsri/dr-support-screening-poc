@@ -2293,3 +2293,39 @@ to mark consent).
   phase 2 or need a signed clinical definition.
 - Thai translations cover sign-in, Today, Review hints and Admin text; other
   pages show English.
+
+## 41. Phase 1 finish: referrals, personal access, Thai on every page, security audit, 31 October to 1 November 2026 (TEST_ONLY)
+
+**Merged on main** `110b47e` (branch `feat/phase1-finish`, 7 commits):
+
+| Commit | What |
+| --- | --- |
+| `8a671f4` | referral outbox: signed Refer or ungradable reports only, FHIR R4 and CSV export, connector off by default (file drop or HTTPS webhook set by the administrator), one recorded attempt per Send, no automatic resend; Referrals page; team access guide |
+| `3d67198` | personal model tokens on the regular gateway (per-person principal, allowed workstations, operator commands `principal-add`, `principal-revoke`, `principal-list`); launcher reads `DR_HOST`, `DR_KEY`, `DR_TOKEN_FILE`; admin script for restricted SSH accounts; [TOKEN_DISTRIBUTION.md](docs/operations/TOKEN_DISTRIBUTION.md) |
+| `cf292ca` | hygiene: unused docs, an orphan preview page and a dead build script removed |
+| `f6ce9ab` | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for teammates; portal and configuration updates |
+| `e15eeb0` | security audit fixes (see [SECURITY_AUDIT_20261031.md](docs/audit/SECURITY_AUDIT_20261031.md)); Admin "Test connection" for the AI server |
+| `9c3703f` | audit record, token guide and configuration updates |
+| `f69af54` | Thai body text on every page (749 dictionary entries); headings and technical terms stay English |
+
+**Validation:** backend 2,335 passed, 69 skipped, 0 failed on the branch tip (same tree as the merge); frontend
+44 files, 340 tests passed on main; typecheck 0; Ruff clean; docs QA passed (clean worktree); `frontend/dist`
+rebuilt on main.
+
+**dr-train:** gateway now runs from `deployments/regular-20261031-r05` (CPU only, same day authority
+`regular/r01`). Identity is equal to r04 (global and PRISM pins), so the r04 pins stay in use. The one-click
+gateway (r04, started 13:07) was stopped first; no GPU was used; GPU0 and GPU1 idle. No principals file exists,
+so only the owner's token works (unchanged behaviour). The owner's private `demo.env` now names r05. Live AI
+was not rerun (outside AI hours). Rollback: stop r05 (`regular/r05-service.pid`) and start r04.
+
+**Owner decisions still needed**
+- Record the AI-server choice and consent for the demo workspace (Admin page, AI server tab).
+- Personal access: the dr-train administrator runs `create-restricted-user.sh` per person, the operator issues
+  tokens, the owner invites devices. Nothing has been created yet.
+- Audit open items (model API without token, public-folder demo mode, backups in plain text, `HN5071` in old
+  receipts and tests, team portraits): see the audit record.
+- Thai wording a physician should check: the GradeGuide ICO criteria, the Yes/No answers on the report form.
+
+**Not done or limits**
+- Package 2 not run on a GPU server. Automatic referral rules remain out of scope (no signed definition).
+- Referral connector sends only to hosts the operator lists in `DR_SUPPORT_REFERRAL_HOSTS`.
