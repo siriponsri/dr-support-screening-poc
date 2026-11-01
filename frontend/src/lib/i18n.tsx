@@ -253,7 +253,7 @@ const THAI: Record<string, string> = {
   "Source available": "มีไฟล์ต้นฉบับ",
   "No reviewer recorded": "ไม่ได้บันทึกผู้ตรวจ",
   "Training negative: not authorized by current policy.": "นโยบายปัจจุบันยังไม่อนุญาตให้ใช้เป็นตัวอย่างลบในการเทรน",
-  "Processing details are recorded evidence only; Phase 4 does not recompute model results.": "รายละเอียดการประมวลผลเป็นแค่หลักฐานที่บันทึกไว้ Phase 4 ไม่ได้คำนวณผลโมเดลใหม่",
+  "Processing details are recorded evidence only; this page does not recompute model results.": "รายละเอียดการประมวลผลเป็นแค่หลักฐานที่บันทึกไว้ หน้านี้ไม่ได้คำนวณผลโมเดลใหม่",
   "AI evidence is separate from gold labels and does not establish clinical accuracy.": "ผล AI แยกจาก gold label และไม่ได้ยืนยันความแม่นยำทางคลินิก",
   "Training negatives: not authorized": "ตัวอย่างลบสำหรับเทรน: ยังไม่อนุญาต",
   "Create canonical snapshot": "สร้าง canonical snapshot",
@@ -612,6 +612,8 @@ const THAI: Record<string, string> = {
   "Not confirmed.": "ยังไม่ยืนยัน",
   "Referral details": "รายละเอียดการส่งต่อ",
   "Derived from the current confirmed physician grade only.": "คิดจากเกรดล่าสุดที่แพทย์ยืนยันเท่านั้น",
+  "Rule: refer when the confirmed grade is 4": "เกณฑ์: ส่งต่อเมื่อเกรดที่ยืนยันคือ 4",
+  "version": "เวอร์ชัน",
   // Grade guide
   "Grade guide": "คู่มือให้เกรด",
   "No diabetic-retinopathy abnormality is identified on the reviewable image.": "ไม่พบความผิดปกติของเบาหวานขึ้นจอประสาทตาในภาพที่อ่านได้",

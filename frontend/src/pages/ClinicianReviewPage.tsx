@@ -359,7 +359,7 @@ function ClinicianReviewPageSession() {
               <Collapse in={referralDetailsOpen} animateOpacity>
                 <Stack id="referral-details" spacing={1} mt={2} fontSize="xs" color="text.muted">
                   <Text>{t('Derived from the current confirmed physician grade only.')}</Text>
-                  <Text>Rule {item.referral?.rule_id ?? 'M1_DR_GRADE_4_REFERRAL'} / version {item.referral?.rule_version ?? '1.0.0'}</Text>
+                  <Text data-rule-id={item.referral?.rule_id ?? undefined}>{t('Rule: refer when the confirmed grade is 4')} / {t('version')} {item.referral?.rule_version ?? '1.0.0'}</Text>
                   {item.referral?.source_grade != null && <Text>Source grade: {drGradeLabel(item.referral.source_grade) ?? 'Recorded grade'}</Text>}
                   {item.referral?.reviewer && <Text>Source reviewer: {item.referral.reviewer}</Text>}
                 </Stack>
