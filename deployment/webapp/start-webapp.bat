@@ -1,14 +1,13 @@
 @echo off
 rem One click on Windows with Docker Desktop: start the web app package and open it.
-rem Settings: %LOCALAPPDATA%\DRScreening\webapp.env (copy from webapp.env.example and fill it in).
+rem Settings: %LOCALAPPDATA%\DRScreening\webapp.env (made by setup-webapp.bat the first time).
 title DR Screening web app
 setlocal
 set "ENVFILE=%LOCALAPPDATA%\DRScreening\webapp.env"
 if not exist "%ENVFILE%" (
-  echo Settings file not found: %ENVFILE%
-  echo Copy webapp.env.example there and fill it in.
-  pause
-  exit /b 1
+  echo First time on this computer: running setup.
+  call "%~dp0setup-webapp.bat"
+  exit /b
 )
 docker info >nul 2>&1 || (
   echo Docker Desktop is not running. Start Docker Desktop, then try again.

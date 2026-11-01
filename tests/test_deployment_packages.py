@@ -37,3 +37,14 @@ def test_image_folders_are_mounted_read_only_and_sign_in_is_on(compose):
 def test_web_app_port_is_loopback_only_behind_https():
     text = (ROOT / "webapp" / "compose.yml").read_text(encoding="utf-8")
     assert '"127.0.0.1:${REVIEW_PORT:-8000}:8000"' in text and "--internal-certs" in text
+
+
+
+def test_windows_setup_makes_private_settings_and_never_ships_a_secret():
+    setup = (ROOT / "webapp" / "bin" / "setup-webapp.ps1").read_text(encoding="utf-8")
+    assert "RandomNumberGenerator" in setup and "AsSecureString" in setup and "/inheritance:r" in setup
+    assert "REPLACE" not in setup and setup.isascii()   # Windows PowerShell 5.1 reads BOM-less files as ANSI.
+    start = (ROOT / "webapp" / "start-webapp.bat").read_text(encoding="utf-8")
+    assert "setup-webapp.bat" in start
+    root = (ROOT.parent / "SETUP_WEB_APP.bat").read_text(encoding="utf-8")
+    assert "deployment\\webapp\\setup-webapp.bat" in root

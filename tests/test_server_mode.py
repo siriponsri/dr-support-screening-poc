@@ -63,3 +63,14 @@ def test_connection_check_reports_only_the_outcome_and_needs_the_admin(tmp_path,
     monkeypatch.setenv("REMOTE_MODEL_TOKEN", "secret-token-value-123456789012345")
     down = signed_in(app, "admin1").get("/v1/admin/server-mode/test").json()
     assert down["reachable"] is False and "secret-token" not in str(down)
+
+
+def test_the_launcher_confirmation_records_the_owners_answer_and_keeps_other_workspaces(tmp_path):
+    from dr_support.services import server_mode
+    assert server_mode.main(["check", "--config-dir", str(tmp_path), "--workspace", "demo"]) == 3
+    server_mode.main(["confirm", "--config-dir", str(tmp_path), "--workspace", "other", "--by", "Owner Name"])
+    assert server_mode.main(["confirm", "--config-dir", str(tmp_path), "--workspace", "demo", "--by", "x"]) == 0
+    settings = server_mode.read_mode(tmp_path)
+    assert settings["mode"] == "team_server" and settings["consented_workspaces"] == ["demo", "other"]
+    assert settings["updated_by"] == "launcher:x"
+    assert server_mode.main(["check", "--config-dir", str(tmp_path), "--workspace", "demo"]) == 0
