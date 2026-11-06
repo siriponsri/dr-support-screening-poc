@@ -24,8 +24,14 @@ service, not a final release, not accepted by a hospital.
   - `8c81082` narrated Thai user-journey video (`frontend/public/media/journey-th.mp4` + `.vtt`, built from
     `media/journey-video/`, Gemini `gemini-3.8-flash-tts` voice Achernar) and the "ดูวิธีใช้งาน" pop-up on the sign-in page;
   - `158169d` three Thai PDFs in `docs/pdfs/` (user manual with screenshots, deployment guide, test report),
-    built by `scripts/docs/build_pdfs.py` from `docs/th/`.
-- Validation on main after these merges: backend 2,192 passed, 71 skipped, 0 failed (lower than before because
+    built by `scripts/docs/build_pdfs.py` from `docs/th/`;
+  - 6 November 2026 (`feat/deck-real-uwf-video-pace`), after team feedback: the deck uses real UWF images
+    (owner-confirmed consent, renamed DEMO01..; `presentation/capture/capture_real_screens.py`) and six real
+    app-screen slides (32 slides); the journey video was rebuilt modern (dark canvas, floating window, cursor,
+    captions drawn in the picture, music bed and effects made in code by `soundtrack.py`; narration about 20%
+    faster, 136.5 s) without new Gemini calls (`retime_voice.py`). Sound levels were measured, not listened to.
+    Branch validation: backend 2,200 passed, 71 skipped, 0 failed; frontend 342 passed; Ruff clean; root smoke PASS.
+- Validation on main after the earlier merges: backend 2,192 passed, 71 skipped, 0 failed (lower than before because
   removed tools took their tests); frontend 45 files, 342 tests passed; typecheck 0; Ruff clean; root API smoke
   PASS; docs QA passed; `frontend/dist` rebuilt. Some frontend tests are timing-flaky under load (pass alone).
 - The one-click demo was not run live after the code tidy (the first start asks the owner to type YES).
