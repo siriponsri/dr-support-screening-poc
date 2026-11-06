@@ -7,23 +7,28 @@ service, not a final release, not accepted by a hospital.
 
 ## 1. Current main
 
-- `main` at `08074bb` (merge of `feat/easy-setup`), synchronized with `origin/main` before the documentation
-  cut. Recent merges:
-  - `110b47e` phase 1 finish (referrals, personal tokens, Thai on every page, security audit fixes,
-    `docs/ARCHITECTURE.md`);
-  - `c732b57` owner confirmed consent for audit items 18 and 35;
-  - `69ec036` easy setup: the demo launcher asks once on first start (type YES that the workspace holds
-    only public or consented images; recorded as the server-mode confirmation, shown and reversible on the
-    Admin page) and `SETUP_WEB_APP.bat` sets up package 1 on Docker Desktop in one double-click.
-- Documentation cut (branch `docs/cut-down`): docs reduced to `README.md`, `docs/README.md`,
-  `docs/ARCHITECTURE.md`, `docs/developer/*.md`, this file and `GOAL.md`. Three Thai PDFs (deployment
-  guide, test report, user manual) come in a later step. A new presentation is built separately in a root
-  `presentation/` folder.
-- Last full validation before the cut (phase 1 finish branch tip, same tree as `110b47e`): backend 2,335
-  passed, 69 skipped, 0 failed; frontend 44 files, 340 tests passed on main; typecheck 0; Ruff clean.
-  Frontend full runs have timing-flaky slow tests (they pass alone); recorded, not loosened.
-- Documentation cut validation (branch `docs/cut-down`): backend 2,338 passed, 69 skipped, 0 failed;
-  Ruff clean; root smoke PASS (11 cases); docs QA passed. No frontend source changed.
+- `main` at `158169d` (6 November 2026), synchronized with `origin/main`. Merges since phase 1 finish:
+  - `110b47e` phase 1 finish (referrals, personal tokens, Thai on every page, security audit fixes);
+  - `08074bb` easy setup: the demo launcher asks once on first start (type YES that the workspace holds only
+    public or consented images; reversible on the Admin page); `SETUP_WEB_APP.bat` sets up package 1;
+  - `5b9b1fb` install kits: `deployment/hospital-server/install.sh` + `IT_CHECKLIST.md` + offline bundle,
+    `deployment/cloudflare-access/` (team demo, invited emails only, tunnel to `127.0.0.1:8010`, demo images only);
+  - `e357f81` docs cut (old docs in tag `archive/docs-before-cut-20261101`; owner's untracked old files moved
+    to the ignored `.archives/` folder);
+  - `be72dd0` one presentation: `presentation/index.html` (reveal.js + GSAP, offline), opened by `PRESENT.cmd`;
+  - `5acf01d` code tidy (behaviour unchanged): `workflow.py` route groups in `dr_support/workflow_routes/`,
+    `api/_factory.py` split into `model_connection.py`, `inference.py`, `batches.py`; dataset export split;
+    frontend helpers extracted (`useAnnotationDraft`, `apiTypes/apiClient/apiLabels`); legacy `web/` and `/ui`
+    removed; historical QA tools removed; `scripts/qa/m1_server_app.py` is now `scripts/demo/server_app.py`;
+    owner defaults removed from public scripts (the private `demo.env` sets `DR_HOST`/`DR_KEY`);
+  - `8c81082` narrated Thai user-journey video (`frontend/public/media/journey-th.mp4` + `.vtt`, built from
+    `media/journey-video/`, Gemini `gemini-3.8-flash-tts` voice Achernar) and the "ดูวิธีใช้งาน" pop-up on the sign-in page;
+  - `158169d` three Thai PDFs in `docs/pdfs/` (user manual with screenshots, deployment guide, test report),
+    built by `scripts/docs/build_pdfs.py` from `docs/th/`.
+- Validation on main after these merges: backend 2,192 passed, 71 skipped, 0 failed (lower than before because
+  removed tools took their tests); frontend 45 files, 342 tests passed; typecheck 0; Ruff clean; root API smoke
+  PASS; docs QA passed; `frontend/dist` rebuilt. Some frontend tests are timing-flaky under load (pass alone).
+- The one-click demo was not run live after the code tidy (the first start asks the owner to type YES).
 
 ## 2. What phase 1 delivered (all merged on main)
 
@@ -80,7 +85,12 @@ service, not a final release, not accepted by a hospital.
   profile sign-in (8), plain-text patient fields and backups (11), plain http between hosts (14), login rate
   limit (15), root containers and database superuser (16, 17), cookie `Secure` flag (21), hardening items
   (29 to 31, 33), owner names in examples (34), signing with sign-in off (37), PRISM job binding (12 part).
-- Thai wording for a physician to check: GradeGuide ICO criteria and the Yes/No answers on the report form.
+- Thai wording for a physician to check: GradeGuide ICO criteria, the Yes/No answers on the report form, and
+  the three Thai PDFs.
+- Listen to the narrated video once (3 scenes had spoken style notes trimmed: Confirm Image, Annotation
+  Editor, Screening report). The free Gemini key allows 10 TTS requests a day; a full regeneration needs 9.
+- The `full` demo profile merges routes without the sign-in middleware (audit item 8); the video and PDF
+  capture used `review` instead.
 - PRISM on the legacy public samples is refused before model work (no recorded source projection for that
   workspace); needs a projection approval for the workspace or another approved public PRISM path.
 - The Model API model-boundary colour check refuses some public UWF images; changing it is a frozen Model
