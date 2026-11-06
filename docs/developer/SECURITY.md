@@ -79,6 +79,10 @@ Tests: `test_pilot_auth`, `test_referral_outbox`, `test_screening_report`, `test
 18 (`HN5071` in old receipts and tests) and 35 (team portraits): the owner confirmed consent was obtained for
 all of them; kept as they are.
 
+6 November 2026: the owner asked for the team deck to show real UWF images from the same consented set.
+`presentation/assets/uwf/` and `presentation/assets/screens/` hold them under neutral names (DEMO01 ...),
+with no hospital number on any image or screen; see `presentation/README.md`.
+
 ### Checked and fine
 
 Password hashing (PBKDF2, 310k iterations), session cookie flags, admin route checks, CSRF coverage with

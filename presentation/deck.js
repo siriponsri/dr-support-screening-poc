@@ -144,7 +144,7 @@
       var tl = gsap.timeline({ paused: true });
       tl.fromTo(q(".eye"), { scale: 1.35, autoAlpha: 0, filter: "blur(18px)", transformOrigin: "50% 50%" },
                            { scale: 1, autoAlpha: 1, filter: "blur(0px)", duration: 2.2, ease: E }, 0)
-        .from(q(".v"), { drawSVG: 0, duration: 1.4, stagger: 0.07, ease: "power2.out" }, 0.6)
+        .from(q(".k-cap"), { autoAlpha: 0, duration: 0.8 }, 1.4)
         .from(q(".k-title"), { yPercent: 18, autoAlpha: 0, duration: 1.2, ease: E }, 0.2)
         .from(q(".k-sub"), { y: 24, autoAlpha: 0, duration: 1, ease: E }, 0.7)
         .from(q(".k-meta span"), { autoAlpha: 0, y: 12, stagger: 0.1, duration: 0.8, ease: E }, 1.0)

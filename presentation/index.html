@@ -40,32 +40,25 @@
 <!-- 1 TITLE -->
 <section data-tl="title" data-background-color="#08140D" data-state="dark">
   <div class="page dark">
-    <svg class="k-art" viewBox="-110 -110 220 220" aria-label="Illustrated retina: an AI box is replaced by a human box">
+    <svg class="k-art" viewBox="760 130 640 640" aria-label="Real UWF image (consented): an AI box is replaced by a human box">
       <defs>
-        <radialGradient id="kf" cx="46%" cy="48%" r="58%"><stop offset="0" stop-color="#E58A4C"/><stop offset=".55" stop-color="#C8572C"/><stop offset=".88" stop-color="#93321A"/><stop offset="1" stop-color="#4A160A"/></radialGradient>
-        <radialGradient id="kd"><stop offset="0" stop-color="#FFF6DA"/><stop offset=".55" stop-color="#F7DB9E"/><stop offset="1" stop-color="#EBB372" stop-opacity="0"/></radialGradient>
-        <radialGradient id="km"><stop offset="0" stop-color="#651A0C" stop-opacity=".55"/><stop offset="1" stop-color="#651A0C" stop-opacity="0"/></radialGradient>
-        <clipPath id="kc"><circle r="100"/></clipPath>
+        <clipPath id="kc"><circle cx="1080" cy="450" r="318"/></clipPath>
+        <radialGradient id="kv" cx="50%" cy="50%" r="50%"><stop offset=".72" stop-color="#08140D" stop-opacity="0"/><stop offset="1" stop-color="#08140D" stop-opacity=".85"/></radialGradient>
       </defs>
       <g class="eye">
-        <circle r="100" fill="url(#kf)"/>
-        <circle cx="-24" cy="4" r="24" fill="url(#km)"/>
-        <g clip-path="url(#kc)" fill="none" stroke="#8A2111" stroke-linecap="round">
-          <path class="v" stroke-width="2.8" d="M40 -10 C20 -42 -20 -56 -72 -50"/><path class="v" stroke-width="1.8" d="M12 -38 C-4 -60 -30 -78 -56 -82"/>
-          <path class="v" stroke-width="2.8" d="M40 -2 C20 30 -20 50 -74 46"/><path class="v" stroke-width="1.8" d="M10 34 C-4 58 -26 74 -52 80"/>
-          <path class="v" stroke-width="1.8" d="M46 -14 C60 -40 70 -60 72 -76"/><path class="v" stroke-width="1.8" d="M46 2 C62 28 72 50 76 66"/>
-          <path class="v" stroke-width="1.4" d="M54 -6 C70 -8 86 -4 98 0"/>
-        </g>
-        <circle cx="40" cy="-6" r="16" fill="url(#kd)"/>
+        <g clip-path="url(#kc)"><image href="assets/uwf/demo05_r2.jpg" x="0" y="0" width="1920" height="835"/>
+          <circle cx="1080" cy="450" r="318" fill="url(#kv)"/></g>
+        <circle cx="1080" cy="450" r="318" fill="none" stroke="#2C4635" stroke-width="2"/>
       </g>
-      <g class="ai"><rect class="roi-ai" x="-34" y="26" width="16" height="13"/><text class="roi-lab" x="-34" y="22" fill="#06B6D4">AI suggestion</text></g>
-      <g class="hu"><rect class="roi-hu" x="-34" y="26" width="16" height="13"/><text class="roi-lab" x="-34" y="49" fill="#2FD66B">Human</text></g>
+      <g class="ai"><rect class="roi-ai" x="1080" y="300" width="95" height="95" style="stroke-width:4;stroke-dasharray:12 9"/><text class="roi-lab" x="1080" y="288" fill="#06B6D4" style="font-size:21px">AI suggestion</text></g>
+      <g class="hu"><rect class="roi-hu" x="1080" y="300" width="95" height="95" style="stroke-width:5"/><text class="roi-lab" x="1080" y="422" fill="#2FD66B" style="font-size:21px">Human</text></g>
     </svg>
+    <div class="k-cap">ภาพ UWF จริง มี consent ของผู้ป่วย</div>
     <h1 class="k-title">Retinal Review<br><em>Workbench</em></h1>
     <p class="k-sub">AI ช่วยดู แพทย์เป็นคนตัดสิน</p>
     <div class="k-meta"><span><b>Phase 1</b> team briefing</span><span>1 November 2026</span><span>Not a diagnostic device</span></div>
   </div>
-  <aside class="notes">สวัสดีครับ วันนี้จะเล่าภาพรวมทั้งโครงการ Retinal Review Workbench ภาพจอตานี้เป็นภาพประกอบ ไม่ใช่ภาพผู้ป่วย กรอบประของ AI ถูกแทนด้วยกรอบทึบของคน ซึ่งเป็นใจความของทั้งระบบ: AI ช่วยดู แต่คนเป็นผู้ตัดสิน</aside>
+  <aside class="notes">สวัสดีครับ วันนี้จะเล่าภาพรวมทั้งโครงการ Retinal Review Workbench ภาพนี้เป็นภาพ UWF จริงที่ผู้ป่วยให้ consent แล้ว กรอบประของ AI ถูกแทนด้วยกรอบทึบของคน ซึ่งเป็นใจความของทั้งระบบ: AI ช่วยดู แต่คนเป็นผู้ตัดสิน</aside>
 </section>
 
 <!-- 2 PROBLEM AND GOAL -->
@@ -83,6 +76,24 @@
     <div class="foot" data-step="2"><span class="pill warn">Screening and research support only</span><span class="pill">Not a diagnostic device</span></div>
   </div>
   <aside class="notes">ปัญหาคือภาพจอตาสะสมรอแพทย์อ่าน และงานให้เกรดหรือทำ label ต้องตรวจย้อนได้ว่าใครตัดสินอะไร เป้าหมายคือพื้นที่ทำงานเดียวที่แพทย์เป็นคนตัดสิน AI เป็นตัวช่วยที่ปิดได้ และระบบนี้ไม่ใช่เครื่องมือวินิจฉัย</aside>
+</section>
+
+<!-- 2b REAL UWF IMAGES -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="stack">
+      <div data-h="0"><h2>ภาพจริงที่ใช้ในการนำเสนอนี้</h2><p>ภาพ Ultra-widefield (UWF) จากผู้ป่วยที่ให้ consent แล้ว / ชื่อไฟล์เปลี่ยนเป็น DEMO</p></div>
+    </div>
+    <div class="gallery">
+      <figure data-in><img src="assets/uwf/demo05_r2.jpg" alt="UWF image DEMO05 R2"><figcaption>DEMO05 R2</figcaption></figure>
+      <figure data-in><img src="assets/uwf/demo05_l2.jpg" alt="UWF image DEMO05 L2"><figcaption>DEMO05 L2</figcaption></figure>
+      <figure data-in><img src="assets/uwf/demo04_r1.jpg" alt="UWF image DEMO04 R1"><figcaption>DEMO04 R1</figcaption></figure>
+      <figure data-in><img src="assets/uwf/demo02_l1.jpg" alt="UWF image DEMO02 L1"><figcaption>DEMO02 L1</figcaption></figure>
+      <figure data-in><img src="assets/uwf/demo03_r1.jpg" alt="UWF image DEMO03 R1"><figcaption>DEMO03 R1</figcaption></figure>
+      <figure data-in><img src="assets/uwf/demo01_l1.jpg" alt="UWF image DEMO01 L1"><figcaption>DEMO01 L1</figcaption></figure>
+    </div>
+  </div>
+  <aside class="notes">ภาพในสไลด์และหน้าจอแอปต่อจากนี้เป็นภาพ UWF จริง ผู้ป่วยให้ consent แล้ว เราเปลี่ยนชื่อไฟล์เป็น DEMO เพื่อไม่ให้เห็นรหัสผู้ป่วย หน้าจอแอปถ่ายจากเครื่องที่ไม่ได้ต่อ AI จึงไม่มีผล AI ในภาพ</aside>
 </section>
 
 <!-- 3 ROLES -->
@@ -206,25 +217,25 @@
     <svg class="dia" viewBox="0 0 1700 600" aria-label="A model box on the analysis image is mapped back to original image pixels">
       <g data-cam="1.1,388,-30|1,0,0|1.35,-864,-118|1,0,0">
         <g data-in><rect x="80" y="40" width="680" height="520" rx="12" fill="#040A06" stroke="#2C4635" stroke-width="2"/>
-          <use href="#fundus" x="170" y="50" width="500" height="500"/></g>
+          <image href="assets/uwf/demo05_r2.jpg" x="80" y="152.1" width="680" height="295.7"/></g>
         <g data-step="1">
-          <rect x="160" y="40" width="520" height="520" fill="none" stroke="#2FD66B" stroke-width="3" stroke-dasharray="10 8"/>
+          <rect x="313.8" y="152.1" width="295.7" height="295.7" fill="none" stroke="#2FD66B" stroke-width="3" stroke-dasharray="10 8"/>
           <path class="wire a draw" d="M770 300 C880 300 950 310 1050 310"/>
           <rect x="1060" y="100" width="420" height="420" rx="12" fill="#040A06" stroke="#2C4635" stroke-width="2"/>
-          <use href="#fundus" x="1068.1" y="108.1" width="403.8" height="403.8"/>
+          <svg x="1068.1" y="108.1" width="403.8" height="403.8" viewBox="660 0 835 835"><image href="assets/uwf/demo05_r2.jpg" x="0" y="0" width="1920" height="835"/></svg>
           <text class="t2" x="1060" y="560">Analysis image / own SHA</text>
         </g>
-        <g data-step="2"><rect class="roi ai ma" x="1180" y="200" width="44" height="44"/><text class="t2" x="1236" y="196" style="fill:#7ADCEB">model box</text></g>
+        <g data-step="2"><rect class="roi ai ma" x="1271.2" y="253.2" width="45.9" height="45.9"/><text class="t2" x="1328" y="249" style="fill:#7ADCEB">model box</text></g>
         <g data-step="3">
-          <path id="s7m" class="wire a d draw" d="M1202 196 C1100 0 500 0 336 160"/>
+          <path id="s7m" class="wire a d draw" d="M1294 250 C1100 40 560 40 479 256"/>
           <circle class="pkt" r="9" data-path="#s7m" data-dur="1.6"/>
-          <rect class="roi ai ma" x="308.6" y="163.8" width="54.5" height="54.5"/>
+          <rect class="roi ai ma" x="462.5" y="258.4" width="33.6" height="33.6"/>
           <text class="t3" x="760" y="40">COORDINATEMAPPING</text>
         </g>
       </g>
     </svg>
   </div>
-  <aside class="notes">ภาพที่ส่งให้ model เป็นภาพวิเคราะห์ที่ crop, resize หรือ mask แล้ว จึงมี SHA ของตัวเอง กรอบที่ model วาดถูกแปลงกลับด้วย CoordinateMapping ทุกกรอบจึงเก็บเป็น pixel ของภาพต้นฉบับ ภาพต้นฉบับไม่ถูกแก้</aside>
+  <aside class="notes">ภาพที่ส่งให้ model เป็นภาพวิเคราะห์ที่ crop, resize หรือ mask แล้ว จึงมี SHA ของตัวเอง กรอบที่ model วาดถูกแปลงกลับด้วย CoordinateMapping ทุกกรอบจึงเก็บเป็น pixel ของภาพต้นฉบับ ภาพต้นฉบับไม่ถูกแก้ ภาพในสไลด์นี้เป็นภาพ UWF จริงที่มี consent กรอบเป็นตัวอย่าง</aside>
 </section>
 
 <!-- 8 SIGN-IN AND ROLES -->
@@ -265,6 +276,19 @@
   <aside class="notes">ขั้นที่ 1 ถึง 3: ระบบอ่านเฉพาะโฟลเดอร์ input ของ workspace ไม่เข้าไปค้นที่เก็บข้อมูลของโรงพยาบาล SHA-256 ของเนื้อไฟล์คือตัวตนของ case ไฟล์ซ้ำรวมเป็น alias ไฟล์ที่หายไปเป็น SOURCE_MISSING ไม่ลบ case ส่วน patient key และตาข้างอ่านจากชื่อไฟล์ก่อน ถ้าขัดกันคนเป็นคนเลือก และสแกนใหม่ไม่ทับการตัดสินของคน</aside>
 </section>
 
+<!-- 9b SCREEN: WORKLIST -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="shot-head"><span class="eb">In the app / Worklist</span><h3>ภาพที่นำเข้าเข้าคิว พร้อม patient key และตาข้าง</h3></div>
+    <div class="frame" data-in><div class="cam" data-cam="1,0,0|1.7,-408,-379">
+      <img src="assets/screens/worklist.jpg" alt="worklist screen" >
+      
+    </div></div>
+    <div class="shot-cap">หน้าจอจริงจากแอป / ภาพ UWF จริง มี consent / ชื่อไฟล์เปลี่ยนเป็น DEMO / เครื่องที่ถ่ายไม่ได้ต่อ AI</div>
+  </div>
+  <aside class="notes">หน้าจอจริง: Worklist หลังสแกนโฟลเดอร์ ภาพ UWF ทั้ง 11 ภาพเข้าคิว ระบบอ่าน patient key และตาข้างจากชื่อไฟล์ ทุกภาพรอคนยืนยันชนิดภาพก่อน</aside>
+</section>
+
 <!-- 10 JOURNEY 2: CONFIRM IMAGE, AI GRADE, PHYSICIAN -->
 <section data-background-color="#FFFFFF" data-state="light">
   <div class="page light journey">
@@ -294,6 +318,19 @@
   <aside class="notes">ขั้นที่ 4 ถึง 6: คนยืนยันชนิดภาพ คุณภาพ และตาข้างก่อน ชนิดภาพเริ่มเป็น UNKNOWN ยังไม่ยืนยัน AI ไม่ทำงาน AI ให้ DR grade 0 ถึง 4 เป็นคำแนะนำ ในตัวอย่างนี้ AI แนะนำ 2 แพทย์แก้เป็น 3 ค่า AI เดิมเก็บไว้ไม่แก้ และผล AI ที่มาทีหลังไม่ล้างเกรดที่ยืนยันแล้ว</aside>
 </section>
 
+<!-- 10b SCREEN: CONFIRM, REVIEW, GRADE -->
+<section data-background-color="#08140D" data-state="dark" data-steps="2">
+  <div class="page dark">
+    <div class="shot-head"><span class="eb">In the app / Confirm, review, grade</span><h3>ยืนยันภาพเป็น UWF แล้วแพทย์ให้เกรด</h3></div>
+    <div class="frame" data-in><div class="cam" data-cam="1,0,0|1.25,-170,-150|1,0,0">
+      <img src="assets/screens/confirm.jpg" alt="confirm screen" ><img src="assets/screens/review.jpg" alt="review screen" data-step="1"><img src="assets/screens/grade.jpg" alt="grade screen" data-step="2">
+      <div class="ring" data-in data-hide="1" style="left:1015px;top:664px;width:150px;height:55px"></div><div class="ring" data-step="2" style="left:1298px;top:438px;width:274px;height:132px"></div><div class="ring" data-step="2" style="left:1298px;top:669px;width:274px;height:55px"></div>
+    </div></div>
+    <div class="shot-cap">หน้าจอจริงจากแอป / ภาพ UWF จริง มี consent / ชื่อไฟล์เปลี่ยนเป็น DEMO / เครื่องที่ถ่ายไม่ได้ต่อ AI / <b>ตัวอย่างการใช้งาน: เกรดและกรอบในภาพไม่ใช่ผลอ่านจริง</b></div>
+  </div>
+  <aside class="notes">หน้าจอจริงสามขั้น: Confirm Image เลือกชนิดภาพเป็น UWF และคุณภาพใช้ได้ จากนั้นหน้า Review แสดงภาพเต็ม แล้ว Clinician Review ให้แพทย์เลือก Final DR grade และกด Confirm DR grade เกรดในภาพเป็นการกดสาธิต ไม่ใช่ผลอ่านจริง</aside>
+</section>
+
 <!-- 11 JOURNEY 3: ANNOTATIONS AND FINISH -->
 <section data-background-color="#08140D" data-state="dark">
   <div class="page dark journey">
@@ -311,23 +348,36 @@
       <div data-step="2"><i style="border-color:#2FD66B"></i>Finish เก็บ hash ของชุด annotation</div>
     </div>
     <div class="viewer" data-in style="left:1100px;top:330px;width:680px;height:680px">
-      <svg viewBox="-110 -110 220 220" aria-label="Illustrated retina with AI and human boxes">
-        <g data-cam="1,0,0|1.5,52.5,-7.5|1,0,0">
-          <use href="#fundus" x="-110" y="-110" width="220" height="220"/>
-          <rect class="roi ai ma" data-in data-hide="1" vector-effect="non-scaling-stroke" x="-54" y="-26" width="12" height="12"/>
-          <rect class="roi hu ma" data-step="1" vector-effect="non-scaling-stroke" x="-54" y="-26" width="12" height="12"/>
-          <rect class="roi ai he" data-in vector-effect="non-scaling-stroke" x="-22" y="36" width="16" height="12"/>
-          <rect class="roi ai ex" data-in data-dim="1" vector-effect="non-scaling-stroke" x="12" y="-50" width="14" height="10"/>
-          <path class="roi-x" data-step="1" vector-effect="non-scaling-stroke" d="M12 -50 l14 10 M26 -50 l-14 10"/>
-          <rect class="roi ai ex" data-in vector-effect="non-scaling-stroke" x="-62" y="26" width="12" height="10"/>
-          <rect class="roi hu he" data-step="1" vector-effect="non-scaling-stroke" x="-76" y="-6" width="14" height="12"/>
+      <svg viewBox="780 150 600 600" aria-label="Real UWF image (consented) with AI and human boxes">
+        <g data-cam="1,0,0|1.5,-555,-175|1,0,0">
+          <image href="assets/uwf/demo05_r2.jpg" x="0" y="0" width="1920" height="835"/>
+          <rect class="roi ai ma" data-in data-hide="1" vector-effect="non-scaling-stroke" x="955" y="355" width="90" height="50"/>
+          <rect class="roi hu ma" data-step="1" vector-effect="non-scaling-stroke" x="955" y="355" width="90" height="50"/>
+          <rect class="roi ai he" data-in vector-effect="non-scaling-stroke" x="1080" y="300" width="95" height="95"/>
+          <rect class="roi ai ex" data-in data-dim="1" vector-effect="non-scaling-stroke" x="860" y="520" width="40" height="36"/>
+          <path class="roi-x" data-step="1" vector-effect="non-scaling-stroke" d="M860 520 l40 36 M900 520 l-40 36"/>
+          <rect class="roi ai ex" data-in vector-effect="non-scaling-stroke" x="1245" y="345" width="60" height="55"/>
+          <rect class="roi hu he" data-step="1" vector-effect="non-scaling-stroke" x="935" y="300" width="50" height="40"/>
         </g>
       </svg>
       <div class="banner" data-step="2">Finished: annotation set saved</div>
-      <div class="legend"><span><i class="d"></i>AI suggestion</span><span><i></i>Human</span></div>
+      <div class="legend"><span><i class="d"></i>AI suggestion</span><span><i></i>Human</span><span>ภาพจริง / กรอบเป็นตัวอย่าง</span></div>
     </div>
   </div>
-  <aside class="notes">ขั้นที่ 7 และ 8: เริ่มจากเครื่องมือ Box กรอบประคือ AI กรอบทึบคือคน คนแก้ ลบ หรือปล่อยกรอบ AI ไว้ได้ ทุกการตัดสินต่อท้ายใน ai_annotation_reviews ผล AI ดิบไม่ถูกแก้ ระบบบันทึกอัตโนมัติก่อนทุกการตัดสิน Finish เก็บ hash ของชุด annotation ถ้าแก้ทีหลังต้องยืนยันใหม่ ไม่มี finding ก็ Finish ได้ แต่ไม่ใช่ label ว่าไม่มีรอยโรค</aside>
+  <aside class="notes">ขั้นที่ 7 และ 8: เริ่มจากเครื่องมือ Box กรอบประคือ AI กรอบทึบคือคน คนแก้ ลบ หรือปล่อยกรอบ AI ไว้ได้ ทุกการตัดสินต่อท้ายใน ai_annotation_reviews ผล AI ดิบไม่ถูกแก้ ระบบบันทึกอัตโนมัติก่อนทุกการตัดสิน Finish เก็บ hash ของชุด annotation ถ้าแก้ทีหลังต้องยืนยันใหม่ ไม่มี finding ก็ Finish ได้ แต่ไม่ใช่ label ว่าไม่มีรอยโรค ภาพเป็นภาพ UWF จริงที่มี consent กรอบเป็นตัวอย่าง</aside>
+</section>
+
+<!-- 11b SCREEN: ANNOTATION EDITOR -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="shot-head"><span class="eb">In the app / Annotation Editor</span><h3>วาดกรอบรอยโรคบนภาพ UWF จริง</h3></div>
+    <div class="frame" data-in><div class="cam" data-cam="1,0,0|2.6,-1259,-1391|1,0,0">
+      <img src="assets/screens/editor.jpg" alt="editor screen" >
+      <div class="ring" data-step="2" style="left:1315px;top:407px;width:257px;height:55px"></div>
+    </div></div>
+    <div class="shot-cap">หน้าจอจริงจากแอป / ภาพ UWF จริง มี consent / ชื่อไฟล์เปลี่ยนเป็น DEMO / เครื่องที่ถ่ายไม่ได้ต่อ AI / <b>ตัวอย่างการใช้งาน: เกรดและกรอบในภาพไม่ใช่ผลอ่านจริง</b></div>
+  </div>
+  <aside class="notes">หน้าจอจริง: Annotation Editor ซูมเข้าไปที่กรอบสามกรอบรอบกลุ่ม exudate ใกล้ขั้วประสาทตา กรอบทั้งหมดเก็บเป็น pixel ของภาพต้นฉบับ แล้วกด Finish กรอบในภาพเป็นการวาดสาธิต ไม่ใช่ผลอ่านจริง</aside>
 </section>
 
 <!-- 12 JOURNEY 4: SCREENING REPORT -->
@@ -363,6 +413,19 @@
   <aside class="notes">ขั้นที่ 9: พยาบาลเตรียมรายงานเป็น PRELIMINARY แพทย์ตรวจและเซ็น ช่อง Refer หรือ Not refer เป็นการตัดสินของผู้ให้เกรด ระบบไม่เลือกไว้ให้ และใช้ผลของตาข้างที่แย่กว่า Print บันทึกเป็น PDF ถ้าแก้รายงานที่เซ็นแล้ว ต้องเป็น role ที่เซ็นได้ และระบบเก็บฉบับเดิมไว้ ข้อมูลในภาพเป็นตัวอย่าง</aside>
 </section>
 
+<!-- 12b SCREEN: REPORT -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="shot-head"><span class="eb">In the app / Screening report</span><h3>รายงานที่ลงนามแล้ว</h3></div>
+    <div class="frame" data-in><div class="cam" data-cam="1,0,0|1.5,-538,-450">
+      <img src="assets/screens/report.jpg" alt="report screen" >
+      
+    </div></div>
+    <div class="shot-cap">หน้าจอจริงจากแอป / ภาพ UWF จริง มี consent / ชื่อไฟล์เปลี่ยนเป็น DEMO / เครื่องที่ถ่ายไม่ได้ต่อ AI / <b>ตัวอย่างการใช้งาน: เกรดและกรอบในภาพไม่ใช่ผลอ่านจริง</b></div>
+  </div>
+  <aside class="notes">หน้าจอจริง: Screening report หลังเลือก Refer และลงนาม สถานะเป็น SIGNED ส่วน Retinal findings แยกตาขวาและตาซ้าย</aside>
+</section>
+
 <!-- 13 JOURNEY 5: REFERRALS OUTBOX -->
 <section data-background-color="#08140D" data-state="dark">
   <div class="page dark journey">
@@ -390,6 +453,19 @@
   <aside class="notes">ขั้นที่ 10: เฉพาะรายงานที่เซ็นแล้วและเลือก Refer หรือภาพ ungradable จะเข้า outbox Export ได้เป็น FHIR R4 bundle หรือ CSV connector ปิดไว้เป็นค่าเริ่มต้น ผู้ดูแลเปิดได้เป็น file drop หรือ HTTPS webhook ไปเฉพาะ host ที่ operator กำหนด หนึ่งครั้งต่อการกด Send ไม่ส่งซ้ำเอง</aside>
 </section>
 
+<!-- 13b SCREEN: REFERRALS -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="shot-head"><span class="eb">In the app / Referrals</span><h3>รายงานที่เลือก Refer เข้า outbox</h3></div>
+    <div class="frame" data-in><div class="cam" data-cam="1,0,0|1.5,-325,0">
+      <img src="assets/screens/referrals.jpg" alt="referrals screen" >
+      
+    </div></div>
+    <div class="shot-cap">หน้าจอจริงจากแอป / ภาพ UWF จริง มี consent / ชื่อไฟล์เปลี่ยนเป็น DEMO / เครื่องที่ถ่ายไม่ได้ต่อ AI</div>
+  </div>
+  <aside class="notes">หน้าจอจริง: Referrals รายงานที่ลงนามและเลือก Refer อยู่ในรายการ export เป็น FHIR หรือ CSV ได้ connector ยังปิดอยู่</aside>
+</section>
+
 <!-- 14 JOURNEY 6: EXPORT -->
 <section data-background-color="#FFFFFF" data-state="light">
   <div class="page light journey">
@@ -410,6 +486,19 @@
     <div class="foot" data-step="2" style="left:1000px"><span class="pill warn">unverified: ไม่ใช่เกรดทางคลินิก</span></div>
   </div>
   <aside class="notes">ขั้นที่ 11: export เป็นสำเนาเสมอ ภาพต้นฉบับไม่ถูกย้าย grouped_by_grade จัดตามเกรดที่แพทย์ยืนยัน ส่วน ai_predicted_unverified แยกต่างหาก ติดป้ายว่ายังไม่ยืนยัน ไม่นับเป็นเกรดจริงหรือ label ฝึกโมเดล ไม่มีโฟลเดอร์ low confidence เพราะคะแนนไม่ได้ calibrate</aside>
+</section>
+
+<!-- 14b SCREEN: DATASETS -->
+<section data-background-color="#08140D" data-state="dark">
+  <div class="page dark">
+    <div class="shot-head"><span class="eb">In the app / Datasets</span><h3>ภาพที่ตรวจครบพร้อมเข้า dataset</h3></div>
+    <div class="frame" data-in><div class="cam" data-cam="1,0,0|1.4,-250,-86">
+      <img src="assets/screens/datasets.jpg" alt="datasets screen" >
+      
+    </div></div>
+    <div class="shot-cap">หน้าจอจริงจากแอป / ภาพ UWF จริง มี consent / ชื่อไฟล์เปลี่ยนเป็น DEMO / เครื่องที่ถ่ายไม่ได้ต่อ AI</div>
+  </div>
+  <aside class="notes">หน้าจอจริง: Datasets แท็บ DR-ready มีภาพ DEMO05 R2 ที่ยืนยันเกรดแล้ว export เป็นสำเนาพร้อม manifest ภาพต้นฉบับไม่ถูกย้าย</aside>
 </section>
 
 <!-- 15 JOURNEY 7: GOLD-100 -->
@@ -636,7 +725,7 @@
 <!-- 25 THANK YOU -->
 <section data-background-color="#08140D" data-state="dark">
   <div class="page dark">
-    <svg class="k-art" data-in viewBox="-110 -110 220 220" aria-hidden="true" style="opacity:.9"><use href="#fundus" x="-110" y="-110" width="220" height="220"/></svg>
+    <svg class="k-art" data-in viewBox="760 130 640 640" aria-hidden="true" style="opacity:.9"><defs><clipPath id="kc3"><circle cx="1080" cy="450" r="318"/></clipPath></defs><image clip-path="url(#kc3)" href="assets/uwf/demo05_r2.jpg" x="0" y="0" width="1920" height="835"/></svg>
     <h1 class="k-title" data-in style="top:180px">Thank you<br><em>Q&amp;A</em></h1>
     <div class="docs">
       <p data-in><span class="mono">README.md</span>เริ่มต้นและติดตั้ง</p>
