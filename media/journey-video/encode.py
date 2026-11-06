@@ -3,7 +3,7 @@
   python media/journey-video/encode.py renders/journey-master.mp4
 
 Writes frontend/public/media/journey-th.mp4: H.264 (yuv420p, faststart) at
-1280x720 and AAC mono, trying CRF values from sharp to small until the file is at
+1280x720 and AAC mono (about -16 LUFS), trying CRF values from sharp to small until the file is at
 most 15 MB (target 14.5 MB to leave a margin).
 """
 from __future__ import annotations
@@ -20,9 +20,10 @@ LIMIT = int(14.5 * 1024 * 1024)
 def encode(source: Path, crf: int, out: Path) -> int:
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(source),
                     "-vf", "scale=1280:720:flags=lanczos,format=yuv420p",
-                    "-c:v", "libx264", "-preset", "slow", "-crf", str(crf), "-tune", "stillimage",
+                    "-c:v", "libx264", "-preset", "slow", "-crf", str(crf),
                     "-profile:v", "high", "-level", "4.0", "-g", "60",
-                    "-c:a", "aac", "-b:a", "96k", "-ac", "1", "-ar", "48000",
+                    # The render lifts the mix a little; bring it back to -16 LUFS with a true peak under -1.5 dB.
+                    "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "96k", "-ac", "1", "-ar", "48000",
                     "-movflags", "+faststart", str(out)], check=True)
     return out.stat().st_size
 

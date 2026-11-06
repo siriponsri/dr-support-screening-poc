@@ -1,86 +1,123 @@
 <template>
   <style>
-    @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
-    #root { position: absolute; inset: 0; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; color: #172018; }
+    @font-face { font-family: 'Prompt'; font-weight: 500; src: url('assets/fonts/prompt-500-0.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Prompt'; font-weight: 500; src: url('assets/fonts/prompt-500-1.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Prompt'; font-weight: 600; src: url('assets/fonts/prompt-600-2.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Prompt'; font-weight: 600; src: url('assets/fonts/prompt-600-3.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Prompt'; font-weight: 700; src: url('assets/fonts/prompt-700-4.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Prompt'; font-weight: 700; src: url('assets/fonts/prompt-700-5.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 300; src: url('assets/fonts/anuphan-300-0.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 300; src: url('assets/fonts/anuphan-300-1.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 400; src: url('assets/fonts/anuphan-400-2.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 400; src: url('assets/fonts/anuphan-400-3.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 500; src: url('assets/fonts/anuphan-500-4.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 500; src: url('assets/fonts/anuphan-500-5.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 600; src: url('assets/fonts/anuphan-600-6.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 600; src: url('assets/fonts/anuphan-600-7.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Anuphan', sans-serif; color: #FFFFFF; }
+    .stage { position: absolute; inset: 0; perspective: 2200px; }
+    .win { position: absolute; left: 330px; top: 158px; width: 1260px; height: 745px; border-radius: 18px;
+      overflow: hidden; background: #0E1A13; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.09); }
+    .bar { position: absolute; left: 0; right: 0; top: 0; height: 36px; display: flex; align-items: center; gap: 8px;
+      padding: 0 16px; background: #0E1A13; }
+    .bar i { width: 11px; height: 11px; border-radius: 50%; background: #2C4635; }
+    .bar span { margin-left: 14px; padding: 3px 14px; border-radius: 8px; background: rgba(255, 255, 255, 0.06);
+      font-size: 15px; color: #9FB3A6; letter-spacing: 0.02em; }
+    .content { position: absolute; left: 0; top: 36px; width: 1260px; height: 709px; overflow: hidden; background: #F6F7F6; }
+    .screen { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform: scale(0.65625); transform-origin: 0 0; }
     .shot { position: absolute; inset: 0; overflow: hidden; }
     .fade { position: absolute; inset: 0; }
     .cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
     .cam img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
-    .ring { position: absolute; border-style: solid; border-color: #016301; opacity: 0; }
-    .tap { position: absolute; border-radius: 50%; background: rgba(1, 99, 1, 0.28); opacity: 0; }
-    .chip { position: absolute; left: 110px; top: 66px; display: flex; align-items: center; gap: 16px;
-      padding: 10px 28px 10px 10px; border-radius: 999px; background: #16231A; color: #FFFFFF;
-      font-size: 30px; font-weight: 600; box-shadow: 0 10px 30px rgba(22, 35, 26, 0.25); }
-    .chip b { display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px;
-      border-radius: 50%; background: #6FBF73; color: #16231A; font-size: 30px; }
-    .demo { position: absolute; right: 110px; top: 70px; padding: 12px 24px; border-radius: 14px; background: #FBF2D9;
-      border: 2px solid #E6CD8B; color: #6E4A00; font-size: 30px; font-weight: 600; transform-origin: 100% 50%;
-      box-shadow: 0 10px 30px rgba(22, 35, 26, 0.18); }
-    .veil { position: absolute; inset: 0; background: #F6F7F6; }
+    .ring { position: absolute; border-style: solid; border-color: #34D873; background: rgba(52, 216, 115, 0.08); opacity: 0; }
+    .cursor { position: absolute; left: 0; top: 0; opacity: 0; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); }
+    .head { position: absolute; left: 330px; top: 100px; display: flex; align-items: baseline; gap: 22px; }
+    .head .step { font-family: 'Prompt', 'Anuphan', sans-serif; font-weight: 600; font-size: 22px; letter-spacing: 0.16em; color: #34D873; }
+    .head .lab { font-family: 'Prompt', 'Anuphan', sans-serif; font-weight: 600; font-size: 44px; letter-spacing: -0.01em; color: #FFFFFF; }
+    .demo { position: absolute; right: 330px; top: 104px; display: flex; align-items: center; gap: 10px; padding: 8px 18px;
+      border-radius: 999px; background: rgba(245, 185, 64, 0.12); border: 1px solid rgba(245, 185, 64, 0.45); color: #F8D58A;
+      font-size: 20px; font-weight: 600; }
+    .demo i { width: 9px; height: 9px; border-radius: 50%; background: #F5B940; }
   </style>
   <div id="root" data-composition-id="sc-signin" data-width="1920" data-height="1080">
-    <div id="signin-s0" class="shot clip" data-start="0.0" data-duration="7.21" data-track-index="1" style="z-index: 1;">
-      <div id="signin-s0-fade" class="fade">
-        <div id="signin-s0-cam" class="cam">
-          <img id="signin-s0-img" src="assets/screens/s01a.png" alt="" />
-          <div id="signin-s0-r0" class="ring" style="left: 796px; top: 258px; width: 79px; height: 40px; border-width: 3.23px; border-radius: 7.75px; box-shadow: 0 0 0 6.46px rgba(1, 99, 1, 0.16);"></div>
-          <div id="signin-s0-t0" class="tap" style="left: 803.5px; top: 246.0px; width: 64px; height: 64px;"></div>
+    <div id="signin-h0" class="head clip" data-start="0.0" data-duration="12.301" data-track-index="5"><span id="signin-h0-n" class="step">STEP 01</span><span id="signin-h0-t" class="lab">Sign in</span></div>
+    <div id="signin-h1" class="head clip" data-start="12.301" data-duration="6.84" data-track-index="5"><span id="signin-h1-n" class="step">STEP 02</span><span id="signin-h1-t" class="lab">Today</span></div>
+    <div id="signin-demo" class="demo clip" data-start="0" data-duration="19.141" data-track-index="6"><i></i><span id="signin-demo-t">ข้อมูลตัวอย่าง</span></div>
+    <div id="signin-stage" class="stage">
+      <div id="signin-win" class="win">
+        <div class="bar"><i></i><i></i><i></i><span>workbench / Sign in</span></div>
+        <div class="content"><div class="screen">
+        <div id="signin-s0" class="shot clip" data-start="0.0" data-duration="5.248" data-track-index="1" style="z-index: 1;">
+          <div id="signin-s0-fade" class="fade">
+            <div id="signin-s0-cam" class="cam">
+              <img id="signin-s0-img" src="assets/screens/s01a.png" alt="" />
+              <div id="signin-s0-r0" class="ring" style="left: 796px; top: 258px; width: 79px; height: 40px; border-width: 2.952px; border-radius: 9.841px; box-shadow: 0 0 0 6.889px rgba(52, 216, 115, 0.18), 0 0 29.524px rgba(52, 216, 115, 0.35);"></div>
+              <div id="signin-s0-c" class="cursor" style="width: 33.46px; height: 33.46px; margin-left: -5.577px; margin-top: -2.788px;"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 19 L8.6 14.9 L11.6 21.6 L14.6 20.3 L11.7 13.7 L18 13.4 Z" fill="#FFFFFF" stroke="#0B1510" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+            </div>
+          </div>
         </div>
-        <div id="signin-s0-chip" class="chip"><b>1</b><span>Sign in</span></div>
+        <div id="signin-s1" class="shot clip" data-start="4.748" data-duration="4.386" data-track-index="2" style="z-index: 2;">
+          <div id="signin-s1-fade" class="fade">
+            <div id="signin-s1-cam" class="cam">
+              <img id="signin-s1-img" src="assets/screens/s01b.png" alt="" />
+              <div id="signin-s1-r0" class="ring" style="left: 426px; top: 624px; width: 416px; height: 58px; border-width: 2.524px; border-radius: 8.413px; box-shadow: 0 0 0 5.889px rgba(52, 216, 115, 0.18), 0 0 25.238px rgba(52, 216, 115, 0.35);"></div>
+              <div id="signin-s1-c" class="cursor" style="width: 28.604px; height: 28.604px; margin-left: -4.767px; margin-top: -2.384px;"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 19 L8.6 14.9 L11.6 21.6 L14.6 20.3 L11.7 13.7 L18 13.4 Z" fill="#FFFFFF" stroke="#0B1510" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+            </div>
+          </div>
+        </div>
+        <div id="signin-s2" class="shot clip" data-start="8.634" data-duration="4.167" data-track-index="1" style="z-index: 3;">
+          <div id="signin-s2-fade" class="fade">
+            <div id="signin-s2-cam" class="cam">
+              <img id="signin-s2-img" src="assets/screens/s01b.png" alt="" />
+              <div id="signin-s2-r0" class="ring" style="left: 426px; top: 686px; width: 416px; height: 58px; border-width: 2.524px; border-radius: 8.413px; box-shadow: 0 0 0 5.889px rgba(52, 216, 115, 0.18), 0 0 25.238px rgba(52, 216, 115, 0.35);"></div>
+              <div id="signin-s2-c" class="cursor" style="width: 28.604px; height: 28.604px; margin-left: -4.767px; margin-top: -2.384px;"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 19 L8.6 14.9 L11.6 21.6 L14.6 20.3 L11.7 13.7 L18 13.4 Z" fill="#FFFFFF" stroke="#0B1510" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+            </div>
+          </div>
+        </div>
+        <div id="signin-s3" class="shot clip" data-start="12.301" data-duration="6.84" data-track-index="2" style="z-index: 4;">
+          <div id="signin-s3-fade" class="fade">
+            <div id="signin-s3-cam" class="cam">
+              <img id="signin-s3-img" src="assets/screens/s02.png" alt="" />
+              <div id="signin-s3-r0" class="ring" style="left: 506px; top: 154px; width: 1164px; height: 293px; border-width: 3.191px; border-radius: 10.635px; box-shadow: 0 0 0 7.445px rgba(52, 216, 115, 0.18), 0 0 31.906px rgba(52, 216, 115, 0.35);"></div>
+              <div id="signin-s3-r1" class="ring" style="left: 1375px; top: 156px; width: 293px; height: 99px; border-width: 3.191px; border-radius: 10.635px; box-shadow: 0 0 0 7.445px rgba(52, 216, 115, 0.18), 0 0 31.906px rgba(52, 216, 115, 0.35);"></div>
+            </div>
+          </div>
+        </div>
+        </div></div>
       </div>
     </div>
-    <div id="signin-s1" class="shot clip" data-start="6.41" data-duration="5.791" data-track-index="2" style="z-index: 2;">
-      <div id="signin-s1-fade" class="fade">
-        <div id="signin-s1-cam" class="cam">
-          <img id="signin-s1-img" src="assets/screens/s01b.png" alt="" />
-          <div id="signin-s1-r0" class="ring" style="left: 426px; top: 624px; width: 416px; height: 58px; border-width: 2.76px; border-radius: 6.63px; box-shadow: 0 0 0 5.52px rgba(1, 99, 1, 0.16);"></div>
-          <div id="signin-s1-t0" class="tap" style="left: 587.5px; top: 606.5px; width: 93px; height: 93px;"></div>
-        </div>
-        <div id="signin-s1-chip" class="chip"><b>1</b><span>Sign in</span></div>
-      </div>
-    </div>
-    <div id="signin-s2" class="shot clip" data-start="11.401" data-duration="5.534" data-track-index="1" style="z-index: 3;">
-      <div id="signin-s2-fade" class="fade">
-        <div id="signin-s2-cam" class="cam">
-          <img id="signin-s2-img" src="assets/screens/s01b.png" alt="" />
-          <div id="signin-s2-r0" class="ring" style="left: 426px; top: 686px; width: 416px; height: 58px; border-width: 2.76px; border-radius: 6.63px; box-shadow: 0 0 0 5.52px rgba(1, 99, 1, 0.16);"></div>
-          <div id="signin-s2-t0" class="tap" style="left: 587.5px; top: 668.5px; width: 93px; height: 93px;"></div>
-        </div>
-        <div id="signin-s2-chip" class="chip"><b>1</b><span>Sign in</span></div>
-      </div>
-    </div>
-    <div id="signin-s3" class="shot clip" data-start="16.135" data-duration="8.986" data-track-index="2" style="z-index: 4;">
-      <div id="signin-s3-fade" class="fade">
-        <div id="signin-s3-cam" class="cam">
-          <img id="signin-s3-img" src="assets/screens/s02.png" alt="" />
-          <div id="signin-s3-r0" class="ring" style="left: 506px; top: 154px; width: 1164px; height: 293px; border-width: 3.49px; border-radius: 8.38px; box-shadow: 0 0 0 6.98px rgba(1, 99, 1, 0.16);"></div>
-          <div id="signin-s3-r1" class="ring" style="left: 1375px; top: 156px; width: 293px; height: 99px; border-width: 3.49px; border-radius: 8.38px; box-shadow: 0 0 0 6.98px rgba(1, 99, 1, 0.16);"></div>
-        </div>
-        <div id="signin-s3-chip" class="chip"><b>2</b><span>Today</span></div>
-      </div>
-    </div>
-    <div id="signin-demo" class="demo clip" data-start="0" data-duration="25.121" data-track-index="3" style="z-index: 50;">ข้อมูลตัวอย่าง</div>
-    <div id="signin-veil" class="veil clip" data-start="0" data-duration="25.121" data-track-index="4" style="z-index: 60;"></div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.fromTo("#signin-s0-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 3.01);
-    tl.fromTo("#signin-s0-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 3.36);
-    tl.fromTo("#signin-s0-cam", {"x": -73.18, "y": -43.1, "scale": 1.0762}, { ...{"x": -526.45, "y": -310.06, "scale": 1.5484}, duration: 6.41, ease: "sine.inOut" }, 0.0);
-    tl.fromTo("#signin-s1-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 8.77);
-    tl.fromTo("#signin-s1-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 9.12);
-    tl.fromTo("#signin-s1-cam", {"x": -526.45, "y": -310.06, "scale": 1.5484}, { ...{"x": -543.4, "y": -452.6, "scale": 1.8113}, duration: 4.991, ease: "sine.inOut" }, 6.41);
-    tl.fromTo("#signin-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 6.41);
-    tl.fromTo("#signin-s2-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 12.813);
-    tl.fromTo("#signin-s2-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 13.163);
-    tl.fromTo("#signin-s2-cam", {"x": -543.4, "y": -452.6, "scale": 1.8113}, { ...{"x": -452.83, "y": -597.51, "scale": 1.8113}, duration: 4.734, ease: "sine.inOut" }, 11.401);
-    tl.fromTo("#signin-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 11.401);
-    tl.fromTo("#signin-s3-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 17.197);
-    tl.fromTo("#signin-s3-r1", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 21.529);
-    tl.fromTo("#signin-s3-cam", {"x": -452.83, "y": -597.51, "scale": 1.8113}, { ...{"x": -616.12, "y": -57.49, "scale": 1.4328}, duration: 8.986, ease: "sine.inOut" }, 16.135);
-    tl.fromTo("#signin-s3-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 16.135);
-    tl.fromTo("#signin-veil", { opacity: 1 }, { opacity: 0, duration: 0.5, ease: "sine.out" }, 0);
-    tl.to("#signin-veil", { opacity: 1, duration: 0.5, ease: "sine.in" }, 24.601);
+    tl.fromTo("#signin-win", { rotationX: 16, rotationY: -12, y: 70, scale: 0.9, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
+    tl.fromTo("#signin-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 2.314);
+    tl.fromTo("#signin-s0-c", { x: 1022.483, y: 425.618, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 1.294);
+    tl.fromTo("#signin-s0-c", { x: 1022.483, y: 425.618 }, { x: 835.5, y: 278.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 1.594);
+    tl.to("#signin-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 2.194);
+    tl.fromTo("#signin-s0-cam", {"x": -135.84, "y": -80.0, "scale": 1.1415}, { ...{"x": -526.45, "y": -310.06, "scale": 1.5484}, duration: 1.1, ease: "power3.inOut" }, 0.3);
+    tl.fromTo("#signin-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 6.84);
+    tl.fromTo("#signin-s1-c", { x: 793.843, y: 779.192, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 5.82);
+    tl.fromTo("#signin-s1-c", { x: 793.843, y: 779.192 }, { x: 634.0, y: 653.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 6.12);
+    tl.to("#signin-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 6.72);
+    tl.fromTo("#signin-s1-cam", {"x": -526.45, "y": -310.06, "scale": 1.5484}, { ...{"x": -543.4, "y": -452.6, "scale": 1.8113}, duration: 1.1, ease: "power3.inOut" }, 4.898);
+    tl.fromTo("#signin-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 4.748);
+    tl.fromTo("#signin-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 9.932);
+    tl.fromTo("#signin-s2-c", { x: 793.843, y: 841.192, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 8.912);
+    tl.fromTo("#signin-s2-c", { x: 793.843, y: 841.192 }, { x: 634.0, y: 715.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 9.212);
+    tl.to("#signin-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 9.812);
+    tl.fromTo("#signin-s2-cam", {"x": -543.4, "y": -452.6, "scale": 1.8113}, { ...{"x": -452.83, "y": -597.51, "scale": 1.8113}, duration: 1.1, ease: "power3.inOut" }, 8.784);
+    tl.fromTo("#signin-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 8.634);
+    tl.fromTo("#signin-s3-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 13.187);
+    tl.fromTo("#signin-s3-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 16.514);
+    tl.fromTo("#signin-s3-cam", {"x": -452.83, "y": -597.51, "scale": 1.8113}, { ...{"x": -616.12, "y": -57.49, "scale": 1.4328}, duration: 1.1, ease: "power3.inOut" }, 12.451);
+    tl.fromTo("#signin-s3-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 12.301);
+    tl.fromTo(["#signin-h0-n", "#signin-h0-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 0.15);
+    tl.to(["#signin-h0-n", "#signin-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 12.101);
+    tl.fromTo(["#signin-h1-n", "#signin-h1-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 12.301);
+    tl.to(["#signin-h1-n", "#signin-h1-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 18.741);
+    tl.fromTo("#signin-demo-t", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
+    tl.to("#signin-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 18.741);
+    tl.to("#signin-demo-t", { opacity: 0, duration: 0.2 }, 18.741);
     window.__timelines["sc-signin"] = tl;
   </script>
 </template>

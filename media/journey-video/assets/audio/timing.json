@@ -1,191 +1,191 @@
 {
  "intro": {
-  "duration": 14.687,
+  "duration": 11.696,
   "lines": [
    {
     "start": 0.0,
-    "end": 4.843
+    "end": 4.052
    },
    {
-    "start": 5.543,
-    "end": 10.359
+    "start": 4.352,
+    "end": 8.366
    },
    {
-    "start": 11.059,
-    "end": 14.687
+    "start": 8.666,
+    "end": 11.696
    }
   ]
  },
  "signin": {
-  "duration": 23.221,
+  "duration": 18.241,
   "lines": [
    {
     "start": 0.0,
-    "end": 4.91
+    "end": 4.098
    },
    {
-    "start": 5.61,
-    "end": 9.901
+    "start": 4.398,
+    "end": 7.984
    },
    {
-    "start": 10.601,
-    "end": 14.635
+    "start": 8.284,
+    "end": 11.651
    },
    {
-    "start": 15.335,
-    "end": 17.991
+    "start": 11.951,
+    "end": 14.165
    },
    {
-    "start": 18.691,
-    "end": 23.221
+    "start": 14.465,
+    "end": 18.241
    }
   ]
  },
  "worklist": {
-  "duration": 11.802,
+  "duration": 9.296,
   "lines": [
    {
     "start": 0.0,
-    "end": 3.272
+    "end": 2.74
    },
    {
-    "start": 3.972,
-    "end": 7.46
+    "start": 3.04,
+    "end": 5.953
    },
    {
-    "start": 8.16,
-    "end": 11.802
+    "start": 6.253,
+    "end": 9.296
    }
   ]
  },
  "confirm": {
-  "duration": 15.52,
+  "duration": 12.385,
   "lines": [
    {
     "start": 0.0,
-    "end": 3.104
+    "end": 2.59
    },
    {
-    "start": 3.804,
-    "end": 10.538
+    "start": 2.89,
+    "end": 8.508
    },
    {
-    "start": 11.238,
-    "end": 15.52
+    "start": 8.808,
+    "end": 12.385
    }
   ]
  },
  "ai": {
-  "duration": 14.305,
+  "duration": 11.361,
   "lines": [
    {
     "start": 0.0,
-    "end": 5.252
+    "end": 4.38
    },
    {
-    "start": 5.952,
-    "end": 10.136
+    "start": 4.68,
+    "end": 8.168
    },
    {
-    "start": 10.836,
-    "end": 14.305
+    "start": 8.468,
+    "end": 11.361
    }
   ]
  },
  "grade": {
-  "duration": 15.067,
+  "duration": 12.001,
   "lines": [
    {
     "start": 0.0,
-    "end": 4.995
+    "end": 4.173
    },
    {
-    "start": 5.695,
-    "end": 9.411
+    "start": 4.473,
+    "end": 7.573
    },
    {
-    "start": 10.111,
-    "end": 15.067
+    "start": 7.873,
+    "end": 12.001
    }
   ]
  },
  "annotate": {
-  "duration": 15.434,
+  "duration": 12.332,
   "lines": [
    {
     "start": 0.0,
-    "end": 5.621
+    "end": 4.689
    },
    {
-    "start": 6.321,
-    "end": 10.718
+    "start": 4.989,
+    "end": 8.67
    },
    {
-    "start": 11.418,
-    "end": 15.434
+    "start": 8.97,
+    "end": 12.332
    }
   ]
  },
  "report": {
-  "duration": 20.214,
+  "duration": 15.729,
   "lines": [
    {
     "start": 0.0,
-    "end": 3.802
+    "end": 3.181
    },
    {
-    "start": 4.502,
-    "end": 8.415
+    "start": 3.481,
+    "end": 6.747
    },
    {
-    "start": 9.115,
-    "end": 13.878
+    "start": 7.047,
+    "end": 11.022
    },
    {
-    "start": 14.578,
-    "end": 17.818
+    "start": 11.322,
+    "end": 14.004
    },
    {
-    "start": 18.518,
-    "end": 20.214
+    "start": 14.304,
+    "end": 15.729
    }
   ]
  },
  "datasets": {
-  "duration": 12.419,
+  "duration": 9.753,
   "lines": [
    {
     "start": 0.0,
-    "end": 3.64
+    "end": 3.022
    },
    {
-    "start": 4.34,
-    "end": 8.253
+    "start": 3.322,
+    "end": 6.564
    },
    {
-    "start": 8.953,
-    "end": 12.419
+    "start": 6.864,
+    "end": 9.753
    }
   ]
  },
  "outro": {
-  "duration": 15.91,
+  "duration": 12.424,
   "lines": [
    {
     "start": 0.0,
-    "end": 3.415
+    "end": 2.849
    },
    {
-    "start": 4.115,
-    "end": 7.128
+    "start": 3.149,
+    "end": 5.659
    },
    {
-    "start": 7.828,
-    "end": 11.656
+    "start": 5.959,
+    "end": 9.15
    },
    {
-    "start": 12.356,
-    "end": 15.91
+    "start": 9.45,
+    "end": 12.424
    }
   ]
  }

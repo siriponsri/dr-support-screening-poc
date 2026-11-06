@@ -1,0 +1,158 @@
+{
+ "scenes": [
+  {
+   "id": "intro",
+   "start": 0.0,
+   "duration": 13.246,
+   "card": "title"
+  },
+  {
+   "id": "signin",
+   "start": 13.246,
+   "duration": 19.141,
+   "card": null
+  },
+  {
+   "id": "worklist",
+   "start": 32.387,
+   "duration": 10.196,
+   "card": null
+  },
+  {
+   "id": "confirm",
+   "start": 42.583,
+   "duration": 13.285,
+   "card": null
+  },
+  {
+   "id": "ai",
+   "start": 55.868,
+   "duration": 12.261,
+   "card": null
+  },
+  {
+   "id": "grade",
+   "start": 68.129,
+   "duration": 12.901,
+   "card": null
+  },
+  {
+   "id": "annotate",
+   "start": 81.03,
+   "duration": 13.232,
+   "card": null
+  },
+  {
+   "id": "report",
+   "start": 94.262,
+   "duration": 16.629,
+   "card": null
+  },
+  {
+   "id": "datasets",
+   "start": 110.891,
+   "duration": 10.653,
+   "card": null
+  },
+  {
+   "id": "outro",
+   "start": 121.544,
+   "duration": 14.974,
+   "card": "end"
+  }
+ ],
+ "voice": [
+  {
+   "file": "intro.wav",
+   "start": 1.0,
+   "duration": 11.696
+  },
+  {
+   "file": "signin.wav",
+   "start": 13.596,
+   "duration": 18.241
+  },
+  {
+   "file": "worklist.wav",
+   "start": 32.737,
+   "duration": 9.296
+  },
+  {
+   "file": "confirm.wav",
+   "start": 42.933,
+   "duration": 12.385
+  },
+  {
+   "file": "ai.wav",
+   "start": 56.218,
+   "duration": 11.361
+  },
+  {
+   "file": "grade.wav",
+   "start": 68.479,
+   "duration": 12.001
+  },
+  {
+   "file": "annotate.wav",
+   "start": 81.38,
+   "duration": 12.332
+  },
+  {
+   "file": "report.wav",
+   "start": 94.612,
+   "duration": 15.729
+  },
+  {
+   "file": "datasets.wav",
+   "start": 111.241,
+   "duration": 9.753
+  },
+  {
+   "file": "outro.wav",
+   "start": 121.894,
+   "duration": 12.424
+  }
+ ],
+ "cuts": [
+  13.246,
+  32.387,
+  42.583,
+  55.868,
+  68.129,
+  81.03,
+  94.262,
+  110.891,
+  121.544
+ ],
+ "click": [
+  15.47,
+  19.996,
+  23.088,
+  36.972,
+  43.869,
+  46.977,
+  51.95,
+  53.738,
+  61.451,
+  73.292,
+  77.208,
+  78.941,
+  86.951,
+  90.783,
+  102.007,
+  104.074,
+  107.439,
+  115.566,
+  116.538
+ ],
+ "pop": [
+  26.463,
+  29.79,
+  58.438,
+  70.804,
+  84.692,
+  98.939,
+  118.713
+ ],
+ "total": 136.518
+}

@@ -1,54 +1,86 @@
 <template>
   <style>
-    @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
-    #root { position: absolute; inset: 0; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; color: #172018; }
+    @font-face { font-family: 'Prompt'; font-weight: 500; src: url('assets/fonts/prompt-500-0.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Prompt'; font-weight: 500; src: url('assets/fonts/prompt-500-1.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Prompt'; font-weight: 600; src: url('assets/fonts/prompt-600-2.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Prompt'; font-weight: 600; src: url('assets/fonts/prompt-600-3.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Prompt'; font-weight: 700; src: url('assets/fonts/prompt-700-4.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Prompt'; font-weight: 700; src: url('assets/fonts/prompt-700-5.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 300; src: url('assets/fonts/anuphan-300-0.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 300; src: url('assets/fonts/anuphan-300-1.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 400; src: url('assets/fonts/anuphan-400-2.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 400; src: url('assets/fonts/anuphan-400-3.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 500; src: url('assets/fonts/anuphan-500-4.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 500; src: url('assets/fonts/anuphan-500-5.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 600; src: url('assets/fonts/anuphan-600-6.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 600; src: url('assets/fonts/anuphan-600-7.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Anuphan', sans-serif; color: #FFFFFF; }
+    .stage { position: absolute; inset: 0; perspective: 2200px; }
+    .win { position: absolute; left: 330px; top: 158px; width: 1260px; height: 745px; border-radius: 18px;
+      overflow: hidden; background: #0E1A13; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.09); }
+    .bar { position: absolute; left: 0; right: 0; top: 0; height: 36px; display: flex; align-items: center; gap: 8px;
+      padding: 0 16px; background: #0E1A13; }
+    .bar i { width: 11px; height: 11px; border-radius: 50%; background: #2C4635; }
+    .bar span { margin-left: 14px; padding: 3px 14px; border-radius: 8px; background: rgba(255, 255, 255, 0.06);
+      font-size: 15px; color: #9FB3A6; letter-spacing: 0.02em; }
+    .content { position: absolute; left: 0; top: 36px; width: 1260px; height: 709px; overflow: hidden; background: #F6F7F6; }
+    .screen { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform: scale(0.65625); transform-origin: 0 0; }
     .shot { position: absolute; inset: 0; overflow: hidden; }
     .fade { position: absolute; inset: 0; }
     .cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
     .cam img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
-    .ring { position: absolute; border-style: solid; border-color: #016301; opacity: 0; }
-    .tap { position: absolute; border-radius: 50%; background: rgba(1, 99, 1, 0.28); opacity: 0; }
-    .chip { position: absolute; left: 110px; top: 66px; display: flex; align-items: center; gap: 16px;
-      padding: 10px 28px 10px 10px; border-radius: 999px; background: #16231A; color: #FFFFFF;
-      font-size: 30px; font-weight: 600; box-shadow: 0 10px 30px rgba(22, 35, 26, 0.25); }
-    .chip b { display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px;
-      border-radius: 50%; background: #6FBF73; color: #16231A; font-size: 30px; }
-    .demo { position: absolute; right: 110px; top: 70px; padding: 12px 24px; border-radius: 14px; background: #FBF2D9;
-      border: 2px solid #E6CD8B; color: #6E4A00; font-size: 30px; font-weight: 600; transform-origin: 100% 50%;
-      box-shadow: 0 10px 30px rgba(22, 35, 26, 0.18); }
-    .veil { position: absolute; inset: 0; background: #F6F7F6; }
+    .ring { position: absolute; border-style: solid; border-color: #34D873; background: rgba(52, 216, 115, 0.08); opacity: 0; }
+    .cursor { position: absolute; left: 0; top: 0; opacity: 0; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); }
+    .head { position: absolute; left: 330px; top: 100px; display: flex; align-items: baseline; gap: 22px; }
+    .head .step { font-family: 'Prompt', 'Anuphan', sans-serif; font-weight: 600; font-size: 22px; letter-spacing: 0.16em; color: #34D873; }
+    .head .lab { font-family: 'Prompt', 'Anuphan', sans-serif; font-weight: 600; font-size: 44px; letter-spacing: -0.01em; color: #FFFFFF; }
+    .demo { position: absolute; right: 330px; top: 104px; display: flex; align-items: center; gap: 10px; padding: 8px 18px;
+      border-radius: 999px; background: rgba(245, 185, 64, 0.12); border: 1px solid rgba(245, 185, 64, 0.45); color: #F8D58A;
+      font-size: 20px; font-weight: 600; }
+    .demo i { width: 9px; height: 9px; border-radius: 50%; background: #F5B940; }
   </style>
   <div id="root" data-composition-id="sc-worklist" data-width="1920" data-height="1080">
-    <div id="worklist-s0" class="shot clip" data-start="0.0" data-duration="9.76" data-track-index="1" style="z-index: 1;">
-      <div id="worklist-s0-fade" class="fade">
-        <div id="worklist-s0-cam" class="cam">
-          <img id="worklist-s0-img" src="assets/screens/s03a.png" alt="" />
-          <div id="worklist-s0-r0" class="ring" style="left: 1467px; top: 176px; width: 197px; height: 52px; border-width: 3.23px; border-radius: 7.75px; box-shadow: 0 0 0 6.46px rgba(1, 99, 1, 0.16);"></div>
-          <div id="worklist-s0-t0" class="tap" style="left: 1524.0px; top: 160.5px; width: 83px; height: 83px;"></div>
+    <div id="worklist-h0" class="head clip" data-start="0.0" data-duration="10.196" data-track-index="5"><span id="worklist-h0-n" class="step">STEP 03</span><span id="worklist-h0-t" class="lab">Worklist</span></div>
+    <div id="worklist-demo" class="demo clip" data-start="0" data-duration="10.196" data-track-index="6"><i></i><span id="worklist-demo-t">ข้อมูลตัวอย่าง</span></div>
+    <div id="worklist-stage" class="stage">
+      <div id="worklist-win" class="win">
+        <div class="bar"><i></i><i></i><i></i><span>workbench / Worklist</span></div>
+        <div class="content"><div class="screen">
+        <div id="worklist-s0" class="shot clip" data-start="0.0" data-duration="7.103" data-track-index="1" style="z-index: 1;">
+          <div id="worklist-s0-fade" class="fade">
+            <div id="worklist-s0-cam" class="cam">
+              <img id="worklist-s0-img" src="assets/screens/s03a.png" alt="" />
+              <div id="worklist-s0-r0" class="ring" style="left: 1467px; top: 176px; width: 197px; height: 52px; border-width: 2.952px; border-radius: 9.841px; box-shadow: 0 0 0 6.889px rgba(52, 216, 115, 0.18), 0 0 29.524px rgba(52, 216, 115, 0.35);"></div>
+              <div id="worklist-s0-c" class="cursor" style="width: 33.46px; height: 33.46px; margin-left: -5.577px; margin-top: -2.788px;"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 19 L8.6 14.9 L11.6 21.6 L14.6 20.3 L11.7 13.7 L18 13.4 Z" fill="#FFFFFF" stroke="#0B1510" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+            </div>
+          </div>
         </div>
-        <div id="worklist-s0-chip" class="chip"><b>3</b><span>Worklist</span></div>
+        <div id="worklist-s1" class="shot clip" data-start="6.603" data-duration="3.593" data-track-index="2" style="z-index: 2;">
+          <div id="worklist-s1-fade" class="fade">
+            <div id="worklist-s1-cam" class="cam">
+              <img id="worklist-s1-img" src="assets/screens/s03b.png" alt="" />
+            </div>
+          </div>
+        </div>
+        </div></div>
       </div>
     </div>
-    <div id="worklist-s1" class="shot clip" data-start="8.96" data-duration="4.742" data-track-index="2" style="z-index: 2;">
-      <div id="worklist-s1-fade" class="fade">
-        <div id="worklist-s1-cam" class="cam">
-          <img id="worklist-s1-img" src="assets/screens/s03b.png" alt="" />
-        </div>
-        <div id="worklist-s1-chip" class="chip"><b>3</b><span>Worklist</span></div>
-      </div>
-    </div>
-    <div id="worklist-demo" class="demo clip" data-start="0" data-duration="13.702" data-track-index="3" style="z-index: 50;">ข้อมูลตัวอย่าง</div>
-    <div id="worklist-veil" class="veil clip" data-start="0" data-duration="13.702" data-track-index="4" style="z-index: 60;"></div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.fromTo("#worklist-s0-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 6.167);
-    tl.fromTo("#worklist-s0-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 6.517);
-    tl.fromTo("#worklist-s0-cam", {"x": -137.76, "y": -12.97, "scale": 1.0762}, { ...{"x": -990.97, "y": -93.29, "scale": 1.5484}, duration: 8.96, ease: "sine.inOut" }, 0.0);
-    tl.fromTo("#worklist-s1-cam", {"x": -990.97, "y": -93.29, "scale": 1.5484}, { ...{"x": -480.0, "y": -200.0, "scale": 1.3333}, duration: 4.742, ease: "sine.inOut" }, 8.96);
-    tl.fromTo("#worklist-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 8.96);
-    tl.fromTo("#worklist-veil", { opacity: 1 }, { opacity: 0, duration: 0.5, ease: "sine.out" }, 0);
-    tl.to("#worklist-veil", { opacity: 1, duration: 0.5, ease: "sine.in" }, 13.182);
+    tl.fromTo("#worklist-win", { rotationY: 18, x: 140, scale: 0.92, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
+    tl.fromTo("#worklist-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 4.675);
+    tl.fromTo("#worklist-s0-c", { x: 1752.483, y: 349.618, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 3.655);
+    tl.fromTo("#worklist-s0-c", { x: 1752.483, y: 349.618 }, { x: 1565.5, y: 202.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 3.955);
+    tl.to("#worklist-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 4.555);
+    tl.fromTo("#worklist-s0-cam", {"x": -255.7, "y": -24.07, "scale": 1.1415}, { ...{"x": -990.97, "y": -93.29, "scale": 1.5484}, duration: 1.1, ease: "power3.inOut" }, 0.3);
+    tl.fromTo("#worklist-s1-cam", {"x": -990.97, "y": -93.29, "scale": 1.5484}, { ...{"x": -480.0, "y": -200.0, "scale": 1.3333}, duration: 1.1, ease: "power3.inOut" }, 6.753);
+    tl.fromTo("#worklist-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 6.603);
+    tl.fromTo(["#worklist-h0-n", "#worklist-h0-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 0.15);
+    tl.to(["#worklist-h0-n", "#worklist-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 9.796);
+    tl.fromTo("#worklist-demo-t", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
+    tl.to("#worklist-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 9.796);
+    tl.to("#worklist-demo-t", { opacity: 0, duration: 0.2 }, 9.796);
     window.__timelines["sc-worklist"] = tl;
   </script>
 </template>
