@@ -81,7 +81,8 @@ all of them; kept as they are.
 
 6 November 2026: the owner asked for the team deck to show real UWF images from the same consented set.
 `presentation/assets/uwf/` and `presentation/assets/screens/` hold them under neutral names (DEMO01 ...),
-with no hospital number on any image or screen; see `presentation/README.md`.
+with no hospital number on any image or screen; see `presentation/README.md`. Asked before the push that
+they would become public in this repository, the owner confirmed the consent covers that.
 
 ### Checked and fine
 
