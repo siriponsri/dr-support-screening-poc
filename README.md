@@ -25,7 +25,8 @@ Without an AI server the app works for manual review.
 The live AI demo runs from the project owner's workstation (desktop button **DR Screening Demo**) because it
 needs access to the team AI server. Only public or consented images are sent there.
 
-A step-by-step Thai user manual with screenshots will be in `docs/pdfs/USER_MANUAL_TH.pdf`.
+Thai guides (PDF): the step-by-step [user manual](docs/pdfs/USER_MANUAL_TH.pdf) with screenshots, the
+[deployment guide](docs/pdfs/DEPLOYMENT_GUIDE_TH.pdf) and the [test report](docs/pdfs/TEST_REPORT_TH.pdf).
 
 ### Hospital IT
 

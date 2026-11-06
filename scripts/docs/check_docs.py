@@ -5,8 +5,10 @@ Run from the repository root with ``python scripts/docs/check_docs.py``.
 Checks:
 1. every required document exists;
 2. relative links in every Markdown file (outside ignored folders) point at existing files;
-3. PDFs live only in docs/pdfs and use one of the three Thai guide names.
-   Missing guides are allowed until REQUIRE_PDFS is switched on.
+3. PDFs live only in docs/pdfs and use one of the three Thai guide names; all three must exist
+   (REQUIRE_PDFS) and so must their Thai Markdown sources in docs/th.
+
+Rebuild the PDFs with ``python scripts/docs/build_pdfs.py`` (needs Microsoft Edge and Playwright).
 
 Older documents are recoverable from the tag ``archive/docs-before-cut-20261101``.
 """
@@ -38,15 +40,21 @@ REQUIRED = [
     "docs/developer/SECURITY.md",
     "docs/developer/DATASET_MANIFEST.md",
     "docs/developer/BACKUP_RESTORE.md",
+    # Thai sources of the three PDF guides (built by scripts/docs/build_pdfs.py).
+    "docs/th/user-manual.md",
+    "docs/th/deployment-guide.md",
+    "docs/th/test-report.md",
+    "docs/th/assets/anuphan.css",
+    "docs/th/assets/anuphan-LICENSE.txt",
 ]
 
-# The three Thai guides. The later PDF step sets REQUIRE_PDFS = True.
+# The three Thai guides.
 PDF_NAMES = {
     "DEPLOYMENT_GUIDE_TH.pdf",
     "TEST_REPORT_TH.pdf",
     "USER_MANUAL_TH.pdf",
 }
-REQUIRE_PDFS = False
+REQUIRE_PDFS = True
 
 # Folders that are never part of the published documentation.
 IGNORED_DIRS = {".git", ".archives", "local-state", "node_modules", "dist", ".venv", "__pycache__"}
