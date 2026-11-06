@@ -45,13 +45,13 @@
     .kind span { display: block; margin-top: 6px; font-size: 30px; line-height: 1.4; color: #C9D6CD; }
   </style>
   <div id="root" data-composition-id="sc-signin" data-width="1920" data-height="1080">
-    <div id="signin-h0" class="head clip" data-start="0.0" data-duration="14.0" data-track-index="5"><span id="signin-h0-n" class="step">STEP 01</span><span id="signin-h0-t" class="lab">Sign in</span></div>
-    <div id="signin-h1" class="head clip" data-start="14.0" data-duration="6.45" data-track-index="5"><span id="signin-h1-n" class="step">STEP 02</span><span id="signin-h1-t" class="lab">Today</span></div>
-    <div id="signin-demo" class="demo clip" data-start="0" data-duration="20.45" data-track-index="6"><i></i><span id="signin-demo-t">ข้อมูลตัวอย่าง</span></div>
+    <div id="signin-h0" class="head clip" data-start="0.0" data-duration="16.664" data-track-index="5"><span id="signin-h0-n" class="step">STEP 01</span><span id="signin-h0-t" class="lab">Sign in</span></div>
+    <div id="signin-h1" class="head clip" data-start="16.664" data-duration="7.708" data-track-index="5"><span id="signin-h1-n" class="step">STEP 02</span><span id="signin-h1-t" class="lab">Today</span></div>
+    <div id="signin-demo" class="demo clip" data-start="0" data-duration="24.372" data-track-index="6"><i></i><span id="signin-demo-t">ข้อมูลตัวอย่าง</span></div>
     <div id="signin-stage" class="stage">
       <div id="signin-win" class="win">
         <div class="screen">
-        <div id="signin-s0" class="shot clip" data-start="0.0" data-duration="7.004" data-track-index="1" style="z-index: 1;">
+        <div id="signin-s0" class="shot clip" data-start="0.0" data-duration="7.513" data-track-index="1" style="z-index: 1;">
           <div id="signin-s0-fade" class="fade">
             <div id="signin-s0-cam" class="cam">
               <img id="signin-s0-img" src="assets/screens/s01a.png" alt="" />
@@ -60,7 +60,7 @@
             </div>
           </div>
         </div>
-        <div id="signin-s1" class="shot clip" data-start="6.504" data-duration="4.014" data-track-index="2" style="z-index: 2;">
+        <div id="signin-s1" class="shot clip" data-start="7.013" data-duration="4.583" data-track-index="2" style="z-index: 2;">
           <div id="signin-s1-fade" class="fade">
             <div id="signin-s1-cam" class="cam">
               <img id="signin-s1-img" src="assets/screens/s01b.png" alt="" />
@@ -69,7 +69,7 @@
             </div>
           </div>
         </div>
-        <div id="signin-s2" class="shot clip" data-start="10.018" data-duration="4.482" data-track-index="1" style="z-index: 3;">
+        <div id="signin-s2" class="shot clip" data-start="11.096" data-duration="6.068" data-track-index="1" style="z-index: 3;">
           <div id="signin-s2-fade" class="fade">
             <div id="signin-s2-cam" class="cam">
               <img id="signin-s2-img" src="assets/screens/s01b.png" alt="" />
@@ -78,7 +78,7 @@
             </div>
           </div>
         </div>
-        <div id="signin-s3" class="shot clip" data-start="14.0" data-duration="6.45" data-track-index="2" style="z-index: 4;">
+        <div id="signin-s3" class="shot clip" data-start="16.664" data-duration="7.708" data-track-index="2" style="z-index: 4;">
           <div id="signin-s3-fade" class="fade">
             <div id="signin-s3-cam" class="cam">
               <img id="signin-s3-img" src="assets/screens/s02.png" alt="" />
@@ -94,34 +94,34 @@
   <script>
     const tl = gsap.timeline({ paused: true });
     tl.fromTo("#signin-win", { rotationX: 8, rotationY: -6, y: 50, scale: 0.94, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
-    tl.fromTo("#signin-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 3.104);
-    tl.fromTo("#signin-s0-c", { x: 968.007, y: 382.611, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 2.084);
-    tl.fromTo("#signin-s0-c", { x: 968.007, y: 382.611 }, { x: 835.5, y: 278.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 2.384);
-    tl.to("#signin-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 2.984);
+    tl.fromTo("#signin-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 3.321);
+    tl.fromTo("#signin-s0-c", { x: 968.007, y: 382.611, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 2.301);
+    tl.fromTo("#signin-s0-c", { x: 968.007, y: 382.611 }, { x: 835.5, y: 278.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 2.601);
+    tl.to("#signin-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 3.201);
     tl.fromTo("#signin-s0-cam", {"x": -135.84, "y": -80.0, "scale": 1.1415}, { ...{"x": -526.45, "y": -310.06, "scale": 1.5484}, duration: 1.1, ease: "power3.inOut" }, 0.3);
-    tl.fromTo("#signin-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 8.392);
-    tl.fromTo("#signin-s1-c", { x: 747.275, y: 742.427, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 7.372);
-    tl.fromTo("#signin-s1-c", { x: 747.275, y: 742.427 }, { x: 634.0, y: 653.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 7.672);
-    tl.to("#signin-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 8.272);
-    tl.fromTo("#signin-s1-cam", {"x": -526.45, "y": -310.06, "scale": 1.5484}, { ...{"x": -543.4, "y": -452.6, "scale": 1.8113}, duration: 1.1, ease: "power3.inOut" }, 6.654);
-    tl.fromTo("#signin-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 6.504);
-    tl.fromTo("#signin-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 11.427);
-    tl.fromTo("#signin-s2-c", { x: 747.275, y: 804.427, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 10.407);
-    tl.fromTo("#signin-s2-c", { x: 747.275, y: 804.427 }, { x: 634.0, y: 715.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 10.707);
-    tl.to("#signin-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 11.307);
-    tl.fromTo("#signin-s2-cam", {"x": -543.4, "y": -452.6, "scale": 1.8113}, { ...{"x": -452.83, "y": -597.51, "scale": 1.8113}, duration: 1.1, ease: "power3.inOut" }, 10.168);
-    tl.fromTo("#signin-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 10.018);
-    tl.fromTo("#signin-s3-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 14.884);
-    tl.fromTo("#signin-s3-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 18.036);
-    tl.fromTo("#signin-s3-cam", {"x": -452.83, "y": -597.51, "scale": 1.8113}, { ...{"x": -616.12, "y": -57.49, "scale": 1.4328}, duration: 1.1, ease: "power3.inOut" }, 14.15);
-    tl.fromTo("#signin-s3-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 14.0);
+    tl.fromTo("#signin-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 9.131);
+    tl.fromTo("#signin-s1-c", { x: 747.275, y: 742.427, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 8.111);
+    tl.fromTo("#signin-s1-c", { x: 747.275, y: 742.427 }, { x: 634.0, y: 653.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 8.411);
+    tl.to("#signin-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 9.011);
+    tl.fromTo("#signin-s1-cam", {"x": -526.45, "y": -310.06, "scale": 1.5484}, { ...{"x": -543.4, "y": -452.6, "scale": 1.8113}, duration: 1.1, ease: "power3.inOut" }, 7.163);
+    tl.fromTo("#signin-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 7.013);
+    tl.fromTo("#signin-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 13.007);
+    tl.fromTo("#signin-s2-c", { x: 747.275, y: 804.427, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 11.987);
+    tl.fromTo("#signin-s2-c", { x: 747.275, y: 804.427 }, { x: 634.0, y: 715.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 12.287);
+    tl.to("#signin-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 12.887);
+    tl.fromTo("#signin-s2-cam", {"x": -543.4, "y": -452.6, "scale": 1.8113}, { ...{"x": -452.83, "y": -597.51, "scale": 1.8113}, duration: 1.1, ease: "power3.inOut" }, 11.246);
+    tl.fromTo("#signin-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 11.096);
+    tl.fromTo("#signin-s3-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 17.65);
+    tl.fromTo("#signin-s3-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 21.398);
+    tl.fromTo("#signin-s3-cam", {"x": -452.83, "y": -597.51, "scale": 1.8113}, { ...{"x": -616.12, "y": -57.49, "scale": 1.4328}, duration: 1.1, ease: "power3.inOut" }, 16.814);
+    tl.fromTo("#signin-s3-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 16.664);
     tl.fromTo(["#signin-h0-n", "#signin-h0-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 0.15);
-    tl.to(["#signin-h0-n", "#signin-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 13.8);
-    tl.fromTo(["#signin-h1-n", "#signin-h1-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 14.0);
-    tl.to(["#signin-h1-n", "#signin-h1-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 20.05);
+    tl.to(["#signin-h0-n", "#signin-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 16.464);
+    tl.fromTo(["#signin-h1-n", "#signin-h1-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 16.664);
+    tl.to(["#signin-h1-n", "#signin-h1-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 23.972);
     tl.fromTo("#signin-demo-t", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
-    tl.to("#signin-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 20.05);
-    tl.to("#signin-demo-t", { opacity: 0, duration: 0.2 }, 20.05);
+    tl.to("#signin-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 23.972);
+    tl.to("#signin-demo-t", { opacity: 0, duration: 0.2 }, 23.972);
     window.__timelines["sc-signin"] = tl;
   </script>
 </template>

@@ -45,20 +45,20 @@
     .kind span { display: block; margin-top: 6px; font-size: 30px; line-height: 1.4; color: #C9D6CD; }
   </style>
   <div id="root" data-composition-id="sc-report" data-width="1920" data-height="1080">
-    <div id="report-h0" class="head clip" data-start="0.0" data-duration="11.672" data-track-index="5"><span id="report-h0-n" class="step">STEP 08</span><span id="report-h0-t" class="lab">Screening report</span></div>
-    <div id="report-h1" class="head clip" data-start="11.672" data-duration="4.957" data-track-index="5"><span id="report-h1-n" class="step">STEP 09</span><span id="report-h1-t" class="lab">Referrals</span></div>
-    <div id="report-demo" class="demo clip" data-start="0" data-duration="16.629" data-track-index="6"><i></i><span id="report-demo-t">ข้อมูลตัวอย่าง</span></div>
+    <div id="report-h0" class="head clip" data-start="0.0" data-duration="13.793" data-track-index="5"><span id="report-h0-n" class="step">STEP 08</span><span id="report-h0-t" class="lab">Screening report</span></div>
+    <div id="report-h1" class="head clip" data-start="13.793" data-duration="6.087" data-track-index="5"><span id="report-h1-n" class="step">STEP 09</span><span id="report-h1-t" class="lab">Referrals</span></div>
+    <div id="report-demo" class="demo clip" data-start="0" data-duration="19.88" data-track-index="6"><i></i><span id="report-demo-t">ข้อมูลตัวอย่าง</span></div>
     <div id="report-stage" class="stage">
       <div id="report-win" class="win">
         <div class="screen">
-        <div id="report-s0" class="shot clip" data-start="0.0" data-duration="4.331" data-track-index="1" style="z-index: 1;">
+        <div id="report-s0" class="shot clip" data-start="0.0" data-duration="5.502" data-track-index="1" style="z-index: 1;">
           <div id="report-s0-fade" class="fade">
             <div id="report-s0-cam" class="cam">
               <img id="report-s0-img" src="assets/screens/s08a.png" alt="" />
             </div>
           </div>
         </div>
-        <div id="report-s1" class="shot clip" data-start="3.831" data-duration="4.066" data-track-index="2" style="z-index: 2;">
+        <div id="report-s1" class="shot clip" data-start="5.002" data-duration="4.7" data-track-index="2" style="z-index: 2;">
           <div id="report-s1-fade" class="fade">
             <div id="report-s1-cam" class="cam">
               <img id="report-s1-img" src="assets/screens/s08b.png" alt="" />
@@ -66,7 +66,7 @@
             </div>
           </div>
         </div>
-        <div id="report-s2" class="shot clip" data-start="7.397" data-duration="2.487" data-track-index="1" style="z-index: 3;">
+        <div id="report-s2" class="shot clip" data-start="9.202" data-duration="2.571" data-track-index="1" style="z-index: 3;">
           <div id="report-s2-fade" class="fade">
             <div id="report-s2-cam" class="cam">
               <img id="report-s2-img" src="assets/screens/s08b.png" alt="" />
@@ -75,7 +75,7 @@
             </div>
           </div>
         </div>
-        <div id="report-s3" class="shot clip" data-start="9.384" data-duration="2.787" data-track-index="2" style="z-index: 4;">
+        <div id="report-s3" class="shot clip" data-start="11.273" data-duration="3.02" data-track-index="2" style="z-index: 4;">
           <div id="report-s3-fade" class="fade">
             <div id="report-s3-cam" class="cam">
               <img id="report-s3-img" src="assets/screens/s08c.png" alt="" />
@@ -84,7 +84,7 @@
             </div>
           </div>
         </div>
-        <div id="report-s4" class="shot clip" data-start="11.672" data-duration="4.957" data-track-index="1" style="z-index: 5;">
+        <div id="report-s4" class="shot clip" data-start="13.793" data-duration="6.087" data-track-index="1" style="z-index: 5;">
           <div id="report-s4-fade" class="fade">
             <div id="report-s4-cam" class="cam">
               <img id="report-s4-img" src="assets/screens/s09.png" alt="" />
@@ -101,34 +101,34 @@
     const tl = gsap.timeline({ paused: true });
     tl.fromTo("#report-win", { rotationX: -7, y: -40, scale: 0.95, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
     tl.fromTo("#report-s0-cam", {"x": -113.71, "y": -15.21, "scale": 1.0829}, { ...{"x": -384.0, "y": -51.36, "scale": 1.28}, duration: 1.1, ease: "power3.inOut" }, 0.3);
-    tl.fromTo("#report-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 4.647);
-    tl.fromTo("#report-s1-cam", {"x": -384.0, "y": -51.36, "scale": 1.28}, { ...{"x": -806.4, "y": -993.6, "scale": 1.92}, duration: 1.1, ease: "power3.inOut" }, 3.981);
-    tl.fromTo("#report-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 3.831);
-    tl.fromTo("#report-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 7.835);
-    tl.fromTo("#report-s2-c", { x: 785.362, y: 1081.364, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 7.397);
-    tl.fromTo("#report-s2-c", { x: 785.362, y: 1081.364 }, { x: 678.5, y: 997.0, duration: 0.268, ease: "power3.inOut", immediateRender: false }, 7.447);
-    tl.to("#report-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 7.715);
-    tl.fromTo("#report-s2-cam", {"x": -806.4, "y": -993.6, "scale": 1.92}, { ...{"x": -806.4, "y": -993.6, "scale": 1.92}, duration: 0.994, ease: "power3.inOut" }, 7.547);
-    tl.fromTo("#report-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 7.397);
-    tl.fromTo("#report-s3-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 9.902);
-    tl.fromTo("#report-s3-c", { x: 1194.862, y: 1083.364, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 9.384);
-    tl.fromTo("#report-s3-c", { x: 1194.862, y: 1083.364 }, { x: 1088.0, y: 999.0, duration: 0.348, ease: "power3.inOut", immediateRender: false }, 9.434);
-    tl.to("#report-s3-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 9.782);
-    tl.fromTo("#report-s3-cam", {"x": -806.4, "y": -993.6, "scale": 1.92}, { ...{"x": -806.4, "y": -993.6, "scale": 1.92}, duration: 1.1, ease: "power3.inOut" }, 9.534);
-    tl.fromTo("#report-s3-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 9.384);
-    tl.fromTo("#report-s4-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 13.267);
-    tl.fromTo("#report-s4-c", { x: 1241.885, y: 427.488, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 12.247);
-    tl.fromTo("#report-s4-c", { x: 1241.885, y: 427.488 }, { x: 1088.0, y: 306.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 12.547);
-    tl.to("#report-s4-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 13.147);
-    tl.fromTo("#report-s4-cam", {"x": -806.4, "y": -993.6, "scale": 1.92}, { ...{"x": -480.0, "y": -53.33, "scale": 1.3333}, duration: 1.1, ease: "power3.inOut" }, 11.822);
-    tl.fromTo("#report-s4-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 11.672);
+    tl.fromTo("#report-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 5.939);
+    tl.fromTo("#report-s1-cam", {"x": -384.0, "y": -51.36, "scale": 1.28}, { ...{"x": -806.4, "y": -993.6, "scale": 1.92}, duration: 1.1, ease: "power3.inOut" }, 5.152);
+    tl.fromTo("#report-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 5.002);
+    tl.fromTo("#report-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 9.653);
+    tl.fromTo("#report-s2-c", { x: 785.362, y: 1081.364, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 9.202);
+    tl.fromTo("#report-s2-c", { x: 785.362, y: 1081.364 }, { x: 678.5, y: 997.0, duration: 0.281, ease: "power3.inOut", immediateRender: false }, 9.252);
+    tl.to("#report-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 9.533);
+    tl.fromTo("#report-s2-cam", {"x": -806.4, "y": -993.6, "scale": 1.92}, { ...{"x": -806.4, "y": -993.6, "scale": 1.92}, duration: 1.036, ease: "power3.inOut" }, 9.352);
+    tl.fromTo("#report-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 9.202);
+    tl.fromTo("#report-s3-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 11.807);
+    tl.fromTo("#report-s3-c", { x: 1194.862, y: 1083.364, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 11.273);
+    tl.fromTo("#report-s3-c", { x: 1194.862, y: 1083.364 }, { x: 1088.0, y: 999.0, duration: 0.364, ease: "power3.inOut", immediateRender: false }, 11.323);
+    tl.to("#report-s3-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 11.687);
+    tl.fromTo("#report-s3-cam", {"x": -806.4, "y": -993.6, "scale": 1.92}, { ...{"x": -806.4, "y": -993.6, "scale": 1.92}, duration: 1.1, ease: "power3.inOut" }, 11.423);
+    tl.fromTo("#report-s3-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 11.273);
+    tl.fromTo("#report-s4-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 15.722);
+    tl.fromTo("#report-s4-c", { x: 1241.885, y: 427.488, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 14.702);
+    tl.fromTo("#report-s4-c", { x: 1241.885, y: 427.488 }, { x: 1088.0, y: 306.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 15.002);
+    tl.to("#report-s4-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 15.602);
+    tl.fromTo("#report-s4-cam", {"x": -806.4, "y": -993.6, "scale": 1.92}, { ...{"x": -480.0, "y": -53.33, "scale": 1.3333}, duration: 1.1, ease: "power3.inOut" }, 13.943);
+    tl.fromTo("#report-s4-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 13.793);
     tl.fromTo(["#report-h0-n", "#report-h0-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 0.15);
-    tl.to(["#report-h0-n", "#report-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 11.472);
-    tl.fromTo(["#report-h1-n", "#report-h1-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 11.672);
-    tl.to(["#report-h1-n", "#report-h1-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 16.229);
+    tl.to(["#report-h0-n", "#report-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 13.593);
+    tl.fromTo(["#report-h1-n", "#report-h1-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 13.793);
+    tl.to(["#report-h1-n", "#report-h1-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 19.48);
     tl.fromTo("#report-demo-t", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
-    tl.to("#report-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 16.229);
-    tl.to("#report-demo-t", { opacity: 0, duration: 0.2 }, 16.229);
+    tl.to("#report-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 19.48);
+    tl.to("#report-demo-t", { opacity: 0, duration: 0.2 }, 19.48);
     window.__timelines["sc-report"] = tl;
   </script>
 </template>

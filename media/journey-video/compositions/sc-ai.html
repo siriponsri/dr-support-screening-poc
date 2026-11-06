@@ -45,12 +45,12 @@
     .kind span { display: block; margin-top: 6px; font-size: 30px; line-height: 1.4; color: #C9D6CD; }
   </style>
   <div id="root" data-composition-id="sc-ai" data-width="1920" data-height="1080">
-    <div id="ai-h0" class="head clip" data-start="0.0" data-duration="12.261" data-track-index="5"><span id="ai-h0-n" class="step">STEP 05</span><span id="ai-h0-t" class="lab">AI grade suggestion</span></div>
-    <div id="ai-demo" class="demo clip" data-start="0" data-duration="12.261" data-track-index="6"><i></i><span id="ai-demo-t">ข้อมูลตัวอย่าง: ผล AI จำลอง</span></div>
+    <div id="ai-h0" class="head clip" data-start="0.0" data-duration="14.039" data-track-index="5"><span id="ai-h0-n" class="step">STEP 05</span><span id="ai-h0-t" class="lab">AI grade suggestion</span></div>
+    <div id="ai-demo" class="demo clip" data-start="0" data-duration="14.039" data-track-index="6"><i></i><span id="ai-demo-t">ข้อมูลตัวอย่าง: ผล AI จำลอง</span></div>
     <div id="ai-stage" class="stage">
       <div id="ai-win" class="win">
         <div class="screen">
-        <div id="ai-s0" class="shot clip" data-start="0.0" data-duration="12.261" data-track-index="1" style="z-index: 1;">
+        <div id="ai-s0" class="shot clip" data-start="0.0" data-duration="14.039" data-track-index="1" style="z-index: 1;">
           <div id="ai-s0-fade" class="fade">
             <div id="ai-s0-cam" class="cam">
               <img id="ai-s0-img" src="assets/screens/s05.png" alt="" />
@@ -67,17 +67,17 @@
   <script>
     const tl = gsap.timeline({ paused: true });
     tl.fromTo("#ai-win", { rotationY: -9, x: -90, scale: 0.95, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
-    tl.fromTo("#ai-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 2.54);
-    tl.fromTo("#ai-s0-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 5.673);
-    tl.fromTo("#ai-s0-c", { x: 1919.587, y: 702.49, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 4.653);
-    tl.fromTo("#ai-s0-c", { x: 1919.587, y: 702.49 }, { x: 1817.0, y: 621.5, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 4.953);
-    tl.to("#ai-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 5.553);
+    tl.fromTo("#ai-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 2.875);
+    tl.fromTo("#ai-s0-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 6.45);
+    tl.fromTo("#ai-s0-c", { x: 1919.587, y: 702.49, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 5.43);
+    tl.fromTo("#ai-s0-c", { x: 1919.587, y: 702.49 }, { x: 1817.0, y: 621.5, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 5.73);
+    tl.to("#ai-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 6.33);
     tl.fromTo("#ai-s0-cam", {"x": -407.27, "y": -140.0, "scale": 1.2121}, { ...{"x": -1920.0, "y": -660.0, "scale": 2.0}, duration: 1.1, ease: "power3.inOut" }, 0.3);
     tl.fromTo(["#ai-h0-n", "#ai-h0-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 0.15);
-    tl.to(["#ai-h0-n", "#ai-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 11.861);
+    tl.to(["#ai-h0-n", "#ai-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 13.639);
     tl.fromTo("#ai-demo-t", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
-    tl.to("#ai-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 11.861);
-    tl.to("#ai-demo-t", { opacity: 0, duration: 0.2 }, 11.861);
+    tl.to("#ai-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 13.639);
+    tl.to("#ai-demo-t", { opacity: 0, duration: 0.2 }, 13.639);
     window.__timelines["sc-ai"] = tl;
   </script>
 </template>

@@ -31,7 +31,7 @@ OLD_LEAD, OLD_TAIL, OLD_CARD_LEAD, OLD_END_TAIL = 0.8, 1.1, 1.4, 2.6
 
 def cut(video: Path, start: float, end: float, tempo: float) -> array.array:
     command = ["ffmpeg", "-v", "error", "-ss", f"{start:.3f}", "-to", f"{end:.3f}", "-i", str(video), "-vn",
-               "-af", f"atempo={tempo}", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"]
+               "-af", f"atempo={tempo},afade=t=in:d=0.012,areverse,afade=t=in:d=0.09,areverse", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"]
     raw = subprocess.run(command, check=True, capture_output=True).stdout
     samples = array.array("h")
     samples.frombytes(raw)
@@ -41,8 +41,8 @@ def cut(video: Path, start: float, end: float, tempo: float) -> array.array:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("video", type=Path)
-    parser.add_argument("--tempo", type=float, default=1.2)
-    parser.add_argument("--pause", type=float, default=0.3, help="seconds of silence between lines")
+    parser.add_argument("--tempo", type=float, default=1.08)
+    parser.add_argument("--pause", type=float, default=0.45, help="seconds of silence between lines")
     args = parser.parse_args()
     scenes = json.loads((HERE / "scenes.json").read_text(encoding="utf-8"))["scenes"]
     old = json.loads((AUDIO / "timing.json").read_text(encoding="utf-8"))
