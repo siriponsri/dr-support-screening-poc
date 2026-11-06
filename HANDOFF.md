@@ -34,6 +34,9 @@ service, not a final release, not accepted by a hospital.
   - Same day, owner review of the video (`fix/video-language-image-type`): the screen now fills almost the
     whole frame; the sign-in line says EN/TH is optional; the confirm scene explains CFP versus UWF with a
     picture card and "ยังไม่แน่ใจ" when unsure (two new Gemini takes, 150.5 s). Media only, no app code.
+  - Then the owner found the voice fast and curt for physicians: narration rewritten politely (ค่ะ, no bare
+    commands; seven new takes), pace 1.08 with 0.45 s pauses and soft line ends, 168.9 s; the web file is
+    -17 LUFS, true peak -1.4 dB. The confirm take read the director's notes aloud; `take_spans` cut it out.
 - Validation on main after the earlier merges: backend 2,192 passed, 71 skipped, 0 failed (lower than before because
   removed tools took their tests); frontend 45 files, 342 tests passed; typecheck 0; Ruff clean; root API smoke
   PASS; docs QA passed; `frontend/dist` rebuilt. Some frontend tests are timing-flaky under load (pass alone).

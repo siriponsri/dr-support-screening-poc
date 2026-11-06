@@ -45,19 +45,19 @@
     .kind span { display: block; margin-top: 6px; font-size: 30px; line-height: 1.4; color: #C9D6CD; }
   </style>
   <div id="root" data-composition-id="sc-datasets" data-width="1920" data-height="1080">
-    <div id="datasets-h0" class="head clip" data-start="0.0" data-duration="10.653" data-track-index="5"><span id="datasets-h0-n" class="step">STEP 10</span><span id="datasets-h0-t" class="lab">Datasets</span></div>
-    <div id="datasets-demo" class="demo clip" data-start="0" data-duration="10.653" data-track-index="6"><i></i><span id="datasets-demo-t">ข้อมูลตัวอย่าง</span></div>
+    <div id="datasets-h0" class="head clip" data-start="0.0" data-duration="12.029" data-track-index="5"><span id="datasets-h0-n" class="step">STEP 10</span><span id="datasets-h0-t" class="lab">Datasets</span></div>
+    <div id="datasets-demo" class="demo clip" data-start="0" data-duration="12.029" data-track-index="6"><i></i><span id="datasets-demo-t">ข้อมูลตัวอย่าง</span></div>
     <div id="datasets-stage" class="stage">
       <div id="datasets-win" class="win">
         <div class="screen">
-        <div id="datasets-s0" class="shot clip" data-start="0.0" data-duration="4.172" data-track-index="1" style="z-index: 1;">
+        <div id="datasets-s0" class="shot clip" data-start="0.0" data-duration="5.037" data-track-index="1" style="z-index: 1;">
           <div id="datasets-s0-fade" class="fade">
             <div id="datasets-s0-cam" class="cam">
               <img id="datasets-s0-img" src="assets/screens/s10a.png" alt="" />
             </div>
           </div>
         </div>
-        <div id="datasets-s1" class="shot clip" data-start="3.672" data-duration="4.042" data-track-index="2" style="z-index: 2;">
+        <div id="datasets-s1" class="shot clip" data-start="4.537" data-duration="4.007" data-track-index="2" style="z-index: 2;">
           <div id="datasets-s1-fade" class="fade">
             <div id="datasets-s1-cam" class="cam">
               <img id="datasets-s1-img" src="assets/screens/s10b.png" alt="" />
@@ -67,7 +67,7 @@
             </div>
           </div>
         </div>
-        <div id="datasets-s2" class="shot clip" data-start="7.214" data-duration="3.439" data-track-index="1" style="z-index: 3;">
+        <div id="datasets-s2" class="shot clip" data-start="8.044" data-duration="3.985" data-track-index="1" style="z-index: 3;">
           <div id="datasets-s2-fade" class="fade">
             <div id="datasets-s2-cam" class="cam">
               <img id="datasets-s2-img" src="assets/screens/s10b.png" alt="" />
@@ -83,23 +83,23 @@
     const tl = gsap.timeline({ paused: true });
     tl.fromTo("#datasets-win", { rotationY: -9, x: -90, scale: 0.95, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
     tl.fromTo("#datasets-s0-cam", {"x": -81.14, "y": -10.97, "scale": 1.0538}, { ...{"x": -257.56, "y": -34.83, "scale": 1.1707}, duration: 1.1, ease: "power3.inOut" }, 0.3);
-    tl.fromTo("#datasets-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 4.765);
-    tl.fromTo("#datasets-s1-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 5.737);
-    tl.fromTo("#datasets-s1-c", { x: 568.922, y: 463.676, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 3.745);
-    tl.fromTo("#datasets-s1-c", { x: 568.922, y: 463.676 }, { x: 430.0, y: 354.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 4.045);
-    tl.to("#datasets-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 4.645);
-    tl.fromTo("#datasets-s1-c", { x: 430.0, y: 354.0 }, { x: 1089.0, y: 465.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 5.017);
-    tl.to("#datasets-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 5.617);
-    tl.fromTo("#datasets-s1-cam", {"x": -257.56, "y": -34.83, "scale": 1.1707}, { ...{"x": -443.08, "y": -221.35, "scale": 1.4769}, duration: 1.1, ease: "power3.inOut" }, 3.822);
-    tl.fromTo("#datasets-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 3.672);
-    tl.fromTo("#datasets-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 7.792);
-    tl.fromTo("#datasets-s2-cam", {"x": -443.08, "y": -221.35, "scale": 1.4769}, { ...{"x": -443.08, "y": -515.08, "scale": 1.4769}, duration: 1.1, ease: "power3.inOut" }, 7.364);
-    tl.fromTo("#datasets-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 7.214);
+    tl.fromTo("#datasets-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 5.574);
+    tl.fromTo("#datasets-s1-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 6.491);
+    tl.fromTo("#datasets-s1-c", { x: 568.922, y: 463.676, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 4.554);
+    tl.fromTo("#datasets-s1-c", { x: 568.922, y: 463.676 }, { x: 430.0, y: 354.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 4.854);
+    tl.to("#datasets-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 5.454);
+    tl.fromTo("#datasets-s1-c", { x: 430.0, y: 354.0 }, { x: 1089.0, y: 465.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 5.771);
+    tl.to("#datasets-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 6.371);
+    tl.fromTo("#datasets-s1-cam", {"x": -257.56, "y": -34.83, "scale": 1.1707}, { ...{"x": -443.08, "y": -221.35, "scale": 1.4769}, duration: 1.1, ease: "power3.inOut" }, 4.687);
+    tl.fromTo("#datasets-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 4.537);
+    tl.fromTo("#datasets-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 8.691);
+    tl.fromTo("#datasets-s2-cam", {"x": -443.08, "y": -221.35, "scale": 1.4769}, { ...{"x": -443.08, "y": -515.08, "scale": 1.4769}, duration: 1.1, ease: "power3.inOut" }, 8.194);
+    tl.fromTo("#datasets-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 8.044);
     tl.fromTo(["#datasets-h0-n", "#datasets-h0-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 0.15);
-    tl.to(["#datasets-h0-n", "#datasets-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 10.253);
+    tl.to(["#datasets-h0-n", "#datasets-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 11.629);
     tl.fromTo("#datasets-demo-t", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
-    tl.to("#datasets-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 10.253);
-    tl.to("#datasets-demo-t", { opacity: 0, duration: 0.2 }, 10.253);
+    tl.to("#datasets-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 11.629);
+    tl.to("#datasets-demo-t", { opacity: 0, duration: 0.2 }, 11.629);
     window.__timelines["sc-datasets"] = tl;
   </script>
 </template>

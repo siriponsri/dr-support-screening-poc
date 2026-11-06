@@ -1,6 +1,6 @@
 # Rebuilding the journey video
 
-A narrated Thai walkthrough of the clinician journey (about 2 minutes 30 seconds), shown in the
+A narrated Thai walkthrough of the clinician journey (about 2 minutes 50 seconds), shown in the
 "Watch how it works" dialog on the sign-in page. Output:
 
 - `frontend/public/media/journey-th.mp4` (H.264 1280x720, AAC mono, at most 15 MB), captions drawn in the picture
@@ -88,13 +88,18 @@ rebuild made its WAVs that way (`--tempo 1.2 --pause 0.3`: about 20% faster, pau
 In PowerShell, `git show ... > file` can alter binary files; if the MP4 will not open, use
 `git show 18aa9af:frontend/public/media/journey-th.mp4` from Git Bash instead.
 
-`tts.py --only <scene> --force` redoes one scene, at the same pace as the rest (`--tempo 1.2`,
-`--pause 0.3`, 48 kHz by default). If a scene's take has fewer pauses than caption lines, `tts.py`
-stops for that scene; run it again with `--force` for a new take. Some takes still begin by reading
-the director's notes aloud; `tts.py` drops that opening and says so ("dropped ... s of spoken notes").
-The line cut can also land one phrase off: compare each line's length with its text and listen.
-In the 6 November 2026 take of `confirm`, "คือ CFP" fell into the next line; the boundary in
-`timing.json` was moved by hand to the 0.76 s pause after it (lines 3 and 4 of that scene).
+`tts.py --only <scene> --force` redoes one scene, at the same pace as the rest (`--tempo 1.08`,
+`--pause 0.45`, soft 90 ms line ends, 48 kHz by default; the owner found 1.2 and 0.3 s fast and curt).
+If a scene's take has fewer pauses than caption lines, `tts.py` stops for that scene; run it again
+with `--force` for a new take. Some takes still begin by reading the director's notes aloud; `tts.py`
+drops that opening when it can tell ("dropped ... s of spoken notes"), but not always. After every new
+take, compare each line's length with its text (about 9 to 15 characters a second) and listen; a
+transcription of the take's spoken segments shows notes or a line cut in the wrong place. When the
+cut is wrong, put the line spans of that take (seconds in `assets/audio/lines/<scene>.wav`) in the
+scene's `take_spans` and run `tts.py --only <scene>` without `--force`. The 6 November 2026 `confirm`
+take needed this: its first 8 s were the director's notes.
+
+Narration wording: polite, with ค่ะ, written for physicians and nurses (no bare commands).
 
 ## Composition notes
 
@@ -118,5 +123,5 @@ In the 6 November 2026 take of `confirm`, "คือ CFP" fell into the next lin
 - Sound (`soundtrack.py`): the narration, a music bed (A minor, 100 bpm; about 10 dB under the
   voice and lower again while she speaks; drums leave for the end card), a whoosh on each scene
   change (three takes, rotated), a click on each cursor press and a soft tick when a highlight
-  lands; mixed to about -16 LUFS, peak under -1 dBTP. `--music <file>` uses a real track instead.
+  lands; mixed to about -16 LUFS; `encode.py` sets the web file to -17 LUFS, true peak under -1 dB (two-pass). `--music <file>` uses a real track instead.
   The levels were measured, not listened to; listen once before sharing.

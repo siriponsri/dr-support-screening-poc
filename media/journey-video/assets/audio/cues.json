@@ -3,61 +3,61 @@
   {
    "id": "intro",
    "start": 0.0,
-   "duration": 13.246,
+   "duration": 14.98,
    "card": "title"
   },
   {
    "id": "signin",
-   "start": 13.246,
-   "duration": 20.45,
+   "start": 14.98,
+   "duration": 24.372,
    "card": null
   },
   {
    "id": "worklist",
-   "start": 33.696,
-   "duration": 10.196,
+   "start": 39.352,
+   "duration": 11.335,
    "card": null
   },
   {
    "id": "confirm",
-   "start": 43.892,
-   "duration": 25.914,
+   "start": 50.687,
+   "duration": 26.83,
    "card": null
   },
   {
    "id": "ai",
-   "start": 69.806,
-   "duration": 12.261,
+   "start": 77.517,
+   "duration": 14.039,
    "card": null
   },
   {
    "id": "grade",
-   "start": 82.067,
-   "duration": 12.901,
+   "start": 91.556,
+   "duration": 14.404,
    "card": null
   },
   {
    "id": "annotate",
-   "start": 94.968,
-   "duration": 13.232,
+   "start": 105.96,
+   "duration": 14.256,
    "card": null
   },
   {
    "id": "report",
-   "start": 108.2,
-   "duration": 16.629,
+   "start": 120.216,
+   "duration": 19.88,
    "card": null
   },
   {
    "id": "datasets",
-   "start": 124.829,
-   "duration": 10.653,
+   "start": 140.096,
+   "duration": 12.029,
    "card": null
   },
   {
    "id": "outro",
-   "start": 135.482,
-   "duration": 14.974,
+   "start": 152.125,
+   "duration": 16.812,
    "card": "end"
   }
  ],
@@ -65,100 +65,100 @@
   {
    "file": "intro.wav",
    "start": 1.0,
-   "duration": 11.696
+   "duration": 13.23
   },
   {
    "file": "signin.wav",
-   "start": 13.596,
-   "duration": 19.55
+   "start": 15.43,
+   "duration": 23.172
   },
   {
    "file": "worklist.wav",
-   "start": 34.046,
-   "duration": 9.296
+   "start": 39.802,
+   "duration": 10.135
   },
   {
    "file": "confirm.wav",
-   "start": 44.242,
-   "duration": 25.014
+   "start": 51.137,
+   "duration": 25.63
   },
   {
    "file": "ai.wav",
-   "start": 70.156,
-   "duration": 11.361
+   "start": 77.967,
+   "duration": 12.839
   },
   {
    "file": "grade.wav",
-   "start": 82.417,
-   "duration": 12.001
+   "start": 92.006,
+   "duration": 13.204
   },
   {
    "file": "annotate.wav",
-   "start": 95.318,
-   "duration": 12.332
+   "start": 106.41,
+   "duration": 13.056
   },
   {
    "file": "report.wav",
-   "start": 108.55,
-   "duration": 15.729
+   "start": 120.666,
+   "duration": 18.68
   },
   {
    "file": "datasets.wav",
-   "start": 125.179,
-   "duration": 9.753
+   "start": 140.546,
+   "duration": 10.829
   },
   {
    "file": "outro.wav",
-   "start": 135.832,
-   "duration": 12.424
+   "start": 152.575,
+   "duration": 14.162
   }
  ],
  "cuts": [
-  13.246,
-  33.696,
-  43.892,
-  69.806,
-  82.067,
-  94.968,
-  108.2,
-  124.829,
-  135.482
+  14.98,
+  39.352,
+  50.687,
+  77.517,
+  91.556,
+  105.96,
+  120.216,
+  140.096,
+  152.125
  ],
  "click": [
-  16.26,
-  21.548,
-  24.583,
-  38.281,
-  45.089,
-  47.648,
-  64.09,
-  66.005,
-  67.919,
-  75.389,
-  87.23,
-  91.146,
-  92.879,
-  100.889,
-  104.721,
-  115.945,
-  118.012,
-  121.377,
-  129.504,
-  130.476
+  18.211,
+  24.021,
+  27.897,
+  44.445,
+  52.044,
+  54.626,
+  71.465,
+  73.429,
+  75.394,
+  83.877,
+  96.992,
+  101.726,
+  103.571,
+  112.423,
+  116.324,
+  129.779,
+  131.933,
+  135.848,
+  145.58,
+  146.497
  ],
  "pop": [
-  28.16,
-  31.312,
-  51.083,
-  55.042,
-  72.376,
-  84.742,
-  98.63,
-  112.877,
-  132.651
+  32.66,
+  36.408,
+  57.256,
+  60.868,
+  80.421,
+  94.306,
+  109.941,
+  126.185,
+  148.817
  ],
  "whoosh_soft": [
-  50.783
+  56.956
  ],
- "total": 150.456
+ "total": 168.937
 }

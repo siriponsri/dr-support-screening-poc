@@ -45,12 +45,12 @@
     .kind span { display: block; margin-top: 6px; font-size: 30px; line-height: 1.4; color: #C9D6CD; }
   </style>
   <div id="root" data-composition-id="sc-worklist" data-width="1920" data-height="1080">
-    <div id="worklist-h0" class="head clip" data-start="0.0" data-duration="10.196" data-track-index="5"><span id="worklist-h0-n" class="step">STEP 03</span><span id="worklist-h0-t" class="lab">Worklist</span></div>
-    <div id="worklist-demo" class="demo clip" data-start="0" data-duration="10.196" data-track-index="6"><i></i><span id="worklist-demo-t">ข้อมูลตัวอย่าง</span></div>
+    <div id="worklist-h0" class="head clip" data-start="0.0" data-duration="11.335" data-track-index="5"><span id="worklist-h0-n" class="step">STEP 03</span><span id="worklist-h0-t" class="lab">Worklist</span></div>
+    <div id="worklist-demo" class="demo clip" data-start="0" data-duration="11.335" data-track-index="6"><i></i><span id="worklist-demo-t">ข้อมูลตัวอย่าง</span></div>
     <div id="worklist-stage" class="stage">
       <div id="worklist-win" class="win">
         <div class="screen">
-        <div id="worklist-s0" class="shot clip" data-start="0.0" data-duration="7.103" data-track-index="1" style="z-index: 1;">
+        <div id="worklist-s0" class="shot clip" data-start="0.0" data-duration="8.014" data-track-index="1" style="z-index: 1;">
           <div id="worklist-s0-fade" class="fade">
             <div id="worklist-s0-cam" class="cam">
               <img id="worklist-s0-img" src="assets/screens/s03a.png" alt="" />
@@ -59,7 +59,7 @@
             </div>
           </div>
         </div>
-        <div id="worklist-s1" class="shot clip" data-start="6.603" data-duration="3.593" data-track-index="2" style="z-index: 2;">
+        <div id="worklist-s1" class="shot clip" data-start="7.514" data-duration="3.821" data-track-index="2" style="z-index: 2;">
           <div id="worklist-s1-fade" class="fade">
             <div id="worklist-s1-cam" class="cam">
               <img id="worklist-s1-img" src="assets/screens/s03b.png" alt="" />
@@ -73,18 +73,18 @@
   <script>
     const tl = gsap.timeline({ paused: true });
     tl.fromTo("#worklist-win", { rotationY: 9, x: 90, scale: 0.95, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
-    tl.fromTo("#worklist-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 4.675);
-    tl.fromTo("#worklist-s0-c", { x: 1698.007, y: 306.611, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 3.655);
-    tl.fromTo("#worklist-s0-c", { x: 1698.007, y: 306.611 }, { x: 1565.5, y: 202.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 3.955);
-    tl.to("#worklist-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 4.555);
+    tl.fromTo("#worklist-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 5.183);
+    tl.fromTo("#worklist-s0-c", { x: 1698.007, y: 306.611, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 4.163);
+    tl.fromTo("#worklist-s0-c", { x: 1698.007, y: 306.611 }, { x: 1565.5, y: 202.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 4.463);
+    tl.to("#worklist-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 5.063);
     tl.fromTo("#worklist-s0-cam", {"x": -255.7, "y": -24.07, "scale": 1.1415}, { ...{"x": -990.97, "y": -93.29, "scale": 1.5484}, duration: 1.1, ease: "power3.inOut" }, 0.3);
-    tl.fromTo("#worklist-s1-cam", {"x": -990.97, "y": -93.29, "scale": 1.5484}, { ...{"x": -480.0, "y": -200.0, "scale": 1.3333}, duration: 1.1, ease: "power3.inOut" }, 6.753);
-    tl.fromTo("#worklist-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 6.603);
+    tl.fromTo("#worklist-s1-cam", {"x": -990.97, "y": -93.29, "scale": 1.5484}, { ...{"x": -480.0, "y": -200.0, "scale": 1.3333}, duration: 1.1, ease: "power3.inOut" }, 7.664);
+    tl.fromTo("#worklist-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 7.514);
     tl.fromTo(["#worklist-h0-n", "#worklist-h0-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 0.15);
-    tl.to(["#worklist-h0-n", "#worklist-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 9.796);
+    tl.to(["#worklist-h0-n", "#worklist-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 10.935);
     tl.fromTo("#worklist-demo-t", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
-    tl.to("#worklist-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 9.796);
-    tl.to("#worklist-demo-t", { opacity: 0, duration: 0.2 }, 9.796);
+    tl.to("#worklist-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 10.935);
+    tl.to("#worklist-demo-t", { opacity: 0, duration: 0.2 }, 10.935);
     window.__timelines["sc-worklist"] = tl;
   </script>
 </template>

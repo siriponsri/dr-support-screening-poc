@@ -45,20 +45,20 @@
     .kind span { display: block; margin-top: 6px; font-size: 30px; line-height: 1.4; color: #C9D6CD; }
   </style>
   <div id="root" data-composition-id="sc-annotate" data-width="1920" data-height="1080">
-    <div id="annotate-h0" class="head clip" data-start="0.0" data-duration="9.32" data-track-index="5"><span id="annotate-h0-n" class="step">STEP 07</span><span id="annotate-h0-t" class="lab">Annotation Editor</span></div>
-    <div id="annotate-h1" class="head clip" data-start="9.32" data-duration="3.912" data-track-index="5"><span id="annotate-h1-n" class="step">STEP 07</span><span id="annotate-h1-t" class="lab">Finish image</span></div>
-    <div id="annotate-demo" class="demo clip" data-start="0" data-duration="13.232" data-track-index="6"><i></i><span id="annotate-demo-t">ข้อมูลตัวอย่าง</span></div>
+    <div id="annotate-h0" class="head clip" data-start="0.0" data-duration="9.901" data-track-index="5"><span id="annotate-h0-n" class="step">STEP 07</span><span id="annotate-h0-t" class="lab">Annotation Editor</span></div>
+    <div id="annotate-h1" class="head clip" data-start="9.901" data-duration="4.355" data-track-index="5"><span id="annotate-h1-n" class="step">STEP 07</span><span id="annotate-h1-t" class="lab">Finish image</span></div>
+    <div id="annotate-demo" class="demo clip" data-start="0" data-duration="14.256" data-track-index="6"><i></i><span id="annotate-demo-t">ข้อมูลตัวอย่าง</span></div>
     <div id="annotate-stage" class="stage">
       <div id="annotate-win" class="win">
         <div class="screen">
-        <div id="annotate-s0" class="shot clip" data-start="0.0" data-duration="2.96" data-track-index="1" style="z-index: 1;">
+        <div id="annotate-s0" class="shot clip" data-start="0.0" data-duration="3.2" data-track-index="1" style="z-index: 1;">
           <div id="annotate-s0-fade" class="fade">
             <div id="annotate-s0-cam" class="cam">
               <img id="annotate-s0-img" src="assets/screens/s07a.png" alt="" />
             </div>
           </div>
         </div>
-        <div id="annotate-s1" class="shot clip" data-start="2.46" data-duration="3.379" data-track-index="2" style="z-index: 2;">
+        <div id="annotate-s1" class="shot clip" data-start="2.7" data-duration="3.701" data-track-index="2" style="z-index: 2;">
           <div id="annotate-s1-fade" class="fade">
             <div id="annotate-s1-cam" class="cam">
               <img id="annotate-s1-img" src="assets/screens/s07b.png" alt="" />
@@ -66,7 +66,7 @@
             </div>
           </div>
         </div>
-        <div id="annotate-s2" class="shot clip" data-start="5.339" data-duration="4.481" data-track-index="1" style="z-index: 3;">
+        <div id="annotate-s2" class="shot clip" data-start="5.901" data-duration="4.5" data-track-index="1" style="z-index: 3;">
           <div id="annotate-s2-fade" class="fade">
             <div id="annotate-s2-cam" class="cam">
               <img id="annotate-s2-img" src="assets/screens/s07b.png" alt="" />
@@ -75,7 +75,7 @@
             </div>
           </div>
         </div>
-        <div id="annotate-s3" class="shot clip" data-start="9.32" data-duration="2.584" data-track-index="2" style="z-index: 4;">
+        <div id="annotate-s3" class="shot clip" data-start="9.901" data-duration="2.735" data-track-index="2" style="z-index: 4;">
           <div id="annotate-s3-fade" class="fade">
             <div id="annotate-s3-cam" class="cam">
               <img id="annotate-s3-img" src="assets/screens/s07b.png" alt="" />
@@ -84,7 +84,7 @@
             </div>
           </div>
         </div>
-        <div id="annotate-s4" class="shot clip" data-start="11.404" data-duration="1.828" data-track-index="1" style="z-index: 5;">
+        <div id="annotate-s4" class="shot clip" data-start="12.136" data-duration="2.12" data-track-index="1" style="z-index: 5;">
           <div id="annotate-s4-fade" class="fade">
             <div id="annotate-s4-cam" class="cam">
               <img id="annotate-s4-img" src="assets/screens/s07c.png" alt="" />
@@ -99,30 +99,30 @@
     const tl = gsap.timeline({ paused: true });
     tl.fromTo("#annotate-win", { rotationY: 9, x: 90, scale: 0.95, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
     tl.fromTo("#annotate-s0-cam", {"x": -31.57, "y": -102.55, "scale": 1.1274}, { ...{"x": -118.15, "y": -383.82, "scale": 1.4769}, duration: 1.1, ease: "power3.inOut" }, 0.3);
-    tl.fromTo("#annotate-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 3.632);
-    tl.fromTo("#annotate-s1-cam", {"x": -118.15, "y": -383.82, "scale": 1.4769}, { ...{"x": -981.33, "y": -1109.07, "scale": 2.1333}, duration: 1.1, ease: "power3.inOut" }, 2.61);
-    tl.fromTo("#annotate-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 2.46);
-    tl.fromTo("#annotate-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 6.011);
-    tl.fromTo("#annotate-s2-c", { x: 913.862, y: 475.364, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 5.339);
-    tl.fromTo("#annotate-s2-c", { x: 913.862, y: 475.364 }, { x: 807.0, y: 391.0, duration: 0.502, ease: "power3.inOut", immediateRender: false }, 5.389);
-    tl.to("#annotate-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 5.891);
-    tl.fromTo("#annotate-s2-cam", {"x": -981.33, "y": -1109.07, "scale": 2.1333}, { ...{"x": -576.0, "y": -441.12, "scale": 1.92}, duration: 1.1, ease: "power3.inOut" }, 5.489);
-    tl.fromTo("#annotate-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 5.339);
-    tl.fromTo("#annotate-s3-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 9.843);
-    tl.fromTo("#annotate-s3-c", { x: 1832.448, y: 601.301, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 9.32);
-    tl.fromTo("#annotate-s3-c", { x: 1832.448, y: 601.301 }, { x: 1732.0, y: 522.0, duration: 0.353, ease: "power3.inOut", immediateRender: false }, 9.37);
-    tl.to("#annotate-s3-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 9.723);
-    tl.fromTo("#annotate-s3-cam", {"x": -576.0, "y": -441.12, "scale": 1.92}, { ...{"x": -2001.7, "y": -470.04, "scale": 2.0426}, duration: 1.042, ease: "power3.inOut" }, 9.47);
-    tl.fromTo("#annotate-s3-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 9.32);
-    tl.fromTo("#annotate-s4-cam", {"x": -2001.7, "y": -470.04, "scale": 2.0426}, { ...{"x": -436.36, "y": -116.73, "scale": 1.4545}, duration: 0.664, ease: "power3.inOut" }, 11.554);
-    tl.fromTo("#annotate-s4-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 11.404);
+    tl.fromTo("#annotate-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 3.951);
+    tl.fromTo("#annotate-s1-cam", {"x": -118.15, "y": -383.82, "scale": 1.4769}, { ...{"x": -981.33, "y": -1109.07, "scale": 2.1333}, duration: 1.1, ease: "power3.inOut" }, 2.85);
+    tl.fromTo("#annotate-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 2.7);
+    tl.fromTo("#annotate-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 6.553);
+    tl.fromTo("#annotate-s2-c", { x: 913.862, y: 475.364, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 5.901);
+    tl.fromTo("#annotate-s2-c", { x: 913.862, y: 475.364 }, { x: 807.0, y: 391.0, duration: 0.482, ease: "power3.inOut", immediateRender: false }, 5.951);
+    tl.to("#annotate-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 6.433);
+    tl.fromTo("#annotate-s2-cam", {"x": -981.33, "y": -1109.07, "scale": 2.1333}, { ...{"x": -576.0, "y": -441.12, "scale": 1.92}, duration: 1.1, ease: "power3.inOut" }, 6.051);
+    tl.fromTo("#annotate-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 5.901);
+    tl.fromTo("#annotate-s3-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 10.454);
+    tl.fromTo("#annotate-s3-c", { x: 1832.448, y: 601.301, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 9.901);
+    tl.fromTo("#annotate-s3-c", { x: 1832.448, y: 601.301 }, { x: 1732.0, y: 522.0, duration: 0.383, ease: "power3.inOut", immediateRender: false }, 9.951);
+    tl.to("#annotate-s3-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 10.334);
+    tl.fromTo("#annotate-s3-cam", {"x": -576.0, "y": -441.12, "scale": 1.92}, { ...{"x": -2001.7, "y": -470.04, "scale": 2.0426}, duration: 1.1, ease: "power3.inOut" }, 10.051);
+    tl.fromTo("#annotate-s3-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 9.901);
+    tl.fromTo("#annotate-s4-cam", {"x": -2001.7, "y": -470.04, "scale": 2.0426}, { ...{"x": -436.36, "y": -116.73, "scale": 1.4545}, duration: 0.81, ease: "power3.inOut" }, 12.286);
+    tl.fromTo("#annotate-s4-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 12.136);
     tl.fromTo(["#annotate-h0-n", "#annotate-h0-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 0.15);
-    tl.to(["#annotate-h0-n", "#annotate-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 9.12);
-    tl.fromTo(["#annotate-h1-n", "#annotate-h1-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 9.32);
-    tl.to(["#annotate-h1-n", "#annotate-h1-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 12.832);
+    tl.to(["#annotate-h0-n", "#annotate-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 9.701);
+    tl.fromTo(["#annotate-h1-n", "#annotate-h1-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 9.901);
+    tl.to(["#annotate-h1-n", "#annotate-h1-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 13.856);
     tl.fromTo("#annotate-demo-t", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
-    tl.to("#annotate-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 12.832);
-    tl.to("#annotate-demo-t", { opacity: 0, duration: 0.2 }, 12.832);
+    tl.to("#annotate-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 13.856);
+    tl.to("#annotate-demo-t", { opacity: 0, duration: 0.2 }, 13.856);
     window.__timelines["sc-annotate"] = tl;
   </script>
 </template>

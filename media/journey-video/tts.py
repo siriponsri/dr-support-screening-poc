@@ -4,8 +4,8 @@
 
 One request per scene speaks all its caption lines (one line per row of the
 transcript). The reply is cut at the pauses that best match the caption lines,
-each line is sped up (--tempo, default 1.2) and the lines are joined again with a short
-pause (--pause, default 0.3 s) into assets/audio/<scene>.wav (48 kHz); the exact start and end of every line go to
+each line is sped up a little (--tempo, default 1.08), its ends are faded softly and the lines
+are joined again with a breathing pause (--pause, default 0.45 s) into assets/audio/<scene>.wav (48 kHz); the exact start and end of every line go to
 assets/audio/timing.json, which the composition and the WebVTT file use. (If
 assets/audio/lines/<scene>_<n>.wav exists for every line, those per-line takes
 are used instead; the intro was made that way.) The free API tier allows only
@@ -35,6 +35,7 @@ HERE = Path(__file__).resolve().parent
 ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 RATE = 24000         # what Gemini returns
 OUT_RATE = 48000     # what the composition and soundtrack.py use
+SOFT_ENDS = "afade=t=in:d=0.012,areverse,afade=t=in:d=0.09,areverse"  # 12 ms fade in, 90 ms fade out: no clipped line ends
 EDGE = 0.06          # silence kept before and after each spoken line
 THRESHOLD = 330      # about -40 dBFS on 16-bit samples
 NEWLINE = chr(10)    # one caption line per transcript row
@@ -156,9 +157,9 @@ def split_lines(data: array.array, lines: list[str]) -> list[array.array]:
 
 
 def speed(piece: array.array, tempo: float) -> array.array:
-    """Speed one line up with ffmpeg atempo (pitch kept) and resample it to OUT_RATE."""
+    """Speed one line up with ffmpeg atempo (pitch kept), soften its ends and resample it to OUT_RATE."""
     command = ["ffmpeg", "-v", "error", "-f", "s16le", "-ar", str(RATE), "-ac", "1", "-i", "-",
-               "-af", f"atempo={tempo}", "-ar", str(OUT_RATE), "-f", "s16le", "-"]
+               "-af", f"atempo={tempo},{SOFT_ENDS}", "-ar", str(OUT_RATE), "-f", "s16le", "-"]
     out = array.array("h")
     out.frombytes(subprocess.run(command, input=piece.tobytes(), capture_output=True, check=True).stdout)
     return out
@@ -169,8 +170,8 @@ def main() -> int:
     parser.add_argument("--env", type=Path, default=HERE.parents[1] / ".env")
     parser.add_argument("--only", default="")
     parser.add_argument("--force", action="store_true")
-    parser.add_argument("--tempo", type=float, default=1.2, help="speed-up of each line, pitch kept (1.2: the 2026-11 pace)")
-    parser.add_argument("--pause", type=float, default=0.3, help="seconds of silence between lines of one scene")
+    parser.add_argument("--tempo", type=float, default=1.08, help="speed-up of each line, pitch kept")
+    parser.add_argument("--pause", type=float, default=0.45, help="seconds of silence between lines of one scene")
     args = parser.parse_args()
     config = json.loads((HERE / "scenes.json").read_text(encoding="utf-8"))
     out = HERE / "assets" / "audio"
@@ -188,12 +189,21 @@ def main() -> int:
         if all(path.exists() for path in line_files) and not args.force:
             pieces = [trim(read_wav(path.read_bytes())) for path in line_files]
         else:
+            spans = scene.get("take_spans")
             if args.force or not whole.exists():
                 key = key or read_key(args.env)
                 whole.write_bytes(speak(key, config["model"], config["voice"],
                                         prompt(config["style_prefix"], NEWLINE.join(scene["captions"]))))
                 print(f"{scene['id']}: spoken", flush=True)
-            pieces = split_lines(read_wav(whole.read_bytes()), scene["captions"])
+                if spans:
+                    print(f"  {scene['id']}: new take, so its take_spans in scenes.json no longer apply; "
+                          "check the cut and remove or redo them", flush=True)
+                    spans = None
+            take = read_wav(whole.read_bytes())
+            if spans:   # hand-checked line spans of this take (seconds), e.g. to skip spoken director's notes
+                pieces = [trim(take[int(a * RATE):int(b * RATE)]) for a, b in spans]
+            else:
+                pieces = split_lines(take, scene["captions"])
         pieces = [speed(piece, args.tempo) for piece in pieces]
         joined, lines, cursor = array.array("h"), [], 0
         gap = array.array("h", bytes(int(args.pause * OUT_RATE) * 2))

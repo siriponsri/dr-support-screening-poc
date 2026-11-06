@@ -45,12 +45,12 @@
     .kind span { display: block; margin-top: 6px; font-size: 30px; line-height: 1.4; color: #C9D6CD; }
   </style>
   <div id="root" data-composition-id="sc-confirm" data-width="1920" data-height="1080">
-    <div id="confirm-h0" class="head clip" data-start="0.0" data-duration="25.914" data-track-index="5"><span id="confirm-h0-n" class="step">STEP 04</span><span id="confirm-h0-t" class="lab">Confirm Image</span></div>
-    <div id="confirm-demo" class="demo clip" data-start="0" data-duration="25.914" data-track-index="6"><i></i><span id="confirm-demo-t">ข้อมูลตัวอย่าง</span></div>
+    <div id="confirm-h0" class="head clip" data-start="0.0" data-duration="26.83" data-track-index="5"><span id="confirm-h0-n" class="step">STEP 04</span><span id="confirm-h0-t" class="lab">Confirm Image</span></div>
+    <div id="confirm-demo" class="demo clip" data-start="0" data-duration="26.83" data-track-index="6"><i></i><span id="confirm-demo-t">ข้อมูลตัวอย่าง</span></div>
     <div id="confirm-stage" class="stage">
       <div id="confirm-win" class="win">
         <div class="screen">
-        <div id="confirm-s0" class="shot clip" data-start="0.0" data-duration="3.485" data-track-index="1" style="z-index: 1;">
+        <div id="confirm-s0" class="shot clip" data-start="0.0" data-duration="3.907" data-track-index="1" style="z-index: 1;">
           <div id="confirm-s0-fade" class="fade">
             <div id="confirm-s0-cam" class="cam">
               <img id="confirm-s0-img" src="assets/screens/s03b.png" alt="" />
@@ -59,7 +59,7 @@
             </div>
           </div>
         </div>
-        <div id="confirm-s1" class="shot clip" data-start="2.985" data-duration="17.41" data-track-index="2" style="z-index: 2;">
+        <div id="confirm-s1" class="shot clip" data-start="3.407" data-duration="17.56" data-track-index="2" style="z-index: 2;">
           <div id="confirm-s1-fade" class="fade">
             <div id="confirm-s1-cam" class="cam">
               <img id="confirm-s1-img" src="assets/screens/s04a.png" alt="" />
@@ -68,7 +68,7 @@
             </div>
           </div>
         </div>
-        <div id="confirm-s2" class="shot clip" data-start="19.895" data-duration="6.019" data-track-index="1" style="z-index: 3;">
+        <div id="confirm-s2" class="shot clip" data-start="20.467" data-duration="6.363" data-track-index="1" style="z-index: 3;">
           <div id="confirm-s2-fade" class="fade">
             <div id="confirm-s2-cam" class="cam">
               <img id="confirm-s2-img" src="assets/screens/s04b.png" alt="" />
@@ -88,46 +88,46 @@
   <script>
     const tl = gsap.timeline({ paused: true });
     tl.fromTo("#confirm-win", { rotationX: -7, y: -40, scale: 0.95, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
-    tl.fromTo("#confirm-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 1.287);
-    tl.fromTo("#confirm-s0-c", { x: 1731.311, y: 801.614, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 0.267);
-    tl.fromTo("#confirm-s0-c", { x: 1731.311, y: 801.614 }, { x: 1633.0, y: 724.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 0.567);
-    tl.to("#confirm-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 1.167);
+    tl.fromTo("#confirm-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 1.447);
+    tl.fromTo("#confirm-s0-c", { x: 1731.311, y: 801.614, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 0.427);
+    tl.fromTo("#confirm-s0-c", { x: 1731.311, y: 801.614 }, { x: 1633.0, y: 724.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 0.727);
+    tl.to("#confirm-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 1.327);
     tl.fromTo("#confirm-s0-cam", {"x": -419.46, "y": -184.16, "scale": 1.2229}, { ...{"x": -2045.22, "y": -897.91, "scale": 2.087}, duration: 1.1, ease: "power3.inOut" }, 0.3);
-    tl.fromTo("#confirm-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 3.846);
-    tl.fromTo("#confirm-s1-c", { x: 1289.087, y: 490.99, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 2.985);
-    tl.fromTo("#confirm-s1-c", { x: 1289.087, y: 490.99 }, { x: 1186.5, y: 410.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 3.126);
-    tl.to("#confirm-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 3.726);
-    tl.fromTo("#confirm-s1-cam", {"x": -2045.22, "y": -897.91, "scale": 2.087}, { ...{"x": -1000.0, "y": -280.0, "scale": 2.0}, duration: 1.1, ease: "power3.inOut" }, 3.135);
-    tl.fromTo("#confirm-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 2.985);
-    tl.fromTo("#confirm-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 20.288);
-    tl.fromTo("#confirm-s2-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 22.203);
-    tl.fromTo("#confirm-s2-r2", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 24.117);
-    tl.fromTo("#confirm-s2-c", { x: 1282.677, y: 485.929, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 19.895);
-    tl.fromTo("#confirm-s2-c", { x: 1282.677, y: 485.929 }, { x: 1186.5, y: 410.0, duration: 0.25, ease: "power3.inOut", immediateRender: false }, 19.918);
-    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 20.168);
-    tl.fromTo("#confirm-s2-c", { x: 1186.5, y: 410.0 }, { x: 1186.5, y: 599.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 21.483);
-    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 22.083);
-    tl.fromTo("#confirm-s2-c", { x: 1186.5, y: 599.0 }, { x: 1308.0, y: 845.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 23.397);
-    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 23.997);
-    tl.fromTo("#confirm-s2-cam", {"x": -1000.0, "y": -280.0, "scale": 2.0}, { ...{"x": -1578.67, "y": -810.4, "scale": 2.1333}, duration: 1.1, ease: "power3.inOut" }, 20.045);
-    tl.fromTo("#confirm-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 19.895);
+    tl.fromTo("#confirm-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 4.029);
+    tl.fromTo("#confirm-s1-c", { x: 1289.087, y: 490.99, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 3.407);
+    tl.fromTo("#confirm-s1-c", { x: 1289.087, y: 490.99 }, { x: 1186.5, y: 410.0, duration: 0.452, ease: "power3.inOut", immediateRender: false }, 3.457);
+    tl.to("#confirm-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 3.909);
+    tl.fromTo("#confirm-s1-cam", {"x": -2045.22, "y": -897.91, "scale": 2.087}, { ...{"x": -1000.0, "y": -280.0, "scale": 2.0}, duration: 1.1, ease: "power3.inOut" }, 3.557);
+    tl.fromTo("#confirm-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 3.407);
+    tl.fromTo("#confirm-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 20.868);
+    tl.fromTo("#confirm-s2-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 22.832);
+    tl.fromTo("#confirm-s2-r2", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 24.797);
+    tl.fromTo("#confirm-s2-c", { x: 1282.677, y: 485.929, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 20.467);
+    tl.fromTo("#confirm-s2-c", { x: 1282.677, y: 485.929 }, { x: 1186.5, y: 410.0, duration: 0.25, ease: "power3.inOut", immediateRender: false }, 20.498);
+    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 20.748);
+    tl.fromTo("#confirm-s2-c", { x: 1186.5, y: 410.0 }, { x: 1186.5, y: 599.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 22.112);
+    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 22.712);
+    tl.fromTo("#confirm-s2-c", { x: 1186.5, y: 599.0 }, { x: 1308.0, y: 845.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 24.077);
+    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 24.677);
+    tl.fromTo("#confirm-s2-cam", {"x": -1000.0, "y": -280.0, "scale": 2.0}, { ...{"x": -1578.67, "y": -810.4, "scale": 2.1333}, duration: 1.1, ease: "power3.inOut" }, 20.617);
+    tl.fromTo("#confirm-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 20.467);
     tl.fromTo(["#confirm-h0-n", "#confirm-h0-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 0.15);
-    tl.to(["#confirm-h0-n", "#confirm-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 25.514);
+    tl.to(["#confirm-h0-n", "#confirm-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 26.43);
     tl.fromTo("#confirm-demo-t", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
-    tl.to("#confirm-veil", { opacity: 1, duration: 0.35, ease: "power2.out" }, 6.891);
-    tl.fromTo(["#confirm-cfp", "#confirm-uwf"], { opacity: 0, y: 30, filter: "blur(10px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out", stagger: 0.1 }, 6.891);
-    tl.to("#confirm-cfp", { borderColor: "#34D873", scale: 1.03, duration: 0.3, ease: "power2.out" }, 7.191);
-    tl.to("#confirm-uwf-s", { opacity: 1, duration: 0.3 }, 7.191);
-    tl.to("#confirm-cfp", { borderColor: "rgba(0, 0, 0, 0)", scale: 1, duration: 0.3 }, 11.15);
-    tl.to("#confirm-cfp-s", { opacity: 1, duration: 0.3 }, 11.15);
-    tl.to("#confirm-uwf-s", { opacity: 0, duration: 0.3 }, 11.15);
-    tl.to("#confirm-uwf", { borderColor: "#34D873", scale: 1.03, duration: 0.3, ease: "power2.out" }, 11.15);
-    tl.to(["#confirm-cfp", "#confirm-uwf"], { borderColor: "rgba(0, 0, 0, 0)", scale: 1, duration: 0.3 }, 14.345);
-    tl.to(["#confirm-cfp-s", "#confirm-uwf-s"], { opacity: 0, duration: 0.3 }, 14.345);
-    tl.to(["#confirm-cfp", "#confirm-uwf"], { opacity: 0, y: -20, filter: "blur(8px)", duration: 0.3, ease: "power2.in" }, 19.695);
-    tl.to("#confirm-veil", { opacity: 0, duration: 0.3 }, 19.795);
-    tl.to("#confirm-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 25.514);
-    tl.to("#confirm-demo-t", { opacity: 0, duration: 0.2 }, 25.514);
+    tl.to("#confirm-veil", { opacity: 1, duration: 0.35, ease: "power2.out" }, 6.269);
+    tl.fromTo(["#confirm-cfp", "#confirm-uwf"], { opacity: 0, y: 30, filter: "blur(10px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out", stagger: 0.1 }, 6.269);
+    tl.to("#confirm-cfp", { borderColor: "#34D873", scale: 1.03, duration: 0.3, ease: "power2.out" }, 6.569);
+    tl.to("#confirm-uwf-s", { opacity: 1, duration: 0.3 }, 6.569);
+    tl.to("#confirm-cfp", { borderColor: "rgba(0, 0, 0, 0)", scale: 1, duration: 0.3 }, 10.181);
+    tl.to("#confirm-cfp-s", { opacity: 1, duration: 0.3 }, 10.181);
+    tl.to("#confirm-uwf-s", { opacity: 0, duration: 0.3 }, 10.181);
+    tl.to("#confirm-uwf", { borderColor: "#34D873", scale: 1.03, duration: 0.3, ease: "power2.out" }, 10.181);
+    tl.to(["#confirm-cfp", "#confirm-uwf"], { borderColor: "rgba(0, 0, 0, 0)", scale: 1, duration: 0.3 }, 15.088);
+    tl.to(["#confirm-cfp-s", "#confirm-uwf-s"], { opacity: 0, duration: 0.3 }, 15.088);
+    tl.to(["#confirm-cfp", "#confirm-uwf"], { opacity: 0, y: -20, filter: "blur(8px)", duration: 0.3, ease: "power2.in" }, 20.267);
+    tl.to("#confirm-veil", { opacity: 0, duration: 0.3 }, 20.367);
+    tl.to("#confirm-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 26.43);
+    tl.to("#confirm-demo-t", { opacity: 0, duration: 0.2 }, 26.43);
     window.__timelines["sc-confirm"] = tl;
   </script>
 </template>
