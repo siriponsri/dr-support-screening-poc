@@ -4,8 +4,8 @@
 
 One request per scene speaks all its caption lines (one line per row of the
 transcript). The reply is cut at the pauses that best match the caption lines,
-and the lines are joined again with a fixed breathing pause into
-assets/audio/<scene>.wav; the exact start and end of every line go to
+each line is sped up (--tempo, default 1.2) and the lines are joined again with a short
+pause (--pause, default 0.3 s) into assets/audio/<scene>.wav (48 kHz); the exact start and end of every line go to
 assets/audio/timing.json, which the composition and the WebVTT file use. (If
 assets/audio/lines/<scene>_<n>.wav exists for every line, those per-line takes
 are used instead; the intro was made that way.) The free API tier allows only
@@ -25,6 +25,7 @@ import base64
 import io
 import json
 from pathlib import Path
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -32,8 +33,8 @@ import wave
 
 HERE = Path(__file__).resolve().parent
 ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-RATE = 24000
-PAUSE = 0.7          # seconds of silence between lines of one scene
+RATE = 24000         # what Gemini returns
+OUT_RATE = 48000     # what the composition and soundtrack.py use
 EDGE = 0.06          # silence kept before and after each spoken line
 THRESHOLD = 330      # about -40 dBFS on 16-bit samples
 NEWLINE = chr(10)    # one caption line per transcript row
@@ -154,11 +155,22 @@ def split_lines(data: array.array, lines: list[str]) -> list[array.array]:
     return [trim(data[cuts[k]:cuts[k + 1]]) for k in range(len(lines))]
 
 
+def speed(piece: array.array, tempo: float) -> array.array:
+    """Speed one line up with ffmpeg atempo (pitch kept) and resample it to OUT_RATE."""
+    command = ["ffmpeg", "-v", "error", "-f", "s16le", "-ar", str(RATE), "-ac", "1", "-i", "-",
+               "-af", f"atempo={tempo}", "-ar", str(OUT_RATE), "-f", "s16le", "-"]
+    out = array.array("h")
+    out.frombytes(subprocess.run(command, input=piece.tobytes(), capture_output=True, check=True).stdout)
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--env", type=Path, default=HERE.parents[1] / ".env")
     parser.add_argument("--only", default="")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--tempo", type=float, default=1.2, help="speed-up of each line, pitch kept (1.2: the 2026-11 pace)")
+    parser.add_argument("--pause", type=float, default=0.3, help="seconds of silence between lines of one scene")
     args = parser.parse_args()
     config = json.loads((HERE / "scenes.json").read_text(encoding="utf-8"))
     out = HERE / "assets" / "audio"
@@ -182,22 +194,23 @@ def main() -> int:
                                         prompt(config["style_prefix"], NEWLINE.join(scene["captions"]))))
                 print(f"{scene['id']}: spoken", flush=True)
             pieces = split_lines(read_wav(whole.read_bytes()), scene["captions"])
+        pieces = [speed(piece, args.tempo) for piece in pieces]
         joined, lines, cursor = array.array("h"), [], 0
-        gap = array.array("h", bytes(int(PAUSE * RATE) * 2))
+        gap = array.array("h", bytes(int(args.pause * OUT_RATE) * 2))
         for index, piece in enumerate(pieces):
             if index:
                 joined.extend(gap)
                 cursor += len(gap)
-            lines.append({"start": round(cursor / RATE, 3), "end": round((cursor + len(piece)) / RATE, 3)})
+            lines.append({"start": round(cursor / OUT_RATE, 3), "end": round((cursor + len(piece)) / OUT_RATE, 3)})
             joined.extend(piece)
             cursor += len(piece)
         with wave.open(str(out / f"{scene['id']}.wav"), "wb") as target:
             target.setnchannels(1)
             target.setsampwidth(2)
-            target.setframerate(RATE)
+            target.setframerate(OUT_RATE)
             target.writeframes(joined.tobytes())
-        timing[scene["id"]] = {"duration": round(cursor / RATE, 3), "lines": lines}
-        print(f"{scene['id']}: {cursor / RATE:.2f} s", flush=True)
+        timing[scene["id"]] = {"duration": round(cursor / OUT_RATE, 3), "lines": lines}
+        print(f"{scene['id']}: {cursor / OUT_RATE:.2f} s", flush=True)
     timing_file.write_text(json.dumps(timing, indent=1), encoding="utf-8")
     return 0
 

@@ -9,3 +9,4 @@ out/
 .hyperframes/
 node_modules/
 assets/fonts/
+assets/screens/*.jpg

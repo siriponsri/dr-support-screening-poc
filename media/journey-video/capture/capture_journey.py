@@ -245,6 +245,10 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     with DemoApp(args.port, args.samples) as app:
         boxes = capture(app, args.out)
+        # The CFP picture for the image-type card in the confirm scene (the same public sample).
+        from PIL import Image
+        import io
+        Image.open(io.BytesIO(app.samples[HERO])).convert("RGB").resize((720, 480)).save(args.out / "cfp.png")
     print(json.dumps({"screens": sorted(path.stem for path in args.out.glob("*.png")), "boxes": sorted(boxes)}))
     return 0
 

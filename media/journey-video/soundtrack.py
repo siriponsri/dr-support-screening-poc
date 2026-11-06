@@ -11,7 +11,7 @@ only audio clip. Needs numpy and ffmpeg.
   --music to use a real track instead; it is looped or cut to length the same way.
   The bed dips under the voice and opens up between lines.
 - Effects, each with a cause on screen: a whoosh on every scene change (three takes,
-  rotated), a click when the cursor presses a button, a soft tick when a highlight lands.
+  rotated) and a softer one when a card rises over the screen, a click when the cursor presses a button, a soft tick when a highlight lands.
 """
 from __future__ import annotations
 
@@ -187,6 +187,9 @@ def main() -> int:
         sound = whoosh(k)
         add(effects, t - len(sound) / RATE * 0.62, sound, 0.30)
     add(effects, 0.15, whoosh(1), 0.22)                           # the title cards fly in
+    for t in cues.get("whoosh_soft", []):                        # a card rising over the screen
+        sound = whoosh(2)
+        add(effects, t + 0.25 - len(sound) / RATE * 0.62, sound, 0.16)
     for k, t in enumerate(cues["click"]):
         add(effects, t + 1 / 30, click(k), 0.45)
     for t in cues["pop"]:
