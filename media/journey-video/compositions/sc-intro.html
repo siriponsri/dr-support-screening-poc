@@ -1,0 +1,45 @@
+<template>
+  <style>
+    @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
+    #root { position: absolute; inset: 0; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; color: #172018; }
+    .left { position: absolute; left: 150px; top: 0; bottom: 0; width: 860px; display: flex; flex-direction: column;
+      justify-content: center; gap: 30px; }
+    .brand { display: flex; align-items: center; gap: 22px; font-size: 30px; font-weight: 600; color: #52605A; }
+    .brand img { width: 84px; height: 84px; }
+    h1 { margin: 0; font-size: 92px; line-height: 1.08; letter-spacing: -0.02em; font-weight: 700; color: #172018; }
+    .sub { font-size: 44px; line-height: 1.45; color: #52605A; }
+    .rule { width: 120px; height: 6px; border-radius: 3px; background: #A73B24; }
+    .pill { align-self: flex-start; padding: 12px 24px; border-radius: 14px; background: #FBF2D9; border: 2px solid #E6CD8B;
+      color: #6E4A00; font-size: 28px; font-weight: 600; }
+    .panel { position: absolute; right: 0; top: 0; bottom: 0; width: 800px; background: #16231A; overflow: hidden; }
+    .halo { position: absolute; right: -200px; top: -220px; width: 640px; height: 640px; border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06); }
+    .frame { position: absolute; left: 90px; top: 250px; width: 900px; height: 506px; border-radius: 18px; overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45); border: 2px solid rgba(255, 255, 255, 0.12); }
+    .frame img { width: 100%; height: 100%; }
+    .veil { position: absolute; inset: 0; background: #F6F7F6; }
+  </style>
+  <div id="root" data-composition-id="sc-intro" data-width="1920" data-height="1080">
+    <div id="intro-panel" class="panel"><div class="halo"></div>
+      <div id="intro-frame" class="frame"><img src="assets/screens/s06b.png" alt="" /></div>
+    </div>
+    <div class="left">
+      <div id="intro-brand" class="brand"><img src="assets/logo.svg" alt="" /><span>Retinal Review Workbench</span></div>
+      <div id="intro-rule" class="rule"></div>
+      <h1 id="intro-title">วิธีใช้งาน<br />สำหรับทีมคลินิก</h1>
+      <div id="intro-sub" class="sub">ตั้งแต่ Sign in จนถึง Export ชุดข้อมูล</div>
+      <div id="intro-pill" class="pill">ภาพทั้งหมดเป็นข้อมูลตัวอย่าง</div>
+    </div>
+    <div id="intro-veil" class="veil clip" data-start="0" data-duration="17.187" data-track-index="2" style="z-index: 60;"></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#intro-panel", { x: 0 }, { x: -24, duration: 17.19, ease: "sine.inOut" }, 0);
+    tl.fromTo("#intro-frame", { x: 0, y: 30, scale: 1.0 }, { x: -40, y: 0, scale: 1.06, duration: 17.19, ease: "sine.inOut" }, 0);
+    tl.fromTo("#intro-rule", { scaleX: 0.25, transformOrigin: "0% 50%" }, { scaleX: 1, duration: 1.2, ease: "power2.out" }, 0.2);
+    tl.fromTo("#intro-sub", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: "power2.out" }, 0.6);
+    tl.fromTo("#intro-pill", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power2.out" }, 12.459);
+    tl.fromTo("#intro-veil", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.in" }, 16.667);
+    window.__timelines["sc-intro"] = tl;
+  </script>
+</template>

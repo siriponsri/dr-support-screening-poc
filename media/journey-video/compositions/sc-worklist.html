@@ -1,0 +1,54 @@
+<template>
+  <style>
+    @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
+    #root { position: absolute; inset: 0; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; color: #172018; }
+    .shot { position: absolute; inset: 0; overflow: hidden; }
+    .fade { position: absolute; inset: 0; }
+    .cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+    .cam img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    .ring { position: absolute; border-style: solid; border-color: #016301; opacity: 0; }
+    .tap { position: absolute; border-radius: 50%; background: rgba(1, 99, 1, 0.28); opacity: 0; }
+    .chip { position: absolute; left: 110px; top: 66px; display: flex; align-items: center; gap: 16px;
+      padding: 10px 28px 10px 10px; border-radius: 999px; background: #16231A; color: #FFFFFF;
+      font-size: 30px; font-weight: 600; box-shadow: 0 10px 30px rgba(22, 35, 26, 0.25); }
+    .chip b { display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px;
+      border-radius: 50%; background: #6FBF73; color: #16231A; font-size: 30px; }
+    .demo { position: absolute; right: 110px; top: 70px; padding: 12px 24px; border-radius: 14px; background: #FBF2D9;
+      border: 2px solid #E6CD8B; color: #6E4A00; font-size: 30px; font-weight: 600; transform-origin: 100% 50%;
+      box-shadow: 0 10px 30px rgba(22, 35, 26, 0.18); }
+    .veil { position: absolute; inset: 0; background: #F6F7F6; }
+  </style>
+  <div id="root" data-composition-id="sc-worklist" data-width="1920" data-height="1080">
+    <div id="worklist-s0" class="shot clip" data-start="0.0" data-duration="9.76" data-track-index="1" style="z-index: 1;">
+      <div id="worklist-s0-fade" class="fade">
+        <div id="worklist-s0-cam" class="cam">
+          <img id="worklist-s0-img" src="assets/screens/s03a.png" alt="" />
+          <div id="worklist-s0-r0" class="ring" style="left: 1467px; top: 176px; width: 197px; height: 52px; border-width: 3.23px; border-radius: 7.75px; box-shadow: 0 0 0 6.46px rgba(1, 99, 1, 0.16);"></div>
+          <div id="worklist-s0-t0" class="tap" style="left: 1524.0px; top: 160.5px; width: 83px; height: 83px;"></div>
+        </div>
+        <div id="worklist-s0-chip" class="chip"><b>3</b><span>Worklist</span></div>
+      </div>
+    </div>
+    <div id="worklist-s1" class="shot clip" data-start="8.96" data-duration="4.742" data-track-index="2" style="z-index: 2;">
+      <div id="worklist-s1-fade" class="fade">
+        <div id="worklist-s1-cam" class="cam">
+          <img id="worklist-s1-img" src="assets/screens/s03b.png" alt="" />
+        </div>
+        <div id="worklist-s1-chip" class="chip"><b>3</b><span>Worklist</span></div>
+      </div>
+    </div>
+    <div id="worklist-demo" class="demo clip" data-start="0" data-duration="13.702" data-track-index="3" style="z-index: 50;">ข้อมูลตัวอย่าง</div>
+    <div id="worklist-veil" class="veil clip" data-start="0" data-duration="13.702" data-track-index="4" style="z-index: 60;"></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#worklist-s0-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 6.167);
+    tl.fromTo("#worklist-s0-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 6.517);
+    tl.fromTo("#worklist-s0-cam", {"x": -137.76, "y": -12.97, "scale": 1.0762}, { ...{"x": -990.97, "y": -93.29, "scale": 1.5484}, duration: 8.96, ease: "sine.inOut" }, 0.0);
+    tl.fromTo("#worklist-s1-cam", {"x": -990.97, "y": -93.29, "scale": 1.5484}, { ...{"x": -480.0, "y": -200.0, "scale": 1.3333}, duration: 4.742, ease: "sine.inOut" }, 8.96);
+    tl.fromTo("#worklist-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 8.96);
+    tl.fromTo("#worklist-veil", { opacity: 1 }, { opacity: 0, duration: 0.5, ease: "sine.out" }, 0);
+    tl.to("#worklist-veil", { opacity: 1, duration: 0.5, ease: "sine.in" }, 13.182);
+    window.__timelines["sc-worklist"] = tl;
+  </script>
+</template>

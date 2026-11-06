@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type FormE
 import { Alert, AlertIcon, Box, Button, Flex, FormControl, FormLabel, Grid, Heading, HStack, IconButton, Input, InputGroup, InputRightElement, Stack, Text } from '@chakra-ui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { BrandMark } from '@/components/common/BrandMark';
+import { JourneyVideoButton } from '@/components/shell/JourneyVideo';
 import { Eye, EyeOff, Lock, ShieldCheck } from '@/lib/icons';
 import { sidebarScope } from '@/theme';
 import { kkuColors } from '@/theme/colors';
@@ -255,6 +256,7 @@ function LandingSignIn({ onSignedIn }: { onSignedIn: (user: PilotUser) => void }
           </FormControl>
           {error && <Alert status="error" py={2} role="alert"><AlertIcon /><Text fontSize="sm">{error}</Text></Alert>}
           <Button type="submit" size="lg" w="100%" leftIcon={<Lock size={16} />} isLoading={busy} {...PRIMARY}>Sign in</Button>
+          <JourneyVideoButton />
         </Stack>
       </form>
     </Frame>

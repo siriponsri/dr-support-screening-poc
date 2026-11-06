@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; }
+      #bg { position: absolute; inset: 0; background: #F6F7F6; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="179.679" data-width="1920" data-height="1080">
+      <div id="bg"></div>
+      <div id="sc-intro" data-composition-id="sc-intro" data-composition-src="compositions/sc-intro.html" data-start="0.0" data-duration="17.187" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1;"></div>
+      <div id="sc-signin" data-composition-id="sc-signin" data-composition-src="compositions/sc-signin.html" data-start="17.187" data-duration="25.121" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1;"></div>
+      <div id="sc-worklist" data-composition-id="sc-worklist" data-composition-src="compositions/sc-worklist.html" data-start="42.308" data-duration="13.702" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1;"></div>
+      <div id="sc-confirm" data-composition-id="sc-confirm" data-composition-src="compositions/sc-confirm.html" data-start="56.01" data-duration="17.42" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1;"></div>
+      <div id="sc-ai" data-composition-id="sc-ai" data-composition-src="compositions/sc-ai.html" data-start="73.43" data-duration="16.205" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1;"></div>
+      <div id="sc-grade" data-composition-id="sc-grade" data-composition-src="compositions/sc-grade.html" data-start="89.635" data-duration="16.967" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1;"></div>
+      <div id="sc-annotate" data-composition-id="sc-annotate" data-composition-src="compositions/sc-annotate.html" data-start="106.602" data-duration="17.334" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1;"></div>
+      <div id="sc-report" data-composition-id="sc-report" data-composition-src="compositions/sc-report.html" data-start="123.936" data-duration="22.114" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1;"></div>
+      <div id="sc-datasets" data-composition-id="sc-datasets" data-composition-src="compositions/sc-datasets.html" data-start="146.05" data-duration="14.319" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1;"></div>
+      <div id="sc-outro" data-composition-id="sc-outro" data-composition-src="compositions/sc-outro.html" data-start="160.369" data-duration="19.31" data-track-index="1" data-track-kind="graphics" data-width="1920" data-height="1080" style="z-index: 1;"></div>
+      <div id="captions" data-composition-id="captions" data-composition-src="compositions/captions.html" data-start="0"
+        data-duration="179.679" data-track-index="3" data-track-kind="captions" data-width="1920" data-height="1080" data-hidden
+        style="z-index: 10;"></div>
+      <audio id="vo-intro" class="clip" src="assets/audio/intro.wav" data-start="1.4" data-duration="14.687" data-track-index="6" data-volume="1"></audio>
+      <audio id="vo-signin" class="clip" src="assets/audio/signin.wav" data-start="17.987" data-duration="23.221" data-track-index="6" data-volume="1"></audio>
+      <audio id="vo-worklist" class="clip" src="assets/audio/worklist.wav" data-start="43.108" data-duration="11.802" data-track-index="6" data-volume="1"></audio>
+      <audio id="vo-confirm" class="clip" src="assets/audio/confirm.wav" data-start="56.81" data-duration="15.52" data-track-index="6" data-volume="1"></audio>
+      <audio id="vo-ai" class="clip" src="assets/audio/ai.wav" data-start="74.23" data-duration="14.305" data-track-index="6" data-volume="1"></audio>
+      <audio id="vo-grade" class="clip" src="assets/audio/grade.wav" data-start="90.435" data-duration="15.067" data-track-index="6" data-volume="1"></audio>
+      <audio id="vo-annotate" class="clip" src="assets/audio/annotate.wav" data-start="107.402" data-duration="15.434" data-track-index="6" data-volume="1"></audio>
+      <audio id="vo-report" class="clip" src="assets/audio/report.wav" data-start="124.736" data-duration="20.214" data-track-index="6" data-volume="1"></audio>
+      <audio id="vo-datasets" class="clip" src="assets/audio/datasets.wav" data-start="146.85" data-duration="12.419" data-track-index="6" data-volume="1"></audio>
+      <audio id="vo-outro" class="clip" src="assets/audio/outro.wav" data-start="161.169" data-duration="15.91" data-track-index="6" data-volume="1"></audio>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

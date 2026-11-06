@@ -1,0 +1,38 @@
+<template>
+  <style>
+    @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
+    #root { position: absolute; inset: 0; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; color: #172018; }
+    #root { background: #16231A; color: #FFFFFF; }
+    .halo { position: absolute; left: -260px; bottom: -320px; width: 820px; height: 820px; border-radius: 50%;
+      background: rgba(255, 255, 255, 0.05); }
+    .list { position: absolute; left: 230px; right: 230px; top: 190px; display: flex; flex-direction: column; gap: 46px; }
+    .item { display: flex; align-items: center; gap: 30px; font-size: 52px; line-height: 1.35; font-weight: 600; }
+    .item svg { flex: none; color: #6FBF73; }
+    .foot { position: absolute; left: 230px; top: 720px; display: flex; align-items: center; gap: 20px; font-size: 30px;
+      color: #A9BCAF; }
+    .foot img { width: 64px; height: 64px; }
+    .veil { position: absolute; inset: 0; background: #F6F7F6; }
+    .black { position: absolute; inset: 0; background: #16231A; }
+  </style>
+  <div id="root" data-composition-id="sc-outro" data-width="1920" data-height="1080">
+    <div id="outro-halo" class="halo"></div>
+    <div id="outro-list" class="list">
+      <div id="outro-i0" class="item"><svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>ไม่ใช่เครื่องมือวินิจฉัยโรค</span></div>
+      <div id="outro-i1" class="item"><svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>เกรดที่แพทย์ยืนยันคือผลที่ใช้จริง</span></div>
+      <div id="outro-i2" class="item"><svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg><span>ส่งไป server ของทีมเฉพาะภาพสาธารณะ<br />หรือภาพที่ได้รับความยินยอม</span></div>
+    </div>
+    <div id="outro-foot" class="foot"><img src="assets/logo.svg" alt="" /><span>Retinal Review Workbench  |  โปรแกรมทดลองใช้เพื่องานวิจัย  |  ข้อมูลตัวอย่าง</span></div>
+    <div id="outro-veil" class="veil clip" data-start="0" data-duration="19.31" data-track-index="2" style="z-index: 60;"></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#outro-i0", { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.8, ease: "power2.out" }, 0.7);
+    tl.fromTo("#outro-i1", { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.8, ease: "power2.out" }, 4.815);
+    tl.fromTo("#outro-i2", { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.8, ease: "power2.out" }, 8.528);
+    tl.fromTo("#outro-foot", { opacity: 0 }, { opacity: 1, duration: 1.0, ease: "sine.out" }, 0.8);
+    tl.fromTo("#outro-halo", { scale: 1 }, { scale: 1.25, duration: 19.31, ease: "sine.inOut" }, 0);
+    tl.fromTo("#outro-list", { scale: 1, transformOrigin: "0% 0%" }, { scale: 1.035, duration: 19.31, ease: "sine.inOut" }, 0);
+    tl.fromTo("#outro-veil", { opacity: 1 }, { opacity: 0, duration: 0.7, ease: "sine.out" }, 0);
+    window.__timelines["sc-outro"] = tl;
+  </script>
+</template>
