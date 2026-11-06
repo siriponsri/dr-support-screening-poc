@@ -10,8 +10,8 @@ HyperFrames source, editable in the HyperFrames desktop app), assets/audio/cues.
 soundtrack.py places: scene cuts, cursor clicks, highlights) and
 frontend/public/media/journey-th.vtt.
 
-Look: a dark canvas with a soft glow; each scene's app screen sits in a floating window
-that turns in from a tilt and leaves through a short zoom with blur, so scenes run into
+Look: each scene's app screen fills almost the whole frame (a 40 px dark border) and
+turns in from a slight tilt and leaves through a short zoom with blur, so scenes run into
 each other without a fade to a colour. A cursor travels to each button and presses it;
 regions get a highlight. Captions are drawn in the picture: one line at a time, each
 phrase lighting up as it is spoken.
@@ -35,10 +35,11 @@ CHARS_PER_SECOND = 9.0
 CARD_LEAD = 1.0      # the title card builds a moment before the voice starts
 END_TAIL = 2.2       # the end card holds after the last word
 
-# Window: centred, its screen area 16:9.
-WIN_W, BAR = 1260, 36
-WIN_H = round(WIN_W * H / W)
-WIN_X, WIN_Y = (W - WIN_W) // 2, 158
+# Window: the app screen fills almost the whole frame (16:9, 40 px of canvas around it); the step chip,
+# the demo label and the captions float over it.
+WIN_H = 1000
+WIN_W = round(WIN_H * W / H)
+WIN_X, WIN_Y = (W - WIN_W) // 2, (H - WIN_H) // 2
 K = WIN_W / W        # page pixels to window pixels
 
 BG, TEXT, MUTED, ACCENT, TEAL, AMBER = "#07110B", "#FFFFFF", "#9FB3A6", "#34D873", "#22D3EE", "#F5B940"
@@ -51,10 +52,10 @@ CURSOR = ('<svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 
 CURSOR_PX = 34       # cursor size on screen
 # Window entrances, rotated so neighbouring scenes never arrive the same way.
 ENTRANCES = [
-    "{ rotationX: 16, rotationY: -12, y: 70, scale: 0.9, opacity: 0, filter: 'blur(14px)' }",
-    "{ rotationY: 18, x: 140, scale: 0.92, opacity: 0, filter: 'blur(14px)' }",
-    "{ rotationX: -12, y: -50, scale: 0.92, opacity: 0, filter: 'blur(14px)' }",
-    "{ rotationY: -18, x: -140, scale: 0.92, opacity: 0, filter: 'blur(14px)' }",
+    "{ rotationX: 8, rotationY: -6, y: 50, scale: 0.94, opacity: 0, filter: 'blur(14px)' }",
+    "{ rotationY: 9, x: 90, scale: 0.95, opacity: 0, filter: 'blur(14px)' }",
+    "{ rotationX: -7, y: -40, scale: 0.95, opacity: 0, filter: 'blur(14px)' }",
+    "{ rotationY: -9, x: -90, scale: 0.95, opacity: 0, filter: 'blur(14px)' }",
 ]
 
 
@@ -142,15 +143,9 @@ def page(body: str, script: str, comp_id: str, style: str, faces: str) -> str:
 """
 
 
-SCREEN_STYLE = f"""    .stage {{ position: absolute; inset: 0; perspective: 2200px; }}
-    .win {{ position: absolute; left: {WIN_X}px; top: {WIN_Y}px; width: {WIN_W}px; height: {WIN_H + BAR}px; border-radius: 18px;
-      overflow: hidden; background: #0E1A13; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.09); }}
-    .bar {{ position: absolute; left: 0; right: 0; top: 0; height: {BAR}px; display: flex; align-items: center; gap: 8px;
-      padding: 0 16px; background: #0E1A13; }}
-    .bar i {{ width: 11px; height: 11px; border-radius: 50%; background: #2C4635; }}
-    .bar span {{ margin-left: 14px; padding: 3px 14px; border-radius: 8px; background: rgba(255, 255, 255, 0.06);
-      font-size: 15px; color: {MUTED}; letter-spacing: 0.02em; }}
-    .content {{ position: absolute; left: 0; top: {BAR}px; width: {WIN_W}px; height: {WIN_H}px; overflow: hidden; background: #F6F7F6; }}
+SCREEN_STYLE = f"""    .stage {{ position: absolute; inset: 0; perspective: 2600px; }}
+    .win {{ position: absolute; left: {WIN_X}px; top: {WIN_Y}px; width: {WIN_W}px; height: {WIN_H}px; border-radius: 22px;
+      overflow: hidden; background: #F6F7F6; box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.10); }}
     .screen {{ position: absolute; left: 0; top: 0; width: {W}px; height: {H}px; transform: scale({K:.5f}); transform-origin: 0 0; }}
     .shot {{ position: absolute; inset: 0; overflow: hidden; }}
     .fade {{ position: absolute; inset: 0; }}
@@ -158,13 +153,24 @@ SCREEN_STYLE = f"""    .stage {{ position: absolute; inset: 0; perspective: 2200
     .cam img {{ position: absolute; left: 0; top: 0; width: {W}px; height: {H}px; }}
     .ring {{ position: absolute; border-style: solid; border-color: {ACCENT}; background: rgba(52, 216, 115, 0.08); opacity: 0; }}
     .cursor {{ position: absolute; left: 0; top: 0; opacity: 0; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); }}
-    .head {{ position: absolute; left: {WIN_X}px; top: 100px; display: flex; align-items: baseline; gap: 22px; }}
-    .head .step {{ font-family: {DISPLAY_FONT}; font-weight: 600; font-size: 22px; letter-spacing: 0.16em; color: {ACCENT}; }}
-    .head .lab {{ font-family: {DISPLAY_FONT}; font-weight: 600; font-size: 44px; letter-spacing: -0.01em; color: {TEXT}; }}
-    .demo {{ position: absolute; right: {WIN_X}px; top: 104px; display: flex; align-items: center; gap: 10px; padding: 8px 18px;
-      border-radius: 999px; background: rgba(245, 185, 64, 0.12); border: 1px solid rgba(245, 185, 64, 0.45); color: #F8D58A;
-      font-size: 20px; font-weight: 600; }}
-    .demo i {{ width: 9px; height: 9px; border-radius: 50%; background: {AMBER}; }}"""
+    .head {{ position: absolute; left: {WIN_X + 28}px; top: {WIN_Y + 24}px; z-index: 28; display: flex; align-items: center; gap: 16px;
+      padding: 10px 24px 10px 20px; border-radius: 999px; background: rgba(8, 18, 12, 0.86);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); }}
+    .head .step {{ font-family: {DISPLAY_FONT}; font-weight: 600; font-size: 20px; letter-spacing: 0.16em; color: {ACCENT}; }}
+    .head .lab {{ font-family: {DISPLAY_FONT}; font-weight: 600; font-size: 32px; color: {TEXT}; }}
+    .demo {{ position: absolute; right: {WIN_X + 28}px; top: {WIN_Y + 30}px; z-index: 28; display: flex; align-items: center; gap: 10px;
+      padding: 8px 18px; border-radius: 999px; background: rgba(8, 18, 12, 0.86); color: #F8D58A; font-size: 20px; font-weight: 600; }}
+    .demo i {{ width: 9px; height: 9px; border-radius: 50%; background: {AMBER}; }}
+    .veil {{ position: absolute; left: {WIN_X}px; top: {WIN_Y}px; width: {WIN_W}px; height: {WIN_H}px; border-radius: 22px; z-index: 25;
+      background: rgba(5, 12, 8, 0.62); opacity: 0; }}
+    .compare {{ position: absolute; left: 0; right: 0; top: 150px; z-index: 30; display: flex; justify-content: center; gap: 48px; }}
+    .kind {{ position: relative; width: 700px; padding: 22px 22px 26px; border-radius: 24px; background: rgba(8, 18, 12, 0.92); border: 3px solid transparent;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45); opacity: 0; }}
+    .kind .pic {{ width: 656px; height: 369px; border-radius: 14px; background: #000; overflow: hidden; }}
+    .kind .pic img {{ width: 100%; height: 100%; object-fit: contain; display: block; }}
+    .kind b {{ display: block; margin-top: 20px; font-family: {DISPLAY_FONT}; font-weight: 700; font-size: 52px; color: {TEXT}; }}
+    .kind .shade {{ position: absolute; inset: 0; border-radius: 22px; background: rgba(8, 18, 12, 0.66); opacity: 0; }}
+    .kind span {{ display: block; margin-top: 6px; font-size: 30px; line-height: 1.4; color: #C9D6CD; }}"""
 
 
 def screen_scene(scene: dict, order: int, lead: float, lines: list[dict], duration: float, boxes: dict,
@@ -268,8 +274,9 @@ def screen_scene(scene: dict, order: int, lead: float, lines: list[dict], durati
     script.append(f'    tl.fromTo("#{sid}-demo-t", {{ opacity: 0 }}, {{ opacity: 1, duration: 0.3 }}, 0.4);')
 
     body.append(f'    <div id="{sid}-stage" class="stage">\n      <div id="{sid}-win" class="win">\n'
-                f'        <div class="bar"><i></i><i></i><i></i><span>workbench / {escape(shots[0]["label"])}</span></div>\n'
-                f'        <div class="content"><div class="screen">\n' + "\n".join(layers) + "\n        </div></div>\n      </div>\n    </div>")
+                f'        <div class="screen">\n' + "\n".join(layers) + "\n        </div>\n      </div>\n    </div>")
+    if scene.get("compare"):
+        sounds += compare_card(scene["compare"], sid, lead, lines, body, script)
     entrance = ENTRANCES[order % len(ENTRANCES)]
     script.insert(0, f'    tl.fromTo("#{sid}-win", {entrance}, {{ rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, '
                      f'filter: "blur(0px)", duration: {ENTER}, ease: "expo.out" }}, 0);')
@@ -277,6 +284,36 @@ def screen_scene(scene: dict, order: int, lead: float, lines: list[dict], durati
                   f'{r(duration - EXIT)});')
     script.append(f'    tl.to("#{sid}-demo-t", {{ opacity: 0, duration: 0.2 }}, {r(duration - EXIT)});')
     return page("\n".join(body), "\n".join(script), f"sc-{sid}", SCREEN_STYLE, faces), problems, sounds
+
+
+def compare_card(spec: dict, sid: str, lead: float, lines: list[dict], body: list[str], script: list[str]) -> list[tuple[str, float]]:
+    """CFP next to UWF over a dimmed screen, each lit while the narration names it (scenes.json "compare")."""
+    show, uwf, hide = (r(at(lines, lead, spec[key]) - 0.1) for key in ("cfp_line", "uwf_line", "until_line"))
+    body.append(f'    <div id="{sid}-veil" class="veil"></div>')
+    body.append(f'    <div id="{sid}-cmp" class="compare">'
+                f'<div id="{sid}-cfp" class="kind"><div class="pic"><img src="assets/screens/cfp.png" alt="" /></div>'
+                '<b>CFP</b><span>ภาพจอตาแบบปกติ<br />วงกลมบนพื้นดำ</span>'
+                f'<i id="{sid}-cfp-s" class="shade"></i></div>'
+                f'<div id="{sid}-uwf" class="kind"><div class="pic"><img src="assets/screens/uwf.jpg" alt="" /></div>'
+                '<b>UWF</b><span>ภาพมุมกว้าง (Ultra-widefield)<br />เห็นขนตาหรือขอบสีเหลือง</span>'
+                f'<i id="{sid}-uwf-s" class="shade"></i></div></div>')
+    script.append(f'    tl.to("#{sid}-veil", {{ opacity: 1, duration: 0.35, ease: "power2.out" }}, {show});')
+    script.append(f'    tl.fromTo(["#{sid}-cfp", "#{sid}-uwf"], {{ opacity: 0, y: 30, filter: "blur(10px)" }}, {{ opacity: 1, y: 0, '
+                  f'filter: "blur(0px)", duration: 0.5, ease: "expo.out", stagger: 0.1 }}, {show});')
+    script.append(f'    tl.to("#{sid}-cfp", {{ borderColor: "{ACCENT}", scale: 1.03, duration: 0.3, ease: "power2.out" }}, {r(show + 0.3)});')
+    script.append(f'    tl.to("#{sid}-uwf-s", {{ opacity: 1, duration: 0.3 }}, {r(show + 0.3)});')
+    script.append(f'    tl.to("#{sid}-cfp", {{ borderColor: "rgba(0, 0, 0, 0)", scale: 1, duration: 0.3 }}, {uwf});')
+    script.append(f'    tl.to("#{sid}-cfp-s", {{ opacity: 1, duration: 0.3 }}, {uwf});')
+    script.append(f'    tl.to("#{sid}-uwf-s", {{ opacity: 0, duration: 0.3 }}, {uwf});')
+    script.append(f'    tl.to("#{sid}-uwf", {{ borderColor: "{ACCENT}", scale: 1.03, duration: 0.3, ease: "power2.out" }}, {uwf});')
+    nudge = r(at(lines, lead, spec["uwf_line"] + 1) - 0.1) if spec["uwf_line"] + 1 < spec["until_line"] else None
+    if nudge is not None:   # the "if unsure" line: both back to equal
+        script.append(f'    tl.to(["#{sid}-cfp", "#{sid}-uwf"], {{ borderColor: "rgba(0, 0, 0, 0)", scale: 1, duration: 0.3 }}, {nudge});')
+        script.append(f'    tl.to(["#{sid}-cfp-s", "#{sid}-uwf-s"], {{ opacity: 0, duration: 0.3 }}, {nudge});')
+    script.append(f'    tl.to(["#{sid}-cfp", "#{sid}-uwf"], {{ opacity: 0, y: -20, filter: "blur(8px)", duration: 0.3, ease: "power2.in" }}, '
+                  f'{r(hide - 0.1)});')
+    script.append(f'    tl.to("#{sid}-veil", {{ opacity: 0, duration: 0.3 }}, {r(hide)});')
+    return [("whoosh_soft", show), ("pop", r(show + 0.3)), ("pop", uwf)]
 
 
 def title_scene(scene: dict, lead: float, lines: list[dict], duration: float, faces: str) -> str:
@@ -373,10 +410,10 @@ def caption_groups(cues: list[tuple[float, float, float, float, str]], faces: st
                       f'ease: "power2.out" }}, {r(begin)});')
         script.append(f'    tl.to("#{gid}-t", {{ opacity: 0, duration: 0.12, ease: "power2.in" }}, {r(end - 0.12)});')
     style = f"""    #root {{ background: transparent; }}
-    .cap {{ position: absolute; left: 0; right: 0; top: 914px; text-align: center; overflow: visible; }}
-    .line {{ display: inline-block; max-width: 1500px; font-family: {UI_FONT}; font-size: 46px; line-height: 1.4; font-weight: 600;
-      text-shadow: 0 2px 16px rgba(0, 0, 0, 0.6); }}
-    .w {{ color: rgba(255, 255, 255, 0.4); }}"""
+    .cap {{ position: absolute; left: 0; right: 0; top: 916px; text-align: center; overflow: visible; }}
+    .line {{ display: inline-block; max-width: 1560px; padding: 10px 30px 14px; border-radius: 18px; background: rgba(8, 18, 12, 0.86);
+      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3); font-family: {UI_FONT}; font-size: 42px; line-height: 1.4; font-weight: 600; }}
+    .w {{ color: rgba(255, 255, 255, 0.55); }}"""
     return page("\n".join(body), "\n".join(script), "captions", style, faces)
 
 
@@ -393,8 +430,11 @@ def main() -> int:
     faces = font_faces()
     (HERE / "compositions").mkdir(exist_ok=True)
     shutil.copyfile(REPO / "frontend" / "src" / "assets" / "dr-support-logo.svg", HERE / "assets" / "logo.svg")
+    from PIL import Image   # the source has a thin grey frame line; trim it
+    uwf = Image.open(REPO / "presentation" / "assets" / "uwf" / "demo05_r2.jpg").convert("RGB")
+    uwf.crop((6, 6, uwf.width - 6, uwf.height - 6)).save(HERE / "assets" / "screens" / "uwf.jpg", quality=90)
     cursor, hosts, cues, problems, estimated = 0.0, [], [], [], []
-    sound = {"scenes": [], "voice": [], "cuts": [], "click": [], "pop": []}
+    sound = {"scenes": [], "voice": [], "cuts": [], "click": [], "pop": [], "whoosh_soft": []}
     screen_order = 0
     for scene in config["scenes"]:
         voice, real = voice_timing(scene, timing)

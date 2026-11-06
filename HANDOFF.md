@@ -31,6 +31,9 @@ service, not a final release, not accepted by a hospital.
     captions drawn in the picture, music bed and effects made in code by `soundtrack.py`; narration about 20%
     faster, 136.5 s) without new Gemini calls (`retime_voice.py`). Sound levels were measured, not listened to.
     Branch validation: backend 2,200 passed, 71 skipped, 0 failed; frontend 342 passed; Ruff clean; root smoke PASS.
+  - Same day, owner review of the video (`fix/video-language-image-type`): the screen now fills almost the
+    whole frame; the sign-in line says EN/TH is optional; the confirm scene explains CFP versus UWF with a
+    picture card and "ยังไม่แน่ใจ" when unsure (two new Gemini takes, 150.5 s). Media only, no app code.
 - Validation on main after the earlier merges: backend 2,192 passed, 71 skipped, 0 failed (lower than before because
   removed tools took their tests); frontend 45 files, 342 tests passed; typecheck 0; Ruff clean; root API smoke
   PASS; docs QA passed; `frontend/dist` rebuilt. Some frontend tests are timing-flaky under load (pass alone).

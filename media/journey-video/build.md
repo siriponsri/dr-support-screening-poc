@@ -1,6 +1,6 @@
 # Rebuilding the journey video
 
-A narrated Thai walkthrough of the clinician journey (about 2 minutes 17 seconds), shown in the
+A narrated Thai walkthrough of the clinician journey (about 2 minutes 30 seconds), shown in the
 "Watch how it works" dialog on the sign-in page. Output:
 
 - `frontend/public/media/journey-th.mp4` (H.264 1280x720, AAC mono, at most 15 MB), captions drawn in the picture
@@ -88,18 +88,25 @@ rebuild made its WAVs that way (`--tempo 1.2 --pause 0.3`: about 20% faster, pau
 In PowerShell, `git show ... > file` can alter binary files; if the MP4 will not open, use
 `git show 18aa9af:frontend/public/media/journey-th.mp4` from Git Bash instead.
 
-`tts.py --only <scene> --force` redoes one scene. If a scene's take has fewer pauses than
-caption lines, `tts.py` stops for that scene; run it again with `--force` for a new take.
-Some takes still begin by reading the director's notes aloud; `tts.py` drops that opening
-and says so ("dropped ... s of spoken notes"). Listen to those scenes after any new take.
+`tts.py --only <scene> --force` redoes one scene, at the same pace as the rest (`--tempo 1.2`,
+`--pause 0.3`, 48 kHz by default). If a scene's take has fewer pauses than caption lines, `tts.py`
+stops for that scene; run it again with `--force` for a new take. Some takes still begin by reading
+the director's notes aloud; `tts.py` drops that opening and says so ("dropped ... s of spoken notes").
+The line cut can also land one phrase off: compare each line's length with its text and listen.
+In the 6 November 2026 take of `confirm`, "คือ CFP" fell into the next line; the boundary in
+`timing.json` was moved by hand to the 0.76 s pause after it (lines 3 and 4 of that scene).
 
 ## Composition notes
 
 - 1920x1080, 30 fps, dark canvas with a soft green glow, a faint grid and a thin progress line at the top.
-- Each scene is one sub-composition. Its app screen sits in a floating window (16:9, 1260 px wide)
-  that turns in from a tilt (four entrances, rotated) and leaves with a short zoom and blur, so scenes
-  run into each other with no fade to a colour. Inside the window the camera moves to each shot's
-  target and holds while the UI acts; shots cross-fade (0.5 s).
+- Each scene is one sub-composition. Its app screen fills almost the whole frame (16:9, 1000 px high,
+  40 px of canvas around it), turns in from a slight tilt (four entrances, rotated) and leaves with a
+  short zoom and blur, so scenes run into each other with no fade to a colour. The step chip, the
+  demo label and the captions float over the screen. The camera moves to each shot's target and
+  holds while the UI acts; shots cross-fade (0.5 s).
+- The confirm scene shows a CFP next to a UWF card while the narration names them (`compare` in
+  `scenes.json`): the CFP picture is the same public sample (`capture_journey.py` writes `cfp.png`),
+  the UWF picture is the deck's consented, renamed `presentation/assets/uwf/demo05_r2.jpg`.
 - The cursor travels to each button and presses it; regions get a green highlight. Highlights and
   the cursor sit in page coordinates inside the moving camera, so they stay on their control.
   Times are per caption line (`line`, `at` in `scenes.json`).

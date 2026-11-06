@@ -19,7 +19,7 @@ Each row below is one caption line; the lines of a scene are one request and one
 
 ## signin: Sign in, Today
 
-- เริ่มจากหน้า Sign in กดปุ่ม TH เพื่อใช้ภาษาไทย
+- หน้า Sign in มีปุ่ม EN กับ TH ให้เลือกภาษาที่ถนัด ไม่เลือกก็ใช้งานได้
 - แล้วใส่ username กับ password ที่ผู้ดูแลระบบให้ไว้
 - กดปุ่ม ดูวิธีใช้งาน เพื่อเปิดวิดีโอนี้อีกครั้ง
 - หน้า Today สรุปงานของวันนี้
@@ -34,8 +34,13 @@ Each row below is one caption line; the lines of a scene are one request and one
 ## confirm: Confirm Image
 
 - ก่อนเริ่มตรวจ กด Confirm Image
-- เลือกชนิดภาพเป็น CFP ใส่รหัสผู้ป่วยแบบไม่ระบุตัวตน
-- เลือกตาข้างที่ถ่าย แล้วกดยืนยันภาพ
+- เลือกชนิดภาพให้ตรงกับภาพที่ถ่ายมา
+- ภาพจอตาวงกลมบนพื้นดำแบบนี้ คือ CFP
+- ภาพมุมกว้างที่เห็นขนตาหรือขอบสีเหลือง คือ UWF
+- ถ้าไม่แน่ใจ เลือก ยังไม่แน่ใจ ไว้ก่อน แล้วถามผู้ถ่ายภาพ
+- ภาพตัวอย่างนี้เป็น CFP เลือกตาข้างที่ถ่าย แล้วกดยืนยันภาพ
+
+(ระหว่างประโยคที่ 3 ถึง 5 มีการ์ดเทียบภาพ CFP กับ UWF ขึ้นบนจอ)
 
 ## ai: Review: AI grade suggestion (demo)
 

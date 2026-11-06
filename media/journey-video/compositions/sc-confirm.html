@@ -15,97 +15,119 @@
     @font-face { font-family: 'Anuphan'; font-weight: 600; src: url('assets/fonts/anuphan-600-6.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
     @font-face { font-family: 'Anuphan'; font-weight: 600; src: url('assets/fonts/anuphan-600-7.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
     #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Anuphan', sans-serif; color: #FFFFFF; }
-    .stage { position: absolute; inset: 0; perspective: 2200px; }
-    .win { position: absolute; left: 330px; top: 158px; width: 1260px; height: 745px; border-radius: 18px;
-      overflow: hidden; background: #0E1A13; box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.09); }
-    .bar { position: absolute; left: 0; right: 0; top: 0; height: 36px; display: flex; align-items: center; gap: 8px;
-      padding: 0 16px; background: #0E1A13; }
-    .bar i { width: 11px; height: 11px; border-radius: 50%; background: #2C4635; }
-    .bar span { margin-left: 14px; padding: 3px 14px; border-radius: 8px; background: rgba(255, 255, 255, 0.06);
-      font-size: 15px; color: #9FB3A6; letter-spacing: 0.02em; }
-    .content { position: absolute; left: 0; top: 36px; width: 1260px; height: 709px; overflow: hidden; background: #F6F7F6; }
-    .screen { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform: scale(0.65625); transform-origin: 0 0; }
+    .stage { position: absolute; inset: 0; perspective: 2600px; }
+    .win { position: absolute; left: 71px; top: 40px; width: 1778px; height: 1000px; border-radius: 22px;
+      overflow: hidden; background: #F6F7F6; box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.10); }
+    .screen { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform: scale(0.92604); transform-origin: 0 0; }
     .shot { position: absolute; inset: 0; overflow: hidden; }
     .fade { position: absolute; inset: 0; }
     .cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
     .cam img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
     .ring { position: absolute; border-style: solid; border-color: #34D873; background: rgba(52, 216, 115, 0.08); opacity: 0; }
     .cursor { position: absolute; left: 0; top: 0; opacity: 0; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35)); }
-    .head { position: absolute; left: 330px; top: 100px; display: flex; align-items: baseline; gap: 22px; }
-    .head .step { font-family: 'Prompt', 'Anuphan', sans-serif; font-weight: 600; font-size: 22px; letter-spacing: 0.16em; color: #34D873; }
-    .head .lab { font-family: 'Prompt', 'Anuphan', sans-serif; font-weight: 600; font-size: 44px; letter-spacing: -0.01em; color: #FFFFFF; }
-    .demo { position: absolute; right: 330px; top: 104px; display: flex; align-items: center; gap: 10px; padding: 8px 18px;
-      border-radius: 999px; background: rgba(245, 185, 64, 0.12); border: 1px solid rgba(245, 185, 64, 0.45); color: #F8D58A;
-      font-size: 20px; font-weight: 600; }
+    .head { position: absolute; left: 99px; top: 64px; z-index: 28; display: flex; align-items: center; gap: 16px;
+      padding: 10px 24px 10px 20px; border-radius: 999px; background: rgba(8, 18, 12, 0.86);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); }
+    .head .step { font-family: 'Prompt', 'Anuphan', sans-serif; font-weight: 600; font-size: 20px; letter-spacing: 0.16em; color: #34D873; }
+    .head .lab { font-family: 'Prompt', 'Anuphan', sans-serif; font-weight: 600; font-size: 32px; color: #FFFFFF; }
+    .demo { position: absolute; right: 99px; top: 70px; z-index: 28; display: flex; align-items: center; gap: 10px;
+      padding: 8px 18px; border-radius: 999px; background: rgba(8, 18, 12, 0.86); color: #F8D58A; font-size: 20px; font-weight: 600; }
     .demo i { width: 9px; height: 9px; border-radius: 50%; background: #F5B940; }
+    .veil { position: absolute; left: 71px; top: 40px; width: 1778px; height: 1000px; border-radius: 22px; z-index: 25;
+      background: rgba(5, 12, 8, 0.62); opacity: 0; }
+    .compare { position: absolute; left: 0; right: 0; top: 150px; z-index: 30; display: flex; justify-content: center; gap: 48px; }
+    .kind { position: relative; width: 700px; padding: 22px 22px 26px; border-radius: 24px; background: rgba(8, 18, 12, 0.92); border: 3px solid transparent;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45); opacity: 0; }
+    .kind .pic { width: 656px; height: 369px; border-radius: 14px; background: #000; overflow: hidden; }
+    .kind .pic img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .kind b { display: block; margin-top: 20px; font-family: 'Prompt', 'Anuphan', sans-serif; font-weight: 700; font-size: 52px; color: #FFFFFF; }
+    .kind .shade { position: absolute; inset: 0; border-radius: 22px; background: rgba(8, 18, 12, 0.66); opacity: 0; }
+    .kind span { display: block; margin-top: 6px; font-size: 30px; line-height: 1.4; color: #C9D6CD; }
   </style>
   <div id="root" data-composition-id="sc-confirm" data-width="1920" data-height="1080">
-    <div id="confirm-h0" class="head clip" data-start="0.0" data-duration="13.285" data-track-index="5"><span id="confirm-h0-n" class="step">STEP 04</span><span id="confirm-h0-t" class="lab">Confirm Image</span></div>
-    <div id="confirm-demo" class="demo clip" data-start="0" data-duration="13.285" data-track-index="6"><i></i><span id="confirm-demo-t">ข้อมูลตัวอย่าง</span></div>
+    <div id="confirm-h0" class="head clip" data-start="0.0" data-duration="25.914" data-track-index="5"><span id="confirm-h0-n" class="step">STEP 04</span><span id="confirm-h0-t" class="lab">Confirm Image</span></div>
+    <div id="confirm-demo" class="demo clip" data-start="0" data-duration="25.914" data-track-index="6"><i></i><span id="confirm-demo-t">ข้อมูลตัวอย่าง</span></div>
     <div id="confirm-stage" class="stage">
       <div id="confirm-win" class="win">
-        <div class="bar"><i></i><i></i><i></i><span>workbench / Confirm Image</span></div>
-        <div class="content"><div class="screen">
-        <div id="confirm-s0" class="shot clip" data-start="0.0" data-duration="3.74" data-track-index="1" style="z-index: 1;">
+        <div class="screen">
+        <div id="confirm-s0" class="shot clip" data-start="0.0" data-duration="3.485" data-track-index="1" style="z-index: 1;">
           <div id="confirm-s0-fade" class="fade">
             <div id="confirm-s0-cam" class="cam">
               <img id="confirm-s0-img" src="assets/screens/s03b.png" alt="" />
-              <div id="confirm-s0-r0" class="ring" style="left: 1570px; top: 700px; width: 126px; height: 48px; border-width: 2.19px; border-radius: 7.301px; box-shadow: 0 0 0 5.111px rgba(52, 216, 115, 0.18), 0 0 21.904px rgba(52, 216, 115, 0.35);"></div>
-              <div id="confirm-s0-c" class="cursor" style="width: 24.825px; height: 24.825px; margin-left: -4.138px; margin-top: -2.069px;"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 19 L8.6 14.9 L11.6 21.6 L14.6 20.3 L11.7 13.7 L18 13.4 Z" fill="#FFFFFF" stroke="#0B1510" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+              <div id="confirm-s0-r0" class="ring" style="left: 1570px; top: 700px; width: 126px; height: 48px; border-width: 1.552px; border-radius: 5.174px; box-shadow: 0 0 0 3.622px rgba(52, 216, 115, 0.18), 0 0 15.523px rgba(52, 216, 115, 0.35);"></div>
+              <div id="confirm-s0-c" class="cursor" style="width: 17.592px; height: 17.592px; margin-left: -2.932px; margin-top: -1.466px;"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 19 L8.6 14.9 L11.6 21.6 L14.6 20.3 L11.7 13.7 L18 13.4 Z" fill="#FFFFFF" stroke="#0B1510" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
             </div>
           </div>
         </div>
-        <div id="confirm-s1" class="shot clip" data-start="3.24" data-duration="6.418" data-track-index="2" style="z-index: 2;">
+        <div id="confirm-s1" class="shot clip" data-start="2.985" data-duration="17.41" data-track-index="2" style="z-index: 2;">
           <div id="confirm-s1-fade" class="fade">
             <div id="confirm-s1-cam" class="cam">
               <img id="confirm-s1-img" src="assets/screens/s04a.png" alt="" />
-              <div id="confirm-s1-r0" class="ring" style="left: 982px; top: 384px; width: 409px; height: 52px; border-width: 2.286px; border-radius: 7.619px; box-shadow: 0 0 0 5.333px rgba(52, 216, 115, 0.18), 0 0 22.857px rgba(52, 216, 115, 0.35);"></div>
-              <div id="confirm-s1-c" class="cursor" style="width: 25.905px; height: 25.905px; margin-left: -4.317px; margin-top: -2.159px;"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 19 L8.6 14.9 L11.6 21.6 L14.6 20.3 L11.7 13.7 L18 13.4 Z" fill="#FFFFFF" stroke="#0B1510" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+              <div id="confirm-s1-r0" class="ring" style="left: 982px; top: 384px; width: 409px; height: 52px; border-width: 1.62px; border-radius: 5.399px; box-shadow: 0 0 0 3.78px rgba(52, 216, 115, 0.18), 0 0 16.198px rgba(52, 216, 115, 0.35);"></div>
+              <div id="confirm-s1-c" class="cursor" style="width: 18.358px; height: 18.358px; margin-left: -3.06px; margin-top: -1.53px;"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 19 L8.6 14.9 L11.6 21.6 L14.6 20.3 L11.7 13.7 L18 13.4 Z" fill="#FFFFFF" stroke="#0B1510" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
             </div>
           </div>
         </div>
-        <div id="confirm-s2" class="shot clip" data-start="9.158" data-duration="4.127" data-track-index="1" style="z-index: 3;">
+        <div id="confirm-s2" class="shot clip" data-start="19.895" data-duration="6.019" data-track-index="1" style="z-index: 3;">
           <div id="confirm-s2-fade" class="fade">
             <div id="confirm-s2-cam" class="cam">
               <img id="confirm-s2-img" src="assets/screens/s04b.png" alt="" />
-              <div id="confirm-s2-r0" class="ring" style="left: 982px; top: 573px; width: 409px; height: 52px; border-width: 2.143px; border-radius: 7.143px; box-shadow: 0 0 0 5.0px rgba(52, 216, 115, 0.18), 0 0 21.429px rgba(52, 216, 115, 0.35);"></div>
-              <div id="confirm-s2-r1" class="ring" style="left: 1225px; top: 819px; width: 166px; height: 52px; border-width: 2.143px; border-radius: 7.143px; box-shadow: 0 0 0 5.0px rgba(52, 216, 115, 0.18), 0 0 21.429px rgba(52, 216, 115, 0.35);"></div>
-              <div id="confirm-s2-c" class="cursor" style="width: 24.286px; height: 24.286px; margin-left: -4.048px; margin-top: -2.024px;"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 19 L8.6 14.9 L11.6 21.6 L14.6 20.3 L11.7 13.7 L18 13.4 Z" fill="#FFFFFF" stroke="#0B1510" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
+              <div id="confirm-s2-r0" class="ring" style="left: 982px; top: 384px; width: 409px; height: 52px; border-width: 1.519px; border-radius: 5.062px; box-shadow: 0 0 0 3.543px rgba(52, 216, 115, 0.18), 0 0 15.186px rgba(52, 216, 115, 0.35);"></div>
+              <div id="confirm-s2-r1" class="ring" style="left: 982px; top: 573px; width: 409px; height: 52px; border-width: 1.519px; border-radius: 5.062px; box-shadow: 0 0 0 3.543px rgba(52, 216, 115, 0.18), 0 0 15.186px rgba(52, 216, 115, 0.35);"></div>
+              <div id="confirm-s2-r2" class="ring" style="left: 1225px; top: 819px; width: 166px; height: 52px; border-width: 1.519px; border-radius: 5.062px; box-shadow: 0 0 0 3.543px rgba(52, 216, 115, 0.18), 0 0 15.186px rgba(52, 216, 115, 0.35);"></div>
+              <div id="confirm-s2-c" class="cursor" style="width: 17.211px; height: 17.211px; margin-left: -2.868px; margin-top: -1.434px;"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M4 2 L4 19 L8.6 14.9 L11.6 21.6 L14.6 20.3 L11.7 13.7 L18 13.4 Z" fill="#FFFFFF" stroke="#0B1510" stroke-width="1.4" stroke-linejoin="round"/></svg></div>
             </div>
           </div>
         </div>
-        </div></div>
+        </div>
       </div>
     </div>
+    <div id="confirm-veil" class="veil"></div>
+    <div id="confirm-cmp" class="compare"><div id="confirm-cfp" class="kind"><div class="pic"><img src="assets/screens/cfp.png" alt="" /></div><b>CFP</b><span>ภาพจอตาแบบปกติ<br />วงกลมบนพื้นดำ</span><i id="confirm-cfp-s" class="shade"></i></div><div id="confirm-uwf" class="kind"><div class="pic"><img src="assets/screens/uwf.jpg" alt="" /></div><b>UWF</b><span>ภาพมุมกว้าง (Ultra-widefield)<br />เห็นขนตาหรือขอบสีเหลือง</span><i id="confirm-uwf-s" class="shade"></i></div></div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.fromTo("#confirm-win", { rotationX: -12, y: -50, scale: 0.92, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
-    tl.fromTo("#confirm-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 1.377);
-    tl.fromTo("#confirm-s0-c", { x: 1771.727, y: 833.522, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 0.356);
-    tl.fromTo("#confirm-s0-c", { x: 1771.727, y: 833.522 }, { x: 1633.0, y: 724.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 0.656);
-    tl.to("#confirm-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 1.256);
+    tl.fromTo("#confirm-win", { rotationX: -7, y: -40, scale: 0.95, opacity: 0, filter: 'blur(14px)' }, { rotationX: 0, rotationY: 0, x: 0, y: 0, scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 0);
+    tl.fromTo("#confirm-s0-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 1.287);
+    tl.fromTo("#confirm-s0-c", { x: 1731.311, y: 801.614, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 0.267);
+    tl.fromTo("#confirm-s0-c", { x: 1731.311, y: 801.614 }, { x: 1633.0, y: 724.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 0.567);
+    tl.to("#confirm-s0-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 1.167);
     tl.fromTo("#confirm-s0-cam", {"x": -419.46, "y": -184.16, "scale": 1.2229}, { ...{"x": -2045.22, "y": -897.91, "scale": 2.087}, duration: 1.1, ease: "power3.inOut" }, 0.3);
-    tl.fromTo("#confirm-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 4.484);
-    tl.fromTo("#confirm-s1-c", { x: 1331.262, y: 524.286, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 3.464);
-    tl.fromTo("#confirm-s1-c", { x: 1331.262, y: 524.286 }, { x: 1186.5, y: 410.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 3.764);
-    tl.to("#confirm-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 4.364);
-    tl.fromTo("#confirm-s1-cam", {"x": -2045.22, "y": -897.91, "scale": 2.087}, { ...{"x": -1000.0, "y": -280.0, "scale": 2.0}, duration: 1.1, ease: "power3.inOut" }, 3.39);
-    tl.fromTo("#confirm-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 3.24);
-    tl.fromTo("#confirm-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 9.457);
-    tl.fromTo("#confirm-s2-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 11.245);
-    tl.fromTo("#confirm-s2-c", { x: 1322.216, y: 706.145, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 9.158);
-    tl.fromTo("#confirm-s2-c", { x: 1322.216, y: 706.145 }, { x: 1186.5, y: 599.0, duration: 0.25, ease: "power3.inOut", immediateRender: false }, 9.087);
-    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 9.337);
-    tl.fromTo("#confirm-s2-c", { x: 1186.5, y: 599.0 }, { x: 1308.0, y: 845.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 10.525);
-    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 11.125);
-    tl.fromTo("#confirm-s2-cam", {"x": -1000.0, "y": -280.0, "scale": 2.0}, { ...{"x": -1578.67, "y": -810.4, "scale": 2.1333}, duration: 1.1, ease: "power3.inOut" }, 9.308);
-    tl.fromTo("#confirm-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 9.158);
+    tl.fromTo("#confirm-s1-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 3.846);
+    tl.fromTo("#confirm-s1-c", { x: 1289.087, y: 490.99, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 2.985);
+    tl.fromTo("#confirm-s1-c", { x: 1289.087, y: 490.99 }, { x: 1186.5, y: 410.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 3.126);
+    tl.to("#confirm-s1-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 3.726);
+    tl.fromTo("#confirm-s1-cam", {"x": -2045.22, "y": -897.91, "scale": 2.087}, { ...{"x": -1000.0, "y": -280.0, "scale": 2.0}, duration: 1.1, ease: "power3.inOut" }, 3.135);
+    tl.fromTo("#confirm-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 2.985);
+    tl.fromTo("#confirm-s2-r0", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 20.288);
+    tl.fromTo("#confirm-s2-r1", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 22.203);
+    tl.fromTo("#confirm-s2-r2", { opacity: 0, scale: 1.06 }, { opacity: 1, scale: 1, duration: 0.35, ease: "power3.out" }, 24.117);
+    tl.fromTo("#confirm-s2-c", { x: 1282.677, y: 485.929, opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.out" }, 19.895);
+    tl.fromTo("#confirm-s2-c", { x: 1282.677, y: 485.929 }, { x: 1186.5, y: 410.0, duration: 0.25, ease: "power3.inOut", immediateRender: false }, 19.918);
+    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 20.168);
+    tl.fromTo("#confirm-s2-c", { x: 1186.5, y: 410.0 }, { x: 1186.5, y: 599.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 21.483);
+    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 22.083);
+    tl.fromTo("#confirm-s2-c", { x: 1186.5, y: 599.0 }, { x: 1308.0, y: 845.0, duration: 0.6, ease: "power3.inOut", immediateRender: false }, 23.397);
+    tl.to("#confirm-s2-c", { scale: 0.8, duration: 0.07, ease: "power2.in", yoyo: true, repeat: 1, transformOrigin: "16.667% 8.333%" }, 23.997);
+    tl.fromTo("#confirm-s2-cam", {"x": -1000.0, "y": -280.0, "scale": 2.0}, { ...{"x": -1578.67, "y": -810.4, "scale": 2.1333}, duration: 1.1, ease: "power3.inOut" }, 20.045);
+    tl.fromTo("#confirm-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.inOut" }, 19.895);
     tl.fromTo(["#confirm-h0-n", "#confirm-h0-t"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out", stagger: 0.08 }, 0.15);
-    tl.to(["#confirm-h0-n", "#confirm-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 12.885);
+    tl.to(["#confirm-h0-n", "#confirm-h0-t"], { opacity: 0, filter: "blur(8px)", duration: 0.18, ease: "power2.in" }, 25.514);
     tl.fromTo("#confirm-demo-t", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.4);
-    tl.to("#confirm-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 12.885);
-    tl.to("#confirm-demo-t", { opacity: 0, duration: 0.2 }, 12.885);
+    tl.to("#confirm-veil", { opacity: 1, duration: 0.35, ease: "power2.out" }, 6.891);
+    tl.fromTo(["#confirm-cfp", "#confirm-uwf"], { opacity: 0, y: 30, filter: "blur(10px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out", stagger: 0.1 }, 6.891);
+    tl.to("#confirm-cfp", { borderColor: "#34D873", scale: 1.03, duration: 0.3, ease: "power2.out" }, 7.191);
+    tl.to("#confirm-uwf-s", { opacity: 1, duration: 0.3 }, 7.191);
+    tl.to("#confirm-cfp", { borderColor: "rgba(0, 0, 0, 0)", scale: 1, duration: 0.3 }, 11.15);
+    tl.to("#confirm-cfp-s", { opacity: 1, duration: 0.3 }, 11.15);
+    tl.to("#confirm-uwf-s", { opacity: 0, duration: 0.3 }, 11.15);
+    tl.to("#confirm-uwf", { borderColor: "#34D873", scale: 1.03, duration: 0.3, ease: "power2.out" }, 11.15);
+    tl.to(["#confirm-cfp", "#confirm-uwf"], { borderColor: "rgba(0, 0, 0, 0)", scale: 1, duration: 0.3 }, 14.345);
+    tl.to(["#confirm-cfp-s", "#confirm-uwf-s"], { opacity: 0, duration: 0.3 }, 14.345);
+    tl.to(["#confirm-cfp", "#confirm-uwf"], { opacity: 0, y: -20, filter: "blur(8px)", duration: 0.3, ease: "power2.in" }, 19.695);
+    tl.to("#confirm-veil", { opacity: 0, duration: 0.3 }, 19.795);
+    tl.to("#confirm-win", { scale: 1.08, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 25.514);
+    tl.to("#confirm-demo-t", { opacity: 0, duration: 0.2 }, 25.514);
     window.__timelines["sc-confirm"] = tl;
   </script>
 </template>
