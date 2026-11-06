@@ -38,7 +38,8 @@ describe('sign-in page walkthrough video', () => {
     expect(track?.getAttribute('src')).toBe('/app/media/journey-th.vtt');
     expect(track?.getAttribute('kind')).toBe('captions');
     expect(track?.getAttribute('srclang')).toBe('th');
-    expect(track?.hasAttribute('default')).toBe(true);
+    // Captions are drawn in the picture, so the track would show every line twice if it were on by default.
+    expect(track?.hasAttribute('default')).toBe(false);
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]);
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());

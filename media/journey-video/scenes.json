@@ -2,8 +2,8 @@
   "voice": "Achernar",
   "model": "gemini-3.8-flash-tts",
   "style_prefix": "อ่านด้วยเสียงผู้หญิงที่นุ่มนวล อบอุ่น ใจเย็น พูดช้า ๆ ไม่รีบร้อน เว้นจังหวะหายใจระหว่างประโยค: ",
-  "lead_in": 0.8,
-  "tail": 1.1,
+  "lead_in": 0.35,
+  "tail": 0.55,
   "notes": "Timing is by caption line: a shot or ring starts at line L plus fraction 'at' of that line. Boxes come from assets/screens/boxes.json (written by the capture script); 'rect' is a hand-placed box in 1920x1080 page pixels. 'zoom' is the area the slow push-in ends on (kept 16:9).",
   "scenes": [
     {

@@ -34,10 +34,11 @@ export function JourneyVideoButton() {
           <ModalBody>
             <video ref={videoRef} controls preload="metadata" playsInline src={JOURNEY_VIDEO_SRC}
               style={{ width: '100%', aspectRatio: '16 / 9', background: '#0D1110', borderRadius: '6px' }}>
-              <track kind="captions" src={JOURNEY_CAPTIONS_SRC} srcLang="th" label="ไทย" default />
+              {/* The captions are drawn in the picture; the track stays off by default for players and screen readers. */}
+              <track kind="captions" src={JOURNEY_CAPTIONS_SRC} srcLang="th" label="ไทย" />
             </video>
             <Text mt={3} fontSize="sm" color="text.secondary">
-              {t('A short narrated walkthrough with demo data only. Thai captions are on; use the player to turn them off.')}
+              {t('A short narrated walkthrough with demo data only. The Thai captions are part of the picture.')}
             </Text>
           </ModalBody>
           <ModalFooter>

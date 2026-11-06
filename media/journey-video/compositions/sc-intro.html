@@ -1,45 +1,62 @@
 <template>
   <style>
-    @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
-    #root { position: absolute; inset: 0; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; color: #172018; }
-    .left { position: absolute; left: 150px; top: 0; bottom: 0; width: 860px; display: flex; flex-direction: column;
-      justify-content: center; gap: 30px; }
-    .brand { display: flex; align-items: center; gap: 22px; font-size: 30px; font-weight: 600; color: #52605A; }
-    .brand img { width: 84px; height: 84px; }
-    h1 { margin: 0; font-size: 92px; line-height: 1.08; letter-spacing: -0.02em; font-weight: 700; color: #172018; }
-    .sub { font-size: 44px; line-height: 1.45; color: #52605A; }
-    .rule { width: 120px; height: 6px; border-radius: 3px; background: #A73B24; }
-    .pill { align-self: flex-start; padding: 12px 24px; border-radius: 14px; background: #FBF2D9; border: 2px solid #E6CD8B;
-      color: #6E4A00; font-size: 28px; font-weight: 600; }
-    .panel { position: absolute; right: 0; top: 0; bottom: 0; width: 800px; background: #16231A; overflow: hidden; }
-    .halo { position: absolute; right: -200px; top: -220px; width: 640px; height: 640px; border-radius: 50%;
-      background: rgba(255, 255, 255, 0.06); }
-    .frame { position: absolute; left: 90px; top: 250px; width: 900px; height: 506px; border-radius: 18px; overflow: hidden;
-      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45); border: 2px solid rgba(255, 255, 255, 0.12); }
-    .frame img { width: 100%; height: 100%; }
-    .veil { position: absolute; inset: 0; background: #F6F7F6; }
+    @font-face { font-family: 'Prompt'; font-weight: 500; src: url('assets/fonts/prompt-500-0.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Prompt'; font-weight: 500; src: url('assets/fonts/prompt-500-1.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Prompt'; font-weight: 600; src: url('assets/fonts/prompt-600-2.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Prompt'; font-weight: 600; src: url('assets/fonts/prompt-600-3.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Prompt'; font-weight: 700; src: url('assets/fonts/prompt-700-4.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Prompt'; font-weight: 700; src: url('assets/fonts/prompt-700-5.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 300; src: url('assets/fonts/anuphan-300-0.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 300; src: url('assets/fonts/anuphan-300-1.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 400; src: url('assets/fonts/anuphan-400-2.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 400; src: url('assets/fonts/anuphan-400-3.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 500; src: url('assets/fonts/anuphan-500-4.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 500; src: url('assets/fonts/anuphan-500-5.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    @font-face { font-family: 'Anuphan'; font-weight: 600; src: url('assets/fonts/anuphan-600-6.woff2') format('woff2'); unicode-range: U+02D7,U+0303,U+0331,U+0E01-0E5B,U+200C-200D,U+25CC; }
+    @font-face { font-family: 'Anuphan'; font-weight: 600; src: url('assets/fonts/anuphan-600-7.woff2') format('woff2'); unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Anuphan', sans-serif; color: #FFFFFF; }
+    .left { position: absolute; left: 192px; top: 250px; width: 900px; }
+    .brand { display: flex; align-items: center; gap: 18px; font-size: 28px; font-weight: 500; color: #9FB3A6; }
+    .brand img { width: 56px; height: 56px; }
+    h1 { margin: 34px 0 0; font-family: 'Prompt', 'Anuphan', sans-serif; font-weight: 700; font-size: 132px; line-height: 1.05;
+      letter-spacing: -0.02em; color: #FFFFFF; }
+    h1 em { display: block; font-style: normal; font-size: 92px; color: #34D873; }
+    h1 span { display: inline-block; }
+    .sub { margin-top: 30px; font-size: 36px; line-height: 1.45; color: #9FB3A6; }
+    .pill { display: inline-flex; align-items: center; gap: 10px; margin-top: 34px; padding: 8px 18px; border-radius: 999px;
+      background: rgba(245, 185, 64, 0.12); border: 1px solid rgba(245, 185, 64, 0.45); color: #F8D58A; font-size: 22px; font-weight: 600; }
+    .pill i { width: 9px; height: 9px; border-radius: 50%; background: #F5B940; }
+    .deck { position: absolute; left: 1010px; top: 210px; width: 860px; height: 640px; perspective: 1800px; }
+    .rig { position: absolute; inset: 0; transform-style: preserve-3d; }
+    .card { position: absolute; width: 760px; height: 428px; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.1); }
+    .card img { width: 100%; height: 100%; display: block; }
+    .out { position: absolute; inset: 0; }
   </style>
   <div id="root" data-composition-id="sc-intro" data-width="1920" data-height="1080">
-    <div id="intro-panel" class="panel"><div class="halo"></div>
-      <div id="intro-frame" class="frame"><img src="assets/screens/s06b.png" alt="" /></div>
+    <div id="intro-out" class="out">
+      <div class="left">
+        <div id="intro-brand" class="brand"><img src="assets/logo.svg" alt="" /><span>Retinal Review Workbench</span></div>
+        <h1><span id="intro-w0">วิธีใช้งาน</span><em><span id="intro-w1">สำหรับ</span><span id="intro-w2">ทีมคลินิก</span></em></h1>
+        <div id="intro-sub" class="sub">ตั้งแต่ Sign in จนถึง Export ชุดข้อมูล</div>
+        <div id="intro-pill" class="pill"><i></i>ภาพทั้งหมดเป็นข้อมูลตัวอย่าง</div>
+      </div>
+      <div class="deck"><div id="intro-rig" class="rig">
+        <div id="intro-c0" class="card" style="left: 120px; top: 0px;"><img src="assets/screens/s03a.png" alt="" /></div>
+        <div id="intro-c1" class="card" style="left: 60px; top: 110px;"><img src="assets/screens/s07b.png" alt="" /></div>
+        <div id="intro-c2" class="card" style="left: 0px; top: 220px;"><img src="assets/screens/s06b.png" alt="" /></div>
+      </div></div>
     </div>
-    <div class="left">
-      <div id="intro-brand" class="brand"><img src="assets/logo.svg" alt="" /><span>Retinal Review Workbench</span></div>
-      <div id="intro-rule" class="rule"></div>
-      <h1 id="intro-title">วิธีใช้งาน<br />สำหรับทีมคลินิก</h1>
-      <div id="intro-sub" class="sub">ตั้งแต่ Sign in จนถึง Export ชุดข้อมูล</div>
-      <div id="intro-pill" class="pill">ภาพทั้งหมดเป็นข้อมูลตัวอย่าง</div>
-    </div>
-    <div id="intro-veil" class="veil clip" data-start="0" data-duration="17.187" data-track-index="2" style="z-index: 60;"></div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.fromTo("#intro-panel", { x: 0 }, { x: -24, duration: 17.19, ease: "sine.inOut" }, 0);
-    tl.fromTo("#intro-frame", { x: 0, y: 30, scale: 1.0 }, { x: -40, y: 0, scale: 1.06, duration: 17.19, ease: "sine.inOut" }, 0);
-    tl.fromTo("#intro-rule", { scaleX: 0.25, transformOrigin: "0% 50%" }, { scaleX: 1, duration: 1.2, ease: "power2.out" }, 0.2);
-    tl.fromTo("#intro-sub", { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8, ease: "power2.out" }, 0.6);
-    tl.fromTo("#intro-pill", { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power2.out" }, 12.459);
-    tl.fromTo("#intro-veil", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "sine.in" }, 16.667);
+    tl.fromTo("#intro-rig", { rotationY: -24, rotationX: 8 }, { rotationY: -12, rotationX: 4, duration: 13.246, ease: "none" }, 0);
+    tl.fromTo(["#intro-c0", "#intro-c1", "#intro-c2"], { x: 260, opacity: 0, filter: "blur(16px)" }, { x: 0, opacity: 1, filter: "blur(0px)", duration: 1.0, ease: "expo.out", stagger: 0.14 }, 0.1);
+    tl.fromTo("#intro-brand", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, 0.15);
+    tl.fromTo(["#intro-w0", "#intro-w1", "#intro-w2"], { opacity: 0, filter: "blur(10px)", y: 18 }, { opacity: 1, filter: "blur(0px)", y: 0, duration: 0.45, ease: "expo.out", stagger: 0.12 }, 0.3);
+    tl.fromTo("#intro-sub", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, 0.8);
+    tl.fromTo("#intro-pill", { opacity: 0, scale: 0.9 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(1.6)" }, 9.666);
+    tl.to("#intro-out", { scale: 1.06, opacity: 0, filter: "blur(12px)", duration: 0.4, ease: "power3.in" }, 12.846);
     window.__timelines["sc-intro"] = tl;
   </script>
 </template>
