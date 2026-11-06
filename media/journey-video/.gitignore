@@ -1,0 +1,10 @@
+# Generated: screenshots (capture/capture_journey.py), narration audio (tts.py),
+# renders and HyperFrames working files. Rebuild with the steps in build.md.
+assets/screens/*.png
+assets/audio/*.wav
+assets/audio/lines/
+assets/logo.svg
+renders/
+out/
+.hyperframes/
+node_modules/

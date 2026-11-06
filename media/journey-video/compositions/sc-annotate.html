@@ -1,0 +1,90 @@
+<template>
+  <style>
+    @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
+    #root { position: absolute; inset: 0; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; color: #172018; }
+    .shot { position: absolute; inset: 0; overflow: hidden; }
+    .fade { position: absolute; inset: 0; }
+    .cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+    .cam img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    .ring { position: absolute; border-style: solid; border-color: #016301; opacity: 0; }
+    .tap { position: absolute; border-radius: 50%; background: rgba(1, 99, 1, 0.28); opacity: 0; }
+    .chip { position: absolute; left: 110px; top: 66px; display: flex; align-items: center; gap: 16px;
+      padding: 10px 28px 10px 10px; border-radius: 999px; background: #16231A; color: #FFFFFF;
+      font-size: 30px; font-weight: 600; box-shadow: 0 10px 30px rgba(22, 35, 26, 0.25); }
+    .chip b { display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px;
+      border-radius: 50%; background: #6FBF73; color: #16231A; font-size: 30px; }
+    .demo { position: absolute; right: 110px; top: 70px; padding: 12px 24px; border-radius: 14px; background: #FBF2D9;
+      border: 2px solid #E6CD8B; color: #6E4A00; font-size: 30px; font-weight: 600; transform-origin: 100% 50%;
+      box-shadow: 0 10px 30px rgba(22, 35, 26, 0.18); }
+    .veil { position: absolute; inset: 0; background: #F6F7F6; }
+  </style>
+  <div id="root" data-composition-id="sc-annotate" data-width="1920" data-height="1080">
+    <div id="annotate-s0" class="shot clip" data-start="0.0" data-duration="4.129" data-track-index="1" style="z-index: 1;">
+      <div id="annotate-s0-fade" class="fade">
+        <div id="annotate-s0-cam" class="cam">
+          <img id="annotate-s0-img" src="assets/screens/s07a.png" alt="" />
+        </div>
+        <div id="annotate-s0-chip" class="chip"><b>7</b><span>Annotation Editor</span></div>
+      </div>
+    </div>
+    <div id="annotate-s1" class="shot clip" data-start="3.329" data-duration="4.592" data-track-index="2" style="z-index: 2;">
+      <div id="annotate-s1-fade" class="fade">
+        <div id="annotate-s1-cam" class="cam">
+          <img id="annotate-s1-img" src="assets/screens/s07b.png" alt="" />
+          <div id="annotate-s1-r0" class="ring" style="left: 871px; top: 792px; width: 98px; height: 114px; border-width: 2.34px; border-radius: 5.63px; box-shadow: 0 0 0 4.69px rgba(1, 99, 1, 0.16);"></div>
+        </div>
+        <div id="annotate-s1-chip" class="chip"><b>7</b><span>Annotation Editor</span></div>
+      </div>
+    </div>
+    <div id="annotate-s2" class="shot clip" data-start="7.121" data-duration="5.897" data-track-index="1" style="z-index: 3;">
+      <div id="annotate-s2-fade" class="fade">
+        <div id="annotate-s2-cam" class="cam">
+          <img id="annotate-s2-img" src="assets/screens/s07b.png" alt="" />
+          <div id="annotate-s2-r0" class="ring" style="left: 709px; top: 360px; width: 196px; height: 62px; border-width: 2.6px; border-radius: 6.25px; box-shadow: 0 0 0 5.21px rgba(1, 99, 1, 0.16);"></div>
+          <div id="annotate-s2-t0" class="tap" style="left: 757.5px; top: 341.5px; width: 99px; height: 99px;"></div>
+        </div>
+        <div id="annotate-s2-chip" class="chip"><b>7</b><span>Annotation Editor</span></div>
+      </div>
+    </div>
+    <div id="annotate-s3" class="shot clip" data-start="12.218" data-duration="3.29" data-track-index="2" style="z-index: 4;">
+      <div id="annotate-s3-fade" class="fade">
+        <div id="annotate-s3-cam" class="cam">
+          <img id="annotate-s3-img" src="assets/screens/s07b.png" alt="" />
+          <div id="annotate-s3-r0" class="ring" style="left: 1585px; top: 496px; width: 294px; height: 52px; border-width: 2.45px; border-radius: 5.87px; box-shadow: 0 0 0 4.9px rgba(1, 99, 1, 0.16);"></div>
+          <div id="annotate-s3-t0" class="tap" style="left: 1690.5px; top: 480.5px; width: 83px; height: 83px;"></div>
+        </div>
+        <div id="annotate-s3-chip" class="chip"><b>7</b><span>Finish image</span></div>
+      </div>
+    </div>
+    <div id="annotate-s4" class="shot clip" data-start="14.708" data-duration="2.626" data-track-index="1" style="z-index: 5;">
+      <div id="annotate-s4-fade" class="fade">
+        <div id="annotate-s4-cam" class="cam">
+          <img id="annotate-s4-img" src="assets/screens/s07c.png" alt="" />
+        </div>
+        <div id="annotate-s4-chip" class="chip"><b>7</b><span>Finish image</span></div>
+      </div>
+    </div>
+    <div id="annotate-demo" class="demo clip" data-start="0" data-duration="17.334" data-track-index="3" style="z-index: 50;">ข้อมูลตัวอย่าง</div>
+    <div id="annotate-veil" class="veil clip" data-start="0" data-duration="17.334" data-track-index="4" style="z-index: 60;"></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#annotate-s0-cam", {"x": -17.1, "y": -55.56, "scale": 1.069}, { ...{"x": -118.15, "y": -383.82, "scale": 1.4769}, duration: 3.329, ease: "sine.inOut" }, 0.0);
+    tl.fromTo("#annotate-s1-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 4.735);
+    tl.fromTo("#annotate-s1-cam", {"x": -118.15, "y": -383.82, "scale": 1.4769}, { ...{"x": -981.33, "y": -1109.07, "scale": 2.1333}, duration: 3.792, ease: "sine.inOut" }, 3.329);
+    tl.fromTo("#annotate-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 3.329);
+    tl.fromTo("#annotate-s2-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 7.781);
+    tl.fromTo("#annotate-s2-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 8.131);
+    tl.fromTo("#annotate-s2-cam", {"x": -981.33, "y": -1109.07, "scale": 2.1333}, { ...{"x": -576.0, "y": -441.12, "scale": 1.92}, duration: 5.097, ease: "sine.inOut" }, 7.121);
+    tl.fromTo("#annotate-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 7.121);
+    tl.fromTo("#annotate-s3-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 12.7);
+    tl.fromTo("#annotate-s3-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 13.05);
+    tl.fromTo("#annotate-s3-cam", {"x": -576.0, "y": -441.12, "scale": 1.92}, { ...{"x": -2001.7, "y": -470.04, "scale": 2.0426}, duration: 2.49, ease: "sine.inOut" }, 12.218);
+    tl.fromTo("#annotate-s3-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 12.218);
+    tl.fromTo("#annotate-s4-cam", {"x": -2001.7, "y": -470.04, "scale": 2.0426}, { ...{"x": -436.36, "y": -116.73, "scale": 1.4545}, duration: 2.626, ease: "sine.inOut" }, 14.708);
+    tl.fromTo("#annotate-s4-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 14.708);
+    tl.fromTo("#annotate-veil", { opacity: 1 }, { opacity: 0, duration: 0.5, ease: "sine.out" }, 0);
+    tl.to("#annotate-veil", { opacity: 1, duration: 0.5, ease: "sine.in" }, 16.814);
+    window.__timelines["sc-annotate"] = tl;
+  </script>
+</template>

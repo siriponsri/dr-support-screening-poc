@@ -1,0 +1,91 @@
+{
+  "voice": "Achernar",
+  "model": "gemini-3.8-flash-tts",
+  "style_prefix": "อ่านด้วยเสียงผู้หญิงที่นุ่มนวล อบอุ่น ใจเย็น พูดช้า ๆ ไม่รีบร้อน เว้นจังหวะหายใจระหว่างประโยค: ",
+  "lead_in": 0.8,
+  "tail": 1.1,
+  "notes": "Timing is by caption line: a shot or ring starts at line L plus fraction 'at' of that line. Boxes come from assets/screens/boxes.json (written by the capture script); 'rect' is a hand-placed box in 1920x1080 page pixels. 'zoom' is the area the slow push-in ends on (kept 16:9).",
+  "scenes": [
+    {
+      "id": "intro", "card": "title",
+      "captions": ["วิดีโอนี้จะพาดูการใช้งาน Retinal Review Workbench", "ตั้งแต่เข้าสู่ระบบ จนถึงส่งออกชุดข้อมูล", "ภาพทั้งหมดในวิดีโอเป็นข้อมูลตัวอย่างค่ะ"]
+    },
+    {
+      "id": "signin",
+      "captions": ["เริ่มจากหน้า Sign in กดปุ่ม TH เพื่อใช้ภาษาไทย", "แล้วใส่ username กับ password ที่ผู้ดูแลระบบให้ไว้", "กดปุ่ม ดูวิธีใช้งาน เพื่อเปิดวิดีโอนี้อีกครั้ง", "หน้า Today สรุปงานของวันนี้", "ว่ามีภาพรอตรวจกี่ภาพ และภาพไหนต้องยืนยันก่อน"],
+      "shots": [
+        {"screen": "s01a", "line": 0, "step": "1", "label": "Sign in", "zoom": {"x": 340, "y": 200, "w": 1240, "h": 698}, "rings": [{"box": "language", "line": 0, "at": 0.45}]},
+        {"screen": "s01b", "line": 1, "at": 0.0, "step": "1", "label": "Sign in", "zoom": {"x": 300, "y": 250, "w": 1060, "h": 596}, "rings": [{"box": "signin", "line": 1, "at": 0.55}]},
+        {"screen": "s01b", "line": 2, "at": 0.0, "step": "1", "label": "Sign in", "zoom": {"x": 250, "y": 330, "w": 1060, "h": 596}, "rings": [{"box": "video", "line": 2, "at": 0.35}]},
+        {"screen": "s02", "line": 3, "step": "2", "label": "Today", "zoom": {"x": 430, "y": 40, "w": 1340, "h": 754}, "rings": [{"box": "stats", "line": 3, "at": 0.4}, {"rect": {"x": 1375, "y": 156, "w": 293, "h": 99}, "line": 4, "at": 0.45}]}
+      ]
+    },
+    {
+      "id": "worklist",
+      "captions": ["ภาพใหม่มาจากโฟลเดอร์นำเข้าของ Workspace", "ที่หน้า Worklist กด สแกนโฟลเดอร์นำเข้า", "แล้วภาพจะขึ้นในรายการ โดยไม่แตะไฟล์ต้นฉบับ"],
+      "shots": [
+        {"screen": "s03a", "line": 0, "step": "3", "label": "Worklist", "zoom": {"x": 640, "y": 60, "w": 1240, "h": 698}, "rings": [{"box": "scan", "line": 1, "at": 0.4}]},
+        {"screen": "s03b", "line": 2, "step": "3", "label": "Worklist", "zoom": {"x": 360, "y": 150, "w": 1440, "h": 810}}
+      ]
+    },
+    {
+      "id": "confirm",
+      "captions": ["ก่อนเริ่มตรวจ กด Confirm Image", "เลือกชนิดภาพเป็น CFP ใส่รหัสผู้ป่วยแบบไม่ระบุตัวตน", "เลือกตาข้างที่ถ่าย แล้วกดยืนยันภาพ"],
+      "shots": [
+        {"screen": "s03b", "line": 0, "step": "4", "label": "Confirm Image", "zoom": {"x": 980, "y": 430, "w": 920, "h": 518}, "rings": [{"box": "confirm", "line": 0, "at": 0.35}]},
+        {"screen": "s04a", "line": 1, "step": "4", "label": "Confirm Image", "zoom": {"x": 500, "y": 140, "w": 960, "h": 540}, "rings": [{"box": "type", "line": 1, "at": 0.2}]},
+        {"screen": "s04b", "line": 2, "step": "4", "label": "Confirm Image", "zoom": {"x": 740, "y": 380, "w": 900, "h": 506}, "rings": [{"box": "eye", "line": 2, "at": 0.05}, {"box": "confirm", "line": 2, "at": 0.55}]}
+      ]
+    },
+    {
+      "id": "ai", "demo": true,
+      "captions": ["ถ้าเชื่อมต่อ AI ไว้ ระบบจะเสนอ DR grade ให้ดูประกอบ", "แต่เป็นแค่คำแนะนำนะคะ คนตัดสินคือแพทย์เสมอ", "ผล AI ในวิดีโอนี้เป็นข้อมูลจำลอง"],
+      "shots": [
+        {"screen": "s05", "line": 0, "step": "5", "label": "AI grade suggestion", "zoom": {"x": 960, "y": 330, "w": 960, "h": 540}, "rings": [{"rect": {"x": 1548, "y": 555, "w": 348, "h": 186}, "line": 0, "at": 0.5}, {"box": "suggestion", "line": 1, "at": 0.15}]}
+      ]
+    },
+    {
+      "id": "grade", "demo": true,
+      "captions": ["ที่หน้า Clinician Review แพทย์ดูภาพแล้วเลือกเกรดสุดท้าย", "จะยืนยันตาม AI หรือแก้เกรดก็ได้", "ตัวอย่างนี้แพทย์แก้เป็นเกรด 3 แล้วกด Confirm DR grade"],
+      "shots": [
+        {"screen": "s06a", "line": 0, "step": "6", "label": "Clinician Review", "zoom": {"x": 980, "y": 240, "w": 940, "h": 529}, "rings": [{"box": "grades", "line": 0, "at": 0.55}, {"box": "ai", "line": 1, "at": 0.1}]},
+        {"screen": "s06b", "line": 2, "step": "6", "label": "Clinician Review", "zoom": {"x": 980, "y": 360, "w": 940, "h": 529}, "rings": [{"box": "grade3", "line": 2, "at": 0.2}, {"box": "confirm", "line": 2, "at": 0.62}]}
+      ]
+    },
+    {
+      "id": "annotate",
+      "captions": ["ใน Annotation Editor วาดกรอบรอบรอยโรคที่ต้องการบันทึก", "เลือกชนิดรอยโรค ระบบบันทึกให้อัตโนมัติ", "เสร็จแล้วกด Finish image เพื่อไปภาพถัดไป"],
+      "shots": [
+        {"screen": "s07a", "line": 0, "step": "7", "label": "Annotation Editor", "zoom": {"x": 80, "y": 260, "w": 1300, "h": 731}},
+        {"screen": "s07b", "line": 0, "at": 0.45, "step": "7", "label": "Annotation Editor", "zoom": {"x": 460, "y": 520, "w": 900, "h": 506}, "rings": [{"box": "drawn", "line": 0, "at": 0.7}]},
+        {"screen": "s07b", "line": 1, "step": "7", "label": "Annotation Editor", "zoom": {"x": 300, "y": 230, "w": 1000, "h": 562}, "rings": [{"rect": {"x": 709, "y": 360, "w": 196, "h": 62}, "line": 1, "at": 0.15}]},
+        {"screen": "s07b", "line": 2, "step": "7", "label": "Finish image", "zoom": {"x": 980, "y": 230, "w": 940, "h": 529}, "rings": [{"box": "finish", "line": 2, "at": 0.12}]},
+        {"screen": "s07c", "line": 2, "at": 0.62, "step": "7", "label": "Finish image", "zoom": {"x": 300, "y": 80, "w": 1320, "h": 743}}
+      ]
+    },
+    {
+      "id": "report",
+      "captions": ["ใน Screening report พยาบาลเตรียมข้อมูลไว้ได้", "ผู้ให้เกรดเลือกเองว่า Refer หรือ Not refer", "แล้วแพทย์ลงนาม ระบบไม่ตัดสินการส่งต่อแทน", "เคสที่เลือก Refer จะไปอยู่ในหน้า Referrals", "ติดตามได้จากที่เดียว"],
+      "shots": [
+        {"screen": "s08a", "line": 0, "step": "8", "label": "Screening report", "zoom": {"x": 300, "y": 40, "w": 1500, "h": 844}},
+        {"screen": "s08b", "line": 1, "step": "8", "label": "Screening report", "zoom": {"x": 420, "y": 520, "w": 1000, "h": 562}, "rings": [{"box": "result", "line": 1, "at": 0.25}]},
+        {"screen": "s08b", "line": 2, "step": "8", "label": "Screening report", "zoom": {"x": 420, "y": 518, "w": 1000, "h": 562}, "rings": [{"box": "sign", "line": 2, "at": 0.08}]},
+        {"screen": "s08c", "line": 2, "at": 0.5, "step": "8", "label": "Screening report", "zoom": {"x": 420, "y": 518, "w": 1000, "h": 562}, "rings": [{"box": "signed", "line": 2, "at": 0.6}]},
+        {"screen": "s09", "line": 3, "step": "9", "label": "Referrals", "zoom": {"x": 360, "y": 40, "w": 1440, "h": 810}, "rings": [{"rect": {"x": 480, "y": 276, "w": 1216, "h": 60}, "line": 3, "at": 0.55}]}
+      ]
+    },
+    {
+      "id": "datasets",
+      "captions": ["หน้า Datasets ใช้ส่งออกชุดข้อมูลวิจัย", "ภาพที่ยืนยันเกรดแล้วอยู่ในกลุ่ม DR-ready", "การส่งออกเป็นการคัดลอก ไม่แก้ภาพต้นฉบับ"],
+      "shots": [
+        {"screen": "s10a", "line": 0, "step": "10", "label": "Datasets", "zoom": {"x": 220, "y": 30, "w": 1640, "h": 922}},
+        {"screen": "s10b", "line": 1, "step": "10", "label": "Datasets", "zoom": {"x": 300, "y": 150, "w": 1300, "h": 731}, "rings": [{"rect": {"x": 384, "y": 336, "w": 92, "h": 36}, "line": 1, "at": 0.3}, {"rect": {"x": 338, "y": 432, "w": 1502, "h": 66}, "line": 1, "at": 0.6}]},
+        {"screen": "s10b", "line": 2, "step": "10", "label": "Datasets", "zoom": {"x": 300, "y": 440, "w": 1300, "h": 731}, "rings": [{"rect": {"x": 322, "y": 606, "w": 1532, "h": 180}, "line": 2, "at": 0.2}]}
+      ]
+    },
+    {
+      "id": "outro", "card": "end",
+      "captions": ["โปรแกรมนี้ไม่ใช่เครื่องมือวินิจฉัยโรค", "เกรดที่แพทย์ยืนยันคือผลที่ใช้จริง", "ภาพที่ส่งไป server ของทีม ต้องเป็นภาพสาธารณะ", "หรือภาพที่ได้รับความยินยอมเท่านั้น ขอบคุณค่ะ"]
+    }
+  ]
+}

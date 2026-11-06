@@ -13,6 +13,10 @@ const STORAGE_KEY = 'dr-support-screening.language.v1';
 const THAI: Record<string, string> = {
   // Sign-in
   'Use the account your administrator gave you.': 'ใช้บัญชีที่ผู้ดูแลระบบให้ไว้',
+  'Watch how it works': 'ดูวิธีใช้งาน',
+  'How the Workbench works': 'วิธีใช้งานโปรแกรม',
+  'A short narrated walkthrough with demo data only. Thai captions are on; use the player to turn them off.':
+    'วิดีโอแนะนำสั้น ๆ พร้อมเสียงบรรยาย ใช้ข้อมูลตัวอย่างเท่านั้น คำบรรยายภาษาไทยเปิดอยู่ ปิดได้ที่ตัวเล่นวิดีโอ',
   'Physician UX pilot for research use. Not a diagnostic device.': 'โปรแกรมทดลองใช้เพื่องานวิจัย ไม่ใช่เครื่องมือวินิจฉัยโรค',
   'Bring in a folder of CFP or UWF images, confirm the shared details once, and see which images need a closer look.':
     'นำเข้าภาพ CFP หรือ UWF ทั้งโฟลเดอร์ ยืนยันข้อมูลที่ใช้ร่วมกันครั้งเดียว แล้วดูว่าภาพไหนต้องตรวจละเอียด',

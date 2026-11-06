@@ -1,0 +1,64 @@
+<template>
+  <style>
+    @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
+    #root { position: absolute; inset: 0; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; color: #172018; }
+    .shot { position: absolute; inset: 0; overflow: hidden; }
+    .fade { position: absolute; inset: 0; }
+    .cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+    .cam img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    .ring { position: absolute; border-style: solid; border-color: #016301; opacity: 0; }
+    .tap { position: absolute; border-radius: 50%; background: rgba(1, 99, 1, 0.28); opacity: 0; }
+    .chip { position: absolute; left: 110px; top: 66px; display: flex; align-items: center; gap: 16px;
+      padding: 10px 28px 10px 10px; border-radius: 999px; background: #16231A; color: #FFFFFF;
+      font-size: 30px; font-weight: 600; box-shadow: 0 10px 30px rgba(22, 35, 26, 0.25); }
+    .chip b { display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px;
+      border-radius: 50%; background: #6FBF73; color: #16231A; font-size: 30px; }
+    .demo { position: absolute; right: 110px; top: 70px; padding: 12px 24px; border-radius: 14px; background: #FBF2D9;
+      border: 2px solid #E6CD8B; color: #6E4A00; font-size: 30px; font-weight: 600; transform-origin: 100% 50%;
+      box-shadow: 0 10px 30px rgba(22, 35, 26, 0.18); }
+    .veil { position: absolute; inset: 0; background: #F6F7F6; }
+  </style>
+  <div id="root" data-composition-id="sc-grade" data-width="1920" data-height="1080">
+    <div id="grade-s0" class="shot clip" data-start="0.0" data-duration="11.711" data-track-index="1" style="z-index: 1;">
+      <div id="grade-s0-fade" class="fade">
+        <div id="grade-s0-cam" class="cam">
+          <img id="grade-s0-img" src="assets/screens/s06a.png" alt="" />
+          <div id="grade-s0-r0" class="ring" style="left: 1565px; top: 551px; width: 314px; height: 144px; border-width: 2.45px; border-radius: 5.87px; box-shadow: 0 0 0 4.9px rgba(1, 99, 1, 0.16);"></div>
+          <div id="grade-s0-r1" class="ring" style="left: 1567px; top: 409px; width: 310px; height: 48px; border-width: 2.45px; border-radius: 5.87px; box-shadow: 0 0 0 4.9px rgba(1, 99, 1, 0.16);"></div>
+          <div id="grade-s0-t1" class="tap" style="left: 1683.5px; top: 394.5px; width: 77px; height: 77px;"></div>
+        </div>
+        <div id="grade-s0-chip" class="chip"><b>6</b><span>Clinician Review</span></div>
+      </div>
+    </div>
+    <div id="grade-s1" class="shot clip" data-start="10.911" data-duration="6.056" data-track-index="2" style="z-index: 2;">
+      <div id="grade-s1-fade" class="fade">
+        <div id="grade-s1-cam" class="cam">
+          <img id="grade-s1-img" src="assets/screens/s06b.png" alt="" />
+          <div id="grade-s1-r0" class="ring" style="left: 1567px; top: 621px; width: 106px; height: 72px; border-width: 2.45px; border-radius: 5.87px; box-shadow: 0 0 0 4.9px rgba(1, 99, 1, 0.16);"></div>
+          <div id="grade-s1-t0" class="tap" style="left: 1562.5px; top: 599.5px; width: 115px; height: 115px;"></div>
+          <div id="grade-s1-r1" class="ring" style="left: 1565px; top: 828px; width: 314px; height: 52px; border-width: 2.45px; border-radius: 5.87px; box-shadow: 0 0 0 4.9px rgba(1, 99, 1, 0.16);"></div>
+          <div id="grade-s1-t1" class="tap" style="left: 1680.5px; top: 812.5px; width: 83px; height: 83px;"></div>
+        </div>
+        <div id="grade-s1-chip" class="chip"><b>6</b><span>Clinician Review</span></div>
+      </div>
+    </div>
+    <div id="grade-demo" class="demo clip" data-start="0" data-duration="16.967" data-track-index="3" style="z-index: 50;">ข้อมูลตัวอย่าง: ผล AI จำลอง ไม่ได้มาจากโมเดลจริง</div>
+    <div id="grade-veil" class="veil clip" data-start="0" data-duration="16.967" data-track-index="4" style="z-index: 60;"></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#grade-s0-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 3.547);
+    tl.fromTo("#grade-s0-r1", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 6.867);
+    tl.fromTo("#grade-s0-t1", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 7.217);
+    tl.fromTo("#grade-s0-cam", {"x": -218.28, "y": -53.48, "scale": 1.1137}, { ...{"x": -2001.7, "y": -490.47, "scale": 2.0426}, duration: 10.911, ease: "sine.inOut" }, 0.0);
+    tl.fromTo("#grade-s1-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 11.902);
+    tl.fromTo("#grade-s1-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 12.252);
+    tl.fromTo("#grade-s1-r1", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 13.984);
+    tl.fromTo("#grade-s1-t1", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 14.334);
+    tl.fromTo("#grade-s1-cam", {"x": -2001.7, "y": -490.47, "scale": 2.0426}, { ...{"x": -2001.7, "y": -735.57, "scale": 2.0426}, duration: 6.056, ease: "sine.inOut" }, 10.911);
+    tl.fromTo("#grade-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 10.911);
+    tl.fromTo("#grade-veil", { opacity: 1 }, { opacity: 0, duration: 0.5, ease: "sine.out" }, 0);
+    tl.to("#grade-veil", { opacity: 1, duration: 0.5, ease: "sine.in" }, 16.447);
+    window.__timelines["sc-grade"] = tl;
+  </script>
+</template>

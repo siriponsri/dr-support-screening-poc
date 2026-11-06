@@ -1,0 +1,47 @@
+<template>
+  <style>
+    @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
+    #root { position: absolute; inset: 0; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; color: #172018; }
+    .shot { position: absolute; inset: 0; overflow: hidden; }
+    .fade { position: absolute; inset: 0; }
+    .cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+    .cam img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    .ring { position: absolute; border-style: solid; border-color: #016301; opacity: 0; }
+    .tap { position: absolute; border-radius: 50%; background: rgba(1, 99, 1, 0.28); opacity: 0; }
+    .chip { position: absolute; left: 110px; top: 66px; display: flex; align-items: center; gap: 16px;
+      padding: 10px 28px 10px 10px; border-radius: 999px; background: #16231A; color: #FFFFFF;
+      font-size: 30px; font-weight: 600; box-shadow: 0 10px 30px rgba(22, 35, 26, 0.25); }
+    .chip b { display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px;
+      border-radius: 50%; background: #6FBF73; color: #16231A; font-size: 30px; }
+    .demo { position: absolute; right: 110px; top: 70px; padding: 12px 24px; border-radius: 14px; background: #FBF2D9;
+      border: 2px solid #E6CD8B; color: #6E4A00; font-size: 30px; font-weight: 600; transform-origin: 100% 50%;
+      box-shadow: 0 10px 30px rgba(22, 35, 26, 0.18); }
+    .veil { position: absolute; inset: 0; background: #F6F7F6; }
+  </style>
+  <div id="root" data-composition-id="sc-ai" data-width="1920" data-height="1080">
+    <div id="ai-s0" class="shot clip" data-start="0.0" data-duration="16.205" data-track-index="1" style="z-index: 1;">
+      <div id="ai-s0-fade" class="fade">
+        <div id="ai-s0-cam" class="cam">
+          <img id="ai-s0-img" src="assets/screens/s05.png" alt="" />
+          <div id="ai-s0-r0" class="ring" style="left: 1548px; top: 555px; width: 348px; height: 186px; border-width: 2.5px; border-radius: 6.0px; box-shadow: 0 0 0 5.0px rgba(1, 99, 1, 0.16);"></div>
+          <div id="ai-s0-r1" class="ring" style="left: 1755px; top: 603px; width: 124px; height: 37px; border-width: 2.5px; border-radius: 6.0px; box-shadow: 0 0 0 5.0px rgba(1, 99, 1, 0.16);"></div>
+          <div id="ai-s0-t1" class="tap" style="left: 1787.5px; top: 592.0px; width: 59px; height: 59px;"></div>
+        </div>
+        <div id="ai-s0-chip" class="chip"><b>5</b><span>AI grade suggestion</span></div>
+      </div>
+    </div>
+    <div id="ai-demo" class="demo clip" data-start="0" data-duration="16.205" data-track-index="3" style="z-index: 50;">ข้อมูลตัวอย่าง: ผล AI จำลอง ไม่ได้มาจากโมเดลจริง</div>
+    <div id="ai-veil" class="veil clip" data-start="0" data-duration="16.205" data-track-index="4" style="z-index: 60;"></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#ai-s0-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 3.426);
+    tl.fromTo("#ai-s0-r1", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 7.38);
+    tl.fromTo("#ai-s0-t1", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 7.73);
+    tl.fromTo("#ai-s0-cam", {"x": -213.33, "y": -73.33, "scale": 1.1111}, { ...{"x": -1920.0, "y": -660.0, "scale": 2.0}, duration: 16.205, ease: "sine.inOut" }, 0.0);
+    tl.fromTo("#ai-demo", { scale: 1 }, { scale: 1.08, duration: 0.45, yoyo: true, repeat: 1, ease: "sine.inOut" }, 11.983);
+    tl.fromTo("#ai-veil", { opacity: 1 }, { opacity: 0, duration: 0.5, ease: "sine.out" }, 0);
+    tl.to("#ai-veil", { opacity: 1, duration: 0.5, ease: "sine.in" }, 15.685);
+    window.__timelines["sc-ai"] = tl;
+  </script>
+</template>

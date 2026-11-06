@@ -1,0 +1,94 @@
+<template>
+  <style>
+    @font-face { font-family: 'Leelawadee UI'; src: local('Leelawadee UI'), local('LeelawadeeUI'); }
+    #root { position: absolute; inset: 0; overflow: hidden; background: #F6F7F6; font-family: Inter, 'Leelawadee UI', sans-serif; color: #172018; }
+    .shot { position: absolute; inset: 0; overflow: hidden; }
+    .fade { position: absolute; inset: 0; }
+    .cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+    .cam img { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    .ring { position: absolute; border-style: solid; border-color: #016301; opacity: 0; }
+    .tap { position: absolute; border-radius: 50%; background: rgba(1, 99, 1, 0.28); opacity: 0; }
+    .chip { position: absolute; left: 110px; top: 66px; display: flex; align-items: center; gap: 16px;
+      padding: 10px 28px 10px 10px; border-radius: 999px; background: #16231A; color: #FFFFFF;
+      font-size: 30px; font-weight: 600; box-shadow: 0 10px 30px rgba(22, 35, 26, 0.25); }
+    .chip b { display: inline-flex; align-items: center; justify-content: center; width: 50px; height: 50px;
+      border-radius: 50%; background: #6FBF73; color: #16231A; font-size: 30px; }
+    .demo { position: absolute; right: 110px; top: 70px; padding: 12px 24px; border-radius: 14px; background: #FBF2D9;
+      border: 2px solid #E6CD8B; color: #6E4A00; font-size: 30px; font-weight: 600; transform-origin: 100% 50%;
+      box-shadow: 0 10px 30px rgba(22, 35, 26, 0.18); }
+    .veil { position: absolute; inset: 0; background: #F6F7F6; }
+  </style>
+  <div id="root" data-composition-id="sc-report" data-width="1920" data-height="1080">
+    <div id="report-s0" class="shot clip" data-start="0.0" data-duration="6.102" data-track-index="1" style="z-index: 1;">
+      <div id="report-s0-fade" class="fade">
+        <div id="report-s0-cam" class="cam">
+          <img id="report-s0-img" src="assets/screens/s08a.png" alt="" />
+        </div>
+        <div id="report-s0-chip" class="chip"><b>8</b><span>Screening report</span></div>
+      </div>
+    </div>
+    <div id="report-s1" class="shot clip" data-start="5.302" data-duration="5.413" data-track-index="2" style="z-index: 2;">
+      <div id="report-s1-fade" class="fade">
+        <div id="report-s1-cam" class="cam">
+          <img id="report-s1-img" src="assets/screens/s08b.png" alt="" />
+          <div id="report-s1-r0" class="ring" style="left: 529px; top: 651px; width: 1118px; height: 294px; border-width: 2.6px; border-radius: 6.25px; box-shadow: 0 0 0 5.21px rgba(1, 99, 1, 0.16);"></div>
+        </div>
+        <div id="report-s1-chip" class="chip"><b>8</b><span>Screening report</span></div>
+      </div>
+    </div>
+    <div id="report-s2" class="shot clip" data-start="9.915" data-duration="3.182" data-track-index="1" style="z-index: 3;">
+      <div id="report-s2-fade" class="fade">
+        <div id="report-s2-cam" class="cam">
+          <img id="report-s2-img" src="assets/screens/s08b.png" alt="" />
+          <div id="report-s2-r0" class="ring" style="left: 611px; top: 971px; width: 135px; height: 52px; border-width: 2.6px; border-radius: 6.25px; box-shadow: 0 0 0 5.21px rgba(1, 99, 1, 0.16);"></div>
+          <div id="report-s2-t0" class="tap" style="left: 637.0px; top: 955.5px; width: 83px; height: 83px;"></div>
+        </div>
+        <div id="report-s2-chip" class="chip"><b>8</b><span>Screening report</span></div>
+      </div>
+    </div>
+    <div id="report-s3" class="shot clip" data-start="12.297" data-duration="3.881" data-track-index="2" style="z-index: 4;">
+      <div id="report-s3-fade" class="fade">
+        <div id="report-s3-cam" class="cam">
+          <img id="report-s3-img" src="assets/screens/s08c.png" alt="" />
+          <div id="report-s3-r0" class="ring" style="left: 510px; top: 973px; width: 1156px; height: 52px; border-width: 2.6px; border-radius: 6.25px; box-shadow: 0 0 0 5.21px rgba(1, 99, 1, 0.16);"></div>
+          <div id="report-s3-t0" class="tap" style="left: 1046.5px; top: 957.5px; width: 83px; height: 83px;"></div>
+        </div>
+        <div id="report-s3-chip" class="chip"><b>8</b><span>Screening report</span></div>
+      </div>
+    </div>
+    <div id="report-s4" class="shot clip" data-start="15.378" data-duration="6.736" data-track-index="1" style="z-index: 5;">
+      <div id="report-s4-fade" class="fade">
+        <div id="report-s4-cam" class="cam">
+          <img id="report-s4-img" src="assets/screens/s09.png" alt="" />
+          <div id="report-s4-r0" class="ring" style="left: 480px; top: 276px; width: 1216px; height: 60px; border-width: 3.75px; border-radius: 9.0px; box-shadow: 0 0 0 7.5px rgba(1, 99, 1, 0.16);"></div>
+          <div id="report-s4-t0" class="tap" style="left: 1040.0px; top: 258.0px; width: 96px; height: 96px;"></div>
+        </div>
+        <div id="report-s4-chip" class="chip"><b>9</b><span>Referrals</span></div>
+      </div>
+    </div>
+    <div id="report-demo" class="demo clip" data-start="0" data-duration="22.114" data-track-index="3" style="z-index: 50;">ข้อมูลตัวอย่าง</div>
+    <div id="report-veil" class="veil clip" data-start="0" data-duration="22.114" data-track-index="4" style="z-index: 60;"></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#report-s0-cam", {"x": -62.75, "y": -8.39, "scale": 1.0458}, { ...{"x": -384.0, "y": -51.36, "scale": 1.28}, duration: 5.302, ease: "sine.inOut" }, 0.0);
+    tl.fromTo("#report-s1-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 6.28);
+    tl.fromTo("#report-s1-cam", {"x": -384.0, "y": -51.36, "scale": 1.28}, { ...{"x": -806.4, "y": -993.6, "scale": 1.92}, duration: 4.613, ease: "sine.inOut" }, 5.302);
+    tl.fromTo("#report-s1-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 5.302);
+    tl.fromTo("#report-s2-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 10.296);
+    tl.fromTo("#report-s2-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 10.646);
+    tl.fromTo("#report-s2-cam", {"x": -806.4, "y": -993.6, "scale": 1.92}, { ...{"x": -806.4, "y": -993.6, "scale": 1.92}, duration: 2.382, ease: "sine.inOut" }, 9.915);
+    tl.fromTo("#report-s2-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 9.915);
+    tl.fromTo("#report-s3-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 12.773);
+    tl.fromTo("#report-s3-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 13.123);
+    tl.fromTo("#report-s3-cam", {"x": -806.4, "y": -993.6, "scale": 1.92}, { ...{"x": -806.4, "y": -993.6, "scale": 1.92}, duration: 3.081, ease: "sine.inOut" }, 12.297);
+    tl.fromTo("#report-s3-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 12.297);
+    tl.fromTo("#report-s4-r0", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 0.55, ease: "power2.out" }, 17.16);
+    tl.fromTo("#report-s4-t0", { opacity: 0.85, scale: 0.3 }, { opacity: 0, scale: 1.5, duration: 0.8, ease: "power1.out" }, 17.51);
+    tl.fromTo("#report-s4-cam", {"x": -806.4, "y": -993.6, "scale": 1.92}, { ...{"x": -480.0, "y": -53.33, "scale": 1.3333}, duration: 6.736, ease: "sine.inOut" }, 15.378);
+    tl.fromTo("#report-s4-fade", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut" }, 15.378);
+    tl.fromTo("#report-veil", { opacity: 1 }, { opacity: 0, duration: 0.5, ease: "sine.out" }, 0);
+    tl.to("#report-veil", { opacity: 1, duration: 0.5, ease: "sine.in" }, 21.594);
+    window.__timelines["sc-report"] = tl;
+  </script>
+</template>
