@@ -7,9 +7,21 @@ recoverable from the Git tag `archive/docs-before-cut-20261101`.
 
 | Guide | For | File |
 | --- | --- | --- |
-| Deployment guide | hospital IT and the operator | `docs/pdfs/DEPLOYMENT_GUIDE_TH.pdf` (coming in the next step) |
-| Test report | the owner and reviewers | `docs/pdfs/TEST_REPORT_TH.pdf` (coming in the next step) |
-| User manual, step by step with screenshots | physicians and nurses, no code | `docs/pdfs/USER_MANUAL_TH.pdf` (coming in the next step) |
+| Deployment guide | hospital IT and the operator | [`docs/pdfs/DEPLOYMENT_GUIDE_TH.pdf`](pdfs/DEPLOYMENT_GUIDE_TH.pdf) |
+| Test report | the owner and reviewers | [`docs/pdfs/TEST_REPORT_TH.pdf`](pdfs/TEST_REPORT_TH.pdf) |
+| User manual, step by step with screenshots | physicians and nurses, no code | [`docs/pdfs/USER_MANUAL_TH.pdf`](pdfs/USER_MANUAL_TH.pdf) |
+
+The Thai sources are in `docs/th/` (`user-manual.md`, `deployment-guide.md`, `test-report.md`, screenshots in
+`docs/th/images/`, the Anuphan font with its OFL licence in `docs/th/assets/`). After editing a source, rebuild
+the PDFs (needs Microsoft Edge and Playwright, both in the test setup):
+
+```powershell
+.\.venv\Scripts\python.exe scripts\docs\build_pdfs.py               # all three, or name one: user-manual
+.\.venv\Scripts\python.exe scripts\docs\capture_thai_manual.py --demo-root C:\DRDemo   # retake the screenshots
+```
+
+The screenshot script starts its own throwaway app with sign-in, the ten public samples and the synthetic
+fixture (mock AI, demo data only), so it needs an empty demo folder and a built `frontend/dist`.
 
 ## For developers
 
